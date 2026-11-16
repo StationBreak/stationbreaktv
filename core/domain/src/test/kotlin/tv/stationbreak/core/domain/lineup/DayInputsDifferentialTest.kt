@@ -12,6 +12,7 @@ import tv.stationbreak.core.engine.lineup.LineupEdits
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.RuleCollection
@@ -277,24 +278,22 @@ class DayInputsDifferentialTest {
         assertTrue(describe(lineup).values.any { "weights=[(" in it }, "a curated day has weights to compare")
     }
 
+    // The mark is not a day input: no day depends on it (it changes no on-set by itself), so neither Touched nor Added
+    // discards built days.
     @Test
-    fun chosenByViewerAndShelfReasonDoNot() {
+    fun viewerChoiceAndShelfReasonDoNot() {
         val lineup = fixtures.first()
         val id = LineupIds.starter("westerns")
-        val marked =
-            lineup.copy(
-                channels =
-                    lineup.channels.map {
-                        if (it.id ==
-                            id
-                        ) {
-                            it.copy(chosenByViewer = true, shelfReason = ShelfReason.TooThin)
-                        } else {
-                            it
-                        }
-                    },
-            )
-        assertEquals(digest(lineup), digest(marked))
+        for (choice in listOf(ViewerChoice.Touched, ViewerChoice.Added)) {
+            val marked =
+                lineup.copy(
+                    channels =
+                        lineup.channels.map {
+                            if (it.id == id) it.copy(viewerChoice = choice, shelfReason = ShelfReason.TooThin) else it
+                        },
+                )
+            assertEquals(digest(lineup), digest(marked), "$choice")
+        }
         assertEquals(digest(lineup), digest(lineup.copy(viewerChoicesKnown = false)))
     }
 

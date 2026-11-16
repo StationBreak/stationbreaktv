@@ -54,6 +54,7 @@ import tv.stationbreak.core.engine.lineup.LineupPlanner
 import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -217,6 +218,26 @@ class LineupService internal constructor(
 
         /** Whether the rules formats of the stored lineup were told ([noteFormats]). Used under [mutex]. */
         var formatsNoted = false
+
+        /**
+         * What this entry knows of the version of the account's file on disk, for the one upgrade copy a save makes
+         * ([saveVerified]). Set where the bytes are decoded, and to the version saved once a save returns true. Used
+         * under [mutex].
+         */
+        var disk: Disk = Disk.Unknown
+    }
+
+    /** What an [Entry] knows of the file on disk. */
+    private sealed interface Disk {
+        /** Not read yet, or a save failed or was cut off, so the file may be either: read again before a save. */
+        data object Unknown : Disk
+
+        /** There was no file (a new account), or it was set aside or forgotten: nothing to copy. */
+        data object NoFile : Disk
+
+        data class Version(
+            val value: Int,
+        ) : Disk
     }
 
     /** Where a refresh starts from, and whether its result may be saved. */
@@ -227,8 +248,6 @@ class LineupService internal constructor(
         // True only when the store held no file and the session held no lineup: a new account, not a lost one.
         val isNew: Boolean = false,
         val repairs: TodayRepairs = TodayRepairs.NONE,
-        // The version of the stored file this started from; null when there was none (or it was not read).
-        val fileVersion: Int? = null,
     )
 
     private val lock = Any()
@@ -711,7 +730,10 @@ class LineupService internal constructor(
             entry.set(null)
             entry.loaded = false
             entry.writable = false
-            store.forget(owner.key).also { forgetDerived(owner.key) }
+            store.forget(owner.key).also {
+                entry.disk = if (it) Disk.NoFile else Disk.Unknown
+                forgetDerived(owner.key)
+            }
         }
     }
 
@@ -834,7 +856,7 @@ class LineupService internal constructor(
                 noteWritable(entry)
                 Recorded.NoLineup
             } else {
-                record(owner, entry, held, start.fileVersion, change(held))
+                record(owner, entry, held, change(held))
             }
         }
     }
@@ -890,7 +912,6 @@ class LineupService internal constructor(
         owner: Owner,
         entry: Entry,
         held: Revisioned,
-        fileVersion: Int?,
         wanted: TodayRepairs,
     ): Recorded {
         val nowMs = clock.now().toEpochMilliseconds()
@@ -917,9 +938,6 @@ class LineupService internal constructor(
             else -> {
                 // Finishes even if the caller is cancelled, so the file and the published record never part.
                 withContext(NonCancellable) {
-                    // The first version-4 save of a version-3 file keeps the file as it stands (a failed copy is
-                    // reported).
-                    if (fileVersion == LineupCodec.BASE_VERSION && !fitted.isEmpty) keepUpgradeCopy(owner, fileVersion)
                     if (saveVerified(owner, held.lineup, held.meta, fitted)) {
                         entry.set(held.copy(repairs = fitted))
                         Recorded.Saved
@@ -950,6 +968,7 @@ class LineupService internal constructor(
                     val stored = store.load(owner.key)
                     val decoded = (stored as? StoredBytes.Present)?.let { LineupCodec.decode(it.bytes) }
                     if (decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup)) {
+                        entry.disk = Disk.Version(decoded.fileVersion)
                         droppedUnreadableRecord(owner, entry, decoded)
                         entry.writable = true
                         publish(entry, decoded.lineup, decoded.meta, decoded.repairs)
@@ -1002,6 +1021,7 @@ class LineupService internal constructor(
         return entry.mutex.withLock {
             when (val stored = store.load(owner.key)) {
                 StoredBytes.Absent -> {
+                    entry.disk = Disk.NoFile
                     floorWithoutFile(entry, empty, newer = false)
                 }
 
@@ -1027,6 +1047,7 @@ class LineupService internal constructor(
     ): RecordReset =
         when {
             decoded is LineupCodec.Decoded.Loaded && owner.owns(decoded.lineup) -> {
+                entry.disk = Disk.Version(decoded.fileVersion)
                 noteFormats(entry, decoded)
                 if (empty) {
                     emptied(owner, entry, decoded)
@@ -1037,6 +1058,7 @@ class LineupService internal constructor(
 
             decoded is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
+                entry.disk = Disk.Version(decoded.version)
                 leftAlone(entry)
                 floorWithoutFile(entry, empty, newer = true)
             }
@@ -1044,6 +1066,7 @@ class LineupService internal constructor(
             // Unreadable, or another account's lineup: out of the way, as a refresh would.
             store.setAside(owner.key) -> {
                 report(LineupEvent.SetAsideUnreadable)
+                entry.disk = Disk.NoFile
                 floorWithoutFile(entry, empty, newer = false)
             }
 
@@ -1092,7 +1115,6 @@ class LineupService internal constructor(
                         ?.latestSeq() ?: 0L,
                 )
             droppedUnreadableRecord(owner, entry, decoded)
-            if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
             entry.writable = true
             if (saveVerified(owner, decoded.lineup, decoded.meta, TodayRepairs.NONE)) {
                 publish(entry, decoded.lineup, decoded.meta, TodayRepairs.NONE)
@@ -1174,9 +1196,9 @@ class LineupService internal constructor(
             val rolledRepairs = held?.repairs?.rolled(nowMs)?.prunedAt(applied)
             // The roll never does the first version-3 write: a lineup decoded from a version 1 or 2 file has none of
             // the fields `rolled` clears (no leavesAtMs, previous rules or basis), so it comes back unchanged and is
-            // not saved here; the first save of a new version is a refresh's or an edit's, which keep the old file's
-            // copy first. It relies on `entry.writable` as the last `startOf` under the lock set it: this roll reads
-            // nothing from the store and never sets it.
+            // not saved here. Any save, this one included, keeps the copy of an older file first ([saveVerified]),
+            // from the version the entry knows is on disk (read again when a save before it failed). It relies on
+            // `entry.writable` as the last `startOf` under the lock set it.
             // The repair record is pruned with it: a day that has ended is no use to anyone.
             val changed = held != null && (rolled !== held.lineup || rolledRepairs !== held.repairs)
             val due = held != null && changed && held.writable && entry.writable
@@ -1227,8 +1249,8 @@ class LineupService internal constructor(
                 val decoded = stored?.let { LineupCodec.decode(it.bytes) } as? LineupCodec.Decoded.Loaded
                 val due = decoded?.takeIf { it.upgradedRules > 0 && owner.owns(it.lineup) }
                 val held = entry.state.value?.takeIf { it.writable && entry.writable }
+                if (decoded != null && owner.owns(decoded.lineup)) entry.disk = Disk.Version(decoded.fileVersion)
                 if (due != null && held != null) {
-                    if (due.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, due.fileVersion)
                     val repairs = savedWithRecord(owner, entry, held.lineup, held.meta, held.repairs, savedSeq)
                     if (repairs !== held.repairs) entry.set(held.copy(repairs = repairs))
                 }
@@ -1293,6 +1315,7 @@ class LineupService internal constructor(
         val sessionRepairs = held?.repairs ?: TodayRepairs.NONE
         return when (val stored = store.load(owner.key)) {
             StoredBytes.Absent -> {
+                entry.disk = Disk.NoFile
                 Start(session, sessionMeta, save = true, isNew = session == null, repairs = sessionRepairs)
             }
 
@@ -1317,23 +1340,24 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.Loaded -> {
                 val lineup = decoded.lineup
                 if (owner.owns(lineup)) {
+                    // Before anything saves (the unreadable record's rewrite below does): this is the version on disk.
+                    entry.disk = Disk.Version(decoded.fileVersion)
                     noteFormats(entry, decoded)
                     droppedUnreadableRecord(owner, entry, decoded)
-                    // Only an older file's upgrade to version 3 is kept here; the first version-4 save keeps its own.
-                    if (decoded.fileVersion < LineupCodec.BASE_VERSION) keepUpgradeCopy(owner, decoded.fileVersion)
-                    Start(lineup, decoded.meta, true, repairs = decoded.repairs, fileVersion = decoded.fileVersion)
+                    Start(lineup, decoded.meta, true, repairs = decoded.repairs)
                 } else {
-                    setAside(owner, session)
+                    setAside(owner, entry, session)
                 }
             }
 
             is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
+                entry.disk = Disk.Version(decoded.version)
                 Start(session.lineup, session.meta, save = false, repairs = session.repairs)
             }
 
             LineupCodec.Decoded.Unreadable -> {
-                setAside(owner, session)
+                setAside(owner, entry, session)
             }
         }
 
@@ -1370,16 +1394,6 @@ class LineupService internal constructor(
         }
     }
 
-    // The file of an older version is copied once before the first save of this version over it, so a downgrade has
-    // something to go back to. A copy that cannot be written is reported and the save goes on: the lineup in memory
-    // is what the viewer sees, and withholding every edit for the sake of a copy would be worse.
-    private suspend fun keepUpgradeCopy(
-        owner: Owner,
-        fileVersion: Int,
-    ) {
-        if (!store.keepCopy(owner.key, "v$fileVersion")) report(LineupEvent.BackupFailed)
-    }
-
     /** What a session held when a start read the store: its lineup, meta and repairs. */
     private class Held(
         val lineup: Lineup?,
@@ -1390,18 +1404,28 @@ class LineupService internal constructor(
     // An unreadable file is moved out of the way before anything is saved; one that won't move is never written over.
     private suspend fun setAside(
         owner: Owner,
+        entry: Entry,
         session: Held,
     ): Start =
         if (store.setAside(owner.key)) {
             report(LineupEvent.SetAsideUnreadable)
+            entry.disk = Disk.NoFile
             Start(null, RefreshMeta(), save = true)
         } else {
             report(LineupEvent.UnreadableLeftAlone)
             Start(session.lineup, session.meta, save = false, repairs = session.repairs)
         }
 
-    // A lineup is saved only when its own bytes decode back to a lineup of this account; otherwise the stored file is
-    // left as it is, and the in-memory lineup is still published.
+    // A lineup is saved only when its own bytes decode back to a lineup of this account, with the repair record and the
+    // viewer's marks it was given (a mark the file cannot hold, an Added on a channel that is not an unedited starter,
+    // is compared as the Touched it is written as); otherwise the stored file is left as it is, and the in-memory
+    // lineup is still published.
+    //
+    // This is the one place that keeps the copy of an older file: before the bytes of a higher version replace it, the
+    // file as it stands is copied under the tag of the pair of versions ([upgradeCopyTag]). The version on disk is the
+    // entry's ([Entry.disk]); where that is not known it is read again first. A copy that cannot be written is reported
+    // and the save goes on: the lineup in memory is what the viewer sees, and withholding every edit for the sake of
+    // a copy would be worse.
     private suspend fun saveVerified(
         owner: Owner,
         planned: Lineup,
@@ -1411,15 +1435,116 @@ class LineupService internal constructor(
         val bytes = seams.encode(planned, meta, repairs)
         val back = LineupCodec.decode(bytes)
         val stored = back as? LineupCodec.Decoded.Loaded
-        return if (stored == null || !owner.owns(stored.lineup) || stored.repairs != repairs.stored()) {
-            report(LineupEvent.SaveRejected)
-            false
-        } else if (!store.save(owner.key, bytes)) {
-            report(LineupEvent.SaveFailed)
-            false
-        } else {
-            true
+        val entry = entryOf(owner)
+        return when {
+            stored == null || !owner.owns(stored.lineup) || stored.repairs != repairs.stored() ||
+                marksOf(planned) != marksOf(stored.lineup) -> {
+                report(LineupEvent.SaveRejected)
+                false
+            }
+
+            !diskKnown(owner, entry) -> {
+                false
+            }
+
+            else -> {
+                keepUpgradeCopy(owner, entry, stored.fileVersion)
+                written(owner, entry, bytes, stored.fileVersion)
+            }
         }
+    }
+
+    // What each channel's mark is once the file has taken it: an Added the file cannot hold is a Touched.
+    private fun marksOf(lineup: Lineup): List<ViewerChoice> =
+        lineup.channels.map {
+            if (it.viewerChoice == ViewerChoice.Added && !storedCanHoldAddedMark(it.source)) {
+                ViewerChoice.Touched
+            } else {
+                it.viewerChoice
+            }
+        }
+
+    // True when [entry] knows what is on disk. Where it does not (a save failed or was cut off, so the file may be the
+    // old bytes or the new), the file is read again: absent, nothing to copy; a lineup of this account, its version;
+    // anything else is no file to write over, and nothing is saved (a read that failed stays unknown).
+    private suspend fun diskKnown(
+        owner: Owner,
+        entry: Entry,
+    ): Boolean {
+        if (entry.disk != Disk.Unknown) return true
+        return when (val stored = store.load(owner.key)) {
+            StoredBytes.Absent -> {
+                entry.disk = Disk.NoFile
+                true
+            }
+
+            StoredBytes.Failed -> {
+                report(LineupEvent.ReadFailedLeftAlone)
+                leftAlone(entry)
+                false
+            }
+
+            is StoredBytes.Present -> {
+                when (val decoded = LineupCodec.decode(stored.bytes)) {
+                    is LineupCodec.Decoded.Loaded -> {
+                        val ours = owner.owns(decoded.lineup)
+                        if (ours) {
+                            entry.disk = Disk.Version(decoded.fileVersion)
+                        } else {
+                            // Another account's lineup stands there: not written over, and said so, as `startOf` does.
+                            report(LineupEvent.UnreadableLeftAlone)
+                            leftAlone(entry)
+                        }
+                        ours
+                    }
+
+                    is LineupCodec.Decoded.NewerVersion -> {
+                        report(LineupEvent.NewerVersionLeftAlone)
+                        entry.disk = Disk.Version(decoded.version)
+                        leftAlone(entry)
+                        false
+                    }
+
+                    LineupCodec.Decoded.Unreadable -> {
+                        report(LineupEvent.UnreadableLeftAlone)
+                        leftAlone(entry)
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    // Copied once, and only for a higher version than the file holds: a file of an older version is copied before the
+    // first save of a newer one over it, so a downgrade has something to go back to. A save of the same or a lower
+    // version (a version-4 file whose unreadable record is dropped, a roll that clears the last mark) needs no copy.
+    private suspend fun keepUpgradeCopy(
+        owner: Owner,
+        entry: Entry,
+        version: Int,
+    ) {
+        val disk = entry.disk
+        if (disk is Disk.Version && version > disk.value) {
+            if (!store.keepCopy(owner.key, upgradeCopyTag(disk.value, version))) report(LineupEvent.BackupFailed)
+        }
+    }
+
+    // The write, after which the entry knows the file is [version]: a save that fails, or is cut off after the bytes
+    // may have landed, leaves the version unknown.
+    private suspend fun written(
+        owner: Owner,
+        entry: Entry,
+        bytes: ByteArray,
+        version: Int,
+    ): Boolean {
+        var saved = false
+        try {
+            saved = store.save(owner.key, bytes)
+        } finally {
+            entry.disk = if (saved) Disk.Version(version) else Disk.Unknown
+        }
+        if (!saved) report(LineupEvent.SaveFailed)
+        return saved
     }
 
     private fun publish(
@@ -1440,6 +1565,21 @@ class LineupService internal constructor(
  * lineup for its first choice, and a finalised one for a newer catalog (which it would otherwise never receive).
  */
 internal const val GIVE_UP_AFTER = 2
+
+/**
+ * The tag of the copy kept of a file of version [from] before one of version [to] is saved over it
+ * (`LineupStore.keepCopy`): `v1` and `v2` for the upgrade to 3 and `v3` for the one to 4 are the tags files already on
+ * devices carry (the first copy written stays), and every other pair is `v{from}-to{to}` (`v3-to5`, `v4-to5`, and the
+ * pairs left when a first save failed).
+ */
+internal fun upgradeCopyTag(
+    from: Int,
+    to: Int,
+): String {
+    val toBase = to == LineupCodec.BASE_VERSION && from < to
+    val toRepairs = from == LineupCodec.BASE_VERSION && to == LineupCodec.REPAIRS_VERSION
+    return if (toBase || toRepairs) "v$from" else "v$from-to$to"
+}
 
 /** What an edit or reset did at the service: it [Ok], or its save failed ([Failed]) or the edit was invalid. */
 internal sealed interface Saved<out T> {

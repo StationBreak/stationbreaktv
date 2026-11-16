@@ -78,7 +78,7 @@ class LineupPlannerCurationTest {
         )
 
     private fun LineupChannel.chosenShelf(reason: ShelfReason?): LineupChannel =
-        copy(state = ChannelState.Shelf, chosenByViewer = true, shelfReason = reason)
+        copy(state = ChannelState.Shelf, viewerChoice = ViewerChoice.Touched, shelfReason = reason)
 
     private fun Lineup.withCustoms(count: Int): Lineup = copy(channels = channels + (0 until count).map(::custom))
 
@@ -180,7 +180,7 @@ class LineupPlannerCurationTest {
 
     @Test
     fun aViewerChosenStarterNeverLeaves() {
-        val lineup = first().withChannel("delta") { it.copy(chosenByViewer = true) }
+        val lineup = first().withChannel("delta") { it.copy(viewerChoice = ViewerChoice.Touched) }
 
         val next = replan(lineup, libraryOf(fills("delta" to 0)))
 
@@ -242,7 +242,7 @@ class LineupPlannerCurationTest {
     // The old rule (50 - 2 leftovers - 44 - 1 pinned) left room for three and shelved delta and echo.
     @Test
     fun customAndPinnedChannelsTakeNoSeatFromThePlannersPicks() {
-        val lineup = first().withCustoms(44).withChannel("alpha") { it.copy(chosenByViewer = true) }
+        val lineup = first().withCustoms(44).withChannel("alpha") { it.copy(viewerChoice = ViewerChoice.Touched) }
 
         val next = replan(lineup, libraryOf(fills()))
 
@@ -264,7 +264,9 @@ class LineupPlannerCurationTest {
 
         // The viewer switches the opt-in starter on: it takes its titles' homes, so "latest" holds none.
         val chosen =
-            lineup.withChannel("late") { it.copy(state = ChannelState.On, chosenByViewer = true, shelfReason = null) }
+            lineup.withChannel("late") {
+                it.copy(state = ChannelState.On, viewerChoice = ViewerChoice.Touched, shelfReason = null)
+            }
         val next = replan(chosen, library, withLate)
 
         assertTrue(next.staying("late"))
@@ -322,7 +324,7 @@ class LineupPlannerCurationTest {
                 channels =
                     chosen.channels.map {
                         val starter = it.source is ChannelSource.Starter
-                        if (starter) it.copy(state = ChannelState.On, chosenByViewer = true) else it
+                        if (starter) it.copy(state = ChannelState.On, viewerChoice = ViewerChoice.Touched) else it
                     },
             )
 
@@ -455,7 +457,7 @@ class LineupPlannerCurationTest {
         assertNull(next.channel("delta").shelfReason)
 
         // Chosen but still marked as leaving (written before the edit cleared it): the planner clears it.
-        val stale = leaving.withChannel("delta") { it.copy(chosenByViewer = true) }
+        val stale = leaving.withChannel("delta") { it.copy(viewerChoice = ViewerChoice.Touched) }
         val pinned = replan(stale, emptied, nowMs = noon + 1_000L).channel("delta")
         assertEquals(ChannelState.On, pinned.state)
         assertNull(pinned.leavesAtMs)
@@ -472,11 +474,13 @@ class LineupPlannerCurationTest {
             first(library, more)
                 // The viewer gave alpha golf's number, so golf waits on the shelf with none.
                 .withChannel("golf") { it.copy(state = ChannelState.Shelf, defaultNumber = null, shelfReason = null) }
-                .withChannel("alpha") { it.copy(numberOverride = 140, chosenByViewer = true) }
+                .withChannel("alpha") { it.copy(numberOverride = 140, viewerChoice = ViewerChoice.Touched) }
                 // Shelved by the viewer's choice, each with a stale reason or none.
                 .withChannel("echo") { it.chosenShelf(ShelfReason.Empty) }
-                .withChannel("dup") { it.copy(chosenByViewer = true, shelfReason = null) }
-                .withChannel("foxtrot") { it.copy(chosenByViewer = true, shelfReason = ShelfReason.BelowCap) }
+                .withChannel("dup") { it.copy(viewerChoice = ViewerChoice.Touched, shelfReason = null) }
+                .withChannel("foxtrot") {
+                    it.copy(viewerChoice = ViewerChoice.Touched, shelfReason = ShelfReason.BelowCap)
+                }
 
         val next = replan(lineup, library, more)
 
@@ -499,7 +503,8 @@ class LineupPlannerCurationTest {
         val library = libraryOf(fills("late" to QUALIFYING_ITEMS))
         val lineup = first(library, withLate)
         val touched = lineup.withChannel("late") { it.chosenShelf(null) }
-        val renumbered = lineup.withChannel("late") { it.copy(numberOverride = 525, chosenByViewer = true) }
+        val renumbered =
+            lineup.withChannel("late") { it.copy(numberOverride = 525, viewerChoice = ViewerChoice.Touched) }
 
         assertEquals(ShelfReason.OptIn, replan(touched, library, withLate).channel("late").shelfReason)
         assertEquals(ShelfReason.OptIn, replan(renumbered, library, withLate).channel("late").shelfReason)
@@ -610,7 +615,7 @@ class LineupPlannerCurationTest {
                 channels =
                     first().channels.map {
                         val starterOn = it.source is ChannelSource.Starter && it.state == ChannelState.On
-                        if (starterOn) it.copy(chosenByViewer = true) else it
+                        if (starterOn) it.copy(viewerChoice = ViewerChoice.Touched) else it
                     },
             )
 

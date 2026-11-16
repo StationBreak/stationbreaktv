@@ -516,7 +516,8 @@ class ChannelBuildManagerTest {
     @Test
     fun aNewerAppsFileIsNotEditable() =
         runBlocking<Unit> {
-            store.inner.save(ACCOUNT, """{"version":5,"whatever":"a newer app wrote"}""".encodeToByteArray())
+            val newer = """{"version":${LineupCodec.VERSION + 1},"whatever":"a newer app wrote"}"""
+            store.inner.save(ACCOUNT, newer.encodeToByteArray())
             service.refresh(ACCOUNT, LIBRARIES)
 
             val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, kids = false)))

@@ -9,6 +9,7 @@ import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.PlannerSelection
 import tv.stationbreak.core.engine.lineup.StarterCatalog
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.curation.Selection
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
@@ -19,8 +20,9 @@ import kotlin.test.assertTrue
 
 /** The audit reads the planner's own choices, not copies of them: they agree, and a drift fails loudly. */
 class PlannerAgreementTest {
-    // The audit's own call of the selection, made as the planner makes it (`PlannerSelection`): every candidate pinned
-    // or free, the viewer's switch-ons pinned, an opt-in one never ranked, and the planner's picks as the room.
+    // The audit's own call of the selection, made as the planner makes it (`PlannerSelection`): every candidate pinned,
+    // added or free, the viewer's switch-ons pinned, an added one or an opt-in one never ranked, and the planner's
+    // picks as the room.
     private fun chosenAsThePlannerDoes(planned: PlannedLineup): Set<ChannelId> {
         val lanes = AuditLanes(planned)
         val byId = planned.lineup.channels.associateBy { it.id }
@@ -37,7 +39,9 @@ class PlannerAgreementTest {
                 val source = byId.getValue(it).source as ChannelSource.Starter
                 planned.planning.recipe(source.recipeKey)?.optIn == true
             }
-        return Selection.select(planned.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS).on.toSet()
+        val added = pinned.filterTo(HashSet()) { byId.getValue(it).viewerChoice == ViewerChoice.Added }
+        val room = LineupDefaults.PLANNER_PICKS
+        return Selection.select(planned.snapshot, candidates, pinned, optIn, room, added).on.toSet()
     }
 
     // What the planner put on for the day the report describes: the starters on and not leaving at its boundary.
@@ -62,17 +66,38 @@ class PlannerAgreementTest {
         assertTrue(finalised >= 4, "Most profiles are finalised ($finalised)")
     }
 
-    // The seat rule (#785) on the profile built for it: the viewer's five switch-ons and a custom channel cost the
-    // planner none of its 48 picks, and the five stay on, outside the top.
+    // The seat rule (#785) and the viewer's added channels on the profile built for them: the five switch-ons from the
+    // shelf, the three hidden picks switched on again and the two kept starters switched on again, and a custom
+    // channel, cost the planner none of its 48 picks. All ten are on beside them, each marked as an addition.
     @Test
     fun theSeatHouseholdKeepsAllFortyEightPicksBesideTheViewersChannels() {
         val profile = ProfileLibraries.build("seat-household")
         val none = CollectionNames(emptyMap())
         val planned = PlannedLineup.of(profile.input.snapshot, none, profile.input.viewer)
-        val switchedOn = SeatHousehold.SWITCHED_ON.map { LineupIds.starter(it) }.toSet()
+        val added =
+            planned.lineup.channels
+                .filter { it.viewerChoice == ViewerChoice.Added }
+                .map { it.id }
+                .toSet()
+        val wanted = (SeatHousehold.SWITCHED_ON + SeatHousehold.HIDDEN_THEN_ON).map { LineupIds.starter(it) }.toSet()
+        assertEquals(
+            SeatHousehold.SWITCHED_ON.size + SeatHousehold.HIDDEN_THEN_ON.size + SeatHousehold.KEPT_THEN_ON,
+            added.size,
+            "every switch-on the viewer made adds a channel",
+        )
+        assertTrue(added.containsAll(wanted), "the shelf and the hidden starters are the viewer's additions")
         val bareOn = plannersOnSet(PlannedLineup.of(profile.input.snapshot, none, null))
         assertEquals(LineupDefaults.PLANNER_PICKS, bareOn.size, "a full lineup")
-        assertEquals(bareOn + switchedOn, plannersOnSet(planned), "the picks stay and the five are on beside them")
+        val free =
+            planned.lineup.channels.filter {
+                it.source is ChannelSource.Starter && it.state == ChannelState.On && it.leavesAtMs == null &&
+                    it.viewerChoice == ViewerChoice.None
+            }
+        assertEquals(
+            LineupDefaults.PLANNER_PICKS,
+            free.size,
+            "the planner's own picks stay at the room (counted: a title an addition homes can move a pick)",
+        )
         val custom = planned.lineup.channels.single { it.source is ChannelSource.Custom }
         assertEquals(ChannelState.On, custom.state)
     }

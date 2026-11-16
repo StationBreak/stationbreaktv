@@ -186,7 +186,7 @@ class LineupServiceResetRecordTest {
     @Test
     fun newerVersion_isLeftUntouched_andFloorsAtZero() =
         runBlocking<Unit> {
-            val newer = """{"version":5,"whatever":"a newer app wrote"}""".encodeToByteArray()
+            val newer = """{"version":${LineupCodec.VERSION + 1},"whatever":"a newer app wrote"}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             store.calls.clear()
             val service = newService()
@@ -225,7 +225,7 @@ class LineupServiceResetRecordTest {
             val service = newService()
             assertEquals(record, checkNotNull(service.loaded(ACCOUNT)).repairs, "held in memory")
             // A newer app has written the file since: memory still holds the old lineup and its record.
-            val newer = """{"version":5}""".encodeToByteArray()
+            val newer = """{"version":${LineupCodec.VERSION + 1}}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
 
             assertEquals(RecordReset.Floor(0L, record = false, newer = true), service.floorRecord(ACCOUNT))

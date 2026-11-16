@@ -60,11 +60,18 @@ import tv.stationbreak.core.rules.ChannelRules
  *   (`Lineup.rolled`); picked again before then, it stays. Ties between channels follow each recipe's number, as in
  *   the day build, never the channel's. A starter on the air that the viewer chose
  *   (switched on or renumbered) is pinned: never shelved, and a leaving time is cleared; an edited one is never
- *   touched. The planner's own picks are capped at [LineupDefaults.PLANNER_PICKS] (the seat rule, ADR-0023): a pinned
- *   starter inside the top of the selection's one order takes one of those seats; a custom channel, an edited
- *   starter, an opt-in starter, the leftovers and a pinned starter outside the top cost none, so the lineup is the
- *   picks plus those. A shelved starter the viewer chose or edited is not switched on by the planner, but gets its
- *   reason.
+ *   touched. The planner's own picks are capped at [LineupDefaults.PLANNER_PICKS] (the seat rule, ADR-0023): a
+ *   starter the viewer only touched (renumbered, swapped, or switched off and on again as an undo) is a ranked pin,
+ *   and inside the top of the selection's one order takes one of those seats. A starter the viewer added (switched on
+ *   while the planner had not picked it: [ViewerChoice.Added]) takes part in the homing, is never ranked and takes
+ *   no seat wherever its score falls, so the room is always the planner's own picks, short only when too few
+ *   starters qualify (one the homing to the added ones thins below the bar is shelved, with no free starter left to
+ *   replace it). A custom channel, an edited starter, an opt-in starter, the leftovers, an added starter and a pinned
+ *   starter outside the top cost no seat, so the lineup is the picks plus those. A shelved starter the viewer chose
+ *   or edited is not switched on by the planner, but gets its reason. A starting pick the planner takes back is put
+ *   on the shelf with the time of that plan, never one ahead: only the viewer's switch-off of a pick waiting for the
+ *   boundary leaves a Shelf starter whose start is still ahead, which is how a later switch-on is told to be the
+ *   undo of it.
  * - What the curation reads of a recipe besides the rules (its themes, tags, studios and format, for the fit score)
  *   is not frozen for the day: a catalog update can move today's homes on the curated channels. Every app build
  *   rebuilds the days anyway (`PersistedDays`), so this is the same once-per-update change.
@@ -78,8 +85,10 @@ import tv.stationbreak.core.rules.ChannelRules
  *   catalog's recipe, until that catalog is applied.
  * - A lineup read from a file before version 3 has the viewer's choices inferred once, before its first selection (the
  *   catalog swap) and anything else of the newer catalog (A7, E7, `withInferredChoices`): an unedited starter on the
- *   air that is opt-in or outside the older planner's top is the viewer's. A starter the older planner put on that no
- *   longer fills reads as the viewer's too, and is pinned. The inference reads the library as it is at that plan, on
+ *   air that is opt-in or outside the older planner's top is the viewer's (touched, never added: the inference makes
+ *   no addition, so an old file's switch-on that later drifts into the top takes a seat as it did). A starter the older
+ *   planner put on that no longer fills reads as the viewer's too, and is pinned. The inference reads the library as
+ *   it is at that plan, on
  *   each TV, so two TVs that swap on different days can infer differently (per-TV history). It can miss both ways:
  *   too many pinned is accepted (the viewer can switch them off); too few means a viewer's switch-on from before the
  *   swap that sat inside the older top reads as the planner's, and a later selection can shelve it (recoverable:
@@ -359,6 +368,8 @@ object LineupPlanner {
                             // so a change still waiting for its boundary is not applied to a channel that is frozen.
                             channel.copy(
                                 source = ChannelSource.Custom(source.rulesFor(p.nowMs)),
+                                // A custom channel cannot hold the added mark (`canHoldAddedMark`).
+                                viewerChoice = minOf(channel.viewerChoice, ViewerChoice.Touched),
                                 leavesAtMs = null,
                                 shelfReason = null,
                             )
@@ -482,7 +493,8 @@ object LineupPlanner {
 /**
  * [lineup], read from a file before version 3, with the viewer's choices inferred (spec 23, A7, E7) and
  * [Lineup.viewerChoicesKnown] set. An unedited starter on the air is taken as the viewer's
- * ([LineupChannel.chosenByViewer]) when it is opt-in (the planner never switches one on) or outside the top the
+ * ([ViewerChoice.Touched], never [ViewerChoice.Added]: owner decision, no migration inference, so an old file's
+ * pins keep the seat rule they had) when it is opt-in (the planner never switches one on) or outside the top the
  * older catalog's planner would pick: [Planning.ranked] over the unedited, numbered, non-opt-in starters not
  * hidden, each with its rules for today (the older catalog's), on the snapshot this plan reads (the extras taken
  * out, E7), the first `room` of them, where `room` is [LineupDefaults.CAP] less every other channel on the air
@@ -503,7 +515,7 @@ private fun withInferredChoices(
         lineup.channels.map { channel ->
             val unedited = (channel.source as? ChannelSource.Starter)?.edited == false
             val chosen = unedited && channel.state == ChannelState.On && channel.id !in top
-            if (chosen && !channel.chosenByViewer) channel.copy(chosenByViewer = true) else channel
+            if (chosen && !channel.chosenByViewer) channel.copy(viewerChoice = ViewerChoice.Touched) else channel
         }
     return lineup.copy(channels = channels, viewerChoicesKnown = true)
 }

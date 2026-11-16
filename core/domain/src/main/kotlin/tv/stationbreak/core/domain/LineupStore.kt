@@ -35,10 +35,14 @@ interface LineupStore {
     /**
      * Keeps a copy of the account's file as it stands, for the upgrade to a newer lineup version (or, with the tag
      * `repairs-unreadable`, before a file whose repair record did not read is written without it): the bytes go to a
-     * second file named for [tag] (`v1`, `v2`), written like any save and never moved, so the lineup stays readable
-     * whatever happens. A copy already there is left as it is. It is not a set-aside copy: nothing prunes it, and only
+     * second file named for [tag]: `v1` and `v2` for the upgrade of a version 1 or 2 file to 3, `v3` for the upgrade of
+     * 3 to 4, and `v{from}-to{to}` (`v3-to5`, `v4-to5`) for every other pair. It is written like any save and never
+     * moved, so the lineup stays readable whatever happens. A copy already there is left as it is (first write wins),
+     * so a `-to` copy kept at a first 3 to 5 save can be months old after a reset back to 3 and a later 3 to 5 save.
+     * It is not a set-aside copy: nothing prunes it, and only
      * [forget] removes it. True when the copy exists afterwards or there was no file to copy; false for a tag that is
-     * neither `v` and digits nor `repairs-unreadable`, an account that can have no file, or a write that failed.
+     * neither `v` and digits (optionally `-to` and digits) nor `repairs-unreadable`, an account that can have no file,
+     * or a write that failed.
      */
     suspend fun keepCopy(
         account: LibraryAccount,

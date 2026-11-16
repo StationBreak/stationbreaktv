@@ -137,13 +137,19 @@ How it works:
   budget (3,084 bytes, about 27 collection sources). Only a starter whose rules fit the budget is a keeper.
 - **Starting and leaving.** A starter that selection switches on is on from the boundary: its `onSinceMs` is a time
   ahead, and it is not on the air before it. A starter that selection leaves out stays on until the boundary, then goes
-  to the shelf (`leavesAtMs`). The first choice, which has aired nothing, switches on at once.
+  to the shelf (`leavesAtMs`). The first choice, which has aired nothing, switches on at once. A starter that selection
+  switched on for the boundary and takes back before it airs goes back to the shelf with `onSinceMs` set to the time of
+  that plan, never a time ahead. So a Shelf starter whose start is still ahead is only ever the viewer's switch-off of one
+  waiting to start, which is how a later switch-on is told to be the undo of it (see the amendment of 2026-11-16 in the
+  addendum). The `onSinceMs` of a Shelf starter therefore has two meanings: when the viewer switched it off a start still
+  ahead, or when the planner took it back.
 - **Per day, not per moment.** Whether a channel starts after, or has left by, a day is decided from the day
   (`LineupDay`), never from the moment someone asks. An earlier version decided by the moment, and a viewer switching a
   channel on in the middle of the day made one lookup cache an empty day. A day now gives the same answer to every
   lookup.
 - **Viewer switches.** A viewer's own switch-on in the middle of a day airs from now. It is the viewer's wish and is
-  pinned (never shelved by selection).
+  pinned (never shelved by selection). A switch-on of a starter the planner had not picked adds a channel and takes no
+  planner seat (the amendment of 2026-11-16).
 - **Play keys.** `LineupDays.playKeyOf(channel, lineup, atMs)` describes the day being played at `atMs`: the rules in
   force that day, the household flag in force that day, and (for a curated starter) the curation in force that day. A
   change waiting for the boundary moves no key until then. The background roll writes the new revision at the boundary.
@@ -153,6 +159,9 @@ How it works:
 - **The lineup file** is version 3. It adds the basis, previous rules, leave times, shelf reasons, the household flag,
   the viewer-choice marks and a re-plan time. Before the first save of an upgrade, the old file is copied to a `.v<old>.bak`
   file. An older app that finds a version 3 file shows a planned default lineup and cannot save. It never reads the copy.
+  Version 4 added the repair record (ADR-0025) and version 5 the viewer's added channels (the amendment of 2026-11-16);
+  the file is written at the lowest version that holds its content, and the copy of the file an upgrade replaces is
+  `.v<from>-to<to>.bak` (`.v3.bak` for the upgrade to 4, as before).
 
 Exceptions that apply at once: the back-to-back fix of an old file (applied at each TV's next start, so two TVs can
 differ until both have started), a viewer's reset, the safety holds, and the edges listed in Costs.
@@ -389,14 +398,113 @@ These are accepted.
 1. **The first boundary after the update grows the lineup.** It adds one planner pick for each custom, edited, opt-in or
    outside-top pinned channel that is on. That includes the inference's pins of starters the older planner put on that no
    longer fill.
-2. **Drift at the margin.** A pin near rank 48 can move in or out of the top as the library changes. Out: it sits on top
-   and the planner fills its seat. Back in: it takes a seat again and the 48th free pick leaves. A renumber that un-leaves a
-   leaving pick makes an outside-top pin the same way.
+2. **Drift at the margin.** A touched pin (a renumbered or swapped starter, and every pin in a file from before the
+   amendment of 2026-11-16) near rank 48 can move in or out of the top as the library changes. Out: it sits on top and the
+   planner fills its seat. Back in: it takes a seat again and the 48th free pick leaves. A renumber that un-leaves a
+   leaving pick makes an outside-top pin the same way. A starter the viewer switches on after the amendment is an
+   addition, never ranked, and does not drift into a seat.
 3. **A downgrade** to a build from before this change reads the lineup under the old rule (room = 50 minus pinned and
    leftovers) and shelves planner picks at the boundary.
 4. **The shelf reason "below the cap"** (section 1, "Shelf reasons": it fits but stronger channels filled the lineup) now
    means only that the planner's own picks are stronger. The copy reads "Fits, but stronger channels were picked for you".
    Anywhere else this ADR says "below the cap" for the reason, read it this way.
+
+### Amendment (2026-11-16): a starter the viewer switches on adds a channel
+
+Decided by the owner on 2026-11-16. It corrects the root cause of the seat loss and reverses one decision of the design
+doc ("no new field"). The design doc, `docs/design/lineup-seats-and-gaps.md`, "What a seat is", says why.
+
+**The root cause.** Under the rule above a starter on the shelf that missed the room is already a free candidate: it is
+homed and ranked outside the top 48 and costs no seat, so switching it on changed nothing. A seat was lost only when a
+starter that was not a candidate before the switch-on entered the homing and the ranking and landed inside the top: a
+hidden starter switched back on (it is no candidate while hidden), a kept starter (shelf, chosen by the viewer: switched
+off before it aired, or renumbered), an untouched starter with no number (the switch-on gives it one), and a switched-on
+pin that drifts into the top as the library changes.
+
+**The rule.** The planner's room is a fixed `PLANNER_PICKS` (48) and a switch-on never reduces it. Each boundary it fills
+48 from the starters the viewer has not added (opt-in starters excluded, as now). It falls short only when it runs out of
+qualifying candidates: the pool less the added starters and the opt-in ones has fewer than 48 that qualify, or the homing
+to the added starters thins some picks below the bar and no free starter is left to replace them. It never falls short to
+make room for a switch-on. An **added** starter takes part in the homing, is never ranked, uses no seat and always sits on
+top. So switching on N shelved, hidden or kept starters adds N channels, under the one stated condition above.
+
+**The marks.** `LineupChannel.viewerChoice` is `None`, `Touched` or `Added` (`chosenByViewer` is computed from it).
+`Touched` is what a renumber, a swap, a switch-off and an undo give: a ranked pin, a seat inside the top, none outside,
+as before. `Added` applies to an unedited starter and means something only while it is on: switched off, it counts as a
+kept starter (shelf) or as hidden, and keeps the mark. The edit rules, first match wins, for the viewer's switch-on of
+an unedited starter:
+
+1. an opt-in starter: `Touched` (it is already unranked);
+2. an **undo**: the viewer's own switch-off is taken back before the boundary. Either the starter was on the air today
+   and its switch-off recorded that (it is hidden with a leave time at the coming boundary, still ahead; this does not
+   depend on the curation basis, which only a curated starter has), or it is a Shelf starter whose start is still ahead
+   and has a mark. It comes back with `max(its mark, Touched)`, never `None`, so an accidental off and on of a pick of
+   the planner's does not grow the lineup. For a **leaving** pick the switch-off gave `Added`, so undoing it equals
+   keeping it: it stays on as an addition (a permanent one, until a reset). An older build's planner unpick (a Shelf
+   starter whose time is still ahead), then renumbered and switched on before the boundary, reads as an undo and so as
+   `Touched` until the boundary;
+3. a planner pick already chosen for the boundary and shown as starting: `Touched`;
+4. anything else, a shelf, hidden, kept or numberless starter or a leaving pick the viewer keeps: `Added`.
+
+A mark only goes up through the viewer's edits (a renumber, a swap, a swap holder and a clear are `max(mark, Touched)`).
+Switching off a pick that is leaving gives it `Added` while it is hidden, so the switch-on of the same day (an undo)
+restores `Added`; at the boundary `Lineup.rolled` clears the leave time the switch-off set and lowers a hidden `Added` to
+`Touched` (with no curation basis needed), and a switch-on after the boundary is an addition again by rule 4. Any other switch-off of an on-air or starting starter raises `None`
+to `Touched`, as before. Marks never clear except on a reset (the starters are rebuilt, so only custom channels are kept),
+when the recipe leaves the catalog (the channel becomes custom, which cannot hold the mark) and for that one-day lowering
+of a hidden channel. There is no hand-back yet.
+
+**No migration inference.** The marks of a file from before version 3 are still inferred as `Touched`, never `Added`
+(owner decision). An old file's switch-on that later drifts into the top takes a seat as it did, and so does one made
+before the update. The viewer can switch it off and on again on a later day, which makes it an addition (on the same day
+it is an undo and changes nothing). If a later decision wants the inference to give `Added`, this ADR must
+then state the growth it causes and the version-5 trigger, and a test must pin the size.
+
+**Free and Pro (#793).** Not unaffected. What an added channel does when Pro lapses, or on free (for example: `Added`
+counts as `Touched`, or the channel is switched off), is #793's decision. It is not built here, and the rule above holds
+for every viewer until #793 decides.
+
+**The lineup file is version 5 for a household that switches a channel on** (and, for one day, one that switches a
+leaving channel off). The channel's `addedByViewer: true` needs version 5; a lineup with no added channel stays version 3
+or 4. The consequences, plainly:
+
+- An older build reads a version 5 file as "from a newer app": it shows a planned default lineup and cannot save over it.
+  Nothing is lost or misread; the older build is just unusable for that household while the file stays at version 5.
+- The file leaves version 5 only when no channel holds the mark: after a reset (which drops every mark; the next save
+  writes version 3 or 4), when the recipes leave the catalog, and after the boundary for a hidden channel.
+- Before the first save of a higher version the file it replaces is kept under `<name>.v<from>-to<to>.bak` (`v3-to5`,
+  `v4-to5`; the old `v1`, `v2` and `v3` tags are unchanged). The first copy written under a tag stays (first write
+  wins), so a `-to` copy kept at a first 3 to 5 save can be months old after a reset back to 3 and a later 3 to 5 save.
+  An older build's `forget` removes only the tags it knows, so it leaves the `v3-to5` and `v4-to5` files behind.
+- **The copy moved to save time, and saves read the file when they must.** The copy of an older file is now made at the
+  one place every save goes through (`LineupService.saveVerified`), from the version the service knows is on disk, and
+  not at start. So the `v1` and `v2` copies of a version 1 or 2 file are made at the first save of version 3, not when the
+  file is read. Where that version is not known (nothing was read, or a save failed or was cut off, so the file may be
+  either), the save reads the file again first and refuses to write when the file is unreadable, from a newer app,
+  another account's, or cannot be read: it reports the event and leaves the lineup unwritable for the session, as a
+  start does. That is a behaviour change from saving blind.
+- **The rollback cost is accepted (owner decision, 2026-11-16).** Version 5 is written on an ordinary switch-on and
+  stays until a reset. A rollback to a build before this change leaves those households with an older app that cannot
+  save: reset on the new build first, then downgrade; after a downgrade the only exit is `forget`. The owner weighed this
+  and accepted it, and chose not to ship a release that reads version 5 first. The context is that every release today is
+  local to the owner, for development and testing, with no public users, so the cost is accepted now. Revisit it before
+  any public release.
+- **Recovery, in this order.** On a downgraded build a version 5 file reads as newer, and a reset there changes nothing.
+  So the supported way back is to **reset on the new build** (every mark drops, the next save writes version 3 or 4) and
+  then downgrade. After a downgrade the only exit is `forget`, which deletes the lineup, custom channels included, and
+  leaves the `-to` backups behind (a downgraded build's `forget` does not know their names). Restoring a `-to` backup by
+  hand is possible and can be stale.
+- **What a reset costs:** every starter renumber, hide and switch-on is lost; only custom channels are kept. A reset
+  returns `Saved.Unavailable`, and changes nothing, when the library cannot be read.
+
+**Determinism.** The mark is stored, so an identical lineup file, selection and library still give identical homes and
+days (ADR-0002). The mark is not a day input: it changes no on-set by itself, so it never discards built days, and the
+days digest and the day files are unchanged.
+
+**Audit.** The audit builds the viewer's switch-ons with `LineupEdits.apply`, so it cannot drift from the edit rules, and
+the `seat-household` profile gains three picks hidden and switched on again and two kept starters switched on again, beside
+its five shelf starters and a custom channel (the planner's 48, ten added starters, the custom channel and the leftovers:
+61 channels). Its golden changes for that reason only; the other six profiles are unchanged.
 
 ### Audit evidence
 

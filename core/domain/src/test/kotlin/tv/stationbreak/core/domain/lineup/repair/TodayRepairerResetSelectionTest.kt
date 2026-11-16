@@ -127,7 +127,7 @@ internal class TodayRepairerResetSelectionTest : RepairTestBase() {
     @Test
     fun aNewerAppsFile_isLeftUntouched_andTheHeldRecordFloorsTheSeq() {
         val rig = signedOut()
-        val newer = """{"version":5}""".encodeToByteArray()
+        val newer = """{"version":${LineupCodec.VERSION + 1}}""".encodeToByteArray()
         runBlocking { rig.store.inner.save(ACCOUNT, newer) }
 
         // The record this session still holds (seq 2, hidden) floors the seq, and is emptied.

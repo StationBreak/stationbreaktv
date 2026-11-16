@@ -232,7 +232,7 @@ class ChannelManagerTest {
     @Test
     fun resetReportsNotEditableForANewerAppsFile() =
         runBlocking<Unit> {
-            val newer = """{"version":5}""".encodeToByteArray()
+            val newer = """{"version":${LineupCodec.VERSION + 1}}""".encodeToByteArray()
             store.inner.save(ACCOUNT, newer)
             service.refresh(ACCOUNT, LIBRARIES)
 

@@ -65,7 +65,7 @@ class LineupFieldTripwireTest {
         pinned(
             LineupChannel::class.java,
             // Read by a day: id, state, source, onSinceMs, leavesAtMs, and the number (the Kids band, the claim
-            // order) through defaultNumber and numberOverride. No day reads: nameOverride, chosenByViewer, shelfReason.
+            // order) through defaultNumber and numberOverride. No day reads: nameOverride, viewerChoice, shelfReason.
             setOf(
                 "id",
                 "defaultNumber",
@@ -74,7 +74,7 @@ class LineupFieldTripwireTest {
                 "state",
                 "source",
                 "onSinceMs",
-                "chosenByViewer",
+                "viewerChoice",
                 "leavesAtMs",
                 "shelfReason",
             ),

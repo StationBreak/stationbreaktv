@@ -129,7 +129,8 @@ class SelectionTest {
                     ch.id to stats(6, 200L - ch.number, qualifies = !(call == 1 && ch.id == b.id))
                 }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c), emptySet(), emptySet(), 2, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c), emptySet(), emptySet(), 2, homingOf = script::factory)
         assertEquals(setOf(a.id, c.id), picked.on)
         assertEquals(ShelfReason.TooThin, picked.shelf.getValue(b.id))
     }
@@ -143,7 +144,7 @@ class SelectionTest {
             Script { call, channels ->
                 channels.associate { ch -> ch.id to stats(6, 20, qualifies = !(call == 1 && ch.id == b.id)) }
             }
-        Selection.select(emptySnapshot, listOf(c, b, a), emptySet(), emptySet(), 2, script::factory)
+        Selection.select(emptySnapshot, listOf(c, b, a), emptySet(), emptySet(), 2, homingOf = script::factory)
         // Round one: all three, then the chosen a and b. Round two: all but b, and the chosen a and c are everything
         // left, so the same homes serve (no second call).
         val want = listOf(setOf(a.id, b.id, c.id), setOf(a.id, b.id), setOf(a.id, c.id))
@@ -160,7 +161,8 @@ class SelectionTest {
             Script { call, channels ->
                 channels.associate { ch -> ch.id to stats(6, 20, qualifies = !(call == 1 && ch.id == b.id)) }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c), setOf(b.id), emptySet(), 1, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c), setOf(b.id), emptySet(), 1, homingOf = script::factory)
         assertEquals(setOf(a.id, b.id), picked.on)
         assertEquals(2, script.calls.size)
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
@@ -188,7 +190,8 @@ class SelectionTest {
                     ch.id to stats(6, hours, qualifies = !(call == 1 && ch.id == a.id))
                 }
             }
-        val picked = Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, script::factory)
+        val picked =
+            Selection.select(emptySnapshot, listOf(a, b, c, p), setOf(p.id), emptySet(), 2, homingOf = script::factory)
         assertEquals(setOf(b.id, p.id), picked.on)
         assertEquals(ShelfReason.TooThin, picked.shelf.getValue(a.id))
         assertEquals(ShelfReason.BelowCap, picked.shelf.getValue(c.id))
@@ -203,7 +206,7 @@ class SelectionTest {
             Script { call, chans ->
                 chans.associate { ch -> ch.id to stats(6, 50L - (ch.number - 100), qualifies = call % 2 == 0) }
             }
-        val picked = Selection.select(emptySnapshot, channels, emptySet(), emptySet(), 1, script::factory)
+        val picked = Selection.select(emptySnapshot, channels, emptySet(), emptySet(), 1, homingOf = script::factory)
         // Two homings a round, six rounds; the set of the last round stands.
         assertEquals(2 * CurationDefaults.ROUNDS, script.calls.size)
         assertEquals(setOf(channels[CurationDefaults.ROUNDS - 1].id), picked.on)
@@ -308,6 +311,37 @@ class SelectionTest {
         val thinned = Selection.select(lib.snapshot(), both, setOf(holder.id), setOf(holder.id), room = 3)
         assertEquals(setOf(holder.id), thinned.on)
         assertEquals(ShelfReason.TooThin, thinned.shelf.getValue(plain.id))
+    }
+
+    // The viewer's added channel is pinned and unranked: on at any score, never in the ranking, so it takes no place
+    // and leaves the room to the free channels.
+    @Test
+    fun anUnrankedPinTakesNoPlaceWhereverItsScoreFalls() {
+        val lib = Library()
+        val c = ranked(lib)
+        val strong = channel("strong", 110, listOf("Strong"), qualifying(lib, "Strong", titles = 20))
+        val weak = channel("weak", 111, listOf("Weak"), qualifying(lib, "Weak", titles = 7))
+        for (added in listOf(strong, weak)) {
+            val pin = setOf(added.id)
+            val picked = Selection.select(lib.snapshot(), c + added, pin, emptySet(), room = 3, unranked = pin)
+            val free = setOf(c[0].id, c[1].id, c[2].id)
+            assertEquals(free + added.id, picked.on, "${added.id} is on and the three places stay free")
+        }
+        // A pin that is not unranked and in the top takes a place.
+        val ranked = Selection.select(lib.snapshot(), c + strong, setOf(strong.id), emptySet(), room = 3)
+        assertEquals(setOf(strong.id, c[0].id, c[1].id), ranked.on)
+    }
+
+    // The unranked set is the opt-in set of a pinned channel by another name: the same selection.
+    @Test
+    fun unrankedGivesTheSelectionOfAPinnedOptInChannel() {
+        val lib = Library()
+        val c = ranked(lib)
+        val opt = channel("opt", 110, listOf("Opt"), qualifying(lib, "Opt", titles = 20))
+        val viaOptIn = Selection.select(lib.snapshot(), c + opt, setOf(opt.id), setOf(opt.id), room = 3)
+        val viaUnranked = Selection.select(lib.snapshot(), c + opt, setOf(opt.id), emptySet(), room = 3, setOf(opt.id))
+        assertEquals(viaOptIn.on, viaUnranked.on)
+        assertEquals(viaOptIn.shelf, viaUnranked.shelf)
     }
 
     // A homing that counts how often it is asked, to see how many rounds a selection took.
