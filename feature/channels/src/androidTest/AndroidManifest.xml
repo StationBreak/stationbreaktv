@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Public storage for ReadyScreenshotTest's frames (written beside the guide's). connectedAndroidTest uninstalls the test package before CI can pull,
+    Public storage for ReadyScreenshotTest's and ChannelsScreenshotTest's frames (written beside the guide's). connectedAndroidTest uninstalls the test package before CI can pull,
     and that removes the package's own external files. /sdcard/guide-screenshots is not part of the package, so it
     stays. The permission is only needed on the API 25 emulator (target 34 does not grant it at install).
 -->
