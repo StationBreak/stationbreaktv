@@ -325,6 +325,38 @@ class GuideScreenTest {
     }
 
     @Test
+    fun theHintRowSaysLeftReachesTheChannelOnTheEarliestCellOnly() {
+        showReady(CH7)
+        // On the row's earliest cell: OK, the left-arrow hint, Back, Menu, in that order.
+        assertEquals(
+            "OK Watch   ◂ About this channel   Back To the menu   Menu Open the menu",
+            text(GuideTags.HINT),
+        )
+        press(Key.DirectionRight)
+        assertTrue(text(GuideTags.HINT), !text(GuideTags.HINT).contains("◂"))
+        press(Key.DirectionLeft)
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("◂ About this channel"))
+        // On the channel column itself the way out is Right, and nothing says Left.
+        press(Key.DirectionLeft)
+        assertTrue(text(GuideTags.HINT), !text(GuideTags.HINT).contains("◂"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK About this channel   ▸ Back to programs"))
+    }
+
+    @Test
+    fun theChannelTileSitsInTheColumnAndTheTimeColumnsDoNotMove() {
+        showReady(CH7)
+        val columnLeft = ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)).left
+        val first = cell(CH7, 60).getBoundsInRoot()
+        // The first cell starts a column's width (84 dp) from the column's left edge, as before the tile.
+        assertEquals(84f, (first.left - columnLeft).value, 1f)
+        // The tile is 80 dp wide, 4 dp short of the cell, and the mark (50 x 28 dp) sits inside it.
+        val mark = mark(CH7).getBoundsInRoot()
+        assertEquals(28f, (mark.bottom - mark.top).value, 1f)
+        assertTrue("the mark is inside the tile", mark.right <= columnLeft + 80.dp)
+        assertTrue("the gap to the cell is clear", first.left - mark.right >= 4.dp)
+    }
+
+    @Test
     fun leftFromTheEarliestCellFocusesTheChannelAndRightReturns() {
         showReady(CH5)
         press(Key.DirectionLeft)
@@ -920,7 +952,7 @@ class GuideScreenTest {
 
         val mark = mark(wide).getBoundsInRoot()
         val number = inGrid("123").getBoundsInRoot()
-        // The column is 84 dp: the number (22 dp), 8 dp, the 50 dp mark box, 4 dp. The mark is centred in its box.
+        // The column is 84 dp: an 80 dp tile (2 dp, the number 22 dp, 4 dp, the 50 dp mark box, 2 dp) and a 4 dp gap.
         assertTrue("the number ends before the mark", number.right <= mark.left)
         val columnLeft = ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)).left
         assertTrue("the number is inside the column", number.left >= columnLeft)

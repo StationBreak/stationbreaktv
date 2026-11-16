@@ -23,6 +23,24 @@ internal fun GuideModel.isEarliestCell(
     return rows[row].cells.subList(0, cell).all { isNarrowBreak(it, narrowBelowMs) }
 }
 
+/**
+ * The row the menu sheet's About entry is for, the focused one; null (the entry is absent) with no grid, no focus or no
+ * libraries (no grid is shown then).
+ */
+internal fun GuideSnapshot.aboutRow(): GuideRow? = if (noLibraries) null else focusedRow()
+
+/**
+ * Whether Left from the focused cell goes to the channel column: the grid is shown, the focus is on the grid (not on
+ * the channel column or the menu sheet) and on the first stop of its row. The hint row says so; the view model does it
+ * by the same rule.
+ */
+internal fun GuideSnapshot.leftGoesToChannel(narrowBelowMs: Long): Boolean {
+    val model = (state as? GuideState.Ready)?.model
+    val at = focus
+    return model != null && at != null && !noLibraries && menu == null && !onChannel &&
+        model.isEarliestCell(at, narrowBelowMs)
+}
+
 /** The row the snapshot's focus names, or null when nothing is focused or the model is not a grid. */
 internal fun GuideSnapshot.focusedRow(): GuideRow? {
     val model = (state as? GuideState.Ready)?.model ?: return null

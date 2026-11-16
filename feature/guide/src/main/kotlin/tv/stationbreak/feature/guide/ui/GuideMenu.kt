@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +33,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.LayoutDirection
@@ -49,6 +49,7 @@ import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
+import tv.stationbreak.feature.guide.aboutRow
 
 private val UnderlineGap = 4.dp
 private val UnderlineHeight = 1.dp
@@ -84,8 +85,9 @@ internal fun GuideMenuSheetHost(
     val open by remember(shown) { derivedStateOf { shown.value.menu != null } }
     val backLeaves by remember(shown) { derivedStateOf { shown.value.menuByBack || shown.value.noLibraries } }
     val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
+    val aboutOf: () -> String? = remember(shown) { { shown.value.aboutRow()?.name } }
     if (open && settingsClosed) {
-        GuideMenuSheet(menuOf, backLeaves, PaddingValues(start = safe.left, top = safe.top, bottom = safe.top))
+        GuideMenuSheet(menuOf, backLeaves, PaddingValues(start = safe.left, top = safe.top, bottom = safe.top), aboutOf)
     }
 }
 
@@ -102,8 +104,10 @@ internal fun GuideMenuSheet(
     menuOf: () -> GuideMenuEntry?,
     backLeaves: Boolean,
     insets: PaddingValues,
+    aboutOf: () -> String? = { null },
     modifier: Modifier = Modifier,
 ) {
+    val about by remember(aboutOf) { derivedStateOf(aboutOf) }
     val back = stringResource(R.string.guide_key_back)
     val what = stringResource(if (backLeaves) R.string.guide_hint_exit else R.string.guide_hint_close_menu)
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SCRIM)) {
@@ -126,13 +130,19 @@ internal fun GuideMenuSheet(
                     ),
                 verticalArrangement = Arrangement.spacedBy(RowGap),
             ) {
-                MenuRow(R.string.guide_channels_button, GuideTags.CHANNELS_BUTTON) {
+                // The focused channel's own properties, first: there with a grid only.
+                about?.let { name ->
+                    MenuRow(stringResource(R.string.guide_menu_about, name), GuideTags.ABOUT_BUTTON) {
+                        menuOf() == GuideMenuEntry.About
+                    }
+                }
+                MenuRow(stringResource(R.string.guide_channels_button), GuideTags.CHANNELS_BUTTON) {
                     menuOf() == GuideMenuEntry.Channels
                 }
-                MenuRow(R.string.guide_settings_button, GuideTags.SETTINGS_BUTTON) {
+                MenuRow(stringResource(R.string.guide_settings_button), GuideTags.SETTINGS_BUTTON) {
                     menuOf() == GuideMenuEntry.Settings
                 }
-                MenuRow(R.string.guide_exit_button, GuideTags.EXIT_BUTTON) {
+                MenuRow(stringResource(R.string.guide_exit_button), GuideTags.EXIT_BUTTON) {
                     menuOf() == GuideMenuEntry.Exit
                 }
                 Spacer(Modifier.weight(1f))
@@ -154,13 +164,13 @@ internal fun GuideMenuSheet(
 
 @Composable
 private fun MenuRow(
-    @StringRes text: Int,
+    text: String,
     tag: String,
     focusedOf: () -> Boolean,
 ) {
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
     Text(
-        text = stringResource(text),
+        text = text,
         modifier =
             Modifier
                 .testTag(tag)
@@ -175,6 +185,7 @@ private fun MenuRow(
         style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
         color = BroadcastColors.Cream,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 

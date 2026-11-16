@@ -75,6 +75,7 @@ import tv.stationbreak.feature.guide.GuideState
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.indexOf
 import tv.stationbreak.feature.guide.isAwayFrom
+import tv.stationbreak.feature.guide.leftGoesToChannel
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -234,7 +235,7 @@ internal fun GuideScreen(
                     noLibraries,
                 )
                 Spacer(Modifier.height(HintGap))
-                HintRow(snapshotOf, current)
+                HintRow(snapshotOf, current, geometry.narrowBreakBelowMs)
             }
             GuideMenuSheetHost(shown, settings == null, geometry.safe)
         }
@@ -423,6 +424,7 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
 private fun HintRow(
     snapshotOf: () -> GuideSnapshot,
     current: ChannelId?,
+    narrowBelowMs: Long,
 ) {
     val kind by remember(snapshotOf) { derivedStateOf { hintKindOf(snapshotOf()) } }
     // Away from the playing channel's cell, Back goes there; on it, to the menu row; from the menu row it exits. Read
@@ -445,10 +447,17 @@ private fun HintRow(
             HintKind.Properties -> stringResource(R.string.guide_hint_properties)
             HintKind.BackOnly -> null
         }
+    // Left from the row's first stop goes to the channel column (#803): said where it would, and nowhere else.
+    val toChannel by remember(snapshotOf, narrowBelowMs) {
+        derivedStateOf { snapshotOf().leftGoesToChannel(narrowBelowMs) }
+    }
+    val left = stringResource(R.string.guide_key_left)
+    val about = stringResource(R.string.guide_hint_properties)
     val openMenu = stringResource(R.string.guide_hint_open_menu)
     val spoken =
         buildString {
             if (action != null) append("$ok $action$HINT_SPACE")
+            if (toChannel) append("$left $about$HINT_SPACE")
             append("$back $exit")
             if (!sheet) append("$HINT_SPACE$menuKey $openMenu")
         }
@@ -464,6 +473,11 @@ private fun HintRow(
         if (action != null) {
             HintKey(ok, round = true)
             HintAction(action, actionStyle)
+            Spacer(Modifier.width(HintPairGap))
+        }
+        if (toChannel) {
+            HintKey(left, round = false)
+            HintAction(about, actionStyle)
             Spacer(Modifier.width(HintPairGap))
         }
         HintKey(back, round = false)

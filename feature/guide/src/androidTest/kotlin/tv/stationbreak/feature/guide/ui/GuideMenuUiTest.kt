@@ -377,7 +377,12 @@ class GuideMenuUiTest {
         showReady()
         press(Key.Menu)
         awaitOnChannels()
+        // With a grid the sheet has the About row (#803) above Channels, and Up stops there.
         press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.ABOUT_BUTTON).assertIsSelected()
+        press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.ABOUT_BUTTON).assertIsSelected()
+        press(Key.DirectionDown)
         channels().assertIsSelected()
         press(Key.DirectionDown)
         settings().assertIsSelected()
@@ -435,6 +440,29 @@ class GuideMenuUiTest {
         back()
         sheet().assertDoesNotExist()
         cell(120).assertIsSelected()
+    }
+
+    @Test
+    fun theSheetHasAnAboutRowForTheFocusedChannelAboveChannels() {
+        showReady()
+        press(Key.Menu)
+        sheet().assertExists()
+        awaitOnChannels()
+        // The row names the channel the focus was on (the guide opens on channel 5) and is first; Channels has focus.
+        val about = compose.onNodeWithTag(GuideTags.ABOUT_BUTTON)
+        about.assertExists()
+        about.assertIsNotSelected()
+        assertTrue(
+            about
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.Text]
+                .joinToString("") { it.text }
+                .startsWith("About "),
+        )
+        assertTrue(about.getBoundsInRoot().top < channels().getBoundsInRoot().top)
+        press(Key.DirectionUp)
+        compose.waitUntil(TIMEOUT_MS) { runCatching { about.assertIsSelected() }.isSuccess }
+        channels().assertIsNotSelected()
     }
 
     @Test
