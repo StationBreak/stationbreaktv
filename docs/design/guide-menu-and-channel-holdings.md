@@ -23,7 +23,7 @@ Nothing on the grid said that Left reaches the channel box, or that its column c
 
 - **Hint row.** Where Left from the focused cell moves focus to the channel column (the row's earliest cell, by the grid's own rule, narrow breaks passed over), the row adds a left-arrow key cap (`◂`) with the label `About this channel`, in the style of the right-arrow `Back to programs` hint. Order: `OK`, `◂`, `Back`, `Menu`. It shows on no other cell, not on the channel column itself, and not under the sheet. The hint and the move share one rule (`leftGoesToChannel`), so they cannot disagree.
 - **Menu sheet.** When the sheet opens with focus on a programme cell or a channel, its first row is `About <channel name>` (13 sp Medium, one line, ellipsis), which opens that channel's properties sheet, as OK on the channel column does; the sheet stays under it and is there again, on that row, when the properties sheet closes. Channels keeps the initial focus, so About is one Up away, and Up stops there. The row is absent when there is no grid (nothing on, loading, or no libraries), and Up and Down skip it then.
-- **Channel tiles.** Each channel cell is a tile: card fill, a 1 dp `line` outline, a 2 dp radius, `ChannelColumnWidth` (84 dp) less a 4 dp gap to the first programme cell, so the time columns do not move. The mark stays 50 × 28 dp; inside the 80 dp tile the number box is 20 dp (was 22), the gap to the mark 4 dp (was 8) and the edges 3 dp. The tile starts at the safe area; it no longer runs on to the screen's edge.
+- **Channel tiles.** Each channel cell is a tile: card fill, a 1 dp `line` outline, a 2 dp radius, `ChannelColumnWidth` (84 dp) less a 4 dp gap to the first programme cell, so the time columns do not move. The mark stays 50 × 28 dp; inside the 80 dp tile the number box stays 22 dp, the gap to the mark is 4 dp (was 8) and the edges 2 dp. The tile starts at the safe area; it no longer runs on to the screen's edge.
 
 | State of the row | Number | Outline |
 |---|---|---|
@@ -32,7 +32,7 @@ Nothing on the grid said that Left reaches the channel box, or that its column c
 | The playing channel | `textPrimary` | as above, by its row's state |
 | Channel focus (#631) | as above | 2 dp `accent`, unchanged |
 
-The outlines are read when drawing, so a focus move redraws and recomposes nothing; only the number's colour changes with the focused row, on the two cells that change. Light uses the Light tokens throughout.
+The outlines are read when drawing, so a focus move redraws and recomposes nothing; the number's colour is read when drawing too, so a move to another row recomposes no channel cell. Light uses the Light tokens throughout.
 
 **Tests.** The hint appears on the earliest cell only (and agrees with the move); About is one Up from Channels and Up stops there; Select on About asks for the focused channel's properties and the sheet comes back as it was; no About row with no grid or with no libraries; the tile's number and outline by row state in both themes, its 80 dp width, and the first cell still 84 dp from the column's edge. Frames, dark and light, on `pr-assets-archive/<PR number>/`: a resting row and the focused row (the focused-cell frame), channel focus (the channel-box frame) and the sheet with its About row.
 

@@ -377,7 +377,12 @@ class GuideMenuUiTest {
         showReady()
         press(Key.Menu)
         awaitOnChannels()
+        // With a grid the sheet has the About row (#803) above Channels, and Up stops there.
         press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.ABOUT_BUTTON).assertIsSelected()
+        press(Key.DirectionUp)
+        compose.onNodeWithTag(GuideTags.ABOUT_BUTTON).assertIsSelected()
+        press(Key.DirectionDown)
         channels().assertIsSelected()
         press(Key.DirectionDown)
         settings().assertIsSelected()

@@ -13,11 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -72,13 +71,13 @@ private val TickMarkHeight = 6.dp
 private val NowLineWidth = 1.dp
 private val NowTriangle = 6.dp
 private val RuleHeight = 1.dp
-private val NumberWidth = 20.dp
+private val NumberWidth = 22.dp
 private val NumberGap = 4.dp
 
 // The channel tile (#803): the column's width less a 4 dp gap to the first cell (the time columns do not move), inside
-// which the number and the 50 dp mark sit with 3 dp to the tile's edges.
+// which the number and the 50 dp mark sit with 2 dp to the tile's edges.
 internal val ChannelTileGap = 4.dp
-private val TilePadding = 3.dp
+private val TilePadding = 2.dp
 private val TileLine = 1.dp
 private val TileRadius = 2.dp
 private val LabelGap = 6.dp
@@ -206,22 +205,22 @@ private fun ChannelCell(
     channelFocusOf: () -> ChannelId?,
 ) {
     val colors = LocalGuideColors.current
-    val rowFocused by remember(focusOf, row.channel) { derivedStateOf { focusOf()?.channel == row.channel } }
+    // Both read when drawing, never in composition: a move to another row recomposes no channel cell.
+    val lookNow = { tileLook(focusOf()?.channel == row.channel, playing, colors) }
     Row(
         Modifier
             .width(ChannelColumnWidth - ChannelTileGap)
             .fillMaxHeight()
-            .channelTile(colors.card) { tileLook(rowFocused, playing, colors).line }
+            .channelTile(colors.card) { lookNow().line }
             .channelOutline(colors.accent) { channelFocusOf() == row.channel }
             .padding(horizontal = TilePadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
+        BasicText(
             text = row.number.toString(),
             modifier = Modifier.width(NumberWidth),
-            style = guideFigures(11.sp, FontWeight.Medium),
-            color = tileLook(rowFocused, playing, colors).number,
-            textAlign = TextAlign.End,
+            style = guideFigures(11.sp, FontWeight.Medium).copy(textAlign = TextAlign.End),
+            color = { lookNow().number },
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,

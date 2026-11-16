@@ -952,7 +952,7 @@ class GuideScreenTest {
 
         val mark = mark(wide).getBoundsInRoot()
         val number = inGrid("123").getBoundsInRoot()
-        // The column is 84 dp: an 80 dp tile (3 dp, the number 20 dp, 4 dp, the 50 dp mark box, 3 dp) and a 4 dp gap.
+        // The column is 84 dp: an 80 dp tile (2 dp, the number 22 dp, 4 dp, the 50 dp mark box, 2 dp) and a 4 dp gap.
         assertTrue("the number ends before the mark", number.right <= mark.left)
         val columnLeft = ScreenLayout.safeArea(DpSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)).left
         assertTrue("the number is inside the column", number.left >= columnLeft)
