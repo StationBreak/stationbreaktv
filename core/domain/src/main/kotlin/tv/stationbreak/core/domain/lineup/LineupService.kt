@@ -278,6 +278,24 @@ class LineupService internal constructor(
     internal suspend fun refresh(
         account: LibraryAccount,
         libraries: Set<ItemId>,
+    ) = refreshing(account, libraries, rebuildDays = false)
+
+    /**
+     * A refresh that also drops every day built from the lineup ([forgetDerived]: the kept and remembered days in
+     * memory, and the days on disk), so today's schedule is built again for every channel from now. For the debug and
+     * benchmark command that does it (#812); the lineup planned is the one [refresh] plans, and the viewer's edits,
+     * channels and repair record are kept (it is not a reset). The days go before the new revision is published, so
+     * whatever reads the lineup next builds them from the planned lineup. Under the account's lock, like a refresh.
+     */
+    internal suspend fun rebuildToday(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+    ) = refreshing(account, libraries, rebuildDays = true)
+
+    private suspend fun refreshing(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        rebuildDays: Boolean,
     ) {
         val owner = ownerOf(account) ?: return report(LineupEvent.NonCanonicalAccount)
         val entry = entryOf(owner)
@@ -288,6 +306,7 @@ class LineupService internal constructor(
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start)
             val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
+            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
             publish(entry, planned, meta, repairs)
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true

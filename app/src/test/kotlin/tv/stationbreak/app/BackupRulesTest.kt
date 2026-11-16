@@ -231,7 +231,9 @@ class BackupRulesTest {
                 "androidx.work.impl.background.systemjob.SystemJobService",
                 "androidx.work.impl.diagnostics.DiagnosticsReceiver",
                 "androidx.profileinstaller.ProfileInstallReceiver",
-            ) + if (isBenchmarkVariant) benchmarkActivities else emptySet()
+            ) + (if (isBenchmarkVariant) benchmarkActivities else emptySet()) +
+                // The ADB rebuild command (#812): behind DUMP, in the debug and benchmark variants only.
+                (if (variantDirectory.endsWith("Debug") || isBenchmarkVariant) setOf(rebuildReceiver) else emptySet())
         assertEquals(allowed, exported)
     }
 
@@ -286,6 +288,38 @@ class BackupRulesTest {
         if (variantDirectory.endsWith("Release") || variantDirectory.endsWith("Debug")) {
             val names = allElements(mergedManifest).map { nameOf(it) }
             assertTrue("$variantDirectory has a benchmark activity", names.none { it in benchmarkActivities })
+        }
+    }
+
+    // The ADB command that rebuilds today's schedule (#812): a receiver in the debug and benchmark manifests only.
+    private val rebuildReceiver = "tv.stationbreak.app.debugcmd.RebuildTodayReceiver"
+    private val rebuildAction = "tv.stationbreak.debug.REBUILD_TODAY"
+
+    @Test
+    fun onlyDebugAndBenchmarkDeclareTheRebuildCommand() {
+        // Source: exactly the two manifests, and the action string is in no other manifest (main's included).
+        val declaring =
+            manifests().filter { manifest ->
+                allElements(parse(manifest)).any { nameOf(it) == rebuildReceiver || nameOf(it) == rebuildAction }
+            }
+        assertEquals(
+            listOf("src/benchmark/AndroidManifest.xml", "src/debug/AndroidManifest.xml"),
+            declaring.map { it.invariantSeparatorsPath }.sorted(),
+        )
+        // Merged: in the debug and benchmark variants, exported and behind DUMP; in the release variants, nowhere.
+        val merged = allElements(mergedManifest)
+        val receivers = merged.filter { it.tagName == "receiver" && nameOf(it) == rebuildReceiver }
+        val actions = merged.filter { it.tagName == "action" && nameOf(it) == rebuildAction }
+        assertTrue("unexpected variant directory: $variantDirectory", variantDirectory.isNotEmpty())
+        if (variantDirectory.endsWith("Debug") || isBenchmarkVariant) {
+            val receiver = receivers.single()
+            assertEquals("true", receiver.getAttributeNS(androidNamespace, "exported"))
+            // Only the shell UID (adb) holds DUMP, so no ordinary app can fire it.
+            assertEquals("android.permission.DUMP", receiver.getAttributeNS(androidNamespace, "permission"))
+            assertEquals(1, actions.size)
+        } else {
+            assertEquals("$variantDirectory has the rebuild receiver", emptyList<Element>(), receivers)
+            assertEquals("$variantDirectory has the rebuild action", emptyList<Element>(), actions)
         }
     }
 

@@ -19,6 +19,21 @@
             android:exported="false"
             android:screenOrientation="landscape"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+        <!--
+            The command that rebuilds today's schedule now (#812), for `adb shell am broadcast -a
+            tv.stationbreak.debug.REBUILD_TODAY -p <package>`. Debug and benchmark builds only, and declared in both
+            manifests (src/debug and src/benchmark), never in main, so a release build has none. Exported so the shell can
+            reach it, and it demands the DUMP permission, which the shell UID holds and an ordinary app cannot get.
+            BackupRulesTest checks it is in these two variants and in no other.
+        -->
+        <receiver
+            android:name="tv.stationbreak.app.debugcmd.RebuildTodayReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="tv.stationbreak.debug.REBUILD_TODAY" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

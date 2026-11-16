@@ -138,6 +138,14 @@ android {
             applicationIdSuffix = ".benchmark"
         }
     }
+
+    // The debug and benchmark builds share the ADB commands in src/nonRelease (#812); no release build compiles it.
+    // Each of the two manifests declares the receiver, so the release manifest cannot. After buildTypes: a build
+    // type's source set exists once it is declared.
+    sourceSets {
+        getByName("debug").kotlin.directories.add("src/nonRelease/kotlin")
+        getByName("benchmark").kotlin.directories.add("src/nonRelease/kotlin")
+    }
 }
 
 dependencies {
