@@ -12,7 +12,6 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -152,6 +151,49 @@ class ChannelManagerFreeTierTest {
             assertEquals(ChangeResult.Done, free(ChannelChange.SwitchOff(laughs)))
             assertEquals(ChangeResult.Done, free(ChannelChange.SwitchOn(shelved)))
             assertEquals(ChangeResult.Done, free(ChannelChange.SetNumber(mine, 210, swapWith = whodunit)))
-            assertNotEquals(ResetResult.NeedsPro, manager.reset(ACCOUNT))
+            assertEquals(ResetResult.Chosen, manager.reset(ACCOUNT))
+        }
+
+    @Test
+    fun anUnreadableCustomChannelIsGatedLikeAStarter() =
+        runBlocking<Unit> {
+            val newer = channel("custom:newer", 650, ChannelState.On, ChannelSource.Unusable("""{"kind":"custom"}"""))
+            val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(base, customOf("custom:mine", 600), newer)))
+
+            assertEquals(needsPro, free(ChannelChange.SwitchOff(ChannelId("custom:newer"))))
+        }
+
+    @Test
+    fun aRetiredStarterIsTheplannersAndGated() =
+        runBlocking<Unit> {
+            val oldRules = rules("Old", Source.Genre("Comedy"))
+            val retired = channel("starter:old", 311, ChannelState.On, ChannelSource.Custom(oldRules))
+            val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(base, retired)))
+
+            assertEquals(needsPro, free(ChannelChange.SwitchOff(ChannelId("starter:old"))))
+        }
+
+    @Test
+    fun clearingANumberWithASwapAgainstAStarterIsPro() =
+        runBlocking<Unit> {
+            seed()
+
+            assertEquals(needsPro, free(ChannelChange.ClearNumber(mine, swapWith = laughs)))
+        }
+
+    @Test
+    fun switchingOddsAndEndsOnIsPro() =
+        runBlocking<Unit> {
+            seed()
+
+            assertEquals(needsPro, free(ChannelChange.SwitchOn(odds)))
+        }
+
+    @Test
+    fun withNoLineupAFreeChangeFailsClosed() =
+        runBlocking<Unit> {
+            assertEquals(needsPro, free(ChannelChange.SwitchOff(laughs)))
         }
 }

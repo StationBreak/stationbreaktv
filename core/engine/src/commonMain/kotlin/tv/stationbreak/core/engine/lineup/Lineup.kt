@@ -221,4 +221,20 @@ object LineupIds {
 
     /** `leftovers:<key>`. */
     fun leftovers(recipeKey: String): ChannelId = ChannelId("leftovers:$recipeKey")
+
+    /** The prefix of a channel the viewer made: `custom:<id>`. */
+    const val CUSTOM_PREFIX = "custom:"
+
+    /** `custom:<unique>`. */
+    fun custom(unique: String): ChannelId = ChannelId(CUSTOM_PREFIX + unique)
 }
+
+/**
+ * How many channels the viewer made: [ChannelSource.Custom] channels with a `custom:` ID. A starter whose recipe left
+ * the catalog also becomes a Custom source but keeps its `starter:` ID; it is the planner's, so it is not counted.
+ * Channels this app cannot read ([ChannelSource.Unusable]) are not counted either.
+ */
+fun Lineup.viewerCustomCount(): Int = channels.count { it.isViewerCustom() }
+
+/** Whether the viewer made this channel and this app can read it: see [viewerCustomCount]. */
+fun LineupChannel.isViewerCustom(): Boolean = source is ChannelSource.Custom && id.value.startsWith(LineupIds.CUSTOM_PREFIX)

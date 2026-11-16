@@ -23,6 +23,8 @@ import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.viewerCustomCount
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.ChannelRules
 import java.security.SecureRandom
@@ -157,7 +159,7 @@ class ChannelBuildManager(
                 }
 
                 else -> {
-                    val id = ChannelId("custom:" + newId())
+                    val id = LineupIds.custom(newId())
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.NewChannel(previous))
                     val number = sent.number.takeIf { sent.numberChosen }
                     val limit = if (pro.pro.value) null else FreeTier.CUSTOM_CHANNELS
@@ -223,13 +225,10 @@ class ChannelBuildManager(
             emitAll(
                 combine(pro.pro, service.lineup(account)) { isPro, held ->
                     val lineup = held?.lineup
-                    lineup != null && (isPro || lineup.customCount() < FreeTier.CUSTOM_CHANNELS)
+                    if (lineup == null) isPro else isPro || lineup.viewerCustomCount() < FreeTier.CUSTOM_CHANNELS
                 },
             )
         }.distinctUntilChanged()
-
-    // Channels this app cannot read are ChannelSource.Unusable, so they are not counted.
-    private fun Lineup.customCount(): Int = channels.count { it.source is ChannelSource.Custom }
 
     private suspend fun edited(
         account: LibraryAccount,

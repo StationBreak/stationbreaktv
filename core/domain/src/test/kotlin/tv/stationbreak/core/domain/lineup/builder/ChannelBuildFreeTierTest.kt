@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.lineup.ACCOUNT
@@ -181,9 +186,51 @@ class ChannelBuildFreeTierTest {
             assertTrue(builder.canAddCustom(ACCOUNT).first())
         }
 
+    private fun retired(key: String) =
+        channel(
+            LineupIds.starter(key).value,
+            310 + key.length,
+            ChannelState.On,
+            ChannelSource.Custom(rules(key, Source.Genre("Comedy"))),
+        )
+
     @Test
-    fun canAddCustomIsFalseWithNoLineup() =
+    fun aRetiredStarterIsNotTheViewersAndDoesNotCount() =
+        runBlocking<Unit> {
+            seedWith(5, retired("old"))
+            assertEquals(BuildResult.Refused(BuildRefusal.CustomLimit), create())
+            assertEquals(false, builder.canAddCustom(ACCOUNT).first())
+        }
+
+    @Test
+    fun fourViewerCustomsAndTwoRetiredStartersMayCreate() =
+        runBlocking<Unit> {
+            seedWith(4, retired("old"), retired("older"))
+
+            assertTrue(builder.canAddCustom(ACCOUNT).first())
+            assertIs<BuildResult.Done>(create())
+        }
+
+    @Test
+    fun canAddCustomGoesFalseAfterACreateMadeElsewhere() =
+        runBlocking<Unit> {
+            seedWith(customs = 4)
+            val seen = mutableListOf<Boolean>()
+            val job = launch(Dispatchers.Unconfined) { builder.canAddCustom(ACCOUNT).toList(seen) }
+            assertEquals(listOf(true), seen)
+
+            assertIs<BuildResult.Done>(create())
+            withTimeout(5_000) { while (seen.lastOrNull() != false) delay(10) }
+
+            job.cancel()
+            assertEquals(listOf(true, false), seen)
+        }
+
+    @Test
+    fun withNoLineupCanAddCustomIsTheEntitlement() =
         runBlocking<Unit> {
             assertFalse(builder.canAddCustom(ACCOUNT).first())
+            pro.set(true)
+            assertTrue(builder.canAddCustom(ACCOUNT).first())
         }
 }

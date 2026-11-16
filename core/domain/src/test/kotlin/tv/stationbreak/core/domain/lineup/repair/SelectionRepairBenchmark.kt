@@ -250,7 +250,8 @@ internal class SelectionRepairBenchmark {
                             listOf(Source.Genre(genre), Source.Library(CanonicalId.parse(all[n % all.size].id.value)))
                         }
                     val custom = rules("Custom $n", *sources.toTypedArray())
-                    service.edit(ACCOUNT, LineupEdit.AddCustom(ChannelId("custom:c$n"), custom, 700 + n, false), allIds)
+                    val add = LineupEdit.AddCustom(ChannelId("custom:c$n"), custom, 700 + n, false, null)
+                    service.edit(ACCOUNT, add, allIds)
                 }
             }
         }

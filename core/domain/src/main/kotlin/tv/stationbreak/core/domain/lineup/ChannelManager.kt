@@ -15,7 +15,9 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.EditOutcome
 import tv.stationbreak.core.engine.lineup.EditRefusal
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 
@@ -96,15 +98,12 @@ class ChannelManager(
                 is ChannelChange.ClearNumber -> listOfNotNull(change.id, change.swapWith)
                 is ChannelChange.UseMyCollections -> emptyList()
             }
-        if (touched.isEmpty()) return false
-        val channels =
-            service
-                .loaded(account)
-                ?.lineup
-                ?.channels
-                .orEmpty()
-        return touched.any { id ->
-            channels.firstOrNull { it.id == id }?.let { it.source !is ChannelSource.Custom } == true
+        // Fail closed: with no lineup to look at, a free viewer's change is gated.
+        val channels = service.loaded(account)?.lineup?.channels
+        return when {
+            touched.isEmpty() -> false
+            channels == null -> true
+            else -> touched.any { id -> channels.firstOrNull { it.id == id }?.let { !it.isViewerCustom() } == true }
         }
     }
 

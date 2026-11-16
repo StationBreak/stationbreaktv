@@ -15,8 +15,10 @@ import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.feature.channels.builder.BuilderMode
+import tv.stationbreak.feature.channels.ui.isLocked
 
 /** The free tier on the channel screen (#793): gated choices stay, are marked, and show a note instead of acting. */
 class ChannelsFreeTierTest {
@@ -220,4 +222,46 @@ class ChannelsFreeTierTest {
 
             assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
         }
+
+    @Test
+    fun aNewPressedWhileLoadingAtTheCapShowsTheLimitNoteWhenTheAccessArrives() =
+        channelsTest(lineup) { rig ->
+            rig.free()
+            rig.builder.canAdd.value = false
+            rig.editor.setAccess(LineupAccess.Loading)
+            rig.open(this)
+            rig.vm.select()
+            assertTrue(rig.ui.gettingReady)
+
+            rig.editor.setAccess(LineupAccess.Editable)
+            runCurrent()
+
+            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertNull(rig.ui.builder)
+            assertFalse(rig.ui.gettingReady)
+        }
+
+    @Test
+    fun theProMarkFollowsTheEntitlementAndTheCap() {
+        val ui = ChannelsUi.Empty.copy(rows = listOf(starterRow()))
+        val row = ui.rows.single()
+        assertTrue(isLocked(Choice.SwitchOff, row, ui.copy(isPro = false)))
+        assertFalse(isLocked(Choice.SwitchOff, row, ui.copy(isPro = true)))
+        assertTrue(isLocked(Choice.CopyToCustomise, row, ui.copy(canAddCustom = false)))
+        assertFalse(isLocked(Choice.CopyToCustomise, row, ui.copy(canAddCustom = true)))
+        assertFalse(isLocked(Choice.Watch, row, ui.copy(isPro = false, canAddCustom = false)))
+    }
+
+    private fun starterRow() =
+        ChannelRow(
+            A,
+            5,
+            "A",
+            ChannelGroup.On,
+            ChannelKind.Starter,
+            kid = false,
+            optIn = false,
+            reason = null,
+            hasOverride = false,
+        )
 }

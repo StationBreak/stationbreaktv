@@ -399,9 +399,21 @@ internal class ChannelsViewModel
         private fun builderWhenKnown(m: Model): Model {
             val want = m.wantBuilder ?: return m
             return when (m.access) {
-                LineupAccess.Editable -> m.copy(builder = want, wantBuilder = null)
-                LineupAccess.ReadOnly -> m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
-                LineupAccess.Loading -> m
+                LineupAccess.Editable -> {
+                    if (want !is BuilderMode.Edit && !m.canAddCustom) {
+                        m.copy(wantBuilder = null, message = ChannelsMessage.CustomLimit)
+                    } else {
+                        m.copy(builder = want, wantBuilder = null)
+                    }
+                }
+
+                LineupAccess.ReadOnly -> {
+                    m.copy(wantBuilder = null, message = ChannelsMessage.NotEditable)
+                }
+
+                LineupAccess.Loading -> {
+                    m
+                }
             }
         }
 

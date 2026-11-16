@@ -61,6 +61,10 @@ androidComponents {
     onVariants { variant ->
         val distribution = variant.productFlavors.firstOrNull { it.first == "distribution" }?.second
         val proUnlocked = proUnlockedByVariant[(variant.buildType ?: "release") to distribution] ?: false
+        // A release build must ship with the gates closed (#793): fail the build, not just a test.
+        if (variant.buildType == "release" && proUnlocked) {
+            throw GradleException("PRO_UNLOCKED must be false in a release build (${variant.name})")
+        }
         variant.buildConfigFields?.put(
             "PRO_UNLOCKED",
             BuildConfigField("boolean", proUnlocked, "StationBreak Pro unlocked (#793); see app/build.gradle.kts"),

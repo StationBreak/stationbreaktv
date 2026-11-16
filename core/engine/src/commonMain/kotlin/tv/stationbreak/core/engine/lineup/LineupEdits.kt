@@ -60,7 +60,7 @@ sealed interface LineupEdit {
         val rules: ChannelRules,
         val number: Int?,
         val kids: Boolean,
-        val customLimit: Int? = null,
+        val customLimit: Int?,
     ) : ChannelEdit
 
     /**
@@ -319,7 +319,7 @@ object LineupEdits {
                 refused(EditRefusal.IdTaken)
             }
 
-            edit.customLimit != null && lineup.channels.count { it.source is ChannelSource.Custom } >= edit.customLimit -> {
+            edit.customLimit != null && lineup.viewerCustomCount() >= edit.customLimit -> {
                 refused(EditRefusal.CustomLimit)
             }
 
