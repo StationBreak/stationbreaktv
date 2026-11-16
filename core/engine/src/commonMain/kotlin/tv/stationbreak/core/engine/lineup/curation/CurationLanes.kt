@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.SourceMatcher
 import tv.stationbreak.core.engine.lineup.AnchorKind
 import tv.stationbreak.core.engine.lineup.FormatPromise
 import tv.stationbreak.core.engine.lineup.NameMatcher
+import tv.stationbreak.core.engine.lineup.QualifyingBar
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.RuleItem
@@ -51,6 +52,12 @@ internal class Lane(
 ) {
     val kid: Boolean = channel.kid
     val guestOnly: Boolean = channel.recipe.guestOnly
+
+    /**
+     * The recipe's qualifying bar. A kid lane still needs only [CurationDefaults.MIN_TITLES_KIDS] titles (see
+     * `Curation.statsOf`), whatever its bar says; a kid recipe always has the standard one.
+     */
+    val bar: QualifyingBar = channel.recipe.qualifyingBar
 }
 
 /**

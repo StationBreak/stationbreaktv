@@ -38,23 +38,72 @@ class LineupAuditTest {
         assertTrue(off.isNotEmpty() && off.all { it.shelfReason != null }, "Every starter that is off has a reason")
     }
 
+    // Catalog 5 (#786): the horror starter has the lower bar (6 hours, 4 titles), so four films are enough for a home.
     @Test
-    fun theHorrorShelfThatIsTooSmallLandsElsewhereAndTheReportSaysWhy() {
+    fun theSmallHorrorShelfHasAHomeOnTheHorrorStarter() {
         val report = auditOf("horror-fan")
         val horror = report.starters.single { it.key == "midnight-projector" }
-        assertFalse(horror.on)
-        assertEquals("TooThin", horror.shelfReason)
+        assertTrue(horror.on)
+        assertEquals(null, horror.shelfReason)
         val rows = report.titles.filter { it.name in CaseTitles.SMALL_HORROR_SHELF }
         assertEquals(CaseTitles.SMALL_HORROR_SHELF.size, rows.size)
-        assertTrue(rows.none { it.home?.channel == "midnight-projector" })
+        assertTrue(rows.all { it.home?.channel == "midnight-projector" })
+        assertEquals(
+            0,
+            report.totals.noHomeByCause.values
+                .sum(),
+        )
+    }
+
+    // Catalog 5: Cartoons After Dark takes the Animation genre (not Family), with the lower bar of four titles. A
+    // household with one adult cartoon still has too little for the channel; a broad library has plenty.
+    @Test
+    fun theAdultAnimatedSitcomHasAHomeOnCartoonsAfterDarkWhenTheShelfIsBigEnough() {
+        val small = auditOf("sitcom-household")
+        val row = small.titles.single { it.name == CaseTitles.ADULT_ANIMATED_SITCOM }
+        assertEquals(null, row.home, "one adult cartoon and one PG one are too few for the channel")
+        assertEquals("TooThin", small.starters.single { it.key == "cartoons-after-dark" }.shelfReason)
+        for (key in listOf("broad-1900", "thin-200")) {
+            val home = auditOf(key).titles.single { it.name == CaseTitles.ADULT_ANIMATED_SITCOM }.home
+            assertEquals("cartoons-after-dark", home?.channel, key)
+        }
     }
 
     @Test
-    fun theAdultAnimatedSitcomIsNotHomedOnTheSitcomChannels() {
+    fun noAnimatedFamilyFilmIsHomedOnCartoonsAfterDark() {
+        for (key in ProfileLibraries.keys) {
+            val profile = ProfileLibraries.build(key)
+            val family =
+                profile.input.snapshot.items
+                    .filter { "Animation" in it.genres && "Family" in it.genres }
+                    .mapNotNull { it.name }
+                    .toSet()
+            val rows = LineupAudit.run(profile.input).titles.filter { it.name in family }
+            assertEquals(family.size, rows.size, key)
+            assertTrue(rows.none { it.home?.channel == "cartoons-after-dark" }, key)
+        }
+    }
+
+    // Catalog 5: Laugh Track takes a sitcom with a Drama genre, and leaves Comedy County's twist genres to it.
+    @Test
+    fun laughTrackTakesADramaSitcomAndNotTheMysteryOne() {
         val report = auditOf("sitcom-household")
-        val row = report.titles.single { it.name == CaseTitles.ADULT_ANIMATED_SITCOM }
-        assertTrue(row.home?.channel !in setOf("laugh-track", "cartoons-after-dark"))
-        assertEquals("Empty", report.starters.single { it.key == "cartoons-after-dark" }.shelfReason)
+        val drama = report.titles.single { it.name == CaseTitles.SITCOM_WITH_A_FREED_GENRE }
+        assertEquals("laugh-track", drama.home?.channel)
+        val twist = report.titles.single { it.name == CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE }
+        // Comedy County is off (too thin) in this household, so the tie title keeps the home it had at catalog 4: the
+        // decade channel. Laugh Track does not take it.
+        assertEquals("flip-phone", twist.home?.channel)
+        assertEquals("laugh-track", auditOf("sitcom-household").starters.single { it.key == "laugh-track" }.key)
+        for (key in listOf("broad-1900", "thin-200")) {
+            val home =
+                auditOf(key)
+                    .titles
+                    .single { it.name == CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE }
+                    .home
+                    ?.channel
+            assertEquals("cold-case-cable", home, key)
+        }
     }
 
     @Test
@@ -96,7 +145,10 @@ class LineupAuditTest {
 
     @Test
     fun withTooLittleForALineupNothingIsOnAndTheTitlesSayWhere() {
-        val report = auditOf("anime-viewer")
+        // One shelf: fewer than five channels qualify, so the lineup is not finalised.
+        val b = LibraryBuilder(9)
+        b.shows(8, listOf("Drama"), "TV-14", 44, firstYear = 2010)
+        val report = LineupAudit.run(AuditInput(b.build(), null))
         assertTrue(report.notes.any { it.contains("Not finalised") })
         assertTrue(report.starters.none { it.on })
         assertEquals(report.titles.size, report.totals.noHomeByCause[Cause.OnlyOnShelvedChannels])

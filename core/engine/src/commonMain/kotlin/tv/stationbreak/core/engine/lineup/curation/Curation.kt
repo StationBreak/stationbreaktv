@@ -263,8 +263,8 @@ private class CurationRun(
         val cap = CurationDefaults.shareCapMs(total)
         var capped = 0L
         for (p in lane.cand.indices) if (all || home[l][p]) capped += minOf(lane.ms[p], cap)
-        val minTitles = if (lane.kid) CurationDefaults.MIN_TITLES_KIDS else CurationDefaults.MIN_TITLES
-        val qualifies = capped >= CurationDefaults.MIN_USABLE_MS && count >= minTitles
+        val minTitles = if (lane.kid) CurationDefaults.MIN_TITLES_KIDS else lane.bar.titles
+        val qualifies = capped >= lane.bar.usableMs && count >= minTitles
         return ChannelStats(count, total, capped, anchors, qualifies)
     }
 
