@@ -44,6 +44,7 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.rememberMotionReduced
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
 
@@ -126,16 +127,22 @@ internal fun TransportStrip(
     }
 }
 
-/** DESIGN(#383): placeholder. A turning arc: the app has no spinner of its own. */
 @Composable
-private fun Spinner() {
-    val turn by rememberInfiniteTransition(label = "transport-spinner")
+private fun spinnerTurn(): Float =
+    rememberInfiniteTransition(label = "transport-spinner")
         .animateFloat(
             initialValue = 0f,
             targetValue = FULL_TURN,
             animationSpec = infiniteRepeatable(tween(SPIN_MS, easing = LinearEasing), RepeatMode.Restart),
             label = "turn",
-        )
+        ).value
+
+/** DESIGN(#383): placeholder. A turning arc: the app has no spinner of its own. */
+@Composable
+private fun Spinner() {
+    val reduced by rememberMotionReduced()
+    // Held still when animations are off: the arc stays, and so do the text and the progress semantics.
+    val turn = if (reduced) 0f else spinnerTurn()
     val seeking = stringResource(R.string.live_transport_seeking)
     val accent = LocalGuideColors.current.accent
     Canvas(
