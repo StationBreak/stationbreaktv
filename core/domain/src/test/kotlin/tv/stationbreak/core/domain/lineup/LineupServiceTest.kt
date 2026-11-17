@@ -618,7 +618,8 @@ class LineupServiceTest {
     @Test
     fun aCustomChannelHasNoRecipeKey() =
         runBlocking<Unit> {
-            val mine = channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Genre("Comedy"))))
+            val source = ChannelSource.Custom(rules("Mine", Source.Genre("Comedy")))
+            val mine = channel("custom-1", 600, ChannelState.On, source)
             store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(mine)))
 
             val summary = service.channels(ACCOUNT).first { it.isNotEmpty() }.single()
