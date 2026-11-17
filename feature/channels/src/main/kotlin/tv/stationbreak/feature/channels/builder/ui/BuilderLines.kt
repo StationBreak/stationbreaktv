@@ -46,7 +46,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.feature.channels.ui.channelFocus
+import tv.stationbreak.core.ui.panelFocus
 
 private val LineGap = 2.dp
 
@@ -135,7 +135,7 @@ internal fun FocusLine(
     Box(
         modifier
             .fillMaxWidth()
-            .channelFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(tag)
             .semantics(mergeDescendants = true) {

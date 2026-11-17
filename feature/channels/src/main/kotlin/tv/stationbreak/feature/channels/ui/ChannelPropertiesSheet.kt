@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import tv.stationbreak.core.ui.panelFocus
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -226,7 +227,7 @@ private fun Actions(
                 labelOf(choice, ui.panel, isLocked(choice, row, ui)),
                 Modifier
                     .fillMaxWidth()
-                    .channelFocus(!covered && i == ui.choice)
+                    .panelFocus(!covered && i == ui.choice)
                     .padding(horizontal = 10.dp, vertical = 6.dp)
                     .testTag(tagOf(choice))
                     .semantics { selected = !covered && i == ui.choice },

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import tv.stationbreak.core.ui.panelFocus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -32,7 +33,7 @@ internal fun NumberPicker(
             Box(
                 Modifier
                     .size(width = 48.dp, height = 64.dp)
-                    .channelFocus(focused)
+                    .panelFocus(focused)
                     .testTag(ChannelsTags.digit(i))
                     .semantics { selected = focused },
                 contentAlignment = Alignment.Center,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import tv.stationbreak.core.ui.panelFocus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,7 +108,7 @@ private fun ChoiceRow(
         Modifier
             .fillMaxWidth()
             .scrollIntoViewWhen(focused)
-            .channelFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(tagOf(choice))
             .semantics { selected = focused },

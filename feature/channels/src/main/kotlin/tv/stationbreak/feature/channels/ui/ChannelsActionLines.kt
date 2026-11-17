@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import tv.stationbreak.core.ui.panelFocus
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,7 +35,7 @@ internal fun HouseholdLine(
     Column(
         Modifier
             .fillMaxWidth()
-            .channelFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.HOUSEHOLD)
             .clearAndSetSemantics {
@@ -77,7 +78,7 @@ internal fun NewLine(
         if (locked) stringResource(R.string.pro_marked_label, label) else label,
         Modifier
             .fillMaxWidth()
-            .channelFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.NEW_CHANNEL)
             .semantics { selected = focused },
@@ -95,7 +96,7 @@ internal fun ResetLine(
         if (locked) stringResource(R.string.pro_marked_label, label) else label,
         Modifier
             .fillMaxWidth()
-            .channelFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.RESET)
             .semantics { selected = focused },

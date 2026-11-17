@@ -53,9 +53,7 @@ object FocusStyle {
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
  * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
  * [FocusStyle.surfaceScale], without a Compose focus target. A screen on a ground other than the theme's passes its
- * own [ring]. Inside the guide family (the menu sheet, the channel screens) a row passes the panel's ring
- * (`LocalPanelColors.current.ring`, the guide's focus orange) and `scaled = false`: the guide's focus does not scale,
- * and a scale would push a row's edge into its neighbour's.
+ * own [ring]. A row inside the guide family uses [panelFocus] instead (the panel's ring, no scale).
  */
 @Composable
 fun Modifier.drawnFocus(
@@ -63,10 +61,23 @@ fun Modifier.drawnFocus(
     ring: Color = MaterialTheme.colorScheme.primary,
     scaled: Boolean = true,
 ): Modifier {
-    val grown = if (focused && scaled) FocusStyle.SURFACE_SCALE else 1f
     if (!focused) return this
-    return graphicsLayer {
-        scaleX = grown
-        scaleY = grown
-    }.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
+    val grown =
+        if (scaled) {
+            graphicsLayer {
+                scaleX = FocusStyle.SURFACE_SCALE
+                scaleY = FocusStyle.SURFACE_SCALE
+            }
+        } else {
+            this
+        }
+    return grown.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
 }
+
+/**
+ * A row's focus inside the guide family (the menu sheet, the channel screens), the guide's way: the guide's focus
+ * colour as a ring ([LocalPanelColors] `ring`) and no scale, which would push a row's edge into its neighbour's. Drawn
+ * from the screen's own state, as these rows have no Compose focus target.
+ */
+@Composable
+fun Modifier.panelFocus(focused: Boolean): Modifier = drawnFocus(focused, ring = LocalPanelColors.current.ring, scaled = false)

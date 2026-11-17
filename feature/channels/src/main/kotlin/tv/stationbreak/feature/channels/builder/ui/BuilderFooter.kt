@@ -24,7 +24,7 @@ import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.PreviewView
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.feature.channels.ui.channelFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ui.channelsSecondaryLine
 
 private const val PREVIEW_ITEMS = 3
@@ -95,7 +95,7 @@ private fun NextButton(ui: BuilderUi) {
     Column(
         Modifier
             .fillMaxWidth()
-            .channelFocus(ui.focus == BuilderFocus.Next)
+            .panelFocus(ui.focus == BuilderFocus.Next)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(BuilderTags.NEXT)
             .semantics(mergeDescendants = true) {

@@ -30,7 +30,7 @@ import tv.stationbreak.feature.channels.builder.PickerRow
 import tv.stationbreak.feature.channels.builder.PickerView
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.feature.channels.ui.channelFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ui.joiner
 import tv.stationbreak.feature.channels.ui.spokenParts
 
@@ -49,7 +49,7 @@ internal fun SourceTabs(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .channelFocus(focused)
+                    .panelFocus(focused)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag(BuilderTags.tab(tab))
                     .semantics { selected = tab == ui.tab },

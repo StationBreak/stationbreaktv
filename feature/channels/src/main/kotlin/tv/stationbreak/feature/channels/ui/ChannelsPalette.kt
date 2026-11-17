@@ -2,7 +2,6 @@
 package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
@@ -10,7 +9,6 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.PanelColors
-import tv.stationbreak.core.ui.drawnFocus
 
 /** How much of a dimmed (unavailable) row's name shows through; its reason line stays at full strength. */
 internal const val DIMMED_ALPHA = 0.7f
@@ -72,14 +70,4 @@ internal object ChannelsPalette {
             Triple("secondary on the sheet", panel.secondary, panel.sheet.surface),
             Triple("rating badge on the sheet", panel.sheet.ratingBadge, panel.sheet.surface),
         )
-}
-
-/**
- * A row's focus on the channel screens, the guide's way: the guide's focus colour as a ring and no scale. Drawn from
- * the screen's own state, as the rows have no Compose focus target ([drawnFocus]).
- */
-@Composable
-internal fun Modifier.channelFocus(focused: Boolean): Modifier {
-    val ring = ChannelsPalette.ring
-    return drawnFocus(focused, ring = ring, scaled = false)
 }

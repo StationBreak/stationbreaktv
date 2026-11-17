@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
@@ -177,7 +177,7 @@ private fun MenuRow(
                     selected = focused
                 }.fillMaxWidth()
                 .height(MenuRowHeight)
-                .drawnFocus(focused, ring = colors.focusFill, scaled = false)
+                .panelFocus(focused)
                 .padding(horizontal = RowTextPadding)
                 .wrapContentHeight(Alignment.CenterVertically),
         style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
