@@ -225,7 +225,7 @@ private fun ChannelCell(
             .channelTile(colors.card, lookNow)
             .channelOutline(colors.accent) { channelFocusOf() == row.channel }
             .padding(horizontal = TilePadding)
-            .semantics(mergeDescendants = true) { if (playing) stateDescription = playingLabel },
+            .semantics { if (playing) stateDescription = playingLabel },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(
