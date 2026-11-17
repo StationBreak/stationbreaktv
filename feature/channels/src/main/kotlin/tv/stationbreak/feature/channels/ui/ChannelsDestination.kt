@@ -316,13 +316,14 @@ internal class ChannelsActions(
         ui: ChannelsUi,
         pad: Pad,
     ): Boolean {
-        if (ui.about == null || ui.panel != null || ui.confirmingReset) return false
+        val onSheet = ui.about != null && ui.panel == null && !ui.confirmingReset
         val edge =
-            when (pad) {
-                Pad.Up -> ui.choice <= 0
-                Pad.Down -> ui.choice >= choicesOf(ui).lastIndex
-                else -> return false
-            }
+            onSheet &&
+                when (pad) {
+                    Pad.Up -> ui.choice <= 0
+                    Pad.Down -> ui.choice >= choicesOf(ui).lastIndex
+                    else -> false
+                }
         if (edge) scrollSheet(pad == Pad.Down)
         return edge
     }

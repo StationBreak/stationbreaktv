@@ -27,7 +27,7 @@ class PanelColors(
                 text = BroadcastColors.Cream,
                 secondary = StationBreakDarkColors.onSurfaceVariant,
                 ring = StationBreakDarkColors.primary,
-                sheet = GuideColors.Dark.sheet,
+                sheet = DarkSheet,
             )
     }
 }

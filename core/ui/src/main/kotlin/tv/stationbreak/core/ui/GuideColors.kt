@@ -81,12 +81,7 @@ class GuideColors(
                 progressTrack = Color.White.copy(alpha = TRACK_ALPHA),
                 line = Color.White.copy(alpha = LINE_ALPHA),
                 keyCapStroke = Color.White.copy(alpha = KEY_STROKE_ALPHA),
-                sheet =
-                    SheetColors(
-                        surface = Color(0xFF141518),
-                        line = Color(0xFF3A3B40),
-                        ratingBadge = Color(0xFFFFD166),
-                    ),
+                sheet = DarkSheet,
             )
 
         /**
@@ -127,6 +122,10 @@ class GuideColors(
 
 /** Dark unless a caller provides the saved choice. Never the system theme. */
 val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
+
+/** The Dark sheet, shared with [PanelColors.Dark]: that must not read it off [GuideColors] (an init cycle). */
+internal val DarkSheet =
+    SheetColors(surface = Color(0xFF141518), line = Color(0xFF3A3B40), ratingBadge = Color(0xFFFFD166))
 
 // Text and surfaces are the one neutral (white in Dark, ink in Light) at fixed alphas, so every role steps from the
 // page without a warm tint. Light has its own alphas: its page is darker than a near-white one, so the card, the rules

@@ -80,4 +80,7 @@ fun Modifier.drawnFocus(
  * from the screen's own state, as these rows have no Compose focus target.
  */
 @Composable
-fun Modifier.panelFocus(focused: Boolean): Modifier = drawnFocus(focused, ring = LocalPanelColors.current.ring, scaled = false)
+fun Modifier.panelFocus(focused: Boolean): Modifier {
+    val ring = LocalPanelColors.current.ring
+    return drawnFocus(focused, ring = ring, scaled = false)
+}
