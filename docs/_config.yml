@@ -1,0 +1,22 @@
+# GitHub Pages site (issue #37). Pages builds this folder with Jekyll: Settings → Pages → Deploy from a branch,
+# main, /docs. Only index.md and guide/ are the site; everything else in docs/ is project documentation and is
+# excluded, also because some of it holds `{{ }}` text that Jekyll would try to run as Liquid.
+title: StationBreak
+exclude:
+  - adr
+  - compatibility
+  - design
+  - dogfood
+  - gates
+  - legal
+  - rules-format
+  - specs
+  - superpowers
+  - testing
+  - ASSUMPTIONS.md
+  - BACKLOG.md
+  - EPICS.md
+  - MODULES.md
+  - ROADMAP.md
+  - SPEC.md
+  - rules-format.md
