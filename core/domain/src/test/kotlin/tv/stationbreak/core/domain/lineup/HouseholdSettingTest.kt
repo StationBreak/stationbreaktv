@@ -10,6 +10,7 @@ import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.rolled
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleCollection
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
@@ -211,5 +212,103 @@ class HouseholdSettingTest {
             val rolled = held().rolled(tomorrow)
             val channel = rolled.channels.first { it.id == laughs }
             assertNotEquals(before, days.playKeyOf(channel, rolled, tomorrow), "the day after the boundary differs")
+        }
+
+    // Setup (#94): the switch at library selection, applied before the first choice is stored.
+    private val chosen = setOf(ItemId(LIBRARY_ID.value))
+
+    @Test
+    fun setupWithNoLineupPlansTheFirstOneWithTheSwitch() =
+        runBlocking<Unit> {
+            // The hand-off session's account is accepted as it is (sign-in's useAccount has run, and is not needed).
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            assertEquals(false, flag())
+            assertEquals(false, held().useMyCollections)
+            assertEquals(Long.MIN_VALUE, checkNotNull(service.loaded(ACCOUNT)).meta.extrasFromMs, "a new account")
+        }
+
+    @Test
+    fun setupWithNoLineupAndTheSwitchOnKeepsTheDefault() =
+        runBlocking<Unit> {
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = true))
+
+            assertTrue(flag())
+            assertEquals(true, held().useMyCollections)
+        }
+
+    @Test
+    fun setupFlipsALineupThatIsNotFinalisedAtOnce() =
+        runBlocking<Unit> {
+            seed(lineup = lineupFor().copy(finalised = false))
+
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            assertEquals(false, flag())
+            assertEquals(false, held().useMyCollections)
+            assertEquals(false, held().finalised)
+        }
+
+    @Test
+    fun setupOnAFinalisedLineupWaitsForTomorrow() =
+        runBlocking<Unit> {
+            seed()
+            assertTrue(service.lineupFinalised(ACCOUNT).first())
+
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            assertEquals(householdIds + serverIds, poolAt(held(), atMs), "today is unchanged")
+            assertTrue(poolAt(held(), tomorrow).none { it in householdIds }, "tomorrow drops the household films")
+        }
+
+    @Test
+    fun setupFailsWhenTheAccountIsNotAnId() =
+        runBlocking<Unit> {
+            val bad = LibraryAccount(ServerId("not-an-id"), UserId("nor-this"))
+
+            assertEquals(SetupOutcome.Unwritable, service.chooseAtSetup(bad, chosen, on = false))
+        }
+
+    // A read that fails just now may clear: a failure the viewer can retry, not a switch to drop.
+    @Test
+    fun setupFailsWhenTheStoredLineupCannotBeReadJustNow() =
+        runBlocking<Unit> {
+            seed()
+            store.inner.failReads = true
+
+            assertEquals(SetupOutcome.Failed, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            store.inner.failReads = false
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+        }
+
+    // An unreadable file that cannot be set aside is left alone for good: a retry will not help.
+    @Test
+    fun setupIsUnwritableWhenAnUnreadableFileCannotBeSetAside() =
+        runBlocking<Unit> {
+            store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
+            store.inner.failWrites = true
+
+            assertEquals(SetupOutcome.Unwritable, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+        }
+
+    @Test
+    fun setupIsUnwritableForALineupFromANewerApp() =
+        runBlocking<Unit> {
+            val newer = """{"version":${LineupCodec.VERSION + 1},"whatever":"a newer app wrote"}""".encodeToByteArray()
+            store.inner.save(ACCOUNT, newer)
+
+            assertEquals(SetupOutcome.Unwritable, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+        }
+
+    @Test
+    fun setupFailsWhenTheSaveFailsSoARetryCanFixIt() =
+        runBlocking<Unit> {
+            store.inner.failWrites = true
+
+            assertEquals(SetupOutcome.Failed, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            store.inner.failWrites = false
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
         }
 }

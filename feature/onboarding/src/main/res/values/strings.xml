@@ -179,6 +179,9 @@
     <string name="libraries_loading">Loading your libraries…</string>
     <string name="libraries_progress_description">Loading your libraries</string>
     <string name="libraries_continue">Continue</string>
+    <string name="libraries_collections_label">Use my collections</string>
+    <string name="libraries_collections_body">Collections are groups of movies or shows you\'ve made on your server. StationBreak can turn them into channels. Not sure? Leave this on.</string>
+    <string name="libraries_collections_tomorrow">Takes effect tomorrow.</string>
     <string name="libraries_next">Next, StationBreak builds your channels. This can take a few minutes.</string>
     <string name="libraries_none_ticked">Select at least one library to continue.</string>
     <string name="libraries_kind_movies">Movies</string>

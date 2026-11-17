@@ -116,7 +116,8 @@ class LineupService internal constructor(
     private val report: (LineupEvent) -> Unit,
     private val seams: LineupSeams,
 ) : ChannelRepository,
-    HouseholdSetting {
+    HouseholdSetting,
+    CollectionsAtSetup {
     /** For tests: a small catalog in place of the real one. */
     internal constructor(
         store: LineupStore,
@@ -249,6 +250,18 @@ class LineupService internal constructor(
         // True only when the store held no file and the session held no lineup: a new account, not a lost one.
         val isNew: Boolean = false,
         val repairs: TodayRepairs = TodayRepairs.NONE,
+        // Why [save] is false: a transient read failure (a retry can fix it) differs from a file that stays unwritable.
+        val readOnly: ReadOnly? = null,
+    )
+
+    /** Why a lineup may not be written. */
+    private enum class ReadOnly { NewerVersion, ReadFailed, LeftAlone }
+
+    /** What a locked entry holds once read: the start, the held (reconciled) lineup, and the lineup to work from. */
+    private data class Loaded(
+        val start: Start,
+        val held: Revisioned?,
+        val lineup: Lineup?,
     )
 
     private val lock = Any()
@@ -397,6 +410,7 @@ class LineupService internal constructor(
         offsetFrom: Lineup? = current,
         newAccount: Boolean = false,
         sinceDayStart: Boolean = false,
+        household: Boolean? = null,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
         val own =
@@ -444,7 +458,7 @@ class LineupService internal constructor(
                 kept = (kept + own).distinctBy { it.id },
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
-                useMyCollections = offsetFrom?.useMyCollections ?: true,
+                useMyCollections = household ?: offsetFrom?.useMyCollections ?: true,
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )
@@ -577,47 +591,69 @@ class LineupService internal constructor(
         val entry = entryOf(owner)
         val savedSeq = savedSeqNow()
         return entry.mutex.withLock {
-            val start = startOf(owner, entry)
-            entry.writable = start.save
-            val held = reconciled(entry, start)
-            val lineup = held?.lineup ?: start.current
-            if (!entry.writable || lineup == null) {
+            editLocked(owner, entry, account, edit, libraries, savedSeq, loadedOf(owner, entry))
+        }
+    }
+
+    // Reads [entry] under its lock: the start, the reconciled held lineup, and the lineup to work from.
+    private suspend fun loadedOf(
+        owner: Owner,
+        entry: Entry,
+    ): Loaded {
+        val start = startOf(owner, entry)
+        entry.writable = start.save
+        val held = reconciled(entry, start)
+        return Loaded(start, held, held?.lineup ?: start.current)
+    }
+
+    // [edit], under the account's lock (held by the caller), from what [loadedOf] read.
+    @Suppress("LongParameterList") // What one edit reads and carries.
+    private suspend fun editLocked(
+        owner: Owner,
+        entry: Entry,
+        account: LibraryAccount,
+        edit: LineupEdit,
+        libraries: Set<ItemId>?,
+        savedSeq: SavedSeqs?,
+        loaded: Loaded,
+    ): Saved<EditOutcome>? {
+        val (start, held, lineup) = loaded
+        if (!entry.writable || lineup == null) {
+            noteWritable(entry)
+            return null
+        }
+        val outcome = applied(lineup, edit)
+        return when {
+            outcome == null -> {
                 noteWritable(entry)
-                return@withLock null
+                Saved.Invalid
             }
-            val outcome = applied(lineup, edit)
-            when {
-                outcome == null -> {
-                    noteWritable(entry)
-                    Saved.Invalid
-                }
 
-                // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
-                outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
-                    noteWritable(entry)
-                    Saved.Ok(outcome)
-                }
+            // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
+            outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
+                noteWritable(entry)
+                Saved.Ok(outcome)
+            }
 
-                else -> {
-                    val before = held?.meta ?: start.meta
-                    // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
-                    // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
-                    val replan = replanned(owner, account, edit, outcome, libraries, before)
-                    val edited = replan.outcome
-                    // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
-                    val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
-                    val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
-                    // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs(), savedSeq)
-                    val repairs = trimmed.record
-                    if (saveVerified(owner, edited.lineup, meta, repairs)) {
-                        told(trimmed)
-                        publish(entry, edited.lineup, meta, repairs)
-                        entry.loaded = true
-                        Saved.Ok(edited)
-                    } else {
-                        Saved.Failed
-                    }
+            else -> {
+                val before = held?.meta ?: start.meta
+                // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
+                // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
+                val replan = replanned(owner, account, edit, outcome, libraries, before)
+                val edited = replan.outcome
+                // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
+                val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
+                val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
+                // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
+                val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs(), savedSeq)
+                val repairs = trimmed.record
+                if (saveVerified(owner, edited.lineup, meta, repairs)) {
+                    told(trimmed)
+                    publish(entry, edited.lineup, meta, repairs)
+                    entry.loaded = true
+                    Saved.Ok(edited)
+                } else {
+                    Saved.Failed
                 }
             }
         }
@@ -1369,6 +1405,119 @@ class LineupService internal constructor(
         }.distinctUntilChanged()
     }
 
+    override fun lineupFinalised(account: LibraryAccount): Flow<Boolean> {
+        val owner = ownerOf(account) ?: return flowOf(false)
+        return flow {
+            loaded(account)
+            emitAll(entryOf(owner).state)
+        }.map { held -> held?.lineup?.finalised ?: false }.distinctUntilChanged()
+    }
+
+    /**
+     * [CollectionsAtSetup.chooseAtSetup], under the account's lock. No lineup: the first one is planned with the flag
+     * (so the new-account extras boundary is as for any first plan) and saved. A lineup not finalised: the flag is set
+     * on it. A finalised one: the `UseMyCollections` edit, in the same lock hold, which starts at the next day
+     * boundary (ADR-0023 D1). A lineup that may not be written (or an account with none) is [SetupOutcome.Unwritable].
+     */
+    override suspend fun chooseAtSetup(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+    ): SetupOutcome {
+        val owner = ownerOf(account)
+        val outcome =
+            if (owner == null) {
+                SetupOutcome.Unwritable
+            } else {
+                val savedSeq = savedSeqNow()
+                entryOf(owner).mutex.withLock { choosingAtSetup(owner, account, libraries, on, savedSeq) }
+            }
+        if (outcome == SetupOutcome.Unwritable) report(LineupEvent.SetupSwitchUnwritable)
+        return outcome
+    }
+
+    // Under the account's lock.
+    @Suppress("LongParameterList") // What the setup choice reads and carries, one for one.
+    private suspend fun choosingAtSetup(
+        owner: Owner,
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+        savedSeq: SavedSeqs?,
+    ): SetupOutcome {
+        val entry = entryOf(owner)
+        val loaded = loadedOf(owner, entry)
+        val (start, held, lineup) = loaded
+        val before = held?.meta ?: start.meta
+        val repairs = held?.repairs ?: start.repairs
+        return when {
+            !entry.writable -> {
+                noteWritable(entry)
+                // A transient read failure may clear on a retry; a newer app's file or one left alone will not.
+                if (start.readOnly == ReadOnly.ReadFailed) SetupOutcome.Failed else SetupOutcome.Unwritable
+            }
+
+            lineup?.finalised == true -> {
+                val edited = LineupEdit.UseMyCollections(on)
+                if (editLocked(owner, entry, account, edited, libraries, savedSeq, loaded) is Saved.Ok) {
+                    SetupOutcome.Applied
+                } else {
+                    SetupOutcome.Failed
+                }
+            }
+
+            else -> {
+                val planned =
+                    if (lineup == null) {
+                        firstPlanAtSetup(owner, account, libraries, on, before, start.isNew)
+                    } else {
+                        lineup.copy(useMyCollections = on) to before
+                    }
+                planned?.let { (next, meta) -> savedAtSetup(owner, entry, next, meta, repairs, savedSeq) }
+                    ?: SetupOutcome.Failed
+            }
+        }
+    }
+
+    @Suppress("LongParameterList") // The save's own six.
+    private suspend fun savedAtSetup(
+        owner: Owner,
+        entry: Entry,
+        lineup: Lineup,
+        meta: RefreshMeta,
+        repairs: TodayRepairs,
+        savedSeq: SavedSeqs?,
+    ): SetupOutcome {
+        val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
+        val saved = saveVerified(owner, lineup, meta, trimmed.record)
+        if (saved) {
+            told(trimmed)
+            publish(entry, lineup, meta, trimmed.record)
+            entry.loaded = true
+        }
+        return if (saved) SetupOutcome.Applied else SetupOutcome.Failed
+    }
+
+    // The first lineup of an account, planned with the switch; null (reported) when the library cannot be read.
+    @Suppress("TooGenericExceptionCaught", "LongParameterList") // Any failure to read or plan: nothing is written.
+    private suspend fun firstPlanAtSetup(
+        owner: Owner,
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+        before: RefreshMeta,
+        isNew: Boolean,
+    ): Pair<Lineup, RefreshMeta>? =
+        try {
+            val read = readForPlan(account, libraries)
+            plannedFrom(owner, read, libraries, null, before, newAccount = isNew, household = on)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.RefreshFailed)
+            null
+        }
+
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> {
         val owner = ownerOf(account) ?: return flowOf(true)
         return flow {
@@ -1397,7 +1546,7 @@ class LineupService internal constructor(
 
             StoredBytes.Failed -> {
                 report(LineupEvent.ReadFailedLeftAlone)
-                Start(session, sessionMeta, save = false, repairs = sessionRepairs)
+                Start(session, sessionMeta, save = false, repairs = sessionRepairs, readOnly = ReadOnly.ReadFailed)
             }
 
             is StoredBytes.Present -> {
@@ -1429,7 +1578,13 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
                 entry.disk = Disk.Version(decoded.version)
-                Start(session.lineup, session.meta, save = false, repairs = session.repairs)
+                Start(
+                    session.lineup,
+                    session.meta,
+                    save = false,
+                    repairs = session.repairs,
+                    readOnly = ReadOnly.NewerVersion,
+                )
             }
 
             LineupCodec.Decoded.Unreadable -> {
@@ -1489,7 +1644,7 @@ class LineupService internal constructor(
             Start(null, RefreshMeta(), save = true)
         } else {
             report(LineupEvent.UnreadableLeftAlone)
-            Start(session.lineup, session.meta, save = false, repairs = session.repairs)
+            Start(session.lineup, session.meta, save = false, repairs = session.repairs, readOnly = ReadOnly.LeftAlone)
         }
 
     // A lineup is saved only when its own bytes decode back to a lineup of this account, with the repair record and the

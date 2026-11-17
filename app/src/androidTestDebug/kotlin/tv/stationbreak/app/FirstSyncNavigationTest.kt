@@ -327,6 +327,8 @@ class FirstSyncNavigationTest {
         launchApp()
         awaitFocused(LibrariesTags.row("movies"))
         press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitFocused(LibrariesTags.COLLECTIONS)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
         awaitFocused(LibrariesTags.DONE)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
 

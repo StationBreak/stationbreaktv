@@ -29,6 +29,9 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.FakeCollectionsAtSetup
+import tv.stationbreak.core.domain.lineup.FakeHouseholdSetting
+import tv.stationbreak.core.domain.lineup.SetupOutcome
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -53,6 +56,8 @@ class LibrariesViewModelTest {
     private val settings = InMemoryServerSettings(ServerRecord(https))
     private val setup = InMemoryLibrarySetup(settings)
     private val handOff = SignedInHandOff()
+    private val household = FakeHouseholdSetting()
+    private val atSetup = FakeCollectionsAtSetup()
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
@@ -73,7 +78,7 @@ class LibrariesViewModelTest {
     @After
     fun resetMain() = Dispatchers.resetMain()
 
-    private fun viewModel() = LibrariesViewModel(server, sessions, settings, setup, handOff)
+    private fun viewModel() = LibrariesViewModel(server, sessions, settings, setup, household, atSetup, handOff)
 
     private fun CoroutineScope.collect(
         vm: LibrariesViewModel,
@@ -205,6 +210,102 @@ class LibrariesViewModelTest {
         assertEquals(1, settings.savedSelections.size)
     }
 
+    // "Use my collections" (#94)
+
+    @Test
+    fun theSwitchStartsFromTheStoredSettingAndAnUnchangedOneWritesNothing() =
+        runTest {
+            val vm = viewModel()
+            assertTrue(vm.state.value.collections)
+
+            vm.onDone()
+
+            assertTrue(atSetup.chosen.isEmpty())
+        }
+
+    @Test
+    fun aReturningAccountWithTheSettingOffStartsOffAndContinueDoesNotTurnItOn() =
+        runTest {
+            household.flag.value = false
+            val vm = viewModel()
+            assertFalse(vm.state.value.collections)
+
+            vm.onDone()
+
+            assertTrue(atSetup.chosen.isEmpty())
+            assertEquals(1, setup.chosen.size)
+        }
+
+    @Test
+    fun aChangedSwitchIsWrittenOnceWithTheTickedLibrariesBeforeTheChoice() =
+        runTest {
+            val vm = viewModel()
+            vm.onToggleCollections()
+
+            vm.onDone()
+
+            assertEquals(listOf(false), atSetup.chosen)
+            assertEquals(1, setup.chosen.size)
+        }
+
+    @Test
+    fun aSwitchToggledBackToItsStartWritesNothing() =
+        runTest {
+            val vm = viewModel()
+            vm.onToggleCollections()
+            vm.onToggleCollections()
+
+            vm.onDone()
+
+            assertTrue(atSetup.chosen.isEmpty())
+        }
+
+    @Test
+    fun aFailedCollectionsWriteShowsSaveFailedAndDoesNotStoreTheChoice() =
+        runTest {
+            atSetup.answer = SetupOutcome.Failed
+            val vm = viewModel()
+            vm.onToggleCollections()
+
+            vm.onDone()
+
+            assertEquals(LibrariesPhase.SaveFailed, vm.state.value.phase)
+            assertTrue(setup.chosen.isEmpty())
+            assertNotNull(handOff.peek())
+        }
+
+    @Test
+    fun anUnwritableLineupDoesNotHoldContinueTheChoiceIsStoredAnyway() =
+        runTest {
+            atSetup.answer = SetupOutcome.Unwritable
+            val vm = viewModel()
+            val events = mutableListOf<LibrariesEvent>()
+            val job = backgroundScope.collect(vm, events)
+            vm.onToggleCollections()
+
+            vm.onDone()
+
+            assertEquals(listOf(false), atSetup.chosen)
+            assertEquals(1, setup.chosen.size)
+            assertEquals(listOf(LibrariesEvent.Finished), events)
+            job.cancel()
+        }
+
+    @Test
+    fun theTomorrowLineIsForAFinalisedLineupWithAChangedSwitchOnly() {
+        val fresh = viewModel()
+        fresh.onToggleCollections()
+        assertFalse(fresh.state.value.collectionsTomorrow)
+
+        atSetup.finalised.value = true
+        val again = viewModel()
+        assertFalse(again.state.value.collectionsTomorrow)
+        again.onToggleCollections()
+        assertTrue(again.state.value.collectionsTomorrow)
+        again.onToggleCollections()
+        assertFalse(again.state.value.collectionsTomorrow)
+    }
+
     // Back (#234 L3)
 
     @Test
@@ -322,7 +423,7 @@ class LibrariesViewModelTest {
             val retried = InMemoryLibrarySetup(stale)
             retried.failClears = 1
             retried.clear()
-            val vm = LibrariesViewModel(server, sessions, stale, retried, handOff)
+            val vm = LibrariesViewModel(server, sessions, stale, retried, household, atSetup, handOff)
             val events = mutableListOf<LibrariesEvent>()
             val job = backgroundScope.collect(vm, events)
 
@@ -339,7 +440,7 @@ class LibrariesViewModelTest {
         val stale = InMemoryServerSettings(ServerRecord(https), setOf(ItemId("old")))
         val retried = InMemoryLibrarySetup(stale)
         retried.failClears = 1
-        val vm = LibrariesViewModel(server, sessions, stale, retried, handOff)
+        val vm = LibrariesViewModel(server, sessions, stale, retried, household, atSetup, handOff)
 
         vm.onDone()
 
@@ -372,7 +473,8 @@ class LibrariesViewModelTest {
         val gate = CompletableDeferred<ServerResult<List<Library>>>()
         val slow = SlowLibraries(server, gate)
 
-        val vm = LibrariesViewModel(slow, sessions, settings, InMemoryLibrarySetup(settings), handOff)
+        val vm =
+            LibrariesViewModel(slow, sessions, settings, InMemoryLibrarySetup(settings), household, atSetup, handOff)
         assertEquals(LibrariesPhase.Loading, vm.state.value.phase)
         gate.complete(ServerResult.Success(listOf(movies)))
 
@@ -383,7 +485,7 @@ class LibrariesViewModelTest {
     fun doneStoresTheServerRecordWhenContinueCouldNotAndThenTheChoice() =
         runTest {
             val bare = InMemoryServerSettings()
-            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), handOff)
+            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), household, atSetup, handOff)
             val events = mutableListOf<LibrariesEvent>()
             val job = backgroundScope.collect(vm, events)
 
@@ -400,7 +502,7 @@ class LibrariesViewModelTest {
         runTest {
             val bare = InMemoryServerSettings()
             bare.failSave = true
-            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), handOff)
+            val vm = LibrariesViewModel(server, sessions, bare, InMemoryLibrarySetup(bare), household, atSetup, handOff)
             val events = mutableListOf<LibrariesEvent>()
             val job = backgroundScope.collect(vm, events)
 
@@ -423,7 +525,8 @@ class LibrariesViewModelTest {
                 tv.stationbreak.core.model
                     .SpkiPin(ByteArray(tv.stationbreak.core.model.SpkiPin.SIZE) { 6 })
             val pinned = InMemoryServerSettings(ServerRecord(https, pin))
-            val vm = LibrariesViewModel(server, sessions, pinned, InMemoryLibrarySetup(pinned), handOff)
+            val vm =
+                LibrariesViewModel(server, sessions, pinned, InMemoryLibrarySetup(pinned), household, atSetup, handOff)
 
             vm.onDone()
 
