@@ -1,51 +1,44 @@
 ---
 name: StationBreak
-description: Always-on broadcast channels from a Jellyfin library, on the TVs people already own.
+description: Always-on broadcast channels from a Jellyfin library. Put your feet up.
 colors:
-  on-air-orange: "#E8642C"
-  on-air-orange-light-fill: "#AD4216"
-  on-air-orange-light-text: "#8F3811"
-  focus-ink-dark: "#1A0D06"
-  after-hours-page: "#0E0F11"
-  after-hours-sheet: "#141518"
-  after-hours-sheet-line: "#3A3B40"
+  ink: "#1C1B19"
+  panel: "#262320"
+  line: "#3D3832"
+  cream: "#F3EEE3"
+  grey: "#CFCBC2"
+  muted: "#B3AB9D"
+  orange: "#E8642C"
+  screen-lift-top: "#2E2A25"
+  screen-lift-bottom: "#151412"
+  rating-amber: "#FFD166"
   daylight-page: "#D2D5DA"
   daylight-sheet: "#E4E6EA"
-  listing-ink: "#111214"
-  white-primary: "rgba(255, 255, 255, 0.90)"
-  white-secondary: "rgba(255, 255, 255, 0.58)"
-  white-supporting: "rgba(255, 255, 255, 0.38)"
-  white-card: "rgba(255, 255, 255, 0.06)"
-  white-line: "rgba(255, 255, 255, 0.10)"
-  ink-primary: "rgba(17, 18, 20, 0.92)"
-  ink-secondary: "rgba(17, 18, 20, 0.66)"
-  ink-supporting: "rgba(17, 18, 20, 0.52)"
-  ink-card: "rgba(17, 18, 20, 0.12)"
-  ink-line: "rgba(17, 18, 20, 0.16)"
-  rating-amber-dark: "#FFD166"
-  rating-amber-light: "#7A4B00"
-  test-card-ground: "#CFCBC2"
-  test-card-ink: "#1C1B19"
-  test-card-cream: "#F3EEE3"
-  onboarding-ring: "#7E74B0"
+  daylight-ink: "#111214"
+  daylight-orange-fill: "#AD4216"
+  daylight-orange-text: "#8F3811"
 typography:
+  name:
+    fontFamily: "Ranchers"
+    fontWeight: 400
+    lineHeight: 1
+  stan-line:
+    fontFamily: "Ranchers"
+    fontWeight: 400
+    lineHeight: 1
+  teletype:
+    fontFamily: "Space Mono"
+    fontWeight: 700
+    letterSpacing: "0.13em"
   headline:
     fontFamily: "Manrope"
     fontSize: "24sp"
     fontWeight: 600
     lineHeight: 1
     letterSpacing: "-0.015em"
-  screen-title:
-    fontFamily: "Manrope"
-    fontSize: "40sp"
-    fontWeight: 400
   screen-body:
     fontFamily: "Manrope"
     fontSize: "20sp"
-    fontWeight: 400
-  screen-detail:
-    fontFamily: "Manrope"
-    fontSize: "18sp"
     fontWeight: 400
   sheet-body:
     fontFamily: "Manrope"
@@ -71,16 +64,8 @@ typography:
     fontWeight: 500
     fontFeature: "tnum"
   flag:
-    fontFamily: "Manrope"
-    fontSize: "10sp"
-    fontWeight: 700
-    letterSpacing: "0.06em"
-  ident-display:
-    fontFamily: "Archivo Black"
-    fontWeight: 400
-    lineHeight: 1
-  ident-mono:
     fontFamily: "Space Mono"
+    fontSize: "10sp"
     fontWeight: 700
     letterSpacing: "0.13em"
 rounded:
@@ -97,195 +82,201 @@ spacing:
   safe-top: "27dp"
 components:
   programme-cell:
-    backgroundColor: "{colors.white-card}"
-    textColor: "{colors.white-primary}"
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.cream}"
     typography: "{typography.title}"
     rounded: "{rounded.grid}"
     height: "39.8dp"
   programme-cell-focused:
-    backgroundColor: "{colors.on-air-orange}"
-    textColor: "{colors.focus-ink-dark}"
+    backgroundColor: "{colors.orange}"
+    textColor: "{colors.ink}"
     typography: "{typography.title}"
     rounded: "{rounded.grid}"
   sheet:
-    backgroundColor: "{colors.after-hours-sheet}"
-    textColor: "{colors.white-primary}"
+    backgroundColor: "{colors.panel}"
+    textColor: "{colors.cream}"
     typography: "{typography.sheet-body}"
     width: "380dp"
-  sheet-action:
-    textColor: "{colors.white-primary}"
-    typography: "{typography.sheet-body}"
-    rounded: "{rounded.key-cap}"
   sheet-action-focused:
-    backgroundColor: "{colors.on-air-orange}"
-    textColor: "{colors.focus-ink-dark}"
+    backgroundColor: "{colors.orange}"
+    textColor: "{colors.ink}"
     typography: "{typography.sheet-body}"
     rounded: "{rounded.key-cap}"
   banner:
-    backgroundColor: "{colors.after-hours-page}"
-    textColor: "{colors.white-primary}"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.cream}"
     rounded: "{rounded.grid}"
     height: "58dp"
     padding: "0 16dp"
+  section-flag:
+    textColor: "{colors.grey}"
+    typography: "{typography.flag}"
   key-cap:
-    textColor: "{colors.white-secondary}"
+    textColor: "{colors.cream}"
     rounded: "{rounded.key-cap}"
     height: "16dp"
-  text-tab:
-    textColor: "{colors.white-secondary}"
-    typography: "{typography.body}"
-  text-tab-active:
-    textColor: "{colors.white-primary}"
-    typography: "{typography.body}"
 ---
+
+<!-- Brand source: the working draft "StationBreak Brand Standards" sheet (Stan, marks, colour and type, on-screen
+template, voice). Items that sheet lists as still open are marked PROVISIONAL here; settle them there first, then
+here. Several tokens below are the target, not yet the shipping code: see "Migration" at the end. -->
 
 # Design System: StationBreak
 
 ## Overview
 
-**Creative North Star: "The Station Ident"**
+**Creative North Star: "Stan's Station"**
 
-StationBreak is a broadcaster, not a media app. The ident is its signature: the test card with the TV-set icon, the STATION BREAK wordmark in a heavy display face, a mono caption, cream and ink, and one orange tally of colour. Everything else in the app is that station's listings and control room. They are deliberately quieter, so the on-air moments carry the brand: true neutrals, one accent, flat surfaces and type that reads from across a living room.
+A station break is the moment the programme stops and the station speaks for itself. StationBreak's station is Stan: a console TV set with rabbit ears who has put his feet up. The whole app is his station, one look from the first setup screen to the guide at 2 AM. The ground is warm ink, because it's watched from a couch in a dim room. Cream carries the words, a little orange is the spark, and Stan turns up with one line when the station has something to say.
 
-The system has two registers under one name. The **on-air register** (Archivo Black, Space Mono, test-card ground, cream and ink) appears only when the station is talking to the viewer: the ident card, the "we'll be right back" slates, the snow between channels. The **listings register** (Manrope, white or ink at fixed alphas on a near-black or mid-grey page, On-Air Orange for focus and "now") is everything the viewer operates: the guide, the banner, the menu sheet, the channel screens, settings and onboarding. The guide overhaul set the listings register's bar: a broadcast EPG, not a themed menu of rounded capsules.
+The look is unified: one ground, one palette, one pair of voice faces, one focus colour across setup, the guide, the channel screens, the banner and the station screens. What changes between surfaces is density, not identity. The guide is the station's listings: a dense, disciplined broadcast EPG on the same ink, where Stan stays out of the way and orange marks only "this one" and "now". The station screens (tuning, off the air, no signal, technical difficulties, first launch) are where Stan and the voice faces lead.
 
-Density is set from the couch on the floor device. The guide shows five channel rows at 960×540dp, and nothing drops below 10sp. Depth comes from tone and dimming, never from shadow. Focus is a fill or a ring, never growth inside a grid. Motion is short and stops entirely when the TV's animation scale is off.
+Nothing glares and nothing shouts. Surfaces are flat, depth is a tonal step plus a hairline, and motion is short and stops when the TV's animation scale is off. Density is set from the couch on the floor device: five guide rows at 960×540dp, nothing under 10sp.
 
 **Key Characteristics:**
-- Two registers: on-air (ident, slates, snow) and listings (everything operable), never mixed on one surface.
-- One accent, On-Air Orange, for focus, now and progress. It is the only saturated colour outside channel marks.
-- Neutrals are a single white (Dark) or ink (Light) at fixed alphas over the page, with no warm tints.
-- Flat: 1dp hairlines and 2dp corners in the grid, no shadows, gradients or washes.
-- The viewer picks Dark (the default) or Light for the guide family. The system theme is never followed.
-- Text and pictures keep to the overscan safe area (48dp × 27dp at 960×540); surfaces bleed to the screen edge.
+- One warm-ink world everywhere; screens get a soft warm lift toward the middle, so they never read as flat black or as white.
+- Four brand colours: mostly ink, then cream, with orange as the spark and grey for small supporting text.
+- Stan is the station's face. Without limbs he is the mark; with limbs, the character on station screens.
+- Ranchers is the station's voice (the name, Stan's lines), and Space Mono Bold its teletype (status, clocks, flags). A plain reading face carries everything else.
+- Stan gets one line; the plain status says what is happening and what to do. The joke never carries the information.
+- Flat: no outlines, gradients or shadows on surfaces or on Stan (except the one shadow under his feet).
 
 ## Colors
 
-Near-black or mid-grey neutrals carry everything, and one broadcast orange marks what is live and what has focus.
+Warm ink carries everything, cream does the talking, and orange is the spark.
 
 ### Primary
-- **On-Air Orange** (#E8642C): the Dark theme's single accent. It is the focus fill on a programme cell or action, the now line (35% alpha through the grid), the ON NOW / NOW flag, progress fills, the 2dp channel-focus outline and the 6dp now triangle. It is also the test card's tally colour, so the brand and the "now" signal are the same colour.
-- **On-Air Orange, Daylight fill** (#AD4216) and **On-Air Orange, Daylight text** (#8F3811): the Light theme's darker oranges. Each is the least saturation shift that keeps the floor on the grey page: the fill holds 3:1 over a card, and the text form holds 4.5:1 for ON NOW and 3:1 for the cell progress line.
+- **Orange** (#E8642C): Stan's ears, shoes, cheeks and tuning knob; the focus fill (with ink text, 5.2:1); the now line, NOW and status flags, progress; one word in the stacked name. A little goes a long way.
 
 ### Neutral
-- **After-Hours Page** (#0E0F11): the Dark guide page, also the banner and transport strip surface at 92% (96% for the info overlay). It's a true neutral, with no wood or warm tint.
-- **After-Hours Sheet** (#141518), with its **Sheet Line** (#3A3B40): a sheet over the dimmed guide (the menu sheet, channel properties), one step up from the page, with a 1dp line on the edge facing the screen.
-- **Daylight Page** (#D2D5DA) and **Daylight Sheet** (#E4E6EA): the Light theme's mid-light grey (about 83% lightness; a white page glares on a TV) and the step above it.
-- **Listing Ink** (#111214): the Light theme's single neutral. Text, cards, lines and the mono channel-mark tint are this ink at fixed alphas.
-- **White at alphas** (Dark): primary text 90%, secondary 58%, supporting 38% (strokes only), card 6%, rules 10%, progress track 8%, key-cap stroke 28%. **Ink at alphas** (Light): 92 / 66 / 52 / 12 / 16 / 14%.
-- **Focus Ink** (#1A0D06): text on an On-Air Orange fill in Dark, with 90% for its secondary line. Light uses white.
-- **Rating Amber** (#FFD166 Dark, #7A4B00 Light): the content-rating and KIDS badge on a sheet, and the only other hue in the listings register.
+- **Ink** (#1C1B19): the ground. Every station screen and the guide family sit on it; it is also the cream-ground version's lettering.
+- **Panel** (#262320) and **Line** (#3D3832): a raised surface (programme cells, sheets, the banner's row) and its 1dp hairline. These are the step up from ink.
+- **Screen lift** (#2E2A25 to #151412): a full-screen ground's soft radial lift toward the middle. The guide grid uses flat ink; station screens and setup use the lift.
+- **Cream** (#F3EEE3): Stan's cabinet, headlines, the name, primary text (14.9:1 on ink).
+- **Grey** (#CFCBC2): small supporting text, outlines, key caps (10.6:1 on ink).
+- **Muted** (#B3AB9D): the quietest text step, for metadata under a title (7.6:1 on ink, 6.3:1 on the lift's brightest point).
+- **Rating amber** (#FFD166): the content-rating and KIDS badge. It's the only hue outside the four, kept because a rating must not read as focus.
 
-### Tertiary (on-air register only)
-- **Test-Card Ground** (#CFCBC2), **Test-Card Ink** (#1C1B19), **Test-Card Cream** (#F3EEE3): the ident card, the slates and their mono captions, taken from the app icon art. On-Air Orange is their accent.
+### Daylight (PROVISIONAL)
+The guide's viewer-chosen Light theme predates the brand sheet, which is dark-only. It stays as it ships (a #D2D5DA page, #E4E6EA sheets, #111214 ink at fixed alphas, a #AD4216 fill and #8F3811 text orange) until the brand decides whether a light variant exists and what its ground is.
 
 ### Named Rules
-**The One Tally Rule.** On-Air Orange means "this one" or "now": focus, the now line, ON NOW, progress. It is never decoration, never a heading colour, and never on two unrelated things on one screen.
+**The Spark Rule.** Orange is the spark, never the fill of a screen. In the guide family it means exactly "this one" (focus) or "now" (the now line, NOW, progress). Never use it for decoration or headings, and never for two unrelated things on one screen.
 
-**The Composite Rule.** Neutral text is an alpha over the page, and contrast is judged on the composite: 4.5:1 for text up to 13sp, 3:1 for larger text and for strokes. Supporting alpha (38% white, 52% ink) is for chevrons, ticks and rules only, never text. `GuidePaletteTest` and `ContrastTest` enforce it.
+**The Readable Pairs Rule.** Text uses only the pairs the brand sheet clears:
+- cream on ink, for anything;
+- grey or muted on ink, for small text;
+- orange on ink, and ink on orange, for labels, flags and headlines.
 
-**The Viewer's Choice Rule.** The guide family is Dark unless the viewer chose Light in Settings. It never follows the TV's system theme. The banner is always Dark, because it sits over the picture.
+Cream on orange and orange on cream (2.9:1) are for shapes only, never text. Orange text keeps to ink or panel; on the lift's brightest point it drops to 4.3:1, so it isn't used for small text there.
+
+**The Viewer's Choice Rule.** The guide family follows the viewer's own Dark/Light choice, never the TV's system theme. Dark (warm ink) is the default.
 
 ## Typography
 
-**Listings Font:** Manrope (Regular, Medium, SemiBold, Bold; static files bundled in the APK)
-**On-Air Display Font:** Archivo Black
-**On-Air Mono Font:** Space Mono Bold
+**Voice Font:** Ranchers (the name, Stan's lines)
+**Teletype Font:** Space Mono Bold (status, clocks, flags, labels)
+**Reading Font:** Manrope, PROVISIONAL (the brand sheet hasn't chosen a reading face; Manrope ships today, and the sheet uses Figtree as a stand-in)
 
-**Character:** Manrope is a calm, slightly geometric grotesque that stays legible at 11sp from three metres. Archivo Black and Space Mono are the station talking: a heavy wordmark and a typewriter caption, used only on the test card and the slates.
+**Character:** Ranchers is a relaxed, rounded display face with a grin: the station sounding like itself. Space Mono Bold is the teletype: capitals, spaced out, orange for the status and grey for the detail. The reading face stays quiet so these two can carry the brand. None of the three is used by a channel mark, so the station never looks like one of its own channels.
 
 ### Hierarchy
-- **Screen title** (Regular, 40sp): tv-material's `headlineLarge`, the one large line on an onboarding screen.
-- **Headline** (SemiBold, 24sp, -0.015em): the guide panel's programme title, the info overlay title. The one large thing on the guide.
-- **Screen body / detail** (Regular, 20sp / 18sp): reading text, buttons and fields on full screens.
-- **Sheet body / caption** (Medium 16sp / Regular 14sp): the properties sheet and channel rows. A sheet is read further back than the grid, so it never goes under 14sp.
-- **Title** (Medium, 13sp, 1.2 line height): programme names in the grid.
-- **Body** (Regular, 11sp, 1.2): grid metadata, the panel's channel line and overview (two lines at most), banner line two.
-- **Label** (Medium, 11sp, tabular figures): times, ranges, the clock and channel numbers. Figures are tabular via `tnum`; everything else keeps proportional figures.
-- **Flag** (Bold, 10sp, +6% tracking, uppercase): ON NOW, NOW, UP NEXT, tags. This is the floor.
-- **Ident display / mono** (Archivo Black at 1.0 line height; Space Mono Bold at +13% tracking): STATION BREAK, slate titles, the ident caption (at least 10sp, 1.2 line height, three lines inside the disc).
+- **Name** (Ranchers, "Station Break", capital S and capital B): the wordmark and the station screens' sign-off.
+- **Stan's line** (Ranchers, capitals, a few words at most): "PLEASE STAND BY", "GONE TO BED", "ANYBODY OUT THERE?". Never more than a few words.
+- **Teletype status** (Space Mono Bold, capitals, +13% tracking): "TUNING CHANNEL 212", "OFF THE AIR · RETURNS AT 6:00 AM". Orange for the status, grey for the detail.
+- **Headline** (reading face, SemiBold, 24sp, -0.015em): the guide panel's programme title, the info overlay title.
+- **Screen body** (reading face, 20sp): setup messages, buttons and fields.
+- **Sheet body / caption** (reading face, Medium 16sp / Regular 14sp): the properties sheet and channel rows.
+- **Title** (reading face, Medium 13sp, 1.2 line height): programme names in the grid.
+- **Body / label** (reading face, 11sp, Regular / Medium tabular): grid metadata, times, channel numbers.
+- **Flag** (Space Mono Bold, 10sp, capitals, +13%): NOW, UP NEXT, section headers ("ON · 48"), tags.
 
 ### Named Rules
-**The Ten-Foot Floor Rule.** Nothing in the app renders under 10sp, at any font scale. A design that needs smaller text needs fewer words.
+**The Ten-Foot Floor Rule.** Nothing renders under 10sp, at any font scale. (The brand sheet's smallest station-screen text, 28px at 1080p, still needs checking from the couch: PROVISIONAL.)
 
-**The Three-Size Grid Rule.** The guide grid uses three sizes and two weights: 13sp Medium titles, 11sp Regular metadata and 11sp Medium tabular figures. Hierarchy comes from that step and from colour alpha, not from more sizes.
+**The Few Words Rule.** Ranchers is for the name and Stan's lines only, never more than a few words, and never for information the viewer needs to act on.
 
-**The Station Voice Rule.** Archivo Black and Space Mono appear only in the on-air register. The banner, flip bar and overlays left them behind in the banner restyle, and they don't come back.
+**The Three-Size Grid Rule.** The guide grid uses three sizes and two weights (13sp Medium titles, 11sp Regular metadata, 11sp Medium tabular figures). Hierarchy comes from that step and from cream, grey and muted, not from more sizes.
 
 ## Layout
 
-The design canvas is 960×540dp. All text and pictures keep to the overscan safe area: 5% in from each edge (48dp sides, 27dp top and bottom), or 1.5% when the viewer picks Screen fit: Edge. `ScreenLayout.safeArea` is the one source, so the guide, live picture, banner and channel screens move together. Surfaces bleed past it: the guide page, the timeline rule, programme cells running off the right edge and a sheet's ground all run to the screen edge while their text stays inside.
+The design canvas is 960×540dp. Text, Stan and pictures keep to the overscan safe area: 5% in from each edge (48dp sides, 27dp top and bottom), or 1.5% with Screen fit: Edge. `ScreenLayout.safeArea` is the one source. Grounds, hairlines and cell fills bleed to the screen edge.
 
-The guide is a broadcast EPG: the live picture top-right (48% of the safe width, 16:9, 414.7 × 233.3dp), the details panel top-left beside it, and the grid below with five channel rows of 40.8dp each, separated by 1dp gaps. The channel column is 84dp (number, 8dp, a 50×28dp mark box). The timeline strip is 20dp with a 1dp rule. The hint row is 20dp, with 20dp between pairs, and drops pairs in the order Menu, Left, OK when space runs out; Back is never dropped.
+**Station screens** are all built the same way: Stan on the left in the mood for the moment, his line in Ranchers, then the teletype status and what happens next. The name and the clock sit as a quiet sign-off line. One template covers tuning, off the air, no signal, technical difficulties, first launch and an empty library.
 
-Spacing is small and exact: 1dp hairlines and gaps, 4dp tight steps, 8dp steps, 16dp gutters inside sheets and the banner. Full screens (onboarding, channels) use the same safe-area padding through a shared `safeAreaPadding`.
+**The guide** is the station's listings: the live picture top-right (48% of the safe width, 16:9), the details panel top-left, and the grid below with five channel rows of 40.8dp, separated by 1dp gaps. The channel column is 84dp (number, 8dp, a 50×28dp mark box). The timeline strip is 20dp, and the hint row 20dp with 20dp between pairs; pairs drop in the order Menu, Left, OK, and Back is never dropped.
+
+Spacing is small and exact: 1dp hairlines, 4dp tight steps, 8dp steps, 16dp gutters.
 
 ### Named Rules
-**The Safe-Area Rule.** Text, marks, chevrons and focus rings keep inside the safe area. Only grounds, rules and cell fills bleed to the edge.
+**The Safe-Area Rule.** Text, marks, Stan, chevrons and focus rings keep inside the safe area; only grounds, hairlines and cell fills bleed.
 
-**The Five-Row Rule.** The guide shows five rows at 960×540. Density was reduced after on-TV review; adding rows needs another review on the floor device.
+**The Five-Row Rule.** The guide shows five rows at 960×540. Adding rows needs another review on the floor device.
 
 ## Elevation & Depth
 
-StationBreak is flat. There are no shadows, glows, gradients or washes in the guide family; the overhaul removed every one. Depth comes from three things only: a tonal step (sheet over page, card alpha over page), dimming (a sheet dims the guide behind it with a black scrim at 55%), and a 1dp line on the edge of a raised surface. A scrolling part that runs past its edge fades out over 24dp instead of cutting a line in half.
+StationBreak is flat. Depth is a tonal step (ink, then panel), a 1dp line, and dimming: a sheet dims what is behind it. Full-screen grounds have one soft warm radial lift, and that is the only gradient in the system. Stan casts the only shadow, the one under his feet. A scrolling part that runs past its edge fades out over 24dp instead of cutting a line in half.
 
 ### Named Rules
-**The Flat Broadcast Rule.** If a surface needs to stand forward, step its tone and give it a 1dp line. Never add a shadow.
+**The Flat Station Rule.** Never add a drop shadow, glow or outline to a surface or to Stan. To raise something, step it from ink to panel and give it a hairline.
 
 ## Shapes
 
-Corners are nearly square, like a broadcast graphic. Inside the grid and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, and the drawn focus ring 4dp. The OK key cap is the one circle. Channel marks are flat colour on transparent in a 50×28dp box: no tile, border, tint (except Light's mono ink) or shadow.
-
-The on-air register has its own geometry, the test card: concentric rings, crosshair rules, corner targets, the TV-set icon and a centre disc that the wordmark and caption must stay inside.
+Corners are soft on Stan and nearly square on the listings. Stan's cabinet is 4 wide by 3 high with soft corners; his limbs are single round-ended lines and his hands are dots. In the guide and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, the drawn focus ring 4dp, and the OK key cap is the one circle. Channel marks are flat colour on transparent in a 50×28dp box: no tile, border or shadow.
 
 ## Components
 
-### Programme Cell (signature, listings)
-Near-flat cells in one grid, read as listings, not buttons.
-- **Shape:** 2dp corners, 1dp gaps between cells and rows.
-- **Rest:** card alpha over the page; title 13sp Medium primary, metadata 11sp Regular secondary (`S2 E7 · Animated`, `1954 · NR · Musical`).
-- **Focus:** On-Air Orange fill with Focus Ink text (white in Light). No growth, no shadow; 160ms colour change, none with reduced motion.
-- **Now:** a 1.5dp progress line along the bottom edge, ending at the now line. The playing channel's tile carries a marker and "Playing" for screen readers.
-- **Continuation:** a 1.5dp chevron in supporting alpha.
+### Stan (signature)
+The station's face, always drawn from the same parts: two rabbit ears with orange tips, the screen as his face, a cream cabinet, an ink screen, orange details (shoes, the tuning knob, cheeks when content), an ink volume knob, and a three-line speaker. On a cream ground the cabinet turns ink and the screen cream.
+- **Moods:** Content (the default: icon, wordmark, banner), Awake (the screen asks the viewer something), Tuning (any short wait), Asleep (off the air, overnight, idle), Lost (the server is out of reach), On the fritz (something broke on our side; rare). A new situation reuses one of these before it earns a new drawing.
+- **Never:** recolour him, stretch or squash him, put cream Stan on a light ground, or take his ears off.
 
-### Channel Mark
-The channel's brand, typographic and original, drawn in a 50×28dp box beside an 11sp tabular number. Colour render in Dark, mono ink in Light. A user-built channel with no mark shows Manrope Bold 12sp initials in the same box. Channel focus is a 2dp On-Air Orange outline inside the 84dp column.
+### Marks
+The icon is Stan's head, content, with no limbs: orange is the main version, ink where orange would shout. The name is "Station Break" in Ranchers, with the tagline "PUT YOUR FEET UP" in orange underneath. Drop the tagline below about 160px wide, and use the icon alone below about 100px (both PROVISIONAL, untested on a TV). In the stacked version on ink, "Break" may turn orange. On orange, the lettering is ink.
+
+### Station Screen (signature)
+Stan in a mood, a Ranchers line, a teletype status, then the next step. "PLEASE STAND BY · TUNING CHANNEL 212", "GONE TO BED · OFF THE AIR · RETURNS AT 6:00 AM", "ANYBODY OUT THERE? · NO SIGNAL · CAN'T REACH YOUR SERVER · OK TO RETRY". It replaces the test-card slates over time (see Migration).
+
+### Programme Cell (listings)
+Near-flat panel cells in one grid, 2dp corners, 1dp gaps. Title in 13sp Medium cream, metadata in 11sp muted. Focus is an orange fill with ink text: no growth, no shadow, a 160ms colour change, and none with reduced motion. The current programme gets a 1.5dp orange progress line along its bottom edge. The playing channel's tile carries a marker and "Playing" for screen readers.
 
 ### Now/Next Banner
-A 58dp bar over the picture: After-Hours Page at 92%, 1dp line, 2dp corners, 16dp sides, a 2dp progress line along its top. Mark and number, an 18sp Bold title, one 11sp secondary line led by a 10sp Bold flag (NOW, TUNING IN, UP NEXT), and "Next: … at …" right-aligned. The Select banner adds a 44dp row of 28dp buttons (12sp Medium, card fill; focus is an orange fill, with no scale and no ring).
+A 58dp ink bar over the picture with a 1dp line, 2dp corners and a 2dp orange progress line along its top. It holds the mark and number, an 18sp title in cream, and a single 11sp line led by a teletype flag (NOW, TUNING IN, UP NEXT). The Select banner's buttons focus with an orange fill and no scale.
 
-### Sheet (menu sheet, channel properties)
-A 380dp right-hand sheet over the dimmed guide, full height, its ground bleeding to the screen edge and its text inside the safe area. Identity at the top; the content scrolls and fades at the edge; actions and the Back hint stay pinned below. Captions 14sp, body 16sp. Actions are 16sp Medium with 3dp corners; focus is an On-Air Orange fill. Rows inside the guide family use `panelFocus`: the theme's ring, no scale.
+### Sheet and Rows (menu sheet, channel properties, channel screens, settings)
+Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The ground bleeds while the text keeps to the safe area, and the content scrolls and fades while actions stay pinned. A row's focus is the drawn ring in orange (`panelFocus`), with no scale. Section headers are teletype flags in grey with a count ("ON · 48"), not text that looks like a row.
 
 ### Key Hints
-A key cap (1dp stroke at 28% white or ink, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp secondary label. Pairs sit 20dp apart with no divider.
+A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's.
 
-### Text Tabs (menu row)
-Plain 11sp text, secondary at rest; active is primary with a 1dp underline. No pills, no fills.
-
-### Buttons and Fields (onboarding)
-Onboarding still runs on tv-material's baseline dark scheme in Manrope at 20sp. A focused button inverts its fill and takes a 3dp mid-tone ring (Onboarding Ring, #7E74B0, at least 3:1 against both the fill and the page) and a 1.08× scale. Fields keep their fill and take the primary ring at 1.02×. This is the one place focus still scales; it isn't a grid, so nothing is pushed into a neighbour.
-
-### Ident Card and Slates (signature, on-air)
-The test card on Test-Card Ground: rings and rules in Test-Card Ink, the TV-set icon with its orange screen, STATION BREAK in Archivo Black, and a Space Mono caption of at most three lines, kept inside the centre disc (corners within 150 of the disc's 150-unit radius). The slates for a missing show, no channels and no libraries reuse the card. Snow between channels is a static frame when motion is reduced.
+### Setup (onboarding)
+Setup is a station screen too: Stan in Awake or Tuning, the reading face at 20sp for fields and buttons, and focus in orange. PROVISIONAL: it still ships tv-material's default dark scheme with a lavender ring and scaled focus (see Migration).
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** use On-Air Orange for exactly one meaning on a screen: focus or now.
-- **Do** draw neutral text as white (Dark) or ink (Light) at the documented alphas, and check contrast on the composite (4.5:1 at 13sp and under).
-- **Do** keep text, marks and focus rings inside the safe area (48dp × 27dp at 960×540) and let grounds bleed.
-- **Do** show focus in the guide family as a fill or an unscaled ring (`panelFocus`), drawn from the screen's own state.
-- **Do** keep every line at 10sp or larger, and use `guideProse` (1.2 line height) for anything that can wrap.
-- **Do** step tone and add a 1dp line to raise a surface, and fade a scrolling edge rather than cut a line.
-- **Do** keep Archivo Black and Space Mono to the test card, slates and ident.
-- **Do** honour reduced motion: no scale, no spinner turn, a still frame for snow.
+- **Do** put every screen on warm ink, with the soft lift on full-screen grounds.
+- **Do** keep orange to "this one" and "now" in the listings, and to Stan's details and one word on station screens.
+- **Do** give Stan one line, then let the teletype status say plainly what is happening and what to do.
+- **Do** use only the readable pairs: cream or grey on ink for text, and orange with ink for labels and flags.
+- **Do** keep text, Stan and focus inside the safe area (48dp × 27dp at 960×540).
+- **Do** keep every line at 10sp or larger.
+- **Do** honour reduced motion: no scale, no spinner turn, and a still frame where something would move.
 
 ### Don't:
-- **Don't** round anything inside the grid or the banner family past 2dp, or turn listings back into pills or capsules.
-- **Don't** add shadows, glows, gradients or warm-tinted neutrals to the guide family.
-- **Don't** scale focus inside a grid or a list of rows; it pushes an edge into the neighbour.
+- **Don't** recolour, stretch or squash Stan, take his ears off, or put cream Stan on a light ground.
+- **Don't** use Ranchers for more than a few words or for anything the viewer needs to act on.
+- **Don't** set text in cream on orange or orange on cream (2.9:1).
+- **Don't** add shadows, glows, outlines or gradients beyond the single ground lift and Stan's foot shadow.
+- **Don't** round anything inside the grid or the banner family past 2dp, or scale focus inside a grid or list.
 - **Don't** follow the TV's system theme for the guide family.
-- **Don't** put a channel's name in the grid; the details panel already has it.
-- **Don't** tile, outline, tint (other than Light's mono ink) or shadow a channel mark, or draw one that evokes a real network.
-- **Don't** use the supporting alpha (38% white, 52% ink) for text.
+- **Don't** use a voice face in a channel mark, or draw a mark that evokes a real network.
+
+## Migration (the design target is ahead of the code)
+
+These tokens and components are the brand's target. The app reaches them in steps; until then the code is the record of what ships.
+- **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
+- **Faces:** the test card uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
+- **Station screens:** the test-card slates (ident, difficulties, no channels, no libraries) and the snow are to be replaced by Stan station screens.
+- **Setup:** tv-material's default dark scheme, lavender ring and scaled focus are to move to the station's ink and orange.
+- **Words:** "Sync now", "First sync" and loading states are to move toward broadcast words (stand by, tune, signal, returns at).
