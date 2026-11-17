@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import android.content.res.Resources
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
@@ -407,8 +408,6 @@ private fun numbersOf(info: ProgramInfo): String? {
     }
 }
 
-/** The line height, as a multiple of the font size, that the room for two lines is counted with. */
-internal const val LINE_HEIGHT_FACTOR = 1.2f
 private const val TITLE_SP = 13f
 private const val SECOND_LINE_SP = 11f
 
@@ -416,13 +415,13 @@ private const val SECOND_LINE_SP = 11f
 private val SecondLineStyle = guideText(SECOND_LINE_SP.sp, FontWeight.Normal)
 
 /**
- * Whether a title line (13 sp) and a second line (11 sp), each [LINE_HEIGHT_FACTOR] tall at [fontScale], and the cell's
+ * Whether a title line (13 sp) and a second line (11 sp), each [PROSE_LINE_HEIGHT] tall at [fontScale], and the cell's
  * 1 dp inset on both sides fit in a row [rowHeightDp] high. When they do not, the second line is dropped, not clipped.
  */
 internal fun twoLinesFit(
     fontScale: Float,
     rowHeightDp: Float,
-): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * LINE_HEIGHT_FACTOR + 2 * CellInset.value <= rowHeightDp
+): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * PROSE_LINE_HEIGHT + 2 * CellInset.value <= rowHeightDp
 
 /**
  * The second line of an episode's cell, "S1 E19" (or "E19"): null for a movie, a slate, an episode with no numbers, a
