@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import java.nio.CharBuffer
@@ -331,7 +332,11 @@ internal class UserDataDto(
     @SerialName("Played") val played: Boolean = false,
 )
 
-/** The `AuthenticateByName` body, written straight into a byte array so the caller can wipe the password. */
+/**
+ * The `AuthenticateByName` body, written straight into a byte array so the caller can wipe the password. The password's
+ * escaper ([put]) is the one hand-written JSON escaper in the app: kotlinx.serialization would copy the password into
+ * strings that can't be wiped. The username is not secret and goes through kotlinx.serialization.
+ */
 internal object PasswordBody {
     private const val MAX_ESCAPE = 6
     private const val HEX = 16
@@ -342,7 +347,7 @@ internal object PasswordBody {
         username: String,
         password: CharArray,
     ): ByteArray {
-        val prefix = "{\"Username\":${JsonText.quote(username)},\"Pw\":\""
+        val prefix = "{\"Username\":${Json.encodeToString(JsonElement.serializer(), JsonPrimitive(username))},\"Pw\":\""
         val suffix = "\"}"
         val buffer = CharArray(prefix.length + password.size * MAX_ESCAPE + suffix.length)
         try {
