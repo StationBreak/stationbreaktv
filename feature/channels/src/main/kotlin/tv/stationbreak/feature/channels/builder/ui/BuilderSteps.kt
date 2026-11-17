@@ -127,10 +127,14 @@ internal fun BuilderScreen(
 ) {
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        BoxWithConstraints(modifier.fillMaxSize().testTag(BuilderTags.SCREEN)) {
+        val announcer = remember { Announcer() }
+        BoxWithConstraints(modifier.fillMaxSize().testTag(BuilderTags.SCREEN).announcing(announcer)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val bandWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
-            CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+            CompositionLocalProvider(
+                LocalContentColor provides ChannelsPalette.text,
+                LocalAnnouncer provides announcer,
+            ) {
                 Column(
                     Modifier
                         .offset(safe.left, safe.top)

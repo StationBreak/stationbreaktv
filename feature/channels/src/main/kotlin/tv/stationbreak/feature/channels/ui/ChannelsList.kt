@@ -143,12 +143,7 @@ private fun RowLine(
     row: ChannelRow,
     focused: Boolean,
 ) {
-    val reason =
-        if (row.gettingReady) {
-            stringResource(R.string.channels_row_getting_ready)
-        } else {
-            row.reason?.let { stringResource(reasonText(it)) }
-        }
+    val reason = reasonOf(row)
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason)
@@ -199,7 +194,7 @@ internal fun shelfReasonText(reason: ShelfReason): Int =
     }
 
 @Composable
-private fun labelsOf(row: ChannelRow): String =
+internal fun labelsOf(row: ChannelRow): String =
     listOfNotNull(
         if (row.kid) R.string.channels_label_kids else null,
         when (row.kind) {

@@ -11,11 +11,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -23,10 +25,15 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.TextRange
@@ -38,9 +45,50 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.keepVisible
+import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
 
 private val LineGap = 2.dp
+
+/** What a screen reader says for the focused line: its words, and its state when the words do not carry it. */
+internal data class Spoken(
+    val text: String,
+    val state: String? = null,
+)
+
+/**
+ * The focused line's [Spoken], for the screen's root. The builder keeps one Compose focus stop and moves its own focus
+ * (model-driven), so the root says what is focused as a polite live region; each focused line hands its words here.
+ */
+internal class Announcer {
+    var spoken by mutableStateOf<Spoken?>(null)
+}
+
+internal val LocalAnnouncer = staticCompositionLocalOf<Announcer?> { null }
+
+/** While [focused], this line's [spoken] is what the root says; it takes it back when the focus or the words move. */
+@Composable
+internal fun AnnounceWhenFocused(
+    focused: Boolean,
+    spoken: Spoken?,
+) {
+    val announcer = LocalAnnouncer.current
+    if (announcer == null || spoken == null || !focused) return
+    DisposableEffect(announcer, spoken) {
+        announcer.spoken = spoken
+        onDispose { if (announcer.spoken == spoken) announcer.spoken = null }
+    }
+}
+
+/** Says [announcer]'s focused line, as a polite live region. No look or layout changes. */
+internal fun Modifier.announcing(announcer: Announcer): Modifier =
+    semantics {
+        announcer.spoken?.let {
+            contentDescription = it.text
+            it.state?.let { state -> stateDescription = state }
+            liveRegion = LiveRegionMode.Polite
+        }
+    }
 
 /**
  * A list that draws only what is on screen and keeps line [focused] in view. [lines] are drawn by [content], which is
@@ -70,8 +118,17 @@ internal fun FocusLine(
     modifier: Modifier = Modifier,
     ticked: Boolean? = null,
     role: Role? = null,
+    spoken: Spoken? = null,
     content: @Composable () -> Unit,
 ) {
+    // A switch's words carry its state; a tick box says it beside them.
+    val state =
+        if (ticked != null && role != Role.Switch) {
+            stringResource(if (ticked) R.string.builder_ticked else R.string.builder_unticked)
+        } else {
+            null
+        }
+    AnnounceWhenFocused(focused, spoken?.copy(state = state))
     Box(
         modifier
             .fillMaxWidth()
@@ -97,7 +154,7 @@ internal fun TextLine(
     modifier: Modifier = Modifier,
     role: Role? = null,
 ) {
-    FocusLine(focused, tag, modifier, role = role) {
+    FocusLine(focused, tag, modifier, role = role, spoken = Spoken(text)) {
         Text(text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }

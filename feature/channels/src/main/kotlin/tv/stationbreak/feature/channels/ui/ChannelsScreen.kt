@@ -49,7 +49,7 @@ internal fun ChannelsScreen(
 ) {
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN)) {
+        BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN).announcingFocus(ui)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val listWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
             // Over the guide, a channel's properties sheet shows alone: the guide is the list behind it (#631).
