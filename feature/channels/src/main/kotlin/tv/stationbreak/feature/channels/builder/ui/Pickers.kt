@@ -123,7 +123,8 @@ internal fun SourceList(
     modifier: Modifier = Modifier,
 ) {
     val lines = remember(ui.tab, ui.entries, ui.narrow != null) { linesOf(ui) }
-    val focused = lines.indexOfFirst { it.isFocus(ui.focus) }
+    val focus = ui.focus
+    val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
     FocusedLines(lines, focused, key = { it.key }, modifier = modifier.testTag(BuilderTags.LIST)) { line, isFocused ->
         when (line) {
             SourceLine.Search -> SearchLine(ui.searchText, isFocused, typing)

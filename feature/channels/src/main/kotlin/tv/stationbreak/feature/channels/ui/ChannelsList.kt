@@ -80,7 +80,7 @@ internal fun ChannelList(
         state = state,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        items(lines.size, key = { lines[it].key() }) { i ->
+        items(lines.size, key = { lines[it].key() }, contentType = { lines[it]::class }) { i ->
             when (val line = lines[i]) {
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
                 Line.New -> NewLine(focused = i == focused, locked = !ui.canAddCustom)

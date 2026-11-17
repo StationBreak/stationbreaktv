@@ -105,7 +105,10 @@ internal fun <T> FocusedLines(
     val state = rememberLazyListState()
     LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused, linesAbove = 1) }
     LazyColumn(modifier, state = state, verticalArrangement = Arrangement.spacedBy(LineGap)) {
-        items(lines.size, key = { key(lines[it]) }) { i -> content(lines[i], i == focused) }
+        // A line's type is its content type, so the list reuses a composed line only for the same kind of line.
+        items(lines.size, key = { key(lines[it]) }, contentType = { lines[it]?.let { line -> line::class } }) { i ->
+            content(lines[i], i == focused)
+        }
     }
 }
 
