@@ -113,7 +113,7 @@ internal fun GuideMenuSheet(
                 .align(Alignment.CenterStart)
                 .width(MenuSheetWidth)
                 .fillMaxHeight()
-                .background(colors.sheet)
+                .background(colors.sheet.surface)
                 .testTag(GuideTags.MENU_SHEET),
         ) {
             Column(
@@ -154,7 +154,7 @@ internal fun GuideMenuSheet(
                     maxLines = 1,
                 )
             }
-            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(colors.sheetLine))
+            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(colors.sheet.line))
         }
     }
 }

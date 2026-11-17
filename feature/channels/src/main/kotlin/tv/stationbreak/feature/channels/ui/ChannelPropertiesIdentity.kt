@@ -128,7 +128,7 @@ private fun Tags(
                 } else {
                     stringResource(UiR.string.channel_tag_kids, ceiling)
                 }
-            Text(kids.uppercase(), style = small(), color = ChannelsPalette.kidsTag)
+            Text(kids.uppercase(), style = small(), color = ChannelsPalette.ratingBadge)
         }
     }
 }

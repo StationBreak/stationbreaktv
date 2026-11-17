@@ -45,7 +45,7 @@ class ChannelsPaletteTest {
     fun theFocusRingShowsOnTheGroundAndOnTheSheetInEveryTheme() {
         for ((theme, panel) in panels) {
             val onGround = ratio(panel.ring, panel.ground)
-            val onSheet = ratio(panel.ring, panel.sheet)
+            val onSheet = ratio(panel.ring, panel.sheet.surface)
             assertTrue("ring on the ground in $theme is $onGround, needs 3", onGround >= 3.0)
             assertTrue("ring on the sheet in $theme is $onSheet, needs 3", onSheet >= 3.0)
         }
@@ -61,8 +61,8 @@ class ChannelsPaletteTest {
 
     @Test
     fun theDefaultKeepsTheSheetTheDesignGave() {
-        assertEquals(Color(0xFF141518), PanelColors.Dark.sheet)
-        assertEquals(Color(0xFF3A3B40), PanelColors.Dark.sheetLine)
-        assertEquals(Color(0xFFFFD166), PanelColors.Dark.tag)
+        assertEquals(Color(0xFF141518), PanelColors.Dark.sheet.surface)
+        assertEquals(Color(0xFF3A3B40), PanelColors.Dark.sheet.line)
+        assertEquals(Color(0xFFFFD166), PanelColors.Dark.sheet.ratingBadge)
     }
 }

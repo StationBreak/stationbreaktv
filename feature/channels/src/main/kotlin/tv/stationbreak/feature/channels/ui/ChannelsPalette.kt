@@ -45,13 +45,13 @@ internal object ChannelsPalette {
     val ring: Color @Composable get() = LocalPanelColors.current.ring
 
     /** The properties sheet's ground. */
-    val sheet: Color @Composable get() = LocalPanelColors.current.sheet
+    val sheet: Color @Composable get() = LocalPanelColors.current.sheet.surface
 
     /** The 1 dp line on the properties sheet's left edge. */
-    val sheetLine: Color @Composable get() = LocalPanelColors.current.sheetLine
+    val sheetLine: Color @Composable get() = LocalPanelColors.current.sheet.line
 
-    /** The kids tag on the sheet. */
-    val kidsTag: Color @Composable get() = LocalPanelColors.current.tag
+    /** The content-rating badge on the sheet. */
+    val ratingBadge: Color @Composable get() = LocalPanelColors.current.sheet.ratingBadge
 
     /** A dimmed row's name: the panel's text at [DIMMED_ALPHA] of its own strength. */
     val dimmed: Color @Composable get() = dimmed(LocalPanelColors.current)
@@ -68,9 +68,9 @@ internal object ChannelsPalette {
             Triple("text on the ground", panel.text, panel.ground),
             Triple("secondary on the ground", panel.secondary, panel.ground),
             Triple("dimmed row on the ground", dimmed(panel), panel.ground),
-            Triple("text on the sheet", panel.text, panel.sheet),
-            Triple("secondary on the sheet", panel.secondary, panel.sheet),
-            Triple("kids tag on the sheet", panel.tag, panel.sheet),
+            Triple("text on the sheet", panel.text, panel.sheet.surface),
+            Triple("secondary on the sheet", panel.secondary, panel.sheet.surface),
+            Triple("rating badge on the sheet", panel.sheet.ratingBadge, panel.sheet.surface),
         )
 }
 
