@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stan's head on a cream rounded square (the app icon's art, paper version: ink and cream trade places), from the
+  brand's 512 x 512 SVG with the same colours. The tile is kept: on the guide's Light paper page it reads as the mark.
+  The colour literals are BrandColors ink (#1C1B19), cream (#F3EEE3) and orange (#E8642C); a VectorDrawable cannot
+  reference the Kotlin object, so keep them in step by hand.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="#F3EEE3"
+        android:pathData="M110,0H402A110,110 0 0 1 512,110V402A110,110 0 0 1 402,512H110A110,110 0 0 1 0,402V110A110,110 0 0 1 110,0Z" />
+    <group
+        android:scaleX="1.34"
+        android:scaleY="1.34"
+        android:translateX="256"
+        android:translateY="318">
+        <path
+            android:pathData="M-6,-96L-62,-178"
+            android:strokeColor="#1C1B19"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="9" />
+        <path
+            android:pathData="M6,-96L58,-186"
+            android:strokeColor="#1C1B19"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="9" />
+        <path
+            android:fillColor="#E8642C"
+            android:pathData="M-71,-178A9,9 0 1 1 -53,-178A9,9 0 1 1 -71,-178Z" />
+        <path
+            android:fillColor="#E8642C"
+            android:pathData="M49,-186A9,9 0 1 1 67,-186A9,9 0 1 1 49,-186Z" />
+        <path
+            android:fillColor="#1C1B19"
+            android:pathData="M-22,-88A22,22 0 0 1 22,-88Z" />
+        <path
+            android:fillColor="#1C1B19"
+            android:pathData="M-84,-90H84A36,36 0 0 1 120,-54V54A36,36 0 0 1 84,90H-84A36,36 0 0 1 -120,54V-54A36,36 0 0 1 -84,-90Z" />
+        <path
+            android:fillColor="#F3EEE3"
+            android:pathData="M-70,-70H14A30,30 0 0 1 44,-40V36A30,30 0 0 1 14,66H-70A30,30 0 0 1 -100,36V-40A30,30 0 0 1 -70,-70Z" />
+        <path
+            android:fillColor="#E8642C"
+            android:pathData="M69,-42A13,13 0 1 1 95,-42A13,13 0 1 1 69,-42Z" />
+        <path
+            android:fillColor="#F3EEE3"
+            android:pathData="M69,-4A13,13 0 1 1 95,-4A13,13 0 1 1 69,-4Z" />
+        <path
+            android:pathData="M68,34L96,34"
+            android:strokeColor="#F3EEE3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="5" />
+        <path
+            android:pathData="M68,46L96,46"
+            android:strokeColor="#F3EEE3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="5" />
+        <path
+            android:pathData="M68,58L96,58"
+            android:strokeColor="#F3EEE3"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="5" />
+        <path
+            android:pathData="M-72,-8Q-58,-28 -44,-8"
+            android:strokeColor="#1C1B19"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="7" />
+        <path
+            android:pathData="M-12,-8Q2,-28 16,-8"
+            android:strokeColor="#1C1B19"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="7" />
+        <path
+            android:pathData="M-52,18Q-28,44 -4,18"
+            android:strokeColor="#1C1B19"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="7" />
+        <path
+            android:fillColor="#E8642C"
+            android:pathData="M-95,12A9,9 0 1 1 -77,12A9,9 0 1 1 -95,12Z" />
+        <path
+            android:fillColor="#E8642C"
+            android:pathData="M21,12A9,9 0 1 1 39,12A9,9 0 1 1 21,12Z" />
+    </group>
+</vector>

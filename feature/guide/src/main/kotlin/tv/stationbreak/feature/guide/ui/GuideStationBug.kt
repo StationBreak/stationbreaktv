@@ -35,12 +35,15 @@ private val BugLineHeight = 16.sp
  */
 @Composable
 internal fun StationBug() {
+    val colors = LocalGuideColors.current
+    // Light is the theme that tints the channel marks (markTint), so it is also the one that takes the paper icon.
+    val icon = if (colors.markTint != null) UiR.drawable.stan_icon_paper else UiR.drawable.stan_icon_ink
     Row(
         Modifier.clearAndSetSemantics { testTag = GuideTags.STATION_BUG },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Image(
-            painter = painterResource(UiR.drawable.stan_icon_ink),
+            painter = painterResource(icon),
             contentDescription = null,
             modifier = Modifier.size(BugIcon),
         )
@@ -52,7 +55,7 @@ internal fun StationBug() {
                     fontFamily = BroadcastType.Voice,
                     lineHeight = BugLineHeight,
                 ),
-            color = LocalGuideColors.current.textPrimary,
+            color = colors.textPrimary,
             maxLines = 1,
             softWrap = false,
         )
