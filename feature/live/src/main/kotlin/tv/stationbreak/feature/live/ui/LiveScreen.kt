@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -70,6 +72,7 @@ internal fun LiveScreen(
     transport: TransportView? = null,
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
+    overviewScroll: ScrollState = rememberScrollState(),
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
@@ -85,7 +88,7 @@ internal fun LiveScreen(
             }
             guide(corner)
         } else {
-            LiveLayers(state, info, onCommand, behind = transport != null)
+            LiveLayers(state, info, onCommand, behind = transport != null, overviewScroll)
             TransportStrip(transport, nowMs)
         }
     }
@@ -163,6 +166,7 @@ private fun LiveLayers(
     info: LiveInfo?,
     onCommand: (LiveCommand) -> Unit,
     behind: Boolean,
+    overviewScroll: ScrollState,
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
@@ -212,13 +216,16 @@ private fun LiveLayers(
                 Box(Modifier.fillMaxSize())
             }
         }
-        info?.let { InfoPanel(it) }
+        info?.let { InfoPanel(it, overviewScroll) }
     }
 }
 
 /** [info] as the shared overlay: the banner's own words, and what the server added once it has. */
 @Composable
-private fun InfoPanel(info: LiveInfo) {
+private fun InfoPanel(
+    info: LiveInfo,
+    overviewScroll: ScrollState,
+) {
     val context = LocalContext.current
     val copy = remember(context) { ProgramCopy.from(context.resources) }
     val is24h =
@@ -246,6 +253,7 @@ private fun InfoPanel(info: LiveInfo) {
             runtimeMinutes = details?.runtime?.inWholeMinutes?.toInt(),
             loading = info.loading,
             modifier = Modifier.testTag(LiveTags.INFO),
+            overviewScroll = overviewScroll,
         )
     }
 }

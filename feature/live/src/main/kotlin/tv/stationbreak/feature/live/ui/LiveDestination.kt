@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.util.Log
 import android.view.SurfaceView
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,15 +15,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.DpRect
 import androidx.core.app.OnUserLeaveHintProvider
@@ -35,8 +39,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.stepOverview
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
@@ -179,6 +185,10 @@ internal fun LiveKeysRoot(
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { focus.requestFocus() }
     }
     val held = remember { HeldKeys() }
+    // A fresh panel starts at the top of its overview.
+    val overview = remember(info == null) { ScrollState(0) }
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
     val composed = overlayUpOf(state, info, guideOpen, transport)
     // The actions banner's buttons or the guide held the focus; when they go the root takes it back, or no key would
     // arrive.
@@ -189,11 +199,18 @@ internal fun LiveKeysRoot(
             .focusRequester(focus)
             .onPreviewKeyEvent { event ->
                 val up = upNow?.invoke() ?: composed
-                handleLiveKey(event, up, held, onGuide, onCommand).also { logLiveKey(event, it, state, up) }
+                val forward = overviewScrollForward(event.key, up, overview.maxValue > 0)
+                if (forward != null) {
+                    // The press, its repeats and its release are the overview's: the channel does not flip.
+                    if (event.type == KeyEventType.KeyDown) scope.launch { overview.stepOverview(forward, density) }
+                    true
+                } else {
+                    handleLiveKey(event, up, held, onGuide, onCommand).also { logLiveKey(event, it, state, up) }
+                }
             }.focusable(),
     ) {
         val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
-        LiveScreen(state, info, onCommand, shown, transport, nowMs, pictureLabel, video)
+        LiveScreen(state, info, onCommand, shown, transport, nowMs, pictureLabel, overview, video)
     }
 }
 

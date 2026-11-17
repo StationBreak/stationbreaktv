@@ -63,3 +63,20 @@ private fun overlayCommand(
         else -> transportCommand(key, scrubbing)
     }
 }
+
+/**
+ * Which way [key] scrolls the program info's overview over [up]: true for Down, false for Up, null when it scrolls
+ * nothing. Only the D-pad, only over the info overlay with nothing above it, and only while the overview [overflows];
+ * a short one leaves Up and Down to the flip as before (#703).
+ */
+internal fun overviewScrollForward(
+    key: Key,
+    up: OverlayUp,
+    overflows: Boolean,
+): Boolean? =
+    when {
+        !overflows || !up.info || up.guide || up.picker -> null
+        key == Key.DirectionDown -> true
+        key == Key.DirectionUp -> false
+        else -> null
+    }
