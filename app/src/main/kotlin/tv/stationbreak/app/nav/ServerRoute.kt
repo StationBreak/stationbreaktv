@@ -3,6 +3,11 @@ package tv.stationbreak.app.nav
 
 import kotlinx.serialization.Serializable
 
-/** The server screen: where the app opens on first launch (spec 05, decision 8: no welcome screen). */
+/**
+ * The server screen. [firstRun] is true when the flow started at the welcome screen: the three first-run screens then
+ * show "Step n of 3". It is a nav argument, so it is saved with the back stack and survives process death.
+ */
 @Serializable
-data object ServerRoute
+data class ServerRoute(
+    val firstRun: Boolean = false,
+)

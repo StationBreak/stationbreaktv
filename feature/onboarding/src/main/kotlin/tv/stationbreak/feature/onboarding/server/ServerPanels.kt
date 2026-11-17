@@ -134,6 +134,7 @@ internal fun ConnectedPanel(
                 text =
                     stringResource(
                         R.string.server_connected_version,
+                        stringResource(R.string.server_product_name),
                         phase.server.server.version
                             .toString(),
                     ),
@@ -236,4 +237,8 @@ private fun ActionButton(
 internal fun messageText(
     error: MediaServerError,
     copy: ErrorCopy,
-): String = stringResource(copy.message, *ErrorCopyTable.messageArgs(error).toTypedArray())
+): String {
+    // The product name is the first argument of every message that takes any; the others ignore it.
+    val args = listOf<Any>(stringResource(R.string.server_product_name)) + ErrorCopyTable.messageArgs(error)
+    return stringResource(copy.message, *args.toTypedArray())
+}

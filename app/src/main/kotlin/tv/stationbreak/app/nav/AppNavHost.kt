@@ -10,6 +10,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.ui.ChannelPropertiesDestination
@@ -22,6 +23,7 @@ import tv.stationbreak.feature.onboarding.libraries.LibrariesDestination
 import tv.stationbreak.feature.onboarding.libraries.SignedInDestination
 import tv.stationbreak.feature.onboarding.server.ServerDestination
 import tv.stationbreak.feature.onboarding.signin.SignInDestination
+import tv.stationbreak.feature.onboarding.welcome.WelcomeDestination
 import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibrariesDestination
 
 /**
@@ -36,6 +38,7 @@ fun AppNavHost() = AppNavGraph(LaunchRoute)
  * The graph, with a start destination and a [navController] a test can choose: starting on [SignInRoute] is what a
  * restored back stack looks like after process death, when the in-memory server hand-off is gone.
  */
+@Suppress("LongMethod") // The graph: one block for each route.
 @Composable
 internal fun AppNavGraph(
     startDestination: Any,
@@ -44,35 +47,51 @@ internal fun AppNavGraph(
     NavHost(navController = navController, startDestination = startDestination) {
         composable<LaunchRoute> {
             LaunchDestination(
-                onNoServer = { navController.replaceAll(ServerRoute) },
-                onSignIn = { navController.replaceAll(SignInRoute) },
-                onLibraries = { navController.replaceAll(LibrariesRoute) },
+                // Nothing stored: Welcome, with nothing beneath it, so Back exits.
+                onWelcome = { navController.replaceAll(WelcomeRoute) },
+                // A stored http address to confirm again: the server screen, outside the first-run flow (no markers).
+                onConfirmAddress = { navController.replaceAll(ServerRoute()) },
+                onSignIn = { navController.replaceAll(SignInRoute()) },
+                onLibraries = { navController.replaceAll(LibrariesRoute()) },
                 onFirstSync = { navController.replaceAll(FirstSyncRoute) },
                 onSetupComplete = { navController.replaceAll(LiveRoute) },
                 // The stored session and pin stay: the server screen shows the stored address, and only a Continue
                 // (or a trust) on another address replaces them.
-                onChangeServer = { navController.replaceAll(ServerRoute) },
+                onChangeServer = { navController.replaceAll(ServerRoute()) },
             )
         }
-        composable<ServerRoute> {
-            // Single top: a second Select can't stack a second sign-in screen.
-            ServerDestination(onContinue = { navController.navigate(SignInRoute) { launchSingleTop = true } })
+        composable<WelcomeRoute> {
+            // Pushed, not replaced: Back from the server screen returns here. The step markers start with it.
+            WelcomeDestination(onGetStarted = { navController.navigate(ServerRoute(firstRun = true)) })
         }
-        composable<SignInRoute> {
+        composable<ServerRoute> { entry ->
+            val firstRun = entry.toRoute<ServerRoute>().firstRun
+            // Single top: a second Select can't stack a second sign-in screen.
+            ServerDestination(
+                onContinue = { navController.navigate(SignInRoute(firstRun)) { launchSingleTop = true } },
+                showStep = firstRun,
+            )
+        }
+        composable<SignInRoute> { entry ->
+            val firstRun = entry.toRoute<SignInRoute>().firstRun
             // Launch routing opens sign-in on its own, with no server screen beneath it: Back is still "up", to the
             // server screen, where the address can be changed.
-            BackHandler(enabled = navController.previousBackStackEntry == null) { navController.upToServerScreen() }
+            BackHandler(enabled = navController.previousBackStackEntry == null) {
+                navController.upToServerScreen(firstRun)
+            }
             SignInDestination(
                 // Back and Edit address are the same step: up to the server screen, whose address was kept.
-                onEditAddress = { navController.upToServerScreen() },
-                onMissingServer = { navController.backToServerScreen() },
+                onEditAddress = { navController.upToServerScreen(firstRun) },
+                onMissingServer = { navController.backToServerScreen(firstRun) },
                 // The session waits in the in-memory sign-in hand-off. Everything before it is replaced, so the
                 // stack is the same however the picker was reached, and Back from it goes to "Signed in as".
-                onSignedIn = { navController.replaceAll(LibrariesRoute) },
+                onSignedIn = { navController.replaceAll(LibrariesRoute(firstRun)) },
+                showStep = firstRun,
             )
         }
-        composable<LibrariesRoute> {
+        composable<LibrariesRoute> { entry ->
             LibrariesDestination(
+                showStep = entry.toRoute<LibrariesRoute>().firstRun,
                 // Back is "Signed in as": it never signs out silently.
                 onBack = { navController.navigate(SignedInRoute) { launchSingleTop = true } },
                 // The first sync starts here (spec 06, owner answer 3). Nothing is left beneath its screen: Back exits,
@@ -89,7 +108,7 @@ internal fun AppNavGraph(
             BackHandler { activity?.finish() }
             SignedInDestination(
                 onContinue = { navController.popBackStack() },
-                onSwitchUser = { navController.replaceAll(SignInRoute) },
+                onSwitchUser = { navController.replaceAll(SignInRoute()) },
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
             )
         }
@@ -153,8 +172,8 @@ private fun NavController.replaceAll(route: Any) {
  * Up from sign-in to the server screen. When the server screen is on the stack it is popped back to; when sign-in is
  * the only screen (launch routing opened it), the stack is replaced by the server screen.
  */
-private fun NavController.upToServerScreen() {
-    if (previousBackStackEntry == null) replaceAll(ServerRoute) else popBackStack()
+private fun NavController.upToServerScreen(firstRun: Boolean) {
+    if (previousBackStackEntry == null) replaceAll(ServerRoute(firstRun)) else popBackStack()
 }
 
 /**
@@ -162,6 +181,6 @@ private fun NavController.upToServerScreen() {
  * server screen is on the stack it is popped back to; when it is not (the restored stack was only sign-in), the stack
  * is replaced by it, so sign-in is never left underneath and Back from the server screen leaves the app.
  */
-private fun NavController.backToServerScreen() {
-    if (!popBackStack(ServerRoute, inclusive = false)) replaceAll(ServerRoute)
+private fun NavController.backToServerScreen(firstRun: Boolean) {
+    if (!popBackStack<ServerRoute>(inclusive = false)) replaceAll(ServerRoute(firstRun))
 }

@@ -55,7 +55,8 @@ private const val TOP_OFFSET = 0.1f
 @Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
 fun LaunchDestination(
-    onNoServer: () -> Unit,
+    onWelcome: () -> Unit,
+    onConfirmAddress: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onFirstSync: () -> Unit,
@@ -63,7 +64,16 @@ fun LaunchDestination(
     onChangeServer: () -> Unit,
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
-    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onFirstSync, onSetupComplete, onChangeServer)
+    LaunchRoot(
+        viewModel,
+        onWelcome,
+        onConfirmAddress,
+        onSignIn,
+        onLibraries,
+        onFirstSync,
+        onSetupComplete,
+        onChangeServer,
+    )
 }
 
 /** [LaunchDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -71,7 +81,8 @@ fun LaunchDestination(
 @Composable
 internal fun LaunchRoot(
     viewModel: LaunchViewModel,
-    onNoServer: () -> Unit,
+    onWelcome: () -> Unit,
+    onConfirmAddress: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onFirstSync: () -> Unit,
@@ -82,7 +93,8 @@ internal fun LaunchRoot(
     LaunchedEffect(viewModel) {
         viewModel.targets.collect {
             when (it) {
-                LaunchTarget.NoServer -> onNoServer()
+                LaunchTarget.Welcome -> onWelcome()
+                LaunchTarget.ConfirmAddress -> onConfirmAddress()
                 LaunchTarget.SignIn -> onSignIn()
                 LaunchTarget.Libraries -> onLibraries()
                 LaunchTarget.FirstSync -> onFirstSync()

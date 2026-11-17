@@ -107,13 +107,25 @@ class LaunchViewModelTest {
     }
 
     @Test
-    fun noServerGoesToTheServerScreen() =
+    fun noServerGoesToWelcome() =
         runTest {
             val targets = mutableListOf<LaunchTarget>()
             val vm = viewModel(InMemoryServerSettings())
             val job = backgroundScope.collect(vm, targets)
 
-            assertEquals(listOf(LaunchTarget.NoServer), targets)
+            assertEquals(listOf(LaunchTarget.Welcome), targets)
+            job.cancel()
+        }
+
+    @Test
+    fun aStoredHttpAddressThatNeedsConfirmingGoesToTheServerScreen() =
+        runTest {
+            val targets = mutableListOf<LaunchTarget>()
+            val http = ServerAddress(Scheme.Http, "nas.example.test", 8096)
+            val vm = viewModel(InMemoryServerSettings(ServerRecord(http)))
+            val job = backgroundScope.collect(vm, targets)
+
+            assertEquals(listOf(LaunchTarget.ConfirmAddress), targets)
             job.cancel()
         }
 

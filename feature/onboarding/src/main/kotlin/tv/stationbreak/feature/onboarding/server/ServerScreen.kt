@@ -56,7 +56,9 @@ import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
+import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
@@ -70,11 +72,15 @@ private const val TOP_OFFSET = 0.1f
  * cancels the cleartext dialog while that is open.
  */
 @Composable
-fun ServerDestination(onContinue: () -> Unit) {
+fun ServerDestination(
+    onContinue: () -> Unit,
+    showStep: Boolean = false,
+) {
     val viewModel: ServerViewModel = hiltViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     ServerScreen(
         state = state,
+        showStep = showStep,
         onInputChange = viewModel::onInputChange,
         onTest = viewModel::onTest,
         onCancel = viewModel::onCancel,
@@ -106,6 +112,7 @@ internal fun ServerScreen(
     onDontTrust: () -> Unit,
     onContinue: (ConnectedServer) -> Unit,
     modifier: Modifier = Modifier,
+    showStep: Boolean = false,
 ) {
     val focus = remember { ServerFocus() }
     val phase = state.phase
@@ -128,10 +135,14 @@ internal fun ServerScreen(
                 modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Gap),
             ) {
+                StepHeadline(
+                    headline = stringResource(R.string.server_headline, stringResource(R.string.server_product_name)),
+                    step = if (showStep) 1 else null,
+                )
                 Text(
-                    text = stringResource(R.string.server_headline),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = stringResource(R.string.server_help, stringResource(R.string.server_product_name)),
+                    style = MaterialTheme.typography.screenBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 AddressField(
                     value = state.input,

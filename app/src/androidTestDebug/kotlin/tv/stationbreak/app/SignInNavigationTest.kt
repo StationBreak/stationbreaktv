@@ -2,6 +2,8 @@
 package tv.stationbreak.app
 
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
@@ -165,7 +167,7 @@ class SignInNavigationTest {
     private fun launchApp() {
         selection.resume()
         // The graph from the server screen, as a first launch reaches it. LaunchNavigationTest covers launch routing.
-        compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute) } }
+        compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute()) } }
         compose.waitForIdle()
     }
 
@@ -272,7 +274,7 @@ class SignInNavigationTest {
         val session = Session(UserId("user1"), token, info, https, null, isAdministrator = false)
         Scripted.server.signInResult = ServerResult.Success(session)
         val navController = newNavController()
-        launchRestored(navController, ServerRoute)
+        launchRestored(navController, ServerRoute())
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
@@ -290,6 +292,57 @@ class SignInNavigationTest {
         // The same stack however the picker was reached: neither the server screen nor sign-in is left beneath it.
         assertTrue(navController.currentDestination.isRoute<LibrariesRoute>())
         assertNull(navController.previousBackStackEntry)
+    }
+
+    @Test
+    fun aFlowThatStartedAtWelcomeShowsStepsOneToThreeAndHeadlinesAreHeadings() {
+        val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
+        Scripted.server.signInResult = ServerResult.Success(session)
+        selection.resume()
+        compose.setContent { StationBreakTheme { AppNavGraph(startDestination = ServerRoute(firstRun = true)) } }
+        compose.waitForIdle()
+        awaitFocused(ServerTags.FIELD)
+        // The marker is spoken as part of the headline: one heading node holding both.
+        assertHeading("Step 1 of 3", "Connect to your Jellyfin server")
+
+        testAddressAndContinue()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        assertHeading("Step 2 of 3", "Sign in to")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
+        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
+        compose.waitForIdle()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
+        compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
+        compose.waitForIdle()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        awaitFocused(LibrariesTags.row("movies"))
+        assertHeading("Step 3 of 3", "Choose your libraries")
+    }
+
+    @Test
+    fun aFlowThatDidNotStartAtWelcomeShowsNoStepMarkers() {
+        val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
+        Scripted.server.signInResult = ServerResult.Success(session)
+        launchApp()
+        awaitFocused(ServerTags.FIELD)
+        compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
+        testAddressAndContinue()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
+    }
+
+    private fun assertHeading(
+        marker: String,
+        headline: String,
+    ) {
+        compose
+            .onNode(keyIsDefined(SemanticsProperties.Heading) and hasText(marker))
+            .assert(hasText(headline, substring = true))
     }
 
     @Test
@@ -333,9 +386,9 @@ class SignInNavigationTest {
     @Test
     fun aRestoredServerAndSignInStackWithoutItsServerFallsBackToTheServerScreenAlone() {
         val navController = newNavController()
-        launchRestored(navController, ServerRoute)
+        launchRestored(navController, ServerRoute())
         // [Server, SignIn], as a restored stack is, but nothing was handed over.
-        compose.runOnUiThread { navController.navigate(SignInRoute) }
+        compose.runOnUiThread { navController.navigate(SignInRoute()) }
         compose.waitForIdle()
 
         compose.onNodeWithTag(ServerTags.FIELD).assertExists()
@@ -348,7 +401,7 @@ class SignInNavigationTest {
     @Test
     fun aRestoredSignInStackAloneIsReplacedByTheServerScreenSoBackExits() {
         val navController = newNavController()
-        launchRestored(navController, SignInRoute)
+        launchRestored(navController, SignInRoute())
 
         compose.onNodeWithTag(ServerTags.FIELD).assertExists()
         compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()

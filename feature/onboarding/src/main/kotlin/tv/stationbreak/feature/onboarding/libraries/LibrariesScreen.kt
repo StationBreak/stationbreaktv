@@ -54,6 +54,7 @@ import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
@@ -82,12 +83,14 @@ fun LibrariesDestination(
     onDone: () -> Unit,
     onSessionLost: () -> Unit,
     onMissingSession: () -> Unit,
+    showStep: Boolean = false,
 ) {
     val viewModel: LibrariesViewModel = hiltViewModel()
-    LibrariesRoot(viewModel, onBack, onDone, onSessionLost, onMissingSession)
+    LibrariesRoot(viewModel, onBack, onDone, onSessionLost, onMissingSession, showStep)
 }
 
 /** [LibrariesDestination] without Hilt, so a test can bring its own ViewModel. */
+@Suppress("LongParameterList") // One callback for each way out of the picker.
 @Composable
 internal fun LibrariesRoot(
     viewModel: LibrariesViewModel,
@@ -95,6 +98,7 @@ internal fun LibrariesRoot(
     onDone: () -> Unit,
     onSessionLost: () -> Unit,
     onMissingSession: () -> Unit,
+    showStep: Boolean = false,
 ) {
     if (viewModel.missingSession) {
         // Nothing to list: show the dark background (no flash) and let launch routing restore the session.
@@ -117,11 +121,12 @@ internal fun LibrariesRoot(
         onToggle = viewModel::onToggle,
         onDone = viewModel::onDone,
         onRetry = viewModel::onRetry,
+        showStep = showStep,
     )
 }
 
 /** The stateless screen: everything it shows comes from [state], and every action goes back out as a callback. */
-@Suppress("LongMethod") // One screen's layout; splitting hides the focus flow.
+@Suppress("LongMethod", "LongParameterList") // One screen's layout and its callbacks; splitting hides the focus flow.
 @Composable
 internal fun LibrariesScreen(
     state: LibrariesUiState,
@@ -129,6 +134,7 @@ internal fun LibrariesScreen(
     onDone: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    showStep: Boolean = false,
 ) {
     val focus = remember { LibrariesFocus() }
     FocusFollowsPhase(state.phase, focus)
@@ -148,10 +154,9 @@ internal fun LibrariesScreen(
                 modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Gap),
             ) {
-                Text(
-                    text = stringResource(R.string.libraries_headline),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                StepHeadline(
+                    headline = stringResource(R.string.libraries_headline),
+                    step = if (showStep) 3 else null,
                 )
                 Text(
                     text = stringResource(R.string.libraries_subtitle),
@@ -189,7 +194,8 @@ private fun Content(
 
         LibrariesPhase.NoLibraries -> {
             Problem(
-                message = stringResource(R.string.libraries_none_message),
+                message =
+                    stringResource(R.string.libraries_none_message, stringResource(R.string.server_product_name)),
                 details = stringResource(R.string.libraries_none_details),
                 retryFocus = focus.retry,
                 onRetry = onRetry,
@@ -300,8 +306,13 @@ private fun Checklist(
             )
         }
     }
+    Text(
+        text = stringResource(R.string.libraries_next),
+        style = MaterialTheme.typography.screenBody,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     ServerButton(
-        label = R.string.libraries_done,
+        label = R.string.libraries_continue,
         onClick = onDone,
         // Off while nothing is selected (with the reason above it). While saving it stays focusable but does
         // nothing, so focus is never dropped from it; the view model ignores a press that isn't allowed.

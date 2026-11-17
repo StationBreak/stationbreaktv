@@ -4,11 +4,13 @@ package tv.stationbreak.app.nav
 import kotlinx.serialization.Serializable
 
 /**
- * The library picker. A route with no arguments on purpose: the session it asks with is held in memory by the sign-in
- * hand-off, never in a route (route arguments are saved in the instance-state Bundle).
+ * The library picker. The only argument is [firstRun] (see [ServerRoute]): the session it asks with is held in memory
+ * by the sign-in hand-off, never in a route (route arguments are saved in the instance-state Bundle).
  */
 @Serializable
-data object LibrariesRoute
+data class LibrariesRoute(
+    val firstRun: Boolean = false,
+)
 
 /** "Signed in as", with Continue and Switch user: where Back from the library picker goes. */
 @Serializable

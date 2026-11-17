@@ -54,6 +54,7 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.SignInRequest
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.assertStepHeading
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
@@ -103,7 +104,10 @@ class SignInScreenTest {
     private var missing = 0
     private lateinit var viewModel: SignInViewModel
 
-    private fun launch(connected: ConnectedServer? = ConnectedServer(ResolvedServer(https, info), null)) {
+    private fun launch(
+        connected: ConnectedServer? = ConnectedServer(ResolvedServer(https, info), null),
+        showStep: Boolean = false,
+    ) {
         if (connected != null) handOff.put(connected)
         viewModel =
             SignInViewModel(
@@ -120,6 +124,7 @@ class SignInScreenTest {
                     onEditAddress = { editedAddress++ },
                     onMissingServer = { missing++ },
                     onSignedIn = { signedIn += it },
+                    showStep = showStep,
                 )
             }
         }
@@ -165,6 +170,43 @@ class SignInScreenTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    // Step marker and help
+
+    @Test
+    fun inTheWelcomeFlowStepTwoIsSpokenAsPartOfTheHeadlineAndIsNotAFocusStop() {
+        launch(showStep = true)
+        compose.assertStepHeading("Step 2 of 3", "Sign in to Home Server")
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+    }
+
+    @Test
+    fun outsideTheWelcomeFlowThereIsNoStepMarker() {
+        launch()
+        compose.onNodeWithText("Step 2 of 3").assertDoesNotExist()
+    }
+
+    @Test
+    fun theHelpLineSaysWhichAccountToUse() {
+        launch()
+        compose
+            .onNodeWithText(
+                "Sign in with the account you watch with. Your channels are built from what this account can see.",
+            ).assertExists()
+    }
+
+    @Test
+    fun quickConnectHasNoStepMarkerAndSaysThisServer() {
+        launch(showStep = true)
+        chooseQuickConnect()
+        compose.onNodeWithText("Step 2 of 3").assertDoesNotExist()
+        compose
+            .onNodeWithText(
+                "On another device signed in to this server, open Quick Connect in its settings and enter this code.",
+            ).assertExists()
     }
 
     // Focus
@@ -280,7 +322,7 @@ class SignInScreenTest {
         compose.onNodeWithText("Wrong username or password", substring = true).assertExists()
         compose.onNodeWithTag(SignInTags.PASSWORD).assertIsFocused()
         compose.onNodeWithTag(SignInTags.USERNAME).assert(hasText("sam"))
-        compose.onNodeWithTag(SignInTags.PASSWORD).assert(hasText("Your Jellyfin password"))
+        compose.onNodeWithTag(SignInTags.PASSWORD).assert(hasText("Your password"))
         compose.onNodeWithTag(SignInTags.EDIT_ADDRESS).assertDoesNotExist()
     }
 

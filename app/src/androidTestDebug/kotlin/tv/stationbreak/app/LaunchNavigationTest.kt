@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
@@ -77,6 +78,7 @@ import tv.stationbreak.feature.onboarding.libraries.SignedInTags
 import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.signin.SignInTags
 import tv.stationbreak.feature.onboarding.trust.TrustTags
+import tv.stationbreak.feature.onboarding.welcome.WelcomeTags
 import tv.stationbreak.feature.settings.ui.SettingsTags
 import javax.inject.Singleton
 import kotlin.time.Clock
@@ -375,14 +377,45 @@ class LaunchNavigationTest {
     // Routes
 
     @Test
-    fun noStoredServerOpensTheServerScreen() {
+    fun noStoredServerOpensWelcomeWithGetStartedFocusedAndBackLeavesTheApp() {
         launchApp()
-        awaitFocused(ServerTags.FIELD)
+        awaitFocused(WelcomeTags.GET_STARTED)
         compose.onNodeWithTag(LaunchTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithText("Welcome to StationBreak").assertExists()
+        compose.onNodeWithText("Your library, on the air.").assertExists()
+        compose.onNodeWithText("Get started").assertExists()
+        assertEquals(0, count(ServerTags.FIELD))
         assertTrue(
             Launched.server.fake.connectCalls
                 .isEmpty(),
         )
+        // Nothing is beneath Welcome.
+        assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun getStartedOpensTheServerScreenWithStepOneAndBackReturnsToWelcome() {
+        launchApp()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, WelcomeTags.GET_STARTED)
+
+        awaitFocused(ServerTags.FIELD)
+        compose.onNode(hasText("Step 1 of 3") and keyIsDefined(SemanticsProperties.Heading)).assertExists()
+        compose.onNodeWithTag(WelcomeTags.SCREEN).assertDoesNotExist()
+
+        press(KeyEvent.KEYCODE_BACK)
+
+        awaitFocused(WelcomeTags.GET_STARTED)
+        assertEquals(0, count(ServerTags.FIELD))
+    }
+
+    @Test
+    fun aStoredHttpAddressThatNeedsConfirmingOpensTheServerScreenWithoutMarkers() {
+        Launched.settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Http, "nas.example.test", 8096)))
+        launchApp()
+
+        awaitFocused(ServerTags.FIELD)
+        compose.onNodeWithTag(WelcomeTags.SCREEN).assertDoesNotExist()
+        compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
     }
 
     @Test
@@ -563,6 +596,8 @@ class LaunchNavigationTest {
         awaitFocused(SignInTags.USERNAME)
         compose.onNodeWithTag(SignInTags.NOTICE).assertDoesNotExist()
         compose.onNodeWithTag(ServerTags.FIELD).assertDoesNotExist()
+        // Re-sign-in is not a first run: no step marker.
+        compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
     }
 
     @Test
@@ -749,6 +784,7 @@ class LaunchNavigationTest {
 
         awaitFocused(ServerTags.FIELD)
         compose.onNodeWithTag(ServerTags.FIELD).assert(hasText(https.baseUrl))
+        compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
         assertEquals(setOf(SessionRepository.SESSION_KEY), Launched.store.snapshot().keys)
         assertEquals(ServerRecord(https, pin), Launched.settings.current)
     }
