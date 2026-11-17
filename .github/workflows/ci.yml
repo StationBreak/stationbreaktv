@@ -69,7 +69,7 @@ jobs:
             files="$(git -c core.quotePath=false diff --name-only --no-renames "${BASE_SHA}...${HEAD_SHA}")" &&
             [ -n "$files" ]; then
             printf 'Changed files:\n%s\n' "$files"
-            if ! grep -qvE '^(docs/|LICENSE|.*\.md$)' <<<"$files"; then
+            if ! grep -qvE '^(docs/|\.claude/|LICENSE|.*\.md$)' <<<"$files"; then
               build=false
             fi
             if ! grep -qE '^(app/|core/|data/|feature/|build-logic/|gradle/|gradle\.properties$|settings\.gradle\.kts$|.*\.gradle\.kts$|\.github/workflows/ci\.yml$)' <<<"$files"; then
