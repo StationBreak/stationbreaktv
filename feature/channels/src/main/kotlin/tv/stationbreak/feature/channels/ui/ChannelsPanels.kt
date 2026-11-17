@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -16,6 +18,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.scrollIntoViewWhen
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -74,8 +77,15 @@ internal fun ChannelsPanelView(
             NumberPicker(picker)
         } else {
             val row = ui.rows.firstOrNull { it.id == panel?.id }
-            choicesOf(ui).forEachIndexed { i, choice ->
-                ChoiceRow(choice, panel, focused = i == ui.choice, locked = isLocked(choice, row, ui))
+            // The panel is held to the screen (see panelMaxHeight), so a long list of choices scrolls inside it, the
+            // focused one kept in view; the title above it stays.
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                choicesOf(ui).forEachIndexed { i, choice ->
+                    ChoiceRow(choice, panel, focused = i == ui.choice, locked = isLocked(choice, row, ui))
+                }
             }
         }
     }
@@ -97,6 +107,7 @@ private fun ChoiceRow(
         labelOf(choice, panel, locked),
         Modifier
             .fillMaxWidth()
+            .scrollIntoViewWhen(focused)
             .drawnFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(tagOf(choice))

@@ -6,7 +6,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,10 +82,20 @@ internal fun Identity(
 @Composable
 private fun MarkTile(name: String) {
     Box(
-        Modifier.size(width = 50.dp, height = 28.dp).background(ChannelsPalette.sheetLine),
+        // The design's 50x28 is the least it takes: the initials grow with the font and the tile grows round them.
+        Modifier
+            .defaultMinSize(minWidth = 50.dp, minHeight = 28.dp)
+            .background(ChannelsPalette.sheetLine)
+            .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(initialsOf(name), style = small().copy(fontWeight = FontWeight.SemiBold), color = ChannelsPalette.text)
+        Text(
+            initialsOf(name),
+            style = small().copy(fontWeight = FontWeight.SemiBold),
+            color = ChannelsPalette.text,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 

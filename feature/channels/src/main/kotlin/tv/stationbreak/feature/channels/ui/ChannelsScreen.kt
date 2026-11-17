@@ -4,9 +4,11 @@ package tv.stationbreak.feature.channels.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -47,7 +49,9 @@ internal fun ChannelsScreen(
     modifier: Modifier = Modifier,
     sheetOnly: Boolean = false,
 ) {
-    // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
+    // Positioned left to right whatever the device's language, as the picture's hole is top-right in screen
+    // coordinates; the text inside gets the device's own direction back.
+    val textDirection = LocalLayoutDirection.current
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN).announcingFocus(ui)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
@@ -62,7 +66,10 @@ internal fun ChannelsScreen(
                         .background(ChannelsPalette.ground),
                 ) {
                     // Not inside a Surface, so the content colour would be tv-material's black default.
-                    CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+                    CompositionLocalProvider(
+                        LocalContentColor provides ChannelsPalette.text,
+                        LocalLayoutDirection provides textDirection,
+                    ) {
                         Header(ui)
                         ChannelList(ui, Modifier.weight(1f))
                         HeadsUp()
@@ -72,16 +79,21 @@ internal fun ChannelsScreen(
             if (ui.about != null) {
                 CompositionLocalProvider(
                     LocalContentColor provides ChannelsPalette.text,
-                ) { ChannelPropertiesSheet(ui, toGuide = sheetOnly) }
+                ) { ChannelPropertiesSheet(ui, textDirection, toGuide = sheetOnly) }
             }
             val open = ui.panel != null || ui.confirmingReset
             if (open) {
-                CompositionLocalProvider(LocalContentColor provides ChannelsPalette.text) {
+                CompositionLocalProvider(
+                    LocalContentColor provides ChannelsPalette.text,
+                    LocalLayoutDirection provides textDirection,
+                ) {
+                    val top = pictureHole.bottom + PanelGap
                     ChannelsPanelView(
                         ui,
                         Modifier
-                            .offset(pictureHole.left, pictureHole.bottom + PanelGap)
+                            .absoluteOffset(pictureHole.left, top)
                             .width(safe.right - pictureHole.left)
+                            .heightIn(max = panelMaxHeight(top, safe.bottom))
                             .background(ChannelsPalette.ground),
                     )
                 }
