@@ -333,3 +333,6 @@ internal suspend fun BuiltInScheduleSource.channelDays(
 
 /** A selection seq that never changes: a refresher whose test is not about selection changes. */
 internal val NO_CHANGES: StateFlow<Long> = MutableStateFlow(0L)
+
+/** A [ChannelSwitchOns] for the tests that do not look at the ready notice. */
+internal val IGNORED_SWITCH_ONS = ChannelSwitchOns { _, _ -> }

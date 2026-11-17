@@ -34,7 +34,7 @@ class ChannelManagerTest {
     private val service = LineupService(store, library, clock, { 0 }, { events += it }, TestCatalog)
     private val events = mutableListOf<LineupEvent>()
     private var chosen: Set<ItemId>? = LIBRARIES
-    private val manager = ChannelManager(service, FakeProEntitlement()) { chosen }
+    private val manager = ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { chosen }
 
     private fun lineup(
         state: ChannelState = ChannelState.On,
@@ -110,7 +110,7 @@ class ChannelManagerTest {
             seed(lineup())
             val bare = LineupService(store, CountingLibrary(), clock, { 0 }, {}, TestCatalog)
 
-            val bareManager = ChannelManager(bare, FakeProEntitlement()) { LIBRARIES }
+            val bareManager = ChannelManager(bare, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }
             assertEquals(ResetResult.NotChosenYet, bareManager.reset(ACCOUNT))
         }
 
@@ -126,7 +126,8 @@ class ChannelManagerTest {
             chosen = emptySet()
             assertEquals(ResetResult.LibrariesUnavailable, manager.reset(ACCOUNT))
             assertTrue(events.isEmpty(), "none chosen is not a fault")
-            val failing = ChannelManager(service, FakeProEntitlement()) { error("settings unreadable") }
+            val failing =
+                ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { error("settings unreadable") }
             assertEquals(ResetResult.LibrariesUnavailable, failing.reset(ACCOUNT))
             assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
 
@@ -154,7 +155,7 @@ class ChannelManagerTest {
                 }
             val failing = LineupService(store, broken, clock, { 0 }, { events += it }, TestCatalog)
 
-            val failingManager = ChannelManager(failing, FakeProEntitlement()) { LIBRARIES }
+            val failingManager = ChannelManager(failing, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }
             assertEquals(ResetResult.LibrariesUnavailable, failingManager.reset(ACCOUNT))
             assertEquals(listOf(LineupEvent.ResetLibrariesUnavailable), events)
         }
@@ -168,7 +169,8 @@ class ChannelManagerTest {
             failing.loaded(ACCOUNT)
             val before = store.inner.peek(ACCOUNT)
 
-            assertEquals(ResetResult.Failed, ChannelManager(failing, FakeProEntitlement()) { LIBRARIES }.reset(ACCOUNT))
+            val manager = ChannelManager(failing, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }
+            assertEquals(ResetResult.Failed, manager.reset(ACCOUNT))
             assertEquals(listOf(LineupEvent.ResetFailed), events)
             assertContentEquals(before, store.inner.peek(ACCOUNT), "nothing was saved")
         }
@@ -186,6 +188,7 @@ class ChannelManagerTest {
                 ChannelManager(
                     LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog),
                     FakeProEntitlement(),
+                    IGNORED_SWITCH_ONS,
                 ) {
                     LIBRARIES
                 }
@@ -203,6 +206,7 @@ class ChannelManagerTest {
                 ChannelManager(
                     LineupService(throwing, library, clock, { 0 }, { events += it }, TestCatalog),
                     FakeProEntitlement(),
+                    IGNORED_SWITCH_ONS,
                 ) {
                     LIBRARIES
                 }

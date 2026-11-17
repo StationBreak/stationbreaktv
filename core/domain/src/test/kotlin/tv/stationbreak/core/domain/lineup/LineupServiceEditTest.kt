@@ -319,7 +319,7 @@ class LineupServiceEditTest {
     fun accessIsNotEditableWhileTheHeldLineupIsAFromScratchPlan() =
         runBlocking<Unit> {
             val chosen = afterAFailedRead()
-            val manager = ChannelManager(service, FakeProEntitlement()) { LIBRARIES }
+            val manager = ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }
             assertEquals(LineupAccess.ReadOnly, manager.access(ACCOUNT).first(), "memory is not yet the stored lineup")
 
             assertIs<EditOutcome.Refused>(edit(LineupEdit.SetNumber(frights, 210)))
@@ -394,7 +394,8 @@ class LineupServiceEditTest {
     @Test
     fun accessIsLoadingWithNoLineup() =
         runBlocking<Unit> {
-            val editable = ChannelManager(service, FakeProEntitlement()) { LIBRARIES }.access(ACCOUNT).first()
+            val manager = ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { LIBRARIES }
+            val editable = manager.access(ACCOUNT).first()
             assertEquals(LineupAccess.Loading, editable)
         }
 }
