@@ -153,6 +153,7 @@ private fun RowLine(
             dim.widthIn(min = NUMBER_MIN_WIDTH),
             style = MaterialTheme.typography.bodyLarge,
         )
+        // Tint and initials colour come from LocalGuideColors, which the guide host sets with LocalPanelColors.
         ChannelMark(
             row.markKey,
             markInitialsOf(row.name),
@@ -189,7 +190,11 @@ private val ROW_MARK_WIDTH = 40.dp
 private val ROW_MARK_HEIGHT = 22.dp
 private val NUMBER_MIN_WIDTH = 36.dp
 
-/** Asks the cache for the logos of the channels in view and a screenful each side; it only schedules the work. */
+/**
+ * Asks the cache for the logos of the channels in view and a screenful each side; it only schedules the work. The
+ * cache, the mark's tint and its initials colour are the host's: the guide provides `LocalMarkCache` and
+ * `LocalGuideColors` (from the same theme as `LocalPanelColors`), and with no cache a mark draws its initials.
+ */
 @Composable
 private fun RequestVisibleMarks(
     lines: List<Line>,

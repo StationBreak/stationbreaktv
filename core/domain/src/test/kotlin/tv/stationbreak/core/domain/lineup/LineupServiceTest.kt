@@ -616,6 +616,18 @@ class LineupServiceTest {
         }
 
     @Test
+    fun aCustomChannelHasNoRecipeKey() =
+        runBlocking<Unit> {
+            val mine = channel("custom-1", 600, ChannelState.On, ChannelSource.Custom(rules("Mine", Source.Genre("Comedy"))))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(mine)))
+
+            val summary = service.channels(ACCOUNT).first { it.isNotEmpty() }.single()
+
+            assertEquals(ChannelKind.Custom, summary.kind)
+            assertNull(summary.recipeKey, "only a starter or leftovers channel has a logo key")
+        }
+
+    @Test
     fun channelsReadsTheStoredLineupWithoutARefresh() =
         runBlocking<Unit> {
             val unusable = channel("custom-9", 601, ChannelState.On, ChannelSource.Unusable("{}"))
