@@ -72,6 +72,28 @@ class GuideGeometryTest {
     }
 
     @Test
+    fun aTimeFarOutIsBoundedNotLaidOutAtItsFullWidth() {
+        // The backstop (#429): widths stay inside what Compose can lay out, on a tiny screen and a TV alike.
+        listOf(DpSize(320.dp, 640.dp), screen).forEach { size ->
+            val geometry = GuideGeometry(size, ScreenLayout.pictureRect(ScreenLayout.safeArea(size)))
+            listOf(1_700_000_000_000L, Long.MAX_VALUE, -1_700_000_000_000L, Long.MIN_VALUE).forEach { ms ->
+                assertTrue("$size $ms", geometry.widthOf(ms).value in -60_000f..60_000f)
+            }
+        }
+    }
+
+    @Test
+    fun aRealTvIsNotChangedByTheBounds() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        assertEquals(780f, geometry.viewportWidth.value, EPS)
+        assertEquals(9_360f, geometry.widthOf(24L * 3_600_000L).value, EPS)
+        assertEquals(-9_360f, geometry.widthOf(-24L * 3_600_000L).value, EPS)
+        // Two days is unchanged; only past about six days does the bound bite.
+        assertEquals(18_720f, geometry.widthOf(48L * 3_600_000L).value, EPS)
+        assertEquals(60_000f, geometry.widthOf(7L * 24 * 3_600_000L).value, EPS)
+    }
+
+    @Test
     fun theLayoutFollowsTheHoleItIsGiven() {
         // Live is the one that says where the picture is: a hole elsewhere moves the panel's edge and the grid's top.
         val hole = DpRect(left = 600.dp, top = 27.dp, right = 912.dp, bottom = 200.dp)
