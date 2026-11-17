@@ -2,6 +2,7 @@
 package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpRect
 import androidx.navigation.NavController
@@ -82,6 +83,10 @@ internal fun AppNavGraph(
             )
         }
         composable<SignedInRoute> {
+            // Back here leaves the app (Q-UX-2): the picker is only beneath this screen so that Continue can return to
+            // it, and Back must not pop to the picker, whose own Back opens this screen again.
+            val activity = LocalActivity.current
+            BackHandler { activity?.finish() }
             SignedInDestination(
                 onContinue = { navController.popBackStack() },
                 onSwitchUser = { navController.replaceAll(SignInRoute) },

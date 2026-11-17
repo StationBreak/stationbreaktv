@@ -697,7 +697,7 @@ class LaunchNavigationTest {
     }
 
     @Test
-    fun backFromSignedInReturnsToThePicker() {
+    fun backFromSignedInLeavesTheApp() {
         storeSession()
         Launched.settings = InMemoryServerSettings(ServerRecord(https))
         launchApp()
@@ -705,9 +705,8 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_BACK)
         awaitFocused(SignedInTags.CONTINUE)
 
-        press(KeyEvent.KEYCODE_BACK)
-
-        awaitFocused(LibrariesTags.row("movies"))
+        assertBackLeavesTheApp()
+        assertEquals("Back never signs out", setOf(SessionRepository.SESSION_KEY), Launched.store.snapshot().keys)
     }
 
     @Test
