@@ -44,13 +44,23 @@ the four static Manrope weights from github.com/googlefonts/manrope at a pinned 
   or by the app-store additional permission. The OFL requires this: the fonts must stay under the OFL only, and each
   copy ships with its copyright notice and licence text.
 - **Where things are.** The licence texts ship in the APK under `core/ui/src/main/assets/licenses/`
-  (`OFL-ArchivoBlack.txt`, `OFL-SpaceMono.txt`, `OFL-Manrope.txt`, `OFL-Ranchers.txt`; Ranchers, the brand face, was
-  added later: `ranchers_regular.ttf`, unmodified). `core/ui/FONTS.md` records the source, the file hashes, the
+  (`OFL-ArchivoBlack.txt`, `OFL-SpaceMono.txt`, `OFL-Manrope.txt`). `core/ui/FONTS.md` records the source, the file hashes, the
   update steps, and the rule that fonts load only from the APK.
 - **Consequence: a new bundled asset needs a hand check.** Licensee checks Maven dependencies only and does not see
   vendored assets. So a new bundled asset has its licence checked by hand at review (security review), and is recorded
   the same way: a provenance file next to it, and its licence text shipped in the APK.
 - **Later.** If an in-app open-source licences screen is added, these assets appear on it.
+
+## Update 2026-11-17: Ranchers, the brand face
+
+The app bundles one more font, Ranchers (`core/ui/src/main/res/font/ranchers_regular.ttf`), the brand face for the name
+"Station Break" in the guide's station bug. Its licence text is `core/ui/src/main/assets/licenses/OFL-Ranchers.txt`
+(SIL OFL 1.1, Reserved Font Name "Ranchers").
+
+- **The font is unmodified** and pinned to its own `github.com/google/fonts` commit
+  (`90abd17b4f97671435798b6147b698aa9087612f`), not the commit of the other fonts.
+- **The 2026-10-23 rule applies to it.** It keeps its own licence, outside the GPL-3.0 and the app-store additional
+  permission, and ships with its copyright notice and licence text. `core/ui/FONTS.md` records the source and hashes.
 
 ## Update 2026-11-07: the channel logo pack is project art
 

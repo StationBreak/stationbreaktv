@@ -75,3 +75,8 @@ Fonts load only from the APK. Never from the server, the network or user content
    must print `True`.
 3. Compare the hashes with the old ones and review what changed; replace the OFL texts too.
 4. Update `fonts.sha256` and the commits above in this file, and record the commits and hashes in the commit message.
+5. Ranchers is pinned to its own `google/fonts` commit (see its section above) and does not move with the pin used
+   for Archivo Black and Space Mono: bump it on its own, only when the brand face itself changes. Fetch
+   `ofl/ranchers/Ranchers-Regular.ttf` and `ofl/ranchers/OFL.txt` from `raw.githubusercontent.com` at that commit only.
+   The OFL text is CRLF upstream and stored as LF, so re-hash the stored file (as for Archivo Black) and record both
+   hashes in its section.
