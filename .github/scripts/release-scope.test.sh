@@ -73,6 +73,16 @@ expect true "serializable removed" $'x/Y.kt' $'-@Serializable'
 expect true "serial name" $'x/Y.kt' $'+    @SerialName("a")'
 expect true "keep annotation" $'x/Y.kt' $'+@Keep'
 expect true "serialization import" $'x/Y.kt' $'+import kotlinx.serialization.json.Json'
+expect true "serialization in a deleted kotlin file" $'x/Y.kt' $'--- a/x/Y.kt\n+++ /dev/null\n-@Serializable'
+expect true "kotlin hit after a markdown hunk" $'CLAUDE.md\nx/Y.kt' \
+  $'--- a/CLAUDE.md\n+++ b/CLAUDE.md\n+Use kotlinx.serialization\n--- a/x/Y.kt\n+++ b/x/Y.kt\n+@Serializable'
+
+# Docs and agent config that mention the tokens: not compiled, so no release build (#826).
+expect false "docs and agent config mention serialization" \
+  $'CLAUDE.md\nAGENTS.md\n.claude/settings.json\n.claude/hooks/spotless-check.sh' \
+  $'--- a/CLAUDE.md\n+++ b/CLAUDE.md\n+- JSON uses kotlinx.serialization; @Serializable and @SerialName on DTOs, @Keep where R8 needs it\n--- /dev/null\n+++ b/AGENTS.md\n+kotlinx.serialization only\n--- a/.claude/settings.json\n+++ b/.claude/settings.json\n+"note": "kotlinx.serialization"'
+expect false "adr mentions serializable" $'docs/adr/0099-x.md' $'--- a/docs/adr/0099-x.md\n+++ b/docs/adr/0099-x.md\n+Every DTO is @Serializable.'
+expect false "markdown deleted with serialization" $'docs/old.md' $'--- a/docs/old.md\n+++ /dev/null\n-import kotlinx.serialization.json.Json'
 
 # Combined: one risky file among safe ones.
 expect true "mixed diff" $'docs/a.md\nfeature/x/src/main/kotlin/A.kt\ngradle/libs.versions.toml'

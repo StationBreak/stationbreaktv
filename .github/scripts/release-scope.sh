@@ -44,8 +44,19 @@ done
 # Content rule: kotlinx.serialization and keep annotations are the classic R8 casualties (a renamed or removed
 # serializer fails at run time, not at compile time), and they can appear in any module. Searched in the diff's
 # added and removed lines, so a module that starts using them later is caught without extending a path list.
+# Lines in docs and agent config (markdown, docs/, .claude/) are skipped: they mention the tokens without compiling
+# them. A hunk whose file can't be told from the patch is searched, so an unreadable header still counts.
+not_source='(\.md$|^docs/|^\.claude/)'
 if [ -z "$reason" ] && [ -n "$patch" ] && [ -f "$patch" ] &&
-  grep -vE '^(\+\+\+|---) ' "$patch" | grep -qE '^[+-].*(@Serializable|@SerialName|@Keep\b|kotlinx\.serialization)'; then
+  awk -v skip="$not_source" '
+    /^--- / { old = substr($0, 5); sub(/^a\//, "", old); next }
+    /^\+\+\+ / {
+      path = substr($0, 5); sub(/^b\//, "", path)
+      if (path == "/dev/null") path = old
+      next
+    }
+    !(path != "" && path ~ skip) { print }
+  ' "$patch" | grep -qE '^[+-].*(@Serializable|@SerialName|@Keep\b|kotlinx\.serialization)'; then
   reason="serialization or keep annotations changed (R8 can break them)"
 fi
 
