@@ -54,6 +54,8 @@ object R8ConfigRules {
                     "androidx.compose.animation:animation-android:",
                     "androidx.compose.runtime:runtime-android:",
                     "androidx.startup:startup-runtime:",
+                    // DataStore (#838): strips its internal SharedCounter$Factory; androidx group.
+                    "androidx.datastore:datastore-core-android:",
                     "org.jetbrains.kotlinx:kotlinx-coroutines-android:",
                 ),
             "-assumevalues" to

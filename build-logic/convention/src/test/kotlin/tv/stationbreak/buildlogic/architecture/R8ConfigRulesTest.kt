@@ -41,6 +41,17 @@ class R8ConfigRulesTest {
     }
 
     @Test
+    fun assumenosideeffectsFromDatastorePasses() {
+        val config =
+            section(
+                "androidx.datastore:datastore-core-android:1.2.1",
+                "-assumenosideeffects class androidx.datastore.core.SharedCounter\$Factory {",
+                "}",
+            )
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
+    }
+
+    @Test
     fun wildcardDontwarn() = assertFlagged("-dontwarn **")
 
     @Test
