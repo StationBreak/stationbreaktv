@@ -116,7 +116,8 @@ class LineupService internal constructor(
     private val report: (LineupEvent) -> Unit,
     private val seams: LineupSeams,
 ) : ChannelRepository,
-    HouseholdSetting {
+    HouseholdSetting,
+    CollectionsAtSetup {
     /** For tests: a small catalog in place of the real one. */
     internal constructor(
         store: LineupStore,
@@ -577,48 +578,59 @@ class LineupService internal constructor(
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         val savedSeq = savedSeqNow()
-        return entry.mutex.withLock {
-            val start = startOf(owner, entry)
-            entry.writable = start.save
-            val held = reconciled(entry, start)
-            val lineup = held?.lineup ?: start.current
-            if (!entry.writable || lineup == null) {
+        return entry.mutex.withLock { editLocked(owner, entry, account, edit, libraries, savedSeq) }
+    }
+
+    // [edit], under the account's lock (held by the caller).
+    @Suppress("LongParameterList") // What one edit reads and carries.
+    private suspend fun editLocked(
+        owner: Owner,
+        entry: Entry,
+        account: LibraryAccount,
+        edit: LineupEdit,
+        libraries: Set<ItemId>?,
+        savedSeq: SavedSeqs?,
+    ): Saved<EditOutcome>? {
+        val start = startOf(owner, entry)
+        entry.writable = start.save
+        val held = reconciled(entry, start)
+        val lineup = held?.lineup ?: start.current
+        if (!entry.writable || lineup == null) {
+            noteWritable(entry)
+            return null
+        }
+        val outcome = applied(lineup, edit)
+        return when {
+            outcome == null -> {
                 noteWritable(entry)
-                return@withLock null
+                Saved.Invalid
             }
-            val outcome = applied(lineup, edit)
-            when {
-                outcome == null -> {
-                    noteWritable(entry)
-                    Saved.Invalid
-                }
 
-                // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
-                outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
-                    noteWritable(entry)
-                    Saved.Ok(outcome)
-                }
+            // A refusal, or an edit that changes nothing: no save and no new revision (no schedule rebuild).
+            outcome !is EditOutcome.Applied || outcome.lineup == lineup -> {
+                noteWritable(entry)
+                Saved.Ok(outcome)
+            }
 
-                else -> {
-                    val before = held?.meta ?: start.meta
-                    // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
-                    // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
-                    val replan = replanned(owner, account, edit, outcome, libraries, before)
-                    val edited = replan.outcome
-                    // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
-                    val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
-                    val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
-                    // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
-                    val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs(), savedSeq)
-                    val repairs = trimmed.record
-                    if (saveVerified(owner, edited.lineup, meta, repairs)) {
-                        told(trimmed)
-                        publish(entry, edited.lineup, meta, repairs)
-                        entry.loaded = true
-                        Saved.Ok(edited)
-                    } else {
-                        Saved.Failed
-                    }
+            else -> {
+                val before = held?.meta ?: start.meta
+                // "Use my collections" changes which starters fill, so the lineup is planned again from the edited
+                // one, in the same lock and with one save. A library that cannot be read saves the edit alone.
+                val replan = replanned(owner, account, edit, outcome, libraries, before)
+                val edited = replan.outcome
+                // Only a plan clears a pending re-plan: an edit that did not plan keeps the one that was due.
+                val kept = edited.lineup.replanFromMs() ?: before.replanFromMs
+                val meta = if (replan.planned) replan.meta else before.copy(replanFromMs = kept)
+                // Published only once saved: a lineup that is not on disk would be undone by the next refresh.
+                val trimmed = trimmed(edited.lineup, meta, held?.repairs ?: start.repairs, nowMs(), savedSeq)
+                val repairs = trimmed.record
+                if (saveVerified(owner, edited.lineup, meta, repairs)) {
+                    told(trimmed)
+                    publish(entry, edited.lineup, meta, repairs)
+                    entry.loaded = true
+                    Saved.Ok(edited)
+                } else {
+                    Saved.Failed
                 }
             }
         }
@@ -1379,27 +1391,29 @@ class LineupService internal constructor(
     }
 
     /**
-     * [HouseholdSetting.chooseAtSetup], under the account's lock. No lineup: the first one is planned with the flag
+     * [CollectionsAtSetup.chooseAtSetup], under the account's lock. No lineup: the first one is planned with the flag
      * (so the new-account extras boundary is as for any first plan) and saved. A lineup not finalised: the flag is set
-     * on it. A finalised one: the `UseMyCollections` edit, which starts at the next day boundary (ADR-0023 D1).
+     * on it. A finalised one: the `UseMyCollections` edit, in the same lock hold, which starts at the next day
+     * boundary (ADR-0023 D1). A lineup that may not be written (or an account with none) is [SetupOutcome.Unwritable].
      */
     override suspend fun chooseAtSetup(
         account: LibraryAccount,
         libraries: Set<ItemId>,
         on: Boolean,
-    ): SetupChoice {
-        val owner = ownerOf(account) ?: return SetupChoice.Failed
-        val savedSeq = savedSeqNow()
-        val now = entryOf(owner).mutex.withLock { choosingAtSetup(owner, account, libraries, on, savedSeq) }
-        // Null is a finalised lineup: `edit` takes the lock itself, so it runs once this one is released.
-        return now
-            ?: when (edit(account, LineupEdit.UseMyCollections(on), libraries)) {
-                is Saved.Ok -> SetupChoice.Tomorrow
-                else -> SetupChoice.Failed
+    ): SetupOutcome {
+        val owner = ownerOf(account)
+        val outcome =
+            if (owner == null) {
+                SetupOutcome.Unwritable
+            } else {
+                val savedSeq = savedSeqNow()
+                entryOf(owner).mutex.withLock { choosingAtSetup(owner, account, libraries, on, savedSeq) }
             }
+        if (outcome == SetupOutcome.Unwritable) report(LineupEvent.SetupSwitchUnwritable)
+        return outcome
     }
 
-    // Under the account's lock. Null: the lineup is finalised, so the edit path applies.
+    // Under the account's lock.
     @Suppress("LongParameterList") // What the setup choice reads and carries, one for one.
     private suspend fun choosingAtSetup(
         owner: Owner,
@@ -1407,24 +1421,39 @@ class LineupService internal constructor(
         libraries: Set<ItemId>,
         on: Boolean,
         savedSeq: SavedSeqs?,
-    ): SetupChoice? {
+    ): SetupOutcome {
         val entry = entryOf(owner)
         val start = startOf(owner, entry)
         entry.writable = start.save
         val held = reconciled(entry, start)
         val lineup = held?.lineup ?: start.current
         val before = held?.meta ?: start.meta
-        val planned =
-            when {
-                !entry.writable -> null
-                lineup == null -> firstPlanAtSetup(owner, account, libraries, on, before, start.isNew)
-                lineup.finalised -> return null
-                else -> lineup.copy(useMyCollections = on) to before
-            }
-        if (planned == null) noteWritable(entry)
         val repairs = held?.repairs ?: start.repairs
-        return planned?.let { (next, meta) -> savedAtSetup(owner, entry, next, meta, repairs, savedSeq) }
-            ?: SetupChoice.Failed
+        return when {
+            !entry.writable -> {
+                noteWritable(entry)
+                SetupOutcome.Unwritable
+            }
+
+            lineup?.finalised == true -> {
+                when (editLocked(owner, entry, account, LineupEdit.UseMyCollections(on), libraries, savedSeq)) {
+                    is Saved.Ok -> SetupOutcome.Applied
+                    null -> SetupOutcome.Unwritable
+                    else -> SetupOutcome.Failed
+                }
+            }
+
+            else -> {
+                val planned =
+                    if (lineup == null) {
+                        firstPlanAtSetup(owner, account, libraries, on, before, start.isNew)
+                    } else {
+                        lineup.copy(useMyCollections = on) to before
+                    }
+                planned?.let { (next, meta) -> savedAtSetup(owner, entry, next, meta, repairs, savedSeq) }
+                    ?: SetupOutcome.Failed
+            }
+        }
     }
 
     @Suppress("LongParameterList") // The save's own six.
@@ -1435,7 +1464,7 @@ class LineupService internal constructor(
         meta: RefreshMeta,
         repairs: TodayRepairs,
         savedSeq: SavedSeqs?,
-    ): SetupChoice {
+    ): SetupOutcome {
         val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
         val saved = saveVerified(owner, lineup, meta, trimmed.record)
         if (saved) {
@@ -1443,7 +1472,7 @@ class LineupService internal constructor(
             publish(entry, lineup, meta, trimmed.record)
             entry.loaded = true
         }
-        return if (saved) SetupChoice.Applied else SetupChoice.Failed
+        return if (saved) SetupOutcome.Applied else SetupOutcome.Failed
     }
 
     // The first lineup of an account, planned with the switch; null (reported) when the library cannot be read.

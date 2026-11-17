@@ -30,6 +30,7 @@ import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.FakeCollectionsAtSetup
 import tv.stationbreak.core.domain.lineup.FakeHouseholdSetting
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
@@ -65,6 +66,7 @@ class LibrariesScreenTest {
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val settings = InMemoryServerSettings(ServerRecord(https))
     private val household = FakeHouseholdSetting()
+    private val atSetup = FakeCollectionsAtSetup()
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
 
@@ -91,6 +93,7 @@ class LibrariesScreenTest {
                 settings,
                 InMemoryLibrarySetup(settings),
                 household,
+                atSetup,
                 handOff,
             )
         compose.setContent {
@@ -234,7 +237,7 @@ class LibrariesScreenTest {
 
     @Test
     fun tomorrowShowsOnlyWhenTheLineupIsFinalisedAndTheSwitchChanged() {
-        household.finalised.value = true
+        atSetup.finalised.value = true
         launch()
         goToCollections()
         compose.onNodeWithTag(LibrariesTags.COLLECTIONS_TOMORROW).assertDoesNotExist()
@@ -352,6 +355,7 @@ class LibrariesScreenTest {
                 settings,
                 InMemoryLibrarySetup(settings),
                 household,
+                atSetup,
                 handOff,
             )
         compose.setContent {

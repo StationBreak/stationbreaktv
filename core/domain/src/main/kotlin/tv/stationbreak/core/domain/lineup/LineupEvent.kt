@@ -33,6 +33,9 @@ enum class LineupEvent {
     /** A reset found no library to choose from (the choice or the library could not be read). Nothing was changed. */
     ResetLibrariesUnavailable,
 
+    /** The "Use my collections" switch at setup could not be saved: the lineup may not be written. Setup went on. */
+    SetupSwitchUnwritable,
+
     /** An edit would have built a lineup that breaks the lineup's rules. Nothing was changed. */
     EditInvalid,
 

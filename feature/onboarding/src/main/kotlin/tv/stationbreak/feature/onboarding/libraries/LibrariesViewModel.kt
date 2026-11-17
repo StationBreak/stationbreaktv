@@ -22,8 +22,9 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.CollectionsAtSetup
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
-import tv.stationbreak.core.domain.lineup.SetupChoice
+import tv.stationbreak.core.domain.lineup.SetupOutcome
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.core.domain.selection.SetupResult
@@ -95,6 +96,7 @@ internal data class LibrariesUiState(
  * routing, which restores it. Nothing here is logged.
  */
 @HiltViewModel
+@Suppress("LongParameterList") // The ports the picker reads and writes, one for one.
 internal class LibrariesViewModel
     @Inject
     constructor(
@@ -103,11 +105,12 @@ internal class LibrariesViewModel
         private val settings: ServerSettings,
         private val setup: LibrarySetup,
         private val household: HouseholdSetting,
+        private val atSetup: CollectionsAtSetup,
         private val signedIn: SignedInHandOff,
     ) : ViewModel() {
         private val session: Session? = signedIn.peek()?.session
 
-        // The hand-off session's account, as the lineup keys it; no useAccount has run for it yet.
+        // The hand-off session's account, as the lineup keys it; sign-in has already made it the active account.
         private val account: LibraryAccount? = session?.let { LibraryAccount(it.server.id, it.userId) }
 
         /** True when there is no session to ask with. */
@@ -152,7 +155,7 @@ internal class LibrariesViewModel
                     // Everything is ticked except home videos (decision 7).
                     val ticked = LibraryDefaults.ticked(libraries)
                     val start = who?.let { household.useMyCollections(it).first() } ?: true
-                    val finalised = who?.let { household.lineupFinalised(it).first() } ?: false
+                    val finalised = who?.let { atSetup.lineupFinalised(it).first() } ?: false
                     LibrariesUiState(LibrariesPhase.Choosing, libraries, ticked, start, start, finalised)
                 }
         }
@@ -222,8 +225,10 @@ internal class LibrariesViewModel
             // Before the choice: the first lineup is planned once the choice is stored, and reads the flag then.
             val who = account
             val changed = current.collections != current.collectionsAtStart
-            val choice = if (who != null && changed) household.chooseAtSetup(who, ids, current.collections) else null
-            if (choice == SetupChoice.Failed) return false
+            // Unwritable (a lineup that may not be written) is no reason to hold Continue: the switch is a setting,
+            // not the choice, and a retry would not help. Only a failure a retry can fix shows save-failed.
+            val choice = if (who != null && changed) atSetup.chooseAtSetup(who, ids, current.collections) else null
+            if (choice == SetupOutcome.Failed) return false
             return when (setup.choose(ids)) {
                 SetupResult.Saved -> {
                     true
