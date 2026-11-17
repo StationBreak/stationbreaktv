@@ -74,3 +74,8 @@ reason = "org.jdom:jdom2 2.0.6: build-time only, pulled in by the Android Gradle
 id = "GHSA-r937-wjx7-w2jp"
 ignoreUntil = 2026-12-13
 reason = "org.jetbrains.kotlin:kotlin-gradle-plugin 2.4.10: build-time only, pulled in by Gradle's own kotlin-dsl plugin on the build-logic classpath (the project's Kotlin is 2.4.21). Not on any runtime classpath, so not in an APK. Fixed by a tool update, not by a change here."
+
+[[IgnoredVulns]]
+id = "GHSA-xxph-c9ww-hj94"
+ignoreUntil = 2026-12-13
+reason = "com.google.guava:guava (Java deserialization of untrusted streams, which the app never does): the APK's copy, which Media3 1.11.1 brings in, is constrained to the fixed 33.7.2-android in core:playback (#539). The entries left in the verification file are build-time only: 33.6.0-jre from the Hilt annotation processor, 33.4.0-jre from the build plugins' classpath, 33.2.1-jre from a tool classpath, and 33.3.1-android, which the constraint overrides. None is on a runtime classpath. At the review date, check that githubReleaseRuntimeClasspath and amazonReleaseRuntimeClasspath still resolve guava to a fixed version."

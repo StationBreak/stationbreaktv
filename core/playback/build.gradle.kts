@@ -22,6 +22,13 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.kotlinx.coroutines.core)
+    constraints {
+        // Media3 brings Guava into the APK; 33.3.1-android has GHSA-xxph-c9ww-hj94 (Java deserialization, which the
+        // app never does on untrusted data). Raised to the first fixed release (#539).
+        implementation(libs.guava.android) {
+            because("GHSA-xxph-c9ww-hj94 is fixed in 33.7.2 (#539)")
+        }
+    }
 
     testImplementation(testFixtures(project(":core:domain")))
     testImplementation(libs.kotlinx.coroutines.test)
