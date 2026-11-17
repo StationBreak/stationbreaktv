@@ -34,3 +34,6 @@ __pycache__/
 audit-snapshot-*.json
 /tools/audit-export/out/
 stationbreak-audit/
+
+# Claude Code agent worktrees are local scratch checkouts.
+/.claude/worktrees/
