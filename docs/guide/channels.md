@@ -1,0 +1,51 @@
+# Channels
+
+## Built-in channels
+
+After you choose libraries, the app builds a lineup of built-in channels from what is in them: themed channels
+based on genre, rating and similar metadata. Each show or film gets one home channel, so the same title doesn't turn
+up everywhere. A channel with nothing to air today is hidden from the guide and comes back when it has something.
+
+The schedule is worked out on each TV from your library, and a new day's schedule starts at 6 AM.
+
+## The Channels screen
+
+Open it from the guide's menu: **Channels**. Channels are grouped as **On**, **More channels** (channels that could
+be switched on) and **Off**. Select a channel to:
+
+- **Watch** it;
+- **Switch on** or **Switch off**. At least one channel stays on. A channel with adult content asks before it comes
+  on;
+- **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
+  back;
+- **Copy to customise** a built-in channel. Built-in channels themselves can't be changed: a copy becomes your own
+  channel that you edit freely.
+
+Channel numbers and switched-off channels are kept per TV. **Reset channels** puts them back to the defaults on
+this TV.
+
+## Build your own channel
+
+Choose **New channel**. Three steps:
+
+1. **Sources**: what can air. Libraries, Collections, Tags, Genres, or **Pick shows and films** by name. Then
+   **Narrow down** (genres, years, runtime, only films or only shows, a rating limit) and **Leave out** anything you
+   don't want.
+2. **How it plays**:
+   - **Shuffle**: random order; no show runs on past its cap while something else is waiting.
+   - **Rotation**: shows and collections take turns, each keeping its place.
+   - **In order**: one show start to finish, then the next, oldest first.
+
+   You can cap **Episodes in a row** and **Films of a collection in a row**.
+3. **Name and number**.
+
+A preview shows what would air. **Save and watch** tunes to the new channel. To change it later, select it in
+**Channels** and choose **Edit**, or delete it there.
+
+## Kids channels
+
+Kids channels show only titles made for kids and rated within the kids limit. Unrated titles are left out. This holds
+whatever the channel's sources say: the builder lists what it skipped ("Not made for kids", "Rated above the kids
+limit").
+
+Turn on **Kids channel** in the builder to make your own. Kids channels use their own band of numbers.
