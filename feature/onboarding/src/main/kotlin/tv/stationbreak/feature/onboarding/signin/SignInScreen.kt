@@ -52,6 +52,7 @@ import tv.stationbreak.feature.onboarding.server.FieldError
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
+import tv.stationbreak.feature.onboarding.server.detailsText
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
 private val ContentWidth = 640.dp
@@ -323,7 +324,7 @@ private fun Outcome(
 
         SignInPhase.QuickConnectDisabled -> {
             val copy = ErrorCopyTable.copyFor(MediaServerError.QuickConnectDisabled())
-            SignInNotice(stringResource(copy.message), stringResource(copy.details))
+            SignInNotice(stringResource(copy.message), detailsText(copy))
         }
 
         is SignInPhase.QuickConnectEnded -> {
@@ -336,7 +337,7 @@ private fun Outcome(
         }
 
         is SignInPhase.SessionEnded -> {
-            SignInNotice(stringResource(phase.copy.message), stringResource(phase.copy.details))
+            SignInNotice(stringResource(phase.copy.message), detailsText(phase.copy))
         }
 
         SignInPhase.Idle, SignInPhase.SignedIn, is SignInPhase.InvalidInput, is SignInPhase.QuickConnect -> {

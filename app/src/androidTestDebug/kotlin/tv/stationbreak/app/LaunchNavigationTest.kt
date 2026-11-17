@@ -409,6 +409,20 @@ class LaunchNavigationTest {
     }
 
     @Test
+    fun aDoubleGetStartedLeavesOneServerScreenAndBackReturnsToWelcome() {
+        launchApp()
+        awaitFocused(WelcomeTags.GET_STARTED)
+        compose.awaitWindowFocus()
+        // Two Selects back to back, before the first navigation has settled.
+        repeat(2) { InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_CENTER) }
+        awaitFocused(ServerTags.FIELD)
+        press(KeyEvent.KEYCODE_BACK)
+
+        awaitFocused(WelcomeTags.GET_STARTED)
+        assertEquals(0, count(ServerTags.FIELD))
+    }
+
+    @Test
     fun aStoredHttpAddressThatNeedsConfirmingOpensTheServerScreenWithoutMarkers() {
         Launched.settings = InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Http, "nas.example.test", 8096)))
         launchApp()

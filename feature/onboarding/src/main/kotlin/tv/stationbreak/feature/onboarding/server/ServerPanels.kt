@@ -184,7 +184,7 @@ internal fun ErrorPanel(
 ) {
     val copy = phase.copy
     val cause = ErrorCopyTable.causeText(phase.error)
-    val details = stringResource(copy.details)
+    val details = detailsText(copy)
     Column(
         modifier = Modifier.testTag(ServerTags.ERROR_PANEL).politeLiveRegion(),
         verticalArrangement = Arrangement.spacedBy(Gap),
@@ -239,6 +239,14 @@ internal fun messageText(
     copy: ErrorCopy,
 ): String {
     // The product name is the first argument of every message that takes any; the others ignore it.
-    val args = listOf<Any>(stringResource(R.string.server_product_name)) + ErrorCopyTable.messageArgs(error)
+    val args = ErrorCopyTable.messageFormatArgs(error, stringResource(R.string.server_product_name))
     return stringResource(copy.message, *args.toTypedArray())
+}
+
+/** The details line of [copy], with the product name for the ones that name it. Every call site uses this. */
+@Suppress("SpreadOperator")
+@Composable
+internal fun detailsText(copy: ErrorCopy): String {
+    val args = ErrorCopyTable.detailsArgs(stringResource(R.string.server_product_name))
+    return stringResource(copy.details, *args.toTypedArray())
 }

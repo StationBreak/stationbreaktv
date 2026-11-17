@@ -54,6 +54,7 @@ import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
+import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import java.text.NumberFormat
@@ -239,7 +240,7 @@ private fun Failure(
     val retryFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { retryFocus.requestFocus() }
     val cause = ErrorCopyTable.causeText(error)
-    val details = stringResource(copy.details)
+    val details = detailsText(copy)
     Text(
         text = stringResource(R.string.first_sync_failed_headline),
         modifier = Modifier.semantics { heading() },

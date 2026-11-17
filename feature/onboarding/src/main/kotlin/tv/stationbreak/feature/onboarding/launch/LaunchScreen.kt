@@ -40,6 +40,7 @@ import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
+import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
@@ -180,7 +181,7 @@ private fun Unavailable(
     val retryFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { retryFocus.requestFocus() }
     val cause = ErrorCopyTable.causeText(error)
-    val details = stringResource(copy.details)
+    val details = detailsText(copy)
     Text(
         text = stringResource(R.string.launch_unavailable_title),
         style = MaterialTheme.typography.headlineLarge,

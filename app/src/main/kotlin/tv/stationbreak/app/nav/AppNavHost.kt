@@ -51,6 +51,7 @@ internal fun AppNavGraph(
                 onWelcome = { navController.replaceAll(WelcomeRoute) },
                 // A stored http address to confirm again: the server screen, outside the first-run flow (no markers).
                 onConfirmAddress = { navController.replaceAll(ServerRoute()) },
+                // A cold start mid-flow drops the step markers by design: they show only in a flow started at Welcome.
                 onSignIn = { navController.replaceAll(SignInRoute()) },
                 onLibraries = { navController.replaceAll(LibrariesRoute()) },
                 onFirstSync = { navController.replaceAll(FirstSyncRoute) },
@@ -62,7 +63,10 @@ internal fun AppNavGraph(
         }
         composable<WelcomeRoute> {
             // Pushed, not replaced: Back from the server screen returns here. The step markers start with it.
-            WelcomeDestination(onGetStarted = { navController.navigate(ServerRoute(firstRun = true)) })
+            // Single top: a second Select can't stack a second server screen.
+            WelcomeDestination(
+                onGetStarted = { navController.navigate(ServerRoute(firstRun = true)) { launchSingleTop = true } },
+            )
         }
         composable<ServerRoute> { entry ->
             val firstRun = entry.toRoute<ServerRoute>().firstRun

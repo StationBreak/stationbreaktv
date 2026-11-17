@@ -61,6 +61,7 @@ import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
+import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
@@ -186,7 +187,7 @@ private fun Content(
             val copy = phase.copy
             Problem(
                 message = messageText(phase.error, copy),
-                details = stringResource(copy.details),
+                details = detailsText(copy),
                 retryFocus = focus.retry,
                 onRetry = onRetry,
             )
