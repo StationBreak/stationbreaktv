@@ -2,6 +2,8 @@
 <!--
   Stan's head on an ink rounded square (the app icon's art, ink version), from the brand's 512 x 512 SVG with the same
   colours. The tile is kept: on the guide's ink page it vanishes, and on the Light grey page it reads as the mark.
+  The colour literals are BrandColors ink (#1C1B19), cream (#F3EEE3) and orange (#E8642C); a VectorDrawable cannot
+  reference the Kotlin object, so keep them in step by hand.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="512dp"

@@ -44,7 +44,8 @@ the four static Manrope weights from github.com/googlefonts/manrope at a pinned 
   or by the app-store additional permission. The OFL requires this: the fonts must stay under the OFL only, and each
   copy ships with its copyright notice and licence text.
 - **Where things are.** The licence texts ship in the APK under `core/ui/src/main/assets/licenses/`
-  (`OFL-ArchivoBlack.txt`, `OFL-SpaceMono.txt`, `OFL-Manrope.txt`). `core/ui/FONTS.md` records the source, the file hashes, the
+  (`OFL-ArchivoBlack.txt`, `OFL-SpaceMono.txt`, `OFL-Manrope.txt`, `OFL-Ranchers.txt`; Ranchers, the brand face, was
+  added later: `ranchers_regular.ttf`, unmodified). `core/ui/FONTS.md` records the source, the file hashes, the
   update steps, and the rule that fonts load only from the APK.
 - **Consequence: a new bundled asset needs a hand check.** Licensee checks Maven dependencies only and does not see
   vendored assets. So a new bundled asset has its licence checked by hand at review (security review), and is recorded
