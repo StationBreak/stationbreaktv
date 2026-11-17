@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-17T16:08:23Z",
+  "generatedAt": "2026-11-17T18:16:44Z",
   "title": "Design System: StationBreak",
   "extensions": {
     "colorMeta": {
-      "on-air-orange": {
+      "orange": {
         "role": "primary",
-        "displayName": "On-Air Orange",
+        "displayName": "Orange",
         "tonalRamp": [
           "#3A160A",
           "#5E230F",
@@ -18,83 +18,89 @@
           "#FBDCCD"
         ]
       },
-      "on-air-orange-light-fill": {
-        "role": "primary",
-        "displayName": "On-Air Orange, Daylight fill"
-      },
-      "on-air-orange-light-text": {
-        "role": "primary",
-        "displayName": "On-Air Orange, Daylight text"
-      },
-      "after-hours-page": {
+      "ink": {
         "role": "neutral",
-        "displayName": "After-Hours Page",
+        "displayName": "Ink",
         "tonalRamp": [
-          "#0E0F11",
-          "#141518",
-          "#1E2024",
-          "#3A3B40",
-          "#6B7079",
-          "#9499A2",
-          "#D2D5DA",
-          "#E4E6EA"
-        ]
-      },
-      "after-hours-sheet": {
-        "role": "neutral",
-        "displayName": "After-Hours Sheet"
-      },
-      "daylight-page": {
-        "role": "neutral",
-        "displayName": "Daylight Page"
-      },
-      "daylight-sheet": {
-        "role": "neutral",
-        "displayName": "Daylight Sheet"
-      },
-      "listing-ink": {
-        "role": "neutral",
-        "displayName": "Listing Ink"
-      },
-      "rating-amber-dark": {
-        "role": "secondary",
-        "displayName": "Rating Amber (Dark)"
-      },
-      "rating-amber-light": {
-        "role": "secondary",
-        "displayName": "Rating Amber (Light)"
-      },
-      "test-card-ground": {
-        "role": "tertiary",
-        "displayName": "Test-Card Ground",
-        "tonalRamp": [
+          "#151412",
           "#1C1B19",
-          "#3A3834",
-          "#5C5952",
-          "#807C73",
-          "#A5A196",
+          "#262320",
+          "#2E2A25",
+          "#3D3832",
+          "#B3AB9D",
           "#CFCBC2",
-          "#E3DFD6",
           "#F3EEE3"
         ]
       },
-      "test-card-ink": {
-        "role": "tertiary",
-        "displayName": "Test-Card Ink"
-      },
-      "test-card-cream": {
-        "role": "tertiary",
-        "displayName": "Test-Card Cream"
-      },
-      "onboarding-ring": {
+      "panel": {
         "role": "neutral",
-        "displayName": "Onboarding Ring"
+        "displayName": "Panel"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line"
+      },
+      "cream": {
+        "role": "neutral",
+        "displayName": "Cream"
+      },
+      "grey": {
+        "role": "neutral",
+        "displayName": "Grey"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted"
+      },
+      "screen-lift-top": {
+        "role": "neutral",
+        "displayName": "Screen Lift (centre)"
+      },
+      "screen-lift-bottom": {
+        "role": "neutral",
+        "displayName": "Screen Lift (edge)"
+      },
+      "rating-amber": {
+        "role": "secondary",
+        "displayName": "Rating Amber"
+      },
+      "daylight-page": {
+        "role": "neutral",
+        "displayName": "Daylight Page (provisional)"
+      },
+      "daylight-sheet": {
+        "role": "neutral",
+        "displayName": "Daylight Sheet (provisional)"
+      },
+      "daylight-ink": {
+        "role": "neutral",
+        "displayName": "Daylight Ink (provisional)"
+      },
+      "daylight-orange-fill": {
+        "role": "primary",
+        "displayName": "Daylight Orange fill (provisional)"
+      },
+      "daylight-orange-text": {
+        "role": "primary",
+        "displayName": "Daylight Orange text (provisional)"
       }
     },
     "typographyMeta": {
+      "name": {
+        "displayName": "Name",
+        "purpose": "The wordmark, Station Break."
+      },
+      "stan-line": {
+        "displayName": "Stan's line",
+        "purpose": "A few words in capitals on station screens."
+      },
+      "teletype": {
+        "displayName": "Teletype",
+        "purpose": "Status lines, clocks, labels; orange status, grey detail."
+      },
       "headline": {
         "displayName": "Headline",
-        "purpose": "The guide panel's programme title; the one large thing on the guide."
+        "purpose": "The guide panel's programme title (reading face, provisional)."
       },
       "title": {
         "displayName": "Title",
@@ -102,51 +108,39 @@
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Grid metadata, panel overview, banner line two."
+        "purpose": "Grid metadata and banner detail."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Times, ranges, clock and channel numbers, with tabular figures."
+        "purpose": "Times and channel numbers, tabular."
       },
       "flag": {
         "displayName": "Flag",
-        "purpose": "ON NOW / NOW / UP NEXT and tags; the 10sp floor."
-      },
-      "ident-display": {
-        "displayName": "Ident Display",
-        "purpose": "STATION BREAK and slate titles; on-air register only."
-      },
-      "ident-mono": {
-        "displayName": "Ident Mono",
-        "purpose": "Test-card captions and figures; on-air register only."
+        "purpose": "NOW, UP NEXT, section headers with counts, tags."
       }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "stan-foot-shadow",
+        "value": "flat ink ellipse under Stan's feet",
+        "purpose": "The only shadow in the system."
+      }
+    ],
     "motion": [
       {
         "name": "focus-change",
         "value": "160ms",
-        "purpose": "Guide focus fill colour change; none when the TV's animation scale is off."
-      },
-      {
-        "name": "logo-fade",
-        "value": "120ms",
-        "purpose": "The panel's channel mark fading in."
-      },
-      {
-        "name": "describe-after",
-        "value": "150ms",
-        "purpose": "Delay before the panel describes the focused programme while the D-pad moves."
-      },
-      {
-        "name": "snow-frame",
-        "value": "80ms",
-        "purpose": "Snow frame interval between channels; a still frame with reduced motion."
+        "purpose": "Focus fill colour change; none when the TV's animation scale is off."
       },
       {
         "name": "reduced-motion",
         "value": "ANIMATOR_DURATION_SCALE == 0",
-        "purpose": "LocalMotionReduced: no scale, no spinner turn, still snow."
+        "purpose": "No scale, no spinner turn, still frames."
+      },
+      {
+        "name": "splash-and-moving-Stan",
+        "value": "provisional",
+        "purpose": "In the separate motion study; not covered here."
       }
     ],
     "breakpoints": [
@@ -158,140 +152,135 @@
         "name": "safe-area",
         "value": "5% (48dp x 27dp); Edge fit 1.5%"
       }
-    ]
+    ],
+    "provenance": {
+      "brandSource": "StationBreak Brand Standards (working draft)",
+      "status": "target ahead of code; see DESIGN.md Migration"
+    }
   },
   "components": [
+    {
+      "name": "Station Screen",
+      "kind": "custom",
+      "description": "Stan in a mood, his line in Ranchers, the teletype status, then the next step; on the warm screen lift.",
+      "html": "<div class=\"ds-station\"><div class=\"ds-stan\"><i class=\"ds-ear l\"></i><i class=\"ds-ear r\"></i><div class=\"ds-screen\"><span>z z</span></div></div><div><b>GONE TO BED</b><em>OFF THE AIR</em><small>RETURNS AT 6:00 AM</small></div></div>",
+      "css": ".ds-station{display:flex;align-items:center;gap:28px;padding:28px;background:radial-gradient(circle at 50% 50%,#2E2A25,#151412)} .ds-stan{position:relative;width:96px;height:72px;background:#F3EEE3;border-radius:14px;display:flex;align-items:center;justify-content:center;margin-top:24px} .ds-ear{position:absolute;top:-26px;width:3px;height:30px;background:#1C1B19;border-radius:2px} .ds-ear.l{left:36px;transform:rotate(-20deg)} .ds-ear.r{right:36px;transform:rotate(20deg)} .ds-screen{width:64px;height:44px;background:#1C1B19;border-radius:8px;color:#F3EEE3;display:flex;align-items:center;justify-content:center;font:700 12px monospace} .ds-station b{display:block;font-family: Ranchers, 'Arial Rounded MT Bold', Impact, sans-serif;font-size:34px;color:#F3EEE3;line-height:1} .ds-station em{display:block;font-style:normal;font-family: 'Space Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.13em; text-transform:uppercase;font-size:12px;color:#E8642C;margin-top:10px} .ds-station small{display:block;font-family: 'Space Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.13em; text-transform:uppercase;font-size:11px;color:#CFCBC2;margin-top:4px}"
+    },
     {
       "name": "Programme Cell",
       "kind": "custom",
       "refersTo": "programme-cell",
-      "description": "A listing in the guide grid: near-flat, 2dp corners; focus is an On-Air Orange fill, never growth.",
+      "description": "A listing in the guide grid: panel on ink, 2dp corners; focus is an orange fill with ink text.",
       "html": "<div class=\"ds-grid\"><div class=\"ds-cell\"><b>Test Series</b><span>S1 E19</span><i style=\"width:12%\"></i></div><div class=\"ds-cell ds-cell-focus\" tabindex=\"0\"><b>Test Movie 104</b><span>1954 · NR · Musical</span></div></div>",
-      "css": ".ds-grid{display:flex;gap:1px;background:#0E0F11;padding:8px} .ds-cell{position:relative;font-family: Manrope, system-ui, sans-serif;flex:1;height:40px;padding:4px 12px;border-radius:2px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.9);display:flex;flex-direction:column;justify-content:center;transition:background .16s,color .16s} .ds-cell b{font-weight:500;font-size:13px} .ds-cell span{font-size:11px;color:rgba(255,255,255,.58)} .ds-cell i{position:absolute;left:0;bottom:0;height:1.5px;background:#E8642C} .ds-cell-focus,.ds-cell:focus-visible{background:#E8642C;color:#1A0D06;outline:none} .ds-cell-focus span,.ds-cell:focus-visible span{color:rgba(26,13,6,.9)}"
+      "css": ".ds-grid{display:flex;gap:1px;background:#1C1B19;padding:8px} .ds-cell{position:relative;font-family: Manrope, Figtree, system-ui, sans-serif;flex:1;height:40px;padding:4px 12px;border-radius:2px;background:#262320;color:#F3EEE3;display:flex;flex-direction:column;justify-content:center;transition:background .16s,color .16s} .ds-cell b{font-weight:500;font-size:13px} .ds-cell span{font-size:11px;color:#B3AB9D} .ds-cell i{position:absolute;left:0;bottom:0;height:1.5px;background:#E8642C} .ds-cell-focus,.ds-cell:focus-visible{background:#E8642C;color:#1C1B19;outline:none} .ds-cell-focus span,.ds-cell:focus-visible span{color:#1C1B19}"
     },
     {
       "name": "Now/Next Banner",
       "kind": "custom",
       "refersTo": "banner",
-      "description": "The 58dp tune banner over the picture, with a 2dp progress line on top.",
-      "html": "<div class=\"ds-banner\"><i style=\"width:30%\"></i><span class=\"ds-num\">7</span><div><b>Test Series</b><span><em>NOW</em> · S1 E19 · 8:00–9:00 PM · 55 min left</span></div><span class=\"ds-next\">Next: Test Movie 104 at 9:00 PM</span></div>",
-      "css": ".ds-banner{position:relative;font-family: Manrope, system-ui, sans-serif;display:flex;align-items:center;gap:12px;height:58px;padding:0 16px;background:rgba(14,15,17,.92);border:1px solid rgba(255,255,255,.1);border-radius:2px;color:rgba(255,255,255,.9)} .ds-banner i{position:absolute;top:0;left:0;height:2px;background:#E8642C} .ds-num{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.58)} .ds-banner b{display:block;font-size:18px;font-weight:700} .ds-banner span{font-size:11px;color:rgba(255,255,255,.58)} .ds-banner em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;color:#E8642C} .ds-next{margin-left:auto}"
+      "description": "The 58dp ink bar over the picture with an orange progress line on top and a teletype flag.",
+      "html": "<div class=\"ds-banner\"><i style=\"width:30%\"></i><span class=\"ds-num\">7</span><div><b>Test Series</b><span><em>NOW</em> S1 E19 · 8:00–9:00 PM · 55 min left</span></div></div>",
+      "css": ".ds-banner{position:relative;font-family: Manrope, Figtree, system-ui, sans-serif;display:flex;align-items:center;gap:12px;height:58px;padding:0 16px;background:#1C1B19;border:1px solid #3D3832;border-radius:2px;color:#F3EEE3} .ds-banner i{position:absolute;top:0;left:0;height:2px;background:#E8642C} .ds-num{font-size:13px;font-weight:500;color:#CFCBC2} .ds-banner b{display:block;font-size:18px;font-weight:700} .ds-banner span{font-size:11px;color:#B3AB9D} .ds-banner em{font-style:normal;font-family: 'Space Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.13em; text-transform:uppercase;font-size:10px;color:#E8642C;margin-right:6px}"
     },
     {
-      "name": "Sheet Action",
-      "kind": "button",
-      "refersTo": "sheet-action",
-      "description": "An action in a sheet: 16sp Medium, 3dp corners; focus is an On-Air Orange fill.",
-      "html": "<div class=\"ds-sheet\"><button class=\"ds-action ds-action-focus\">Watch</button><button class=\"ds-action\">Switch off</button></div>",
-      "css": ".ds-sheet{background:#141518;border-left:1px solid #3A3B40;padding:16px;display:flex;flex-direction:column;gap:4px;width:300px} .ds-action{font-family: Manrope, system-ui, sans-serif;font-size:16px;font-weight:500;text-align:left;padding:8px 12px;border:0;border-radius:3px;background:transparent;color:rgba(255,255,255,.9);transition:background .16s} .ds-action:focus-visible,.ds-action-focus{background:#E8642C;color:#1A0D06;outline:none}"
+      "name": "Sheet Row and Section Flag",
+      "kind": "nav",
+      "refersTo": "section-flag",
+      "description": "Channel rows on a panel sheet: grey teletype section flags with counts; focus is the orange drawn ring.",
+      "html": "<div class=\"ds-sheet\"><div class=\"ds-flag\">ON · 48</div><div class=\"ds-row ds-row-focus\">101 Neon Rain</div><div class=\"ds-row\">102 Velvet Rain</div><div class=\"ds-flag\">MORE CHANNELS · 112</div><div class=\"ds-row\">9 Charlie<small>Fits, but it isn't in your lineup right now</small></div></div>",
+      "css": ".ds-sheet{background:#262320;border-left:1px solid #3D3832;padding:16px;width:320px;font-family: Manrope, Figtree, system-ui, sans-serif;} .ds-flag{font-family: 'Space Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.13em; text-transform:uppercase;font-size:10px;color:#CFCBC2;border-top:1px solid #3D3832;padding:12px 0 6px} .ds-row{font-size:16px;color:#F3EEE3;padding:8px 10px;border:3px solid transparent;border-radius:4px} .ds-row small{display:block;font-size:14px;color:#B3AB9D} .ds-row-focus,.ds-row:focus-visible{border-color:#E8642C;outline:none}"
     },
     {
       "name": "Key Hint",
       "kind": "chip",
       "refersTo": "key-cap",
-      "description": "A remote key cap and its action label in the hint row.",
-      "html": "<div class=\"ds-hints\"><span class=\"ds-cap ds-ok\">OK</span>Watch<span class=\"ds-cap\">Back</span>To the menu<span class=\"ds-cap\">Menu</span>Open the menu</div>",
-      "css": ".ds-hints{font-family: Manrope, system-ui, sans-serif;display:flex;align-items:center;gap:8px;font-size:10px;color:rgba(255,255,255,.58);background:#0E0F11;padding:8px} .ds-cap{display:inline-flex;align-items:center;height:16px;padding:0 5px;border:1px solid rgba(255,255,255,.28);border-radius:3px;font-weight:600;color:rgba(255,255,255,.9);margin-left:12px} .ds-ok{border-radius:50%;width:16px;justify-content:center;padding:0;font-size:8px}"
+      "description": "Remote key caps with plain labels.",
+      "html": "<div class=\"ds-hints\"><span class=\"ds-cap ds-ok\">OK</span>Watch<span class=\"ds-cap\">Back</span>Leave the guide<span class=\"ds-cap\">Menu</span>Options</div>",
+      "css": ".ds-hints{font-family: Manrope, Figtree, system-ui, sans-serif;display:flex;align-items:center;gap:8px;font-size:10px;color:#B3AB9D;background:#1C1B19;padding:8px} .ds-cap{display:inline-flex;align-items:center;height:16px;padding:0 5px;border:1px solid #CFCBC2;border-radius:3px;font-weight:600;color:#F3EEE3;margin-left:12px} .ds-ok{border-radius:50%;width:16px;justify-content:center;padding:0;font-size:8px}"
     },
     {
-      "name": "Text Tab",
-      "kind": "nav",
-      "refersTo": "text-tab",
-      "description": "The guide's menu row: plain text tabs, active one underlined, no pills.",
-      "html": "<nav class=\"ds-tabs\"><a class=\"ds-tab ds-tab-active\" href=\"#\">Guide</a><a class=\"ds-tab\" href=\"#\">Channels</a><a class=\"ds-tab\" href=\"#\">Settings</a></nav>",
-      "css": ".ds-tabs{font-family: Manrope, system-ui, sans-serif;display:flex;gap:20px;background:#0E0F11;padding:8px} .ds-tab{font-size:11px;color:rgba(255,255,255,.58);text-decoration:none;padding-bottom:4px;border-bottom:1px solid transparent} .ds-tab-active,.ds-tab:focus-visible{color:rgba(255,255,255,.9);border-bottom-color:#E8642C;outline:none}"
-    },
-    {
-      "name": "Onboarding Button",
-      "kind": "button",
-      "description": "tv-material button on onboarding: inverts its fill on focus with a 3dp mid-tone ring and a 1.08x scale.",
-      "html": "<button class=\"ds-ob-btn\">Connect</button>",
-      "css": ".ds-ob-btn{font-family: Manrope, system-ui, sans-serif;font-size:20px;padding:10px 24px;border-radius:20px;border:3px solid transparent;background:rgba(230,225,229,.12);color:#E6E1E5;transition:transform .15s,background .15s} .ds-ob-btn:focus-visible{background:#E6E1E5;color:#1C1B1F;border-color:#7E74B0;transform:scale(1.08);outline:none}"
-    },
-    {
-      "name": "Ident Card",
+      "name": "Wordmark",
       "kind": "custom",
-      "description": "The on-air register: the test-card disc with the STATION BREAK wordmark and a mono caption.",
-      "html": "<div class=\"ds-ident\"><div class=\"ds-disc\"><div class=\"ds-tv\"></div><b>STATION<br>BREAK</b><span>No longer in the library. Back with the next programme.</span></div></div>",
-      "css": ".ds-ident{background:#CFCBC2;padding:16px;display:flex;justify-content:center} .ds-disc{width:220px;height:220px;border-radius:50%;border:4px solid #1C1B19;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center} .ds-tv{width:34px;height:26px;border:4px solid #1C1B19;border-radius:6px;background:#E8642C} .ds-disc b{font-family:'Archivo Black',Impact,sans-serif;font-size:30px;line-height:1;color:#1C1B19} .ds-disc span{font-family:'Space Mono',monospace;font-weight:700;font-size:10px;line-height:1.2;letter-spacing:.03em;color:#1C1B19;max-width:120px}"
+      "description": "Station Break in Ranchers with the orange tagline; on ink.",
+      "html": "<div class=\"ds-mark\"><b>Station Break</b><span>PUT YOUR FEET UP</span></div>",
+      "css": ".ds-mark{background:#1C1B19;padding:24px;display:inline-block} .ds-mark b{display:block;font-family: Ranchers, 'Arial Rounded MT Bold', Impact, sans-serif;font-size:40px;color:#F3EEE3;line-height:1} .ds-mark span{display:block;font-family: 'Space Mono', ui-monospace, monospace; font-weight:700; letter-spacing:.13em; text-transform:uppercase;font-size:11px;color:#E8642C;margin-top:6px}"
     }
   ],
   "narrative": {
-    "northStar": "The Station Ident",
-    "overview": "**Creative North Star: \"The Station Ident\"**\n\nStationBreak is a broadcaster, not a media app. The ident is its signature: the test card with the TV-set icon, the STATION BREAK wordmark in a heavy display face, a mono caption, cream and ink, and one orange tally of colour. Everything else in the app is that station's listings and control room. They are deliberately quieter, so the on-air moments carry the brand: true neutrals, one accent, flat surfaces and type that reads from across a living room.\n\nThe system has two registers under one name. The **on-air register** (Archivo Black, Space Mono, test-card ground, cream and ink) appears only when the station is talking to the viewer: the ident card, the \"we'll be right back\" slates, the snow between channels. The **listings register** (Manrope, white or ink at fixed alphas on a near-black or mid-grey page, On-Air Orange for focus and \"now\") is everything the viewer operates: the guide, the banner, the menu sheet, the channel screens, settings and onboarding. The guide overhaul set the listings register's bar: a broadcast EPG, not a themed menu of rounded capsules.\n\nDensity is set from the couch on the floor device. The guide shows five channel rows at 960×540dp, and nothing drops below 10sp. Depth comes from tone and dimming, never from shadow. Focus is a fill or a ring, never growth inside a grid. Motion is short and stops entirely when the TV's animation scale is off.",
+    "northStar": "Stan's Station",
+    "overview": "**Creative North Star: \"Stan's Station\"**\n\nA station break is the moment the programme stops and the station speaks for itself. StationBreak's station is Stan: a console TV set with rabbit ears who has put his feet up. The whole app is his station, one look from the first setup screen to the guide at 2 AM. The ground is warm ink, because it's watched from a couch in a dim room. Cream carries the words, a little orange is the spark, and Stan turns up with one line when the station has something to say.\n\nThe look is unified: one ground, one palette, one pair of voice faces, one focus colour across setup, the guide, the channel screens, the banner and the station screens. What changes between surfaces is density, not identity. The guide is the station's listings: a dense, disciplined broadcast EPG on the same ink, where Stan stays out of the way and orange marks only \"this one\" and \"now\". The station screens (tuning, off the air, no signal, technical difficulties, first launch) are where Stan and the voice faces lead.\n\nNothing glares and nothing shouts. Surfaces are flat, depth is a tonal step plus a hairline, and motion is short and stops when the TV's animation scale is off. Density is set from the couch on the floor device: five guide rows at 960×540dp, nothing under 10sp.",
     "keyCharacteristics": [
-      "Two registers: on-air (ident, slates, snow) and listings (everything operable), never mixed on one surface.",
-      "One accent, On-Air Orange, for focus, now and progress. It is the only saturated colour outside channel marks.",
-      "Neutrals are a single white (Dark) or ink (Light) at fixed alphas over the page, with no warm tints.",
-      "Flat: 1dp hairlines and 2dp corners in the grid, no shadows, gradients or washes.",
-      "The viewer picks Dark (the default) or Light for the guide family. The system theme is never followed.",
-      "Text and pictures keep to the overscan safe area (48dp × 27dp at 960×540); surfaces bleed to the screen edge."
+      "One warm-ink world everywhere; screens get a soft warm lift toward the middle, so they never read as flat black or as white.",
+      "Four brand colours: mostly ink, then cream, with orange as the spark and grey for small supporting text.",
+      "Stan is the station's face. Without limbs he is the mark; with limbs, the character on station screens.",
+      "Ranchers is the station's voice (the name, Stan's lines), and Space Mono Bold its teletype (status, clocks, flags). A plain reading face carries everything else.",
+      "Stan gets one line; the plain status says what is happening and what to do. The joke never carries the information.",
+      "Flat: no outlines, gradients or shadows on surfaces or on Stan (except the one shadow under his feet)."
     ],
     "rules": [
       {
-        "name": "The One Tally Rule",
-        "body": "On-Air Orange means \"this one\" or \"now\": focus, the now line, ON NOW, progress. It is never decoration, never a heading colour, and never on two unrelated things on one screen.",
+        "name": "The Spark Rule",
+        "body": "Orange is the spark, never the fill of a screen. In the guide family it means exactly \"this one\" (focus) or \"now\" (the now line, NOW, progress). Never use it for decoration or headings, and never for two unrelated things on one screen.",
         "section": "colors"
       },
       {
-        "name": "The Composite Rule",
-        "body": "Neutral text is an alpha over the page, and contrast is judged on the composite: 4.5:1 for text up to 13sp, 3:1 for larger text and for strokes. Supporting alpha (38% white, 52% ink) is for chevrons, ticks and rules only, never text. `GuidePaletteTest` and `ContrastTest` enforce it.",
+        "name": "The Readable Pairs Rule",
+        "body": "Text uses only the pairs the brand sheet clears:",
         "section": "colors"
       },
       {
         "name": "The Viewer's Choice Rule",
-        "body": "The guide family is Dark unless the viewer chose Light in Settings. It never follows the TV's system theme. The banner is always Dark, because it sits over the picture.",
+        "body": "The guide family follows the viewer's own Dark/Light choice, never the TV's system theme. Dark (warm ink) is the default.",
         "section": "colors"
       },
       {
         "name": "The Ten-Foot Floor Rule",
-        "body": "Nothing in the app renders under 10sp, at any font scale. A design that needs smaller text needs fewer words.",
+        "body": "Nothing renders under 10sp, at any font scale. (The brand sheet's smallest station-screen text, 28px at 1080p, still needs checking from the couch: PROVISIONAL.)",
+        "section": "typography"
+      },
+      {
+        "name": "The Few Words Rule",
+        "body": "Ranchers is for the name and Stan's lines only, never more than a few words, and never for information the viewer needs to act on.",
         "section": "typography"
       },
       {
         "name": "The Three-Size Grid Rule",
-        "body": "The guide grid uses three sizes and two weights: 13sp Medium titles, 11sp Regular metadata and 11sp Medium tabular figures. Hierarchy comes from that step and from colour alpha, not from more sizes.",
-        "section": "typography"
-      },
-      {
-        "name": "The Station Voice Rule",
-        "body": "Archivo Black and Space Mono appear only in the on-air register. The banner, flip bar and overlays left them behind in the banner restyle, and they don't come back.",
+        "body": "The guide grid uses three sizes and two weights (13sp Medium titles, 11sp Regular metadata, 11sp Medium tabular figures). Hierarchy comes from that step and from cream, grey and muted, not from more sizes.",
         "section": "typography"
       },
       {
         "name": "The Safe-Area Rule",
-        "body": "Text, marks, chevrons and focus rings keep inside the safe area. Only grounds, rules and cell fills bleed to the edge.",
+        "body": "Text, marks, Stan, chevrons and focus rings keep inside the safe area; only grounds, hairlines and cell fills bleed.",
         "section": "layout"
       },
       {
         "name": "The Five-Row Rule",
-        "body": "The guide shows five rows at 960×540. Density was reduced after on-TV review; adding rows needs another review on the floor device.",
+        "body": "The guide shows five rows at 960×540. Adding rows needs another review on the floor device.",
         "section": "layout"
       },
       {
-        "name": "The Flat Broadcast Rule",
-        "body": "If a surface needs to stand forward, step its tone and give it a 1dp line. Never add a shadow.",
+        "name": "The Flat Station Rule",
+        "body": "Never add a drop shadow, glow or outline to a surface or to Stan. To raise something, step it from ink to panel and give it a hairline.",
         "section": "elevation"
       }
     ],
     "dos": [
-      "**Do** use On-Air Orange for exactly one meaning on a screen: focus or now.",
-      "**Do** draw neutral text as white (Dark) or ink (Light) at the documented alphas, and check contrast on the composite (4.5:1 at 13sp and under).",
-      "**Do** keep text, marks and focus rings inside the safe area (48dp × 27dp at 960×540) and let grounds bleed.",
-      "**Do** show focus in the guide family as a fill or an unscaled ring (`panelFocus`), drawn from the screen's own state.",
-      "**Do** keep every line at 10sp or larger, and use `guideProse` (1.2 line height) for anything that can wrap.",
-      "**Do** step tone and add a 1dp line to raise a surface, and fade a scrolling edge rather than cut a line.",
-      "**Do** keep Archivo Black and Space Mono to the test card, slates and ident.",
-      "**Do** honour reduced motion: no scale, no spinner turn, a still frame for snow."
+      "**Do** put every screen on warm ink, with the soft lift on full-screen grounds.",
+      "**Do** keep orange to \"this one\" and \"now\" in the listings, and to Stan's details and one word on station screens.",
+      "**Do** give Stan one line, then let the teletype status say plainly what is happening and what to do.",
+      "**Do** use only the readable pairs: cream or grey on ink for text, and orange with ink for labels and flags.",
+      "**Do** keep text, Stan and focus inside the safe area (48dp × 27dp at 960×540).",
+      "**Do** keep every line at 10sp or larger.",
+      "**Do** honour reduced motion: no scale, no spinner turn, and a still frame where something would move."
     ],
     "donts": [
-      "**Don't** round anything inside the grid or the banner family past 2dp, or turn listings back into pills or capsules.",
-      "**Don't** add shadows, glows, gradients or warm-tinted neutrals to the guide family.",
-      "**Don't** scale focus inside a grid or a list of rows; it pushes an edge into the neighbour.",
+      "**Don't** recolour, stretch or squash Stan, take his ears off, or put cream Stan on a light ground.",
+      "**Don't** use Ranchers for more than a few words or for anything the viewer needs to act on.",
+      "**Don't** set text in cream on orange or orange on cream (2.9:1).",
+      "**Don't** add shadows, glows, outlines or gradients beyond the single ground lift and Stan's foot shadow.",
+      "**Don't** round anything inside the grid or the banner family past 2dp, or scale focus inside a grid or list.",
       "**Don't** follow the TV's system theme for the guide family.",
-      "**Don't** put a channel's name in the grid; the details panel already has it.",
-      "**Don't** tile, outline, tint (other than Light's mono ink) or shadow a channel mark, or draw one that evokes a real network.",
-      "**Don't** use the supporting alpha (38% white, 52% ink) for text."
+      "**Don't** use a voice face in a channel mark, or draw a mark that evokes a real network."
     ]
   }
 }
