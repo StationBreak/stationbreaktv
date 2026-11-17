@@ -23,10 +23,10 @@ class PanelColors(
     companion object {
         val Dark =
             PanelColors(
-                ground = DARK_INK,
-                text = DARK_CREAM,
-                secondary = DARK_MUTED,
-                ring = DARK_ORANGE,
+                ground = BrandColors.Ink,
+                text = BrandColors.Cream,
+                secondary = BrandColors.Muted,
+                ring = BrandColors.Orange,
                 sheet = DarkSheet,
             )
     }

@@ -53,7 +53,6 @@ import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideFigures
-import tv.stationbreak.core.ui.guideTeletype
 import tv.stationbreak.core.ui.mark.ChannelMark
 import tv.stationbreak.core.ui.mark.LocalMarkCache
 import tv.stationbreak.core.ui.mark.LocalMarkTextMeasurer
@@ -349,7 +348,7 @@ private fun ClockStrip(
     val zone = remember { ZoneId.systemDefault() }
     val is24h = is24Hour()
     val colors = LocalGuideColors.current
-    val clock = guideTeletype(11.sp)
+    val clock = guideFigures(11.sp, FontWeight.Medium)
     val time = guideFigures(11.sp, FontWeight.Normal)
     Row(
         Modifier

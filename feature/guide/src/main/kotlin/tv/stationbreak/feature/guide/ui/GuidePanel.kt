@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -45,8 +46,8 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideFigures
-import tv.stationbreak.core.ui.guideTeletype
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.teletype
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
@@ -275,8 +276,8 @@ private fun MetaRow(
     Row(horizontalArrangement = Arrangement.spacedBy(MetaGap), verticalAlignment = Alignment.CenterVertically) {
         if (onNow) {
             Text(
-                text = stringResource(R.string.guide_now).uppercase(),
-                style = guideTeletype(10.sp),
+                text = stringResource(R.string.guide_now).uppercase(LocalConfiguration.current.locales[0]),
+                style = teletype(10.sp),
                 color = colors.accent,
                 maxLines = 1,
             )

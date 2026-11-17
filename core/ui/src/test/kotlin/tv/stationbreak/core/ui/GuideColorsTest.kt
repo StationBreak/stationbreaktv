@@ -29,7 +29,7 @@ class GuideColorsTest {
         assertEquals(Color(0xFFCFCBC2), dark.keyCapStroke)
         assertEquals(Color(0xFFF3EEE3), dark.textPrimary)
         assertEquals(Color(0xFFB3AB9D), dark.textSecondary)
-        assertEquals(Color(0xFF736D63), dark.textSupporting)
+        assertEquals(Color(0xFFB3AB9D), dark.textSupporting)
         assertEquals(dark.textPrimary, dark.programmeText)
 
         val light = GuideColors.Light
@@ -135,7 +135,9 @@ class GuideColorsTest {
             val card = c.card.compositeOver(c.page)
             assertContrast(3.0, c.textSupporting, c.page, "$name tertiary over the page", c.page)
             assertContrast(3.0, c.textSupporting, card, "$name tertiary over a card", c.page)
-            // It does not reach the 4.5:1 text needs, so it must not be used for text.
+            // Light's does not reach the 4.5:1 text needs, so it must not be used for text. Dark's is the brand muted,
+            // which does clear it, so only the 3:1 stroke floor above is asserted for Dark.
+            if (c === GuideColors.Dark) continue
             val seen = c.textSupporting.compositeOver(c.page).luminance()
             val ratio = (maxOf(seen, c.page.luminance()) + 0.05) / (minOf(seen, c.page.luminance()) + 0.05)
             assertTrue("$name tertiary is $ratio: if it now clears 4.5, this guard can go", ratio < 4.5)

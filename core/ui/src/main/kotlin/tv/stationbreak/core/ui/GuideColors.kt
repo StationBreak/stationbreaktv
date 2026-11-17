@@ -22,8 +22,8 @@ class GuideColors(
     val textPrimary: Color,
     val textSecondary: Color,
     /**
-     * A dim warm grey in Dark (#736D63, 3.05:1 on a card), 52% ink in Light: the least that holds 3:1 on the page and
-     * a card, so for strokes only (chevrons, ticks, rules), never for text, which needs [textSecondary]'s 4.5:1.
+     * The brand muted in Dark, 52% ink in Light: it holds 3:1 on the page and a card, so for strokes only (chevrons,
+     * ticks, rules), never for text, which uses [textSecondary] (Light's does not reach 4.5:1).
      * [GuidePaletteTest] fails if any file but the cells reads it.
      */
     val textSupporting: Color,
@@ -67,23 +67,23 @@ class GuideColors(
     companion object {
         val Dark =
             GuideColors(
-                page = DARK_INK,
-                pageGradientStart = DARK_INK,
-                card = DARK_PANEL,
-                textPrimary = DARK_CREAM,
-                textSecondary = DARK_MUTED,
-                textSupporting = DARK_SUPPORTING,
-                programmeText = DARK_CREAM,
-                accent = DARK_ORANGE,
-                focusFill = DARK_ORANGE,
-                focusText = DARK_INK,
-                focusTextSecondary = DARK_INK.copy(alpha = FOCUS_SECONDARY_ALPHA),
-                nowLine = DARK_ORANGE,
+                page = BrandColors.Ink,
+                pageGradientStart = BrandColors.Ink,
+                card = BrandColors.Panel,
+                textPrimary = BrandColors.Cream,
+                textSecondary = BrandColors.Muted,
+                textSupporting = BrandColors.Muted,
+                programmeText = BrandColors.Cream,
+                accent = BrandColors.Orange,
+                focusFill = BrandColors.Orange,
+                focusText = BrandColors.Ink,
+                focusTextSecondary = BrandColors.Ink.copy(alpha = FOCUS_SECONDARY_ALPHA),
+                nowLine = BrandColors.Orange,
                 nowRailAlpha = NOW_LINE_ALPHA,
-                progressFill = DARK_ORANGE,
-                progressTrack = DARK_LINE,
-                line = DARK_LINE,
-                keyCapStroke = DARK_GREY,
+                progressFill = BrandColors.Orange,
+                progressTrack = BrandColors.Line,
+                line = BrandColors.Line,
+                keyCapStroke = BrandColors.Grey,
                 sheet = DarkSheet,
             )
 
@@ -126,19 +126,9 @@ class GuideColors(
 /** Dark unless a caller provides the saved choice. Never the system theme. */
 val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 
-// The brand's warm-ink tokens (DESIGN.md), which Dark takes whole. Internal: [PanelColors.Dark] reads them too, and
-// must not read them off [GuideColors] (an init cycle).
-internal val DARK_INK = Color(0xFF1C1B19)
-internal val DARK_PANEL = Color(0xFF262320)
-internal val DARK_LINE = Color(0xFF3D3832)
-internal val DARK_CREAM = Color(0xFFF3EEE3)
-internal val DARK_MUTED = Color(0xFFB3AB9D)
-internal val DARK_ORANGE = Color(0xFFE8642C)
-private val DARK_GREY = Color(0xFFCFCBC2)
-private val DARK_SUPPORTING = Color(0xFF736D63)
-
-/** The Dark sheet, shared with [PanelColors.Dark]: that must not read it off [GuideColors] (an init cycle). */
-internal val DarkSheet = SheetColors(surface = DARK_PANEL, line = DARK_LINE, ratingBadge = Color(0xFFFFD166))
+/** The Dark sheet, shared with [PanelColors.Dark]. */
+internal val DarkSheet =
+    SheetColors(surface = BrandColors.Panel, line = BrandColors.Line, ratingBadge = Color(0xFFFFD166))
 
 // Light's text and surfaces are one ink at fixed alphas. Light has its own alphas: its page is darker than a
 // near-white one, so the card, the rules and the track are stronger and its text is held at 4.5:1 on both the page and
