@@ -31,9 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -191,16 +191,17 @@ internal fun ChannelBanner(
     }
 }
 
-/** One node for TalkBack: [spoken] in a polite live region, so a tune is announced; its parts stay in the tree. */
+/** [spoken] as a polite live region, so a tune is announced; the visible texts keep their own semantics. */
 private fun Modifier.spokenLiveRegion(spoken: String) =
-    clearAndSetSemantics {
+    semantics {
         contentDescription = spoken
         liveRegion = LiveRegionMode.Polite
     }
 
 /**
- * What TalkBack says for [banner]. Read once per banner, with the clock as it is then: the line must not change on the
- * minute tick, or TalkBack would announce it again.
+ * What TalkBack says for [banner]. Keyed on what is on air (channel, program title, slot, and whether minutes are
+ * said) and read with the clock once then: a tick, a label change (Tuning in to Now), the actions opening or a joined
+ * time never recompute it, so a tune is announced once.
  */
 @Composable
 private fun rememberSpoken(
@@ -208,13 +209,15 @@ private fun rememberSpoken(
     clock: () -> Long,
 ): String {
     val context = LocalContext.current
-    return remember(banner, context) {
+    val upNext = banner.label == BannerLabel.UpNext
+    val (start, end) = banner.slotStartMs to banner.slotEndMs
+    return remember(banner.number, banner.channelName, banner.title, start, end, upNext, context) {
         val left =
             BannerText
-                .minutesLeft(banner.slotStartMs, banner.slotEndMs, clock())
-                .takeIf { banner.label != BannerLabel.UpNext }
-        val number = channelNumber(banner.number)
-        BannerText.spoken(number, banner.channelName, banner.title, left, SpokenCopy.from(context.resources))
+                .minutesLeft(start, end, clock())
+                .takeIf { !upNext }
+        val digits = channelNumber(banner.number)
+        BannerText.spoken(digits, banner.channelName, banner.title, left, SpokenCopy.from(context.resources))
     }
 }
 
