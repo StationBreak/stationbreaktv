@@ -11,7 +11,10 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.MediaSource
 import tv.stationbreak.core.model.MediaSourceId
+import tv.stationbreak.core.model.MediaStreamInfo
 import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.StreamKind
+import tv.stationbreak.core.model.SubtitleDelivery
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,12 +56,27 @@ class EveryRequestAuthTest {
         jellyfin.on("GET", "/stream") { jellyfin.json("{}") }
         jellyfin.on("GET", "/master.m3u8") { jellyfin.json("{}") }
         jellyfin.on("GET", "/seg.ts") { jellyfin.json("{}") }
+        jellyfin.on("GET", "/Stream.vtt") { jellyfin.json("{}") }
         val session =
             runBlocking {
                 adapter.signIn(SignInRequest(jellyfin.address, "alice", "pw".toCharArray(), null)).getOrNull()!!
             }
         val streams = runBlocking { adapter.playbackInfo(session, ItemId("i1")).getOrNull()!!.streams }
         val source = MediaSource(MediaSourceId("src1"), null, "mkv", null, true, true)
+        val vtt =
+            MediaStreamInfo(
+                2,
+                StreamKind.SUBTITLE,
+                "subrip",
+                null,
+                null,
+                null,
+                null,
+                true,
+                false,
+                false,
+                SubtitleDelivery.SEPARATE,
+            )
         val media = adapter.mediaCallFactory { session }
         val origin = "http://127.0.0.1:${jellyfin.server.port}"
         jellyfin.log.clear()
@@ -67,6 +85,7 @@ class EveryRequestAuthTest {
             mapOf(
                 "direct" to streams.original(source.id),
                 "hls" to streams.hls(source, null, null, insigniaCapabilities(), false),
+                "subtitle" to streams.subtitle(source.id, vtt)!!,
                 // What a server's own playlist can list: its credential must not leave.
                 "segment" to "$origin/Videos/i1/seg.ts?api_key=$token&ApiKey=$token",
             )
