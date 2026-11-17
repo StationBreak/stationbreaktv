@@ -7,7 +7,7 @@ On your home network, `http://` works without a prompt. That covers private addr
 
 The app asks **Connect without encryption?** before using http:
 
-- to any other address, including a public one and Tailscale's `100.x.x.x` addresses;
+- to any other address, including a public one and Tailscale's addresses (`100.64.x.x` to `100.127.x.x`);
 - whenever you typed no `http://` or `https://`, https failed, and the app fell back to http, even at home.
 
 No password or sign-in token is sent until you choose **Connect anyway**. The home screen then shows **Not encrypted

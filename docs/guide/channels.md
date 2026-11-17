@@ -18,8 +18,8 @@ be switched on) and **Off**. Select a channel to:
   on;
 - **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
   back;
-- **Copy to customise** a built-in channel. Built-in channels themselves can't be changed: a copy becomes your own
-  channel that you edit freely.
+- **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
+  edit freely.
 
 Channel numbers and switched-off channels are kept per TV. **Reset channels** puts them back to the defaults on
 this TV.

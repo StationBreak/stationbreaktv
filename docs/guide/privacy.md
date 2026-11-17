@@ -23,7 +23,9 @@ Jellyfin dashboard ends its sign-in.
 
 ## Permissions
 
-The app asks Android only for internet access, which it uses to reach your server.
+The app asks Android for network access (to reach your server and to know when the network is up), to keep the
+TV awake while a background library sync finishes, and to restart its background library sync after the TV restarts. Nothing else:
+no microphone, location, contacts or storage.
 
 ## Contact
 

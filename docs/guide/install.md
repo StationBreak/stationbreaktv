@@ -15,8 +15,8 @@ first release is out.
 When a release is published on GitHub, its notes list the SHA-256 of each APK and the fingerprint of the certificate
 it is signed with. Check both before installing an APK by hand.
 
-A copy from an app store and a copy installed by hand are signed with different keys. Android won't install one over
-the other, so to switch you uninstall first, which removes the sign-in and the settings on that TV.
+A copy from an app store and a copy installed by hand can be signed with different keys. Then Android won't install one
+over the other, so to switch you uninstall first, which removes the sign-in and the settings on that TV.
 
 ## Testers
 
