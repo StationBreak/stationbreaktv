@@ -31,10 +31,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
-import tv.stationbreak.feature.onboarding.server.BodySize
-import tv.stationbreak.feature.onboarding.server.DetailsSize
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ServerButton
@@ -148,7 +148,7 @@ private fun WarningBlock(
         // Which server this is about, so a wrong address is noticed before anything is trusted.
         Text(
             text = stringResource(R.string.trust_server_address, serverAddress),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.testTag(TrustTags.SERVER_ADDRESS),
         )
@@ -161,7 +161,7 @@ private fun WarningBlock(
                     TrustReason.NotYetValid -> stringResource(R.string.trust_warning_not_yet_valid, notBefore)
                     TrustReason.Changed -> stringResource(R.string.trust_warning_changed)
                 },
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -174,7 +174,7 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
     Column(verticalArrangement = Arrangement.spacedBy(TightGap)) {
         Text(
             text = stringResource(R.string.trust_fingerprint_label),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.testTag(TrustTags.FINGERPRINT_LABEL),
         )
@@ -203,13 +203,13 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
                     formatDate(certificate.notBeforeMillis),
                     formatDate(certificate.notAfterMillis),
                 ),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(TrustTags.VALIDITY),
         )
         Text(
             text = stringResource(R.string.trust_fingerprint_note),
-            fontSize = DetailsSize,
+            style = MaterialTheme.typography.screenDetail,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.testTag(TrustTags.FINGERPRINT_NOTE),
         )

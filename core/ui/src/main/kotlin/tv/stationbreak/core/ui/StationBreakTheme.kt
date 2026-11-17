@@ -16,8 +16,11 @@ val StationBreakDarkColors = darkColorScheme(border = Color(0xFF7E74B0))
 /** How strong the address hint is, as the alpha of `onSurfaceVariant` on the field fill. 0.9 keeps it above 4.5:1. */
 const val HINT_ALPHA = 0.9f
 
-/** The app's theme: tv-material's dark scheme, set explicitly (a TV is watched in a dim room). */
+/**
+ * The app's theme: tv-material's dark scheme, set explicitly (a TV is watched in a dim room), with the app's
+ * [StationBreakTypography].
+ */
 @Composable
 fun StationBreakTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = StationBreakDarkColors, content = content)
+    MaterialTheme(colorScheme = StationBreakDarkColors, typography = StationBreakTypography, content = content)
 }

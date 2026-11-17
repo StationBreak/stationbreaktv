@@ -29,15 +29,14 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.server.BodySize
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
@@ -116,7 +115,7 @@ internal fun SignedInScreen(
                                 ?.let { stringResource(R.string.signed_in_to, it) }
                             ?: stringResource(R.string.signed_in_plain),
                     modifier = Modifier.testTag(SignedInTags.HEADLINE),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
@@ -150,7 +149,7 @@ private fun SwitchingStatus() {
         ProgressSpinner(contentDescription = stringResource(R.string.signed_in_progress_description))
         Text(
             text = stringResource(R.string.signed_in_switching),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }

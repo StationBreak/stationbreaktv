@@ -61,7 +61,6 @@ import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
 
 // Sizes only this screen uses.
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
@@ -136,7 +135,7 @@ internal fun ServerScreen(
             ) {
                 Text(
                     text = stringResource(R.string.server_headline),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 AddressField(

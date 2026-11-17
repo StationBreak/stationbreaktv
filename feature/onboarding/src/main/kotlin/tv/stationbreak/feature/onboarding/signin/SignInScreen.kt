@@ -44,7 +44,6 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.TvTextField
-import tv.stationbreak.feature.onboarding.server.BodySize
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.FieldError
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -52,7 +51,6 @@ import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
@@ -164,7 +162,7 @@ internal fun SignInScreen(
                         } else {
                             stringResource(R.string.quick_connect_headline)
                         },
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 // The password is typed here, so a connection the user accepted without encryption says so here too.

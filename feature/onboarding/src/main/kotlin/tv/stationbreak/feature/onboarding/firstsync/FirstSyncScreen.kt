@@ -44,9 +44,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.server.BodySize
-import tv.stationbreak.feature.onboarding.server.DetailsSize
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -57,7 +57,6 @@ import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import java.text.NumberFormat
 
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private val BarHeight = 12.dp
 private const val OVERSCAN = 0.05f
@@ -169,13 +168,13 @@ private fun Progress(
         text = stringResource(R.string.first_sync_headline),
         // A heading, so a screen reader has something to land on: nothing here is focusable.
         modifier = Modifier.testTag(FirstSyncTags.HEADLINE).semantics { heading() },
-        style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+        style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
     Text(
         text = stringResource(R.string.first_sync_second_line),
         modifier = Modifier.testTag(FirstSyncTags.SECOND_LINE),
-        fontSize = BodySize,
+        style = MaterialTheme.typography.screenBody,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Bar(fraction, description)
@@ -183,7 +182,7 @@ private fun Progress(
         text = count,
         // The bar and the announcement below say it for TalkBack; reading the count too would say it twice.
         modifier = Modifier.testTag(FirstSyncTags.COUNT).semantics { hideFromAccessibility() },
-        fontSize = BodySize,
+        style = MaterialTheme.typography.screenBody,
         color = MaterialTheme.colorScheme.onSurface,
     )
     Announcement(fraction)
@@ -249,7 +248,7 @@ private fun Failure(
     Text(
         text = stringResource(R.string.first_sync_failed_headline),
         modifier = Modifier.semantics { heading() },
-        style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+        style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
     Column(
@@ -261,7 +260,7 @@ private fun Failure(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = messageText(error, copy),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -271,7 +270,7 @@ private fun Failure(
                         } else {
                             stringResource(R.string.error_details_with_cause, details, cause)
                         },
-                    fontSize = DetailsSize,
+                    style = MaterialTheme.typography.screenDetail,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

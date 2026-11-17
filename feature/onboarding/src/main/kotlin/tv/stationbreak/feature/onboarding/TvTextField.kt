@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -43,9 +44,9 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
+import tv.stationbreak.core.ui.screenBody
 
 private val FieldHeight = 56.dp
-private val FieldBodySize = 20.sp
 private const val MASK_CHARACTER = '•'
 
 /**
@@ -128,14 +129,21 @@ internal fun TvTextField(
                     onLeave = { editing = false },
                 )
             } else if (value.isEmpty()) {
-                Text(text = hint, fontSize = FieldBodySize, color = colors.onSurfaceVariant.copy(alpha = HINT_ALPHA))
+                FieldText(hint, colors.onSurfaceVariant.copy(alpha = HINT_ALPHA))
             } else {
                 val shown = if (masked) MASK_CHARACTER.toString().repeat(value.length) else value
-                Text(text = shown, fontSize = FieldBodySize, color = colors.onSurface)
+                FieldText(shown, colors.onSurface)
             }
         }
     }
 }
+
+/** The field's text when not editing: the hint, or the value (masked, if it is a secret). */
+@Composable
+private fun FieldText(
+    text: String,
+    color: Color,
+) = Text(text = text, style = MaterialTheme.typography.screenBody, color = color)
 
 /** The editable text, shown only while editing. */
 @Suppress("LongParameterList") // As [TvTextField].
@@ -165,7 +173,7 @@ private fun TextInput(
             onValueChange(it.text)
         },
         singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = FieldBodySize, color = colors.onSurface),
+        textStyle = MaterialTheme.typography.screenBody.copy(color = colors.onSurface),
         cursorBrush = SolidColor(colors.onSurface),
         visualTransformation = if (masked) PasswordVisualTransformation(MASK_CHARACTER) else VisualTransformation.None,
         keyboardOptions =

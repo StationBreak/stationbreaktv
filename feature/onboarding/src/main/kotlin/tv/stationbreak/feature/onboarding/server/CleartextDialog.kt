@@ -54,6 +54,7 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
 
@@ -89,7 +90,7 @@ internal fun CleartextDialog(
                         stringResource(
                             if (byFallback) R.string.cleartext_body_fallback else R.string.cleartext_body_public,
                         ),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
