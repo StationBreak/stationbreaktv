@@ -11,6 +11,9 @@ object GuideTags {
     const val CLOCK = "guide:clock"
     const val PANEL = "guide:panel"
     const val PANEL_CHANNEL = "guide:panel:channel"
+
+    /** The station bug (Stan's head and "Station Break" in Ranchers) at the start of the panel's top line. */
+    const val STATION_BUG = "guide:stationBug"
     const val PANEL_TITLE = "guide:panel:title"
 
     /** The logo that stands for the title when the item has one in time (#723); [PANEL_TITLE] is then its box. */

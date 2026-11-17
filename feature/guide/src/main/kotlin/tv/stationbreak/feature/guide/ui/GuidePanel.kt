@@ -204,14 +204,17 @@ private fun PanelLines(
     val colors = LocalGuideColors.current
     val playingWord = if (playing) stringResource(R.string.guide_playing) else null
     Slot(PanelSlot.Channel) {
-        Text(
-            text = channelLine(details.channelNumber, details.channelName, playingWord),
-            modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
-            style = guideFigures(11.sp, FontWeight.Normal),
-            color = colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StationBug()
+            Text(
+                text = channelLine(details.channelNumber, details.channelName, playingWord),
+                modifier = Modifier.weight(1f, fill = false).testTag(GuideTags.PANEL_CHANNEL),
+                style = guideFigures(11.sp, FontWeight.Normal),
+                color = colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
     Slot(PanelSlot.Title) {
         PanelTitle(details.channelNumber to cell.startMs, cellTitle(cell, copy), details.logo, colors)

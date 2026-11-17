@@ -94,6 +94,8 @@
 
     <!-- A station-break cell on the grid (leftover time spread through the day): a plate in the slate's style. The panel says what is up next. -->
     <string name="guide_station_break">Station break</string>
+    <!-- The brand name beside Stan's head on the panel's top line; decorative, never read out. -->
+    <string name="guide_station_bug" translatable="false">Station Break</string>
     <!-- The meta line of a focused station break in the panel: the title of the program that follows it and its start time. -->
     <string name="guide_up_next_title_at">Up next: %1$s at %2$s</string>
     <!-- The same line when the program that follows has no title (it left the library), or nothing follows: the time alone. -->

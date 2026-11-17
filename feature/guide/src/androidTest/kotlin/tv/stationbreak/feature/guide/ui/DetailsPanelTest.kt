@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -143,6 +144,42 @@ class DetailsPanelTest {
             assertShownInside(tag, panelBottom)
         }
         assertEquals("2018 · 22 min · Animation, Family", text(GuideTags.PANEL_META))
+    }
+
+    @Test
+    fun theStationBugLeadsTheTopLineAndIsNotPartOfTheAnnouncedText() {
+        show(withItem(null))
+        val bug = compose.onNodeWithTag(GuideTags.STATION_BUG, useUnmergedTree = true)
+        bug.assertIsDisplayed()
+        val channel = compose.onNodeWithTag(GuideTags.PANEL_CHANNEL, useUnmergedTree = true)
+        assertTrue(
+            "the bug sits before the channel line",
+            bug.getBoundsInRoot().right <= channel.getBoundsInRoot().left,
+        )
+        assertEquals("7 · Seven", text(GuideTags.PANEL_CHANNEL))
+        val spoken =
+            compose
+                .onNodeWithTag(GuideTags.PANEL)
+                .fetchSemanticsNode()
+                .config[SemanticsProperties.Text]
+                .joinToString(" ") { it.text }
+        assertTrue("the panel announces the channel: $spoken", spoken.contains("7 · Seven"))
+        assertFalse("the bug is not announced: $spoken", spoken.contains("Station Break", ignoreCase = true))
+        assertTrue(
+            "the bug has no text of its own",
+            SemanticsProperties.Text !in bug.fetchSemanticsNode().config,
+        )
+    }
+
+    @Test
+    fun aLongChannelNameEllipsizesAndTheBugKeepsItsWidth() {
+        show(CellDetails(withItem(null).cell, 7, "A very long channel name ".repeat(12), null, loading = false))
+        val panelRight = compose.onNodeWithTag(GuideTags.PANEL).getBoundsInRoot().right
+        val bug = compose.onNodeWithTag(GuideTags.STATION_BUG, useUnmergedTree = true)
+        bug.assertIsDisplayed()
+        assertTrue("the bug is more than its icon wide", bug.getBoundsInRoot().width > 60.dp)
+        val channel = compose.onNodeWithTag(GuideTags.PANEL_CHANNEL, useUnmergedTree = true)
+        assertTrue("the channel line stays inside the panel", channel.getBoundsInRoot().right <= panelRight)
     }
 
     private fun showOnNow(
