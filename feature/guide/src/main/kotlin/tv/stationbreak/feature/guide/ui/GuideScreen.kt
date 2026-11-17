@@ -109,6 +109,13 @@ private const val HINT_SPACE = "   "
 // How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.
 private const val CORNER_SLACK = 0.5f
 
+// A screen too small to show a viewport still gets this much, so times never divide by about nothing (#429).
+internal val MinViewportWidth = 48.dp
+
+// The farthest a time is placed from the origin. Compose cannot lay out a width past 2^18 px, so a cell hours or years
+// long would throw; a day is 9,360 dp on a 960 dp screen, so this is far past anything drawn: only a bound.
+internal val MaxGridWidth = 16_000.dp
+
 /**
  * Where the guide's parts go on a screen, from the shared safe area and the [hole] live TV laid its picture in (screen
  * dp): the panel takes the band from the safe area's left edge to the hole, as tall as the hole reaches down, and the
@@ -144,11 +151,11 @@ internal class GuideGeometry(
 
     val panelWidth: Dp = hole.left - safe.left - PanelGap
     val topHeight: Dp = hole.bottom - safe.top
-    val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
+    val viewportWidth: Dp = maxOf(safe.right - safe.left - ChannelColumnWidth, MinViewportWidth)
     val spanMs: Long = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
     /** How wide [ms] of time is on the grid. */
-    fun widthOf(ms: Long): Dp = viewportWidth * (ms.toFloat() / spanMs)
+    fun widthOf(ms: Long): Dp = (viewportWidth * (ms.toFloat() / spanMs)).coerceIn(-MaxGridWidth, MaxGridWidth)
 
     /** The time a break must last to be drawn [CompactBelow] wide or wider: a shorter one is not a focus stop. */
     val narrowBreakBelowMs: Long = ceil(CompactBelow.value / viewportWidth.value * spanMs).toLong()

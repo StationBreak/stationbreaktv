@@ -72,6 +72,27 @@ class GuideGeometryTest {
     }
 
     @Test
+    fun aTinyScreenKeepsEveryWidthRepresentable() {
+        // 320 x 640 dp (an emulator default) and smaller: widths stay inside what Compose can lay out.
+        listOf(DpSize(320.dp, 640.dp), DpSize(100.dp, 100.dp)).forEach { size ->
+            val geometry = GuideGeometry(size, ScreenLayout.pictureRect(ScreenLayout.safeArea(size)))
+            assertTrue("$size", geometry.viewportWidth.value >= 48f)
+            assertTrue("$size", geometry.narrowBreakBelowMs in 1..geometry.spanMs)
+            listOf(1_700_000_000_000L, Long.MAX_VALUE, -1_700_000_000_000L, Long.MIN_VALUE).forEach { ms ->
+                assertTrue("$size $ms", geometry.widthOf(ms).value in -16_000f..16_000f)
+            }
+        }
+    }
+
+    @Test
+    fun aRealTvIsNotChangedByTheBounds() {
+        val geometry = GuideGeometry(screen, ScreenLayout.pictureRect(ScreenLayout.safeArea(screen)))
+        assertEquals(780f, geometry.viewportWidth.value, EPS)
+        assertEquals(9_360f, geometry.widthOf(24L * 3_600_000L).value, EPS)
+        assertEquals(-9_360f, geometry.widthOf(-24L * 3_600_000L).value, EPS)
+    }
+
+    @Test
     fun theLayoutFollowsTheHoleItIsGiven() {
         // Live is the one that says where the picture is: a hole elsewhere moves the panel's edge and the grid's top.
         val hole = DpRect(left = 600.dp, top = 27.dp, right = 912.dp, bottom = 200.dp)
