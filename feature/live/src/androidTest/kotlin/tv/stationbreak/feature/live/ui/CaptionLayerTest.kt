@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.text.Cue
 import androidx.media3.ui.SubtitleView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -34,14 +35,14 @@ class CaptionLayerTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private val cues = mutableStateOf<List<Cue>>(emptyList())
+    private val cues = MutableStateFlow<List<Cue>>(emptyList())
     private val hidden = mutableStateOf(false)
 
     private fun show() {
         compose.setContent {
             val surface = remember { SurfaceView(compose.activity) }
             Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp)) {
-                VideoFrame(surface, ASPECT, cues.value, hidden.value)
+                VideoFrame(surface, ASPECT, cues, hidden.value)
             }
         }
         compose.waitForIdle()

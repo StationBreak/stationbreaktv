@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.text.Cue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.roundToInt
 
 /**
@@ -21,13 +23,14 @@ import kotlin.math.roundToInt
  *
  * The same [surface] instance stays in the same place in the composition; only its modifier changes, so it is never
  * made again and the picture plays on. The aspect is rounded ([fitAspect]) so a hair's difference lays nothing out.
- * The player's caption [cues] are drawn over the picture, in its rectangle, unless [captionsHidden] (guide open).
+ * The player's caption [cues] are collected by the caption layer alone, so a cue change recomposes that layer and
+ * not the screen above it. They are drawn over the picture, in its rectangle, unless [captionsHidden] (guide open).
  */
 @Composable
 internal fun VideoFrame(
     surface: SurfaceView,
     aspect: Float?,
-    cues: List<Cue> = emptyList(),
+    cues: StateFlow<List<Cue>> = NO_CUES,
     captionsHidden: Boolean = false,
 ) {
     val fitted = fitAspect(aspect)
@@ -46,3 +49,5 @@ internal fun fitAspect(aspect: Float?): Float? {
 }
 
 private const val ASPECT_STEPS = 1000f
+
+private val NO_CUES: StateFlow<List<Cue>> = MutableStateFlow(emptyList())
