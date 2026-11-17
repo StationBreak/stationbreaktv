@@ -100,7 +100,7 @@ class BenchSetup(
                 "SIGNOUT OK not-revoked"
             }
 
-            RestoreOutcome.SignedOut -> {
+            RestoreOutcome.SignedOut, RestoreOutcome.Superseded -> {
                 "SIGNOUT ERROR no-session"
             }
 

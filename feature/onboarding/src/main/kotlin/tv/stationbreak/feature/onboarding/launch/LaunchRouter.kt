@@ -73,7 +73,7 @@ internal class LaunchRouter
             val address = record.address
             return when (val restored = sessions.restore(address)) {
                 is RestoreOutcome.Restored -> restoredRoute(restored.session)
-                RestoreOutcome.SignedOut -> signIn(address, because = null)
+                RestoreOutcome.SignedOut, RestoreOutcome.Superseded -> signIn(address, because = null)
                 is RestoreOutcome.Rejected -> signIn(address, because = restored.error)
                 is RestoreOutcome.Unavailable -> LaunchRoute.Unavailable(restored.error, address)
             }

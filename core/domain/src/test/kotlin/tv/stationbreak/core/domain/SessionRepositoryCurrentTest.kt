@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.Scheme
@@ -10,10 +12,12 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
+import tv.stationbreak.core.model.StoredSession
 import tv.stationbreak.core.model.UserId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** [SessionRepository.current] is the one place the signed-in session lives in memory (PR #332, A1). */
 @OptIn(SecretAccess::class)
@@ -122,6 +126,133 @@ class SessionRepositoryCurrentTest {
             repository.save(session)
             repository.onServerError(MediaServerError.ServerMismatch())
             assertNull(repository.current.value)
+        }
+
+    // A server whose resume waits for [answer], so a test can sign out while a verify is in flight (#333).
+    private class HeldResume(
+        private val inner: FakeMediaServer,
+    ) : MediaServer by inner {
+        val asked = CompletableDeferred<Unit>()
+        val answer = CompletableDeferred<ServerResult<Session>>()
+
+        override suspend fun resume(stored: StoredSession): ServerResult<Session> {
+            asked.complete(Unit)
+            return answer.await()
+        }
+    }
+
+    @Test
+    fun aVerifyInFlightWhenTheUserSignsOutDoesNotBringTheSessionBack() =
+        runBlocking {
+            val held = HeldResume(server)
+            val repo = SessionRepository(store, held)
+            repo.save(session)
+            val verifying = async { repo.verify(address) }
+            held.asked.await()
+
+            repo.signOut(session)
+            held.answer.complete(ServerResult.Success(session))
+
+            assertEquals(RestoreOutcome.Superseded, verifying.await())
+            assertNull(repo.current.value)
+        }
+
+    @Test
+    fun aVerifyInFlightWhenAnotherUserSignsInDoesNotReplaceThem() =
+        runBlocking {
+            val held = HeldResume(server)
+            val repo = SessionRepository(store, held)
+            repo.save(session)
+            val verifying = async { repo.verify(address) }
+            held.asked.await()
+
+            val other = session.copy(userId = UserId("user2"))
+            repo.save(other)
+            held.answer.complete(ServerResult.Success(session))
+
+            assertEquals(RestoreOutcome.Superseded, verifying.await())
+            assertEquals(other, repo.current.value)
+        }
+
+    // A store whose clear waits for [release], so a check can start while a sign-out is still clearing it.
+    private class HeldClear(
+        private val inner: InMemorySecretStore,
+    ) : SecretStore by inner {
+        val clearing = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+
+        override suspend fun clear(key: String): SecretStoreResult<Unit> {
+            clearing.complete(Unit)
+            release.await()
+            return inner.clear(key)
+        }
+    }
+
+    @Test
+    fun aVerifyStartedWhileTheSignOutIsStillClearingTheStoreFindsNothing() =
+        runBlocking {
+            val slowStore = HeldClear(store)
+            val repo = SessionRepository(slowStore, server)
+            repo.save(session)
+            server.resumeResult = ServerResult.Success(session)
+            val signingOut = async { repo.signOut(session) }
+            slowStore.clearing.await()
+
+            val verifying = async { repo.verify(address) }
+            slowStore.release.complete(Unit)
+            signingOut.await()
+
+            assertEquals(RestoreOutcome.SignedOut, verifying.await())
+            assertNull(repo.current.value)
+            assertTrue(store.snapshot().isEmpty())
+        }
+
+    @Test
+    fun aRestoreInFlightWhenTheUserSignsOutPublishesAndWritesNothing() =
+        runBlocking {
+            val held = HeldResume(server)
+            val repo = SessionRepository(store, held)
+            repo.save(session)
+            val restoring = async { repo.restore(address) }
+            held.asked.await()
+
+            repo.signOut(session)
+            // An http to https upgrade would be written back: it must not be, after the sign-out.
+            held.answer.complete(ServerResult.Success(session.copy(address = address.copy(port = 8920))))
+
+            assertEquals(RestoreOutcome.Superseded, restoring.await())
+            assertNull(repo.current.value)
+            assertTrue(store.snapshot().isEmpty())
+        }
+
+    @Test
+    fun aRefusalOfASessionReplacedMeanwhileDoesNotSignOutTheNewOne() =
+        runBlocking {
+            val held = HeldResume(server)
+            val repo = SessionRepository(store, held)
+            repo.save(session)
+            val restoring = async { repo.restore(address) }
+            held.asked.await()
+
+            val other = session.copy(userId = UserId("user2"))
+            repo.save(other)
+            held.answer.complete(ServerResult.Failure(MediaServerError.SessionExpired()))
+
+            assertEquals(RestoreOutcome.Superseded, restoring.await())
+            assertEquals(other, repo.current.value)
+            assertTrue(store.snapshot().isNotEmpty())
+        }
+
+    @Test
+    fun aVerifyWithNothingInBetweenStillPublishes() =
+        runBlocking {
+            val held = HeldResume(server)
+            val repo = SessionRepository(store, held)
+            repo.save(session)
+            held.answer.complete(ServerResult.Success(session))
+
+            assertEquals(RestoreOutcome.Restored(session), repo.verify(address))
+            assertEquals(session, repo.current.value)
         }
 
     private suspend fun storedBlob(): String {

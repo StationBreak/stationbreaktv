@@ -55,6 +55,11 @@ internal suspend fun SessionRepository.verifiedRun(
             SyncOutcome.Failed(SyncFailure.SessionExpired)
         }
 
+        // Signed out (or another account in) while the server was answering: nothing to sync (#333).
+        RestoreOutcome.Superseded -> {
+            SyncOutcome.Cancelled
+        }
+
         is RestoreOutcome.Unavailable -> {
             unavailable(restored.error)
         }

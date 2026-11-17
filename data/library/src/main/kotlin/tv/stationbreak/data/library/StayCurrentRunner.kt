@@ -254,7 +254,8 @@ class StayCurrentRunner(
                 }
             }
 
-            RestoreOutcome.SignedOut -> {
+            // Superseded: signed out (or another account in) while the server was answering (#333).
+            RestoreOutcome.SignedOut, RestoreOutcome.Superseded -> {
                 report.skipped(plan, Skip.SignedOut)
             }
 
