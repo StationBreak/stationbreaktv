@@ -61,6 +61,10 @@ androidxSqlite = "2.7.1"
 # WorkManager 2.12.0 is the latest stable (checked 2026-10-16; released 2026-09-23): the sync worker in data:library only
 # (core:* may not declare it, checkArchitecture). minSdk 24, fine on API 25. CoroutineWorker is in the main artifact.
 work = "2.12.0"
+# DataStore 1.2.1 (checked 2026-11-17): the viewer's preferences (screen fit, volume levelling, the guide theme), in place
+# of SharedPreferences (#820, CLAUDE.md, A-ARCH-2). Apache-2.0. Not 1.3.0, the latest stable: it forces androidx.tracing
+# 1.2 -> 2.0 (a major version) and androidx.collection 1.5 -> 1.6 onto the release classpath. 1.2.1 adds only okio.
+datastore = "1.2.1"
 
 # Media3 1.11.1 is the latest stable at least two weeks old (released 2026-09-11, checked 2026-10-21; 1.12 is still alpha).
 # minSdk 21, fine on API 25. Apache-2.0. The player of core:playback; its OkHttp data source is for `app`.
@@ -91,6 +95,7 @@ androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 # The process lifecycle: the app coming to the foreground is an "open" for the library sync (spec 06). Same version as the rest.
 androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }

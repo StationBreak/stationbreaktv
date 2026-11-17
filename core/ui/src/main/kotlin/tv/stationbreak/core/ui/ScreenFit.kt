@@ -6,9 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.flow.MutableStateFlow
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * How much of the screen's edge the app keeps text and pictures out of: the viewer's choice, because TVs differ. Safe
@@ -45,31 +47,30 @@ interface ScreenFitStore {
 }
 
 /** A preference file of its own, next to the guide's theme one. The app has one store, shared by live and the guide. */
-internal class SharedPrefsScreenFitStore(
-    context: Context,
+internal class DataStoreScreenFitStore(
+    data: DataStore<Preferences>,
+    scope: CoroutineScope,
 ) : ScreenFitStore {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val state = MutableStateFlow(ScreenFit.decode(prefs.getString(KEY, null)))
+    private val preference = ViewerPreference(data, KEY, ScreenFit::decode, ScreenFit::encode, scope)
 
-    override val fit: StateFlow<ScreenFit> = state.asStateFlow()
+    override val fit: StateFlow<ScreenFit> = preference.value
 
-    override fun choose(fit: ScreenFit) {
-        prefs.edit().putString(KEY, ScreenFit.encode(fit)).apply()
-        state.value = fit
-    }
+    override fun choose(fit: ScreenFit) = preference.choose(fit)
 
     private companion object {
-        const val PREFS = "screen-fit"
-        const val KEY = "fit"
+        val KEY = stringPreferencesKey("fit")
     }
 }
+
+private val Context.screenFitFile by viewerPreferencesFile("screen-fit")
 
 /** The one store of the process, so a choice made in the guide reaches live TV's picture at once. */
 object ScreenFits {
     private var store: ScreenFitStore? = null
 
     @Synchronized
-    fun get(context: Context): ScreenFitStore = store ?: SharedPrefsScreenFitStore(context).also { store = it }
+    fun get(context: Context): ScreenFitStore =
+        store ?: DataStoreScreenFitStore(context.applicationContext.screenFitFile, PreferenceWrites).also { store = it }
 }
 
 @Composable
