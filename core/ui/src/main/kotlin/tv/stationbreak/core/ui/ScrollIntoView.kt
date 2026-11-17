@@ -11,7 +11,8 @@ import androidx.compose.ui.Modifier
 /**
  * Scrolls the enclosing scrollable (a `verticalScroll` column) just enough to show this item whenever [focused] turns
  * true. For screens whose focus is drawn from a model rather than held by Compose: nothing else would move the
- * scroll, so a choice below the fold would be focused out of sight. The lists use `LazyListState.keepVisible`.
+ * scroll, so a choice below the fold would be focused out of sight. The lists use `LazyListState.keepVisible`
+ * (`core:ui`, `LazyListScroll.kt`).
  */
 @Composable
 fun Modifier.scrollIntoViewWhen(focused: Boolean): Modifier {

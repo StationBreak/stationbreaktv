@@ -44,6 +44,8 @@ import kotlin.math.min
 // padding), the box including the plate, since logos are usually light and would be lost on the grey page.
 private val LogoMaxHeight = 46.dp
 private const val LOGO_MAX_WIDTH_FRACTION = 0.7f
+
+// Theme-independent on purpose: a logo is drawn for a dark ground, so its plate is the Dark page in both themes.
 private val LogoPlate = GuideColors.Dark.page.copy(alpha = 0.92f)
 private val LogoPlateRadius = 2.dp
 private val LogoPlatePadding = 6.dp
