@@ -75,12 +75,15 @@
     <string name="guide_sync_failed_session">Sign-in expired. Nothing changed.</string>
     <string name="guide_sync_failed_server">The server had a problem. Nothing changed.</string>
     <string name="guide_sync_failed_suspect">The server\'s answer looked wrong. Nothing changed.</string>
+    <!-- placeholder: design partner. Every chosen library is gone from the server (#507): choosing again is the way out. -->
+    <string name="guide_sync_failed_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries. Nothing changed.</string>
     <!-- placeholder: design partner. The same reasons when the sync itself failed, after it may have written some of
          the server's changes: the reason alone. -->
     <string name="guide_sync_reason_network">Couldn\'t reach the server.</string>
     <string name="guide_sync_reason_session">Sign-in expired.</string>
     <string name="guide_sync_reason_server">The server had a problem.</string>
     <string name="guide_sync_reason_suspect">The server\'s answer looked wrong.</string>
+    <string name="guide_sync_reason_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries.</string>
     <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->

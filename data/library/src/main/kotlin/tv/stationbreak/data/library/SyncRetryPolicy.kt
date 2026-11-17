@@ -44,7 +44,9 @@ internal object SyncRetryPolicy {
                         SyncVerdict.Retry
                     }
 
-                    SyncFailure.SessionExpired -> {
+                    // Retrying cannot bring the libraries back: the viewer has to choose again (#507). Only the
+                    // stay-current reconcile reports it today, and that runner does not retry; this keeps it final.
+                    SyncFailure.SessionExpired, SyncFailure.LibrariesGone -> {
                         SyncVerdict.Failure
                     }
 

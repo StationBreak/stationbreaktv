@@ -79,6 +79,7 @@ class GuideSyncNowTest : GuideRig() {
                     SyncFailure.Server to R.string.guide_sync_failed_server,
                     SyncFailure.Suspect to R.string.guide_sync_failed_suspect,
                     SyncFailure.CacheRace to R.string.guide_sync_failed_server,
+                    SyncFailure.LibrariesGone to R.string.guide_sync_failed_libraries_gone,
                 )
             assertEquals(SyncFailure.entries.toSet(), expected.keys)
             for ((failure, line) in expected) {
@@ -100,6 +101,7 @@ class GuideSyncNowTest : GuideRig() {
                     SyncFailure.Server to R.string.guide_sync_reason_server,
                     SyncFailure.Suspect to R.string.guide_sync_reason_suspect,
                     SyncFailure.CacheRace to R.string.guide_sync_reason_server,
+                    SyncFailure.LibrariesGone to R.string.guide_sync_reason_libraries_gone,
                 )
             assertEquals(SyncFailure.entries.toSet(), expected.keys)
             for ((failure, line) in expected) {

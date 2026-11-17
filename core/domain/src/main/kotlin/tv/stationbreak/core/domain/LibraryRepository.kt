@@ -44,6 +44,13 @@ enum class SyncFailure {
      * or the choice went while the set was read again. Appended last: the saved library stores the ordinal.
      */
     CacheRace,
+
+    /**
+     * The server answered soundly (it lists libraries) but none of the chosen libraries is among them or exists:
+     * they were deleted, or this account lost access. Nothing is removed (an empty or wrong answer must never wipe the
+     * channels); the viewer is asked to choose again (#507). Appended last, as above.
+     */
+    LibrariesGone,
 }
 
 /** Where the saved library stands. */

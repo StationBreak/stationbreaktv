@@ -46,6 +46,12 @@ class SyncRetryPolicyTest {
     }
 
     @Test
+    fun goneLibrariesStopWithNoRetry() {
+        val gone = SyncOutcome.Failed(SyncFailure.LibrariesGone)
+        listOf(0, 1, 5, 50).forEach { assertEquals(SyncVerdict.Failure, SyncRetryPolicy.verdict(gone, it)) }
+    }
+
+    @Test
     fun aServerFailureRetriesAFewTimesThenStops() {
         val server = SyncOutcome.Failed(SyncFailure.Server)
         val verdicts = (0..SyncRetryPolicy.MAX_SERVER_ATTEMPTS + 1).map { SyncRetryPolicy.verdict(server, it) }

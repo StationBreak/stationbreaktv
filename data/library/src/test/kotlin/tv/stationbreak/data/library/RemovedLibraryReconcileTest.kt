@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -11,6 +12,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SeriesSource
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SyncFailure
+import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.domain.map
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemIdPage
@@ -132,17 +134,75 @@ class RemovedLibraryReconcileTest {
             assertEquals(0, tombstonedSeries())
         }
 
+    // #507: the server lists other libraries and says none of the chosen exists. They are gone, not a wrong answer, so
+    // the pass says so (the viewer can choose again) and still removes nothing.
     @Test
-    fun noChosenLibraryExistingIsSuspectNotAWipe() =
+    fun noChosenLibraryExistingWhileOthersAreListedIsLibrariesGoneNotAWipe() =
         runBlocking {
             firstSyncDone()
             server.libraries = listOf(home)
 
             val outcome = reconcile()
 
-            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), outcome)
+            assertEquals(SyncOutcome.Failed(SyncFailure.LibrariesGone), outcome)
             assertEquals(0, tombstonedIn(SHOWS) + tombstonedIn(MOVIES))
             assertEquals(0, tombstonedSeries())
+            // Stored and read back (the ordinal), not a generic failure.
+            assertEquals(SyncState.LastSyncFailed(SyncFailure.LibrariesGone), repository.activeStatus().first()!!.state)
+        }
+
+    @Test
+    fun librariesGoneClearsOnceTheChosenLibrariesAreBack() =
+        runBlocking {
+            firstSyncDone()
+            server.libraries = listOf(home)
+            assertEquals(SyncOutcome.Failed(SyncFailure.LibrariesGone), reconcile())
+
+            server.libraries = listOf(movies, shows, home)
+            val outcome = reconcile()
+
+            assertEquals(SyncOutcome.Completed, outcome)
+            assertEquals(SyncState.Idle, repository.activeStatus().first()!!.state)
+        }
+
+    // The listing lacks every chosen library, but the first existence read finds one and the second finds none: the
+    // server contradicted itself, which is suspect, not "gone".
+    @Test
+    fun aSoundFirstReadThenAnEmptySecondIsSuspectNotGone() =
+        runBlocking {
+            firstSyncDone()
+            server.libraries = listOf(home)
+            val views = ScriptedViews(listOf(ids(MOVIES.value), ids(home.id.value)))
+
+            val outcome = reconcile(views)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), outcome)
+            assertEquals(2, views.calls)
+            assertEquals(0, tombstonedIn(SHOWS) + tombstonedIn(MOVIES))
+        }
+
+    @Test
+    fun aChosenLibraryLeftOutOfThePassButStillListedIsNotGone() {
+        val listed = listOf(home, movies)
+        // MOVIES is chosen (held, say, so this pass does not walk it) and still listed: not gone.
+        assertEquals(false, allChosenUnlisted(listed, setOf(MOVIES, SHOWS)))
+        assertEquals(true, allChosenUnlisted(listed, setOf(SHOWS)))
+        // An empty listing is never "gone": it is the answer the sync does not trust.
+        assertEquals(false, allChosenUnlisted(emptyList(), setOf(SHOWS)))
+    }
+
+    // Only some chosen libraries listed: a removal check that finds none of them is a wrong answer, not "gone".
+    @Test
+    fun aChosenLibraryStillListedKeepsAnEmptyExistenceAnswerSuspect() =
+        runBlocking {
+            firstSyncDone()
+            server.libraries = listOf(movies)
+            val views = ScriptedViews(listOf(ids(home.id.value)))
+
+            val outcome = reconcile(views)
+
+            assertEquals(SyncOutcome.Failed(SyncFailure.Suspect), outcome)
+            assertEquals(0, tombstonedIn(SHOWS) + tombstonedIn(MOVIES))
         }
 
     // Answers the removal check from [reads], one list per call; the last list repeats. Counts the calls.

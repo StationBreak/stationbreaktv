@@ -116,6 +116,7 @@ private fun nothingChangedLine(failure: SyncFailure): Int =
         SyncFailure.SessionExpired -> R.string.guide_sync_failed_session
         SyncFailure.Server, SyncFailure.CacheRace -> R.string.guide_sync_failed_server
         SyncFailure.Suspect -> R.string.guide_sync_failed_suspect
+        SyncFailure.LibrariesGone -> R.string.guide_sync_failed_libraries_gone
     }
 
 @StringRes
@@ -125,6 +126,7 @@ private fun reasonLine(failure: SyncFailure): Int =
         SyncFailure.SessionExpired -> R.string.guide_sync_reason_session
         SyncFailure.Server, SyncFailure.CacheRace -> R.string.guide_sync_reason_server
         SyncFailure.Suspect -> R.string.guide_sync_reason_suspect
+        SyncFailure.LibrariesGone -> R.string.guide_sync_reason_libraries_gone
     }
 
 /**

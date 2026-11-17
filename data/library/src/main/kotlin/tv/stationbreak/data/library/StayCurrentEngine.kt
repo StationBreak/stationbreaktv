@@ -451,11 +451,12 @@ internal class StayCurrentEngine(
             // A marked library is neither reconciled nor taken for removed: the rewalk reads it from the start. Nor is
             // one still stamped or held: its rows are the add's or the hold's, not this pass's.
             val chosen = walkable(everyChosen)
-            val libraries =
-                when (val listed = listing.get()) {
-                    is ServerResult.Success -> listed.value.filter { it.id in chosen }
-                    is ServerResult.Failure -> return StayResult(fail(listed.error), reconciled)
+            val listed =
+                when (val read = listing.get()) {
+                    is ServerResult.Success -> read.value
+                    is ServerResult.Failure -> return StayResult(fail(read.error), reconciled)
                 }
+            val libraries = listed.filter { it.id in chosen }
             for (library in libraries) {
                 val failed = reconcile(library, libraries)
                 if (failed != null) return StayResult(failed, reconciled)
@@ -464,7 +465,7 @@ internal class StayCurrentEngine(
             // listed library was reconciled, so it knows which IDs those libraries still hold.
             val removed = chosen - libraries.map { it.id }.toSet()
             if (removed.isNotEmpty()) {
-                val failed = tombstoneRemoved(chosen, removed)
+                val failed = tombstoneRemoved(chosen, removed, allChosenUnlisted(listed, everyChosen))
                 if (failed != null) return StayResult(failed, reconciled)
             }
             currentCoroutineContext().ensureActive()
@@ -483,9 +484,12 @@ internal class StayCurrentEngine(
         // library, items can belong to two) is left live, and a library whose rows are all so held costs no request.
         // Skipped when a listed library's ID list could not be trusted, as then what it holds is not known. Every
         // removed library is written in one transaction, so the generation moves once.
+        // [allGone]: the listing lacks every chosen library (see [allChosenUnlisted]). Only the first existence read
+        // may then end the pass as LibrariesGone; a second read that contradicts a sound first one is suspect.
         private suspend fun tombstoneRemoved(
             chosen: Set<ItemId>,
             removed: Set<ItemId>,
+            allGone: Boolean,
         ): SyncOutcome? {
             if (untrusted) return null
             // The cache first, then the server, as in the ID reconcile.
@@ -497,14 +501,14 @@ internal class StayCurrentEngine(
                     }.filterValues { (items, series) -> items.isNotEmpty() || series.isNotEmpty() }
             if (live.isEmpty()) return null
             val first =
-                when (val read = existing(chosen)) {
+                when (val read = existing(chosen, allGone)) {
                     is Existing.Failed -> return read.outcome
                     is Existing.Sound -> read.ids
                 }
             val missing = live.filterKeys { it !in first }
             if (missing.isEmpty()) return null
             val again =
-                when (val read = existing(chosen)) {
+                when (val read = existing(chosen, allGone = false)) {
                     is Existing.Failed -> return read.outcome
                     is Existing.Sound -> read.ids
                 }
@@ -520,8 +524,13 @@ internal class StayCurrentEngine(
             return null
         }
 
-        // One read of which chosen libraries exist: a failure, or an answer with none of them (suspect), stops.
-        private suspend fun existing(chosen: Set<ItemId>): Existing =
+        // One read of which chosen libraries exist: a failure, or an answer with none of them, stops. With none of
+        // them, the pass ends as LibrariesGone when the listing ([allGone]) agreed that every chosen library is
+        // missing while it listed others, else as suspect. Neither removes anything.
+        private suspend fun existing(
+            chosen: Set<ItemId>,
+            allGone: Boolean,
+        ): Existing =
             when (val read = server.existingLibraryIds(session, chosen)) {
                 is ServerResult.Failure -> {
                     Existing.Failed(fail(read.error))
@@ -531,7 +540,11 @@ internal class StayCurrentEngine(
                     // Tested against the chosen IDs, not just for emptiness, to defend against an adapter that
                     // returns IDs that were not asked about.
                     val sound = read.value.any { it in chosen }
-                    if (sound) Existing.Sound(read.value) else Existing.Failed(suspect())
+                    when {
+                        sound -> Existing.Sound(read.value)
+                        allGone -> Existing.Failed(failed(SyncFailure.LibrariesGone))
+                        else -> Existing.Failed(suspect())
+                    }
                 }
             }
 
@@ -921,3 +934,12 @@ internal class StayCurrentEngine(
         }
     }
 }
+
+/**
+ * Whether a listing that has libraries lacks every one the viewer chose, counting those this pass leaves out (held,
+ * stamped or marked for a rewalk), so a chosen library the server still lists is never reported gone (#507).
+ */
+internal fun allChosenUnlisted(
+    listed: List<Library>,
+    everyChosen: Set<ItemId>,
+): Boolean = listed.isNotEmpty() && listed.none { it.id in everyChosen }
