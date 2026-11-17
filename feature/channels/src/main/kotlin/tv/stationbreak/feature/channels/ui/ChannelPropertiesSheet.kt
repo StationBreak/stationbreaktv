@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,7 +96,9 @@ internal fun ChannelPropertiesSheet(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .padding(start = Gutter, end = inset.end, top = inset.top, bottom = inset.bottom),
+                        // Absolute: the sheet is on the screen's right edge whatever the text direction, so the safe
+                        // inset belongs to the right here too.
+                        .absolutePadding(left = Gutter, right = inset.end, top = inset.top, bottom = inset.bottom),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     Identity(row, properties)
