@@ -1,0 +1,8 @@
+{
+  "project": {
+    "identifier": "tv.stationbreak.app"
+  },
+  "platform": {
+    "default": "fire_os"
+  }
+}
