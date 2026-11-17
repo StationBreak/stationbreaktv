@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.isSpecified
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
@@ -84,7 +84,14 @@ internal fun ChannelsPanelView(
             // focused one kept in view; the title above it stays.
             // At least one row tall, so a large font scale cannot squeeze it to nothing.
             val rowStyle = MaterialTheme.typography.bodyLarge
-            val rowHeight = with(LocalDensity.current) { rowStyle.lineHeight.takeIf { it.isSpecified }.let { it ?: rowStyle.fontSize }.toDp() } + 2 * ChoiceRowPadding
+            val rowHeight =
+                with(LocalDensity.current) {
+                    rowStyle.lineHeight
+                        .takeIf { it.isSpecified }
+                        .let { it ?: rowStyle.fontSize }
+                        .toDp()
+                } +
+                    2 * ChoiceRowPadding
             Column(
                 Modifier.weight(1f, fill = false).heightIn(min = rowHeight).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
