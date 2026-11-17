@@ -48,6 +48,19 @@ fun guideProse(
     weight: FontWeight,
 ) = guideText(size, weight).copy(lineHeight = size * PROSE_LINE_HEIGHT)
 
+/** Letter spacing of the teletype flags and clock: 0.13em (DESIGN.md, "teletype"). */
+private const val TELETYPE_TRACKING_EM = 0.13f
+
+/**
+ * The teletype (DESIGN.md): Space Mono Bold with 0.13em tracking, for the NOW flag, the banner's flag and the guide's
+ * clock. A font choice only: colour comes from the caller, and the text is set in capitals by the caller.
+ */
+fun guideTeletype(size: TextUnit) =
+    guideText(size, FontWeight.Bold).copy(
+        fontFamily = BroadcastType.Mono,
+        letterSpacing = size * TELETYPE_TRACKING_EM,
+    )
+
 /** Times, ranges, the clock and channel numbers. Tabular figures. */
 fun guideFigures(
     size: TextUnit,
