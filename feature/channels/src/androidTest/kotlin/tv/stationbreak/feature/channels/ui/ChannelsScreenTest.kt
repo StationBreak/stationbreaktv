@@ -29,6 +29,7 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onChild
@@ -122,6 +123,7 @@ private val BRAVO = ChannelId("ch-bravo")
 private val CHARLIE = ChannelId("ch-charlie")
 private val DELTA = ChannelId("ch-delta")
 private val NIGHT = ChannelId("ch-night")
+private val ECHO = ChannelId("ch-echo")
 
 @Suppress("LongParameterList") // A test builder: every field has a default.
 private fun summary(
@@ -275,6 +277,7 @@ private class Lineup(
 
 /** The channel screen on screen (spec 21): the list, the panels and the keys that drive them, D-pad only. */
 @RunWith(AndroidJUnit4::class)
+@Suppress("LargeClass") // One rig of fakes for every case the screen has on a device, free-tier gates included (#811).
 class ChannelsScreenTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
@@ -293,6 +296,9 @@ class ChannelsScreenTest {
     private val openedAt = mutableLongStateOf(1L)
     private val currentNow = mutableStateOf<ChannelId?>(null)
     private val builder = FakeChannelBuilder()
+
+    // Pro is on unless a test closes the gates (#811): the free-tier tests below set it to false before show().
+    private val pro = FakeProEntitlement()
     private lateinit var vm: ChannelsViewModel
     private lateinit var lineup: Lineup
 
@@ -329,7 +335,7 @@ class ChannelsScreenTest {
                 lineup,
                 lineup,
                 lineup,
-                FakeProEntitlement(),
+                pro,
                 builder,
                 schedule,
                 properties,
@@ -896,5 +902,94 @@ class ChannelsScreenTest {
         const val HEIGHT_DP = 540
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
+    }
+
+    // #811: the free-tier gates on a real screen, with the entitlement closed, then opened while the screen is open.
+
+    private fun hasPro(): SemanticsMatcher = hasText("(Pro)", substring = true)
+
+    private fun messageIs(text: String) =
+        until { nodes(hasTestTag(ChannelsTags.MESSAGE)).any { node -> titleOf(node)?.contains(text) == true } }
+
+    @Test
+    fun free_aStartersChoicesAreMarked_andSwitchOffOnlyShowsTheNote() {
+        pro.set(false)
+        show(ALPHA)
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
+        compose.onNodeWithTag(ChannelsTags.ACTION_SWITCH_OFF).assert(hasPro())
+        compose.onNodeWithTag(ChannelsTags.ACTION_CHANGE_NUMBER).assert(hasPro())
+
+        press(Pad.Down, Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+        assertEquals(
+            ChannelStatus.On,
+            lineup.list.value
+                .first { it.id == ALPHA }
+                .state,
+        )
+    }
+
+    @Test
+    fun free_aShelvedStartersSwitchOnIsMarked_andTheStarterStaysOff() {
+        pro.set(false)
+        show(CHARLIE)
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_SWITCH_ON) }
+        compose.onNodeWithTag(ChannelsTags.ACTION_SWITCH_ON).assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+        assertEquals(
+            ChannelStatus.Shelf,
+            lineup.list.value
+                .first { it.id == CHARLIE }
+                .state,
+        )
+    }
+
+    @Test
+    fun free_theViewersOwnCustomChannelIsNotMarked_andSwitchesOff() {
+        pro.set(false)
+        show(ECHO, extra = listOf(summary(ECHO, 5, "Echo", kind = ChannelKind.Custom)))
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
+        compose.onNodeWithTag(ChannelsTags.ACTION_SWITCH_OFF).assert(hasPro().not())
+
+        press(Pad.Down, Pad.Select)
+        until { lineup.changes.isNotEmpty() }
+        assertEquals(listOf<ChannelChange>(ChannelChange.SwitchOff(ECHO)), lineup.changes.toList())
+    }
+
+    @Test
+    fun free_atTheCustomChannelLimit_newIsMarkedAndShowsTheLimitNote() {
+        pro.set(false)
+        builder.canAdd.value = false
+        show(null)
+        compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected().assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Free includes 5 custom channels.")
+        assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
+        assertTrue("no channel is made", lineup.changes.isEmpty())
+    }
+
+    @Test
+    fun unlockingWhileTheScreenIsOpen_dropsTheMarks_andTheSameActionWorks() {
+        pro.set(false)
+        show(ALPHA)
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
+        compose.onNodeWithTag(ChannelsTags.ACTION_SWITCH_OFF).assert(hasPro())
+
+        // Whatever billing reports, flipping the entitlement takes effect on the open screen.
+        compose.runOnUiThread { pro.set(true) }
+        until { nodes(hasTestTag(ChannelsTags.ACTION_SWITCH_OFF) and hasPro()).isEmpty() }
+
+        press(Pad.Down, Pad.Select)
+        until { lineup.changes.isNotEmpty() }
+        assertEquals(listOf<ChannelChange>(ChannelChange.SwitchOff(ALPHA)), lineup.changes.toList())
     }
 }
