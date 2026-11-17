@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -109,12 +110,9 @@ private const val HINT_SPACE = "   "
 // How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.
 private const val CORNER_SLACK = 0.5f
 
-// A screen too small to show a viewport still gets this much, so times never divide by about nothing (#429).
-internal val MinViewportWidth = 48.dp
-
-// The farthest a time is placed from the origin. Compose cannot lay out a width past 2^18 px, so a cell hours or years
-// long would throw; a day is 9,360 dp on a 960 dp screen, so this is far past anything drawn: only a bound.
-internal val MaxGridWidth = 16_000.dp
+// The farthest a time is placed from the origin: a backstop only. Compose cannot lay out a width past 2^18 px, so a
+// cell years long would throw; a day is 9,360 dp on a 960 dp screen, so 60,000 dp (6+ days) is beyond anything drawn.
+internal val MaxGridWidth = 60_000.dp
 
 /**
  * Where the guide's parts go on a screen, from the shared safe area and the [hole] live TV laid its picture in (screen
@@ -151,11 +149,19 @@ internal class GuideGeometry(
 
     val panelWidth: Dp = hole.left - safe.left - PanelGap
     val topHeight: Dp = hole.bottom - safe.top
-    val viewportWidth: Dp = maxOf(safe.right - safe.left - ChannelColumnWidth, MinViewportWidth)
+    val viewportWidth: Dp = safe.right - safe.left - ChannelColumnWidth
     val spanMs: Long = GUIDE_VIEWPORT_SPAN.inWholeMilliseconds
 
     /** How wide [ms] of time is on the grid. */
-    fun widthOf(ms: Long): Dp = (viewportWidth * (ms.toFloat() / spanMs)).coerceIn(-MaxGridWidth, MaxGridWidth)
+    fun widthOf(ms: Long): Dp {
+        val width = viewportWidth * (ms.toFloat() / spanMs)
+        if (width.value !in -MaxGridWidth.value..MaxGridWidth.value) {
+            // Loud, not silent: a time this far out is a bug upstream (#429). No times or titles in the line. Host
+            // tests have no Log, hence runCatching.
+            runCatching { Log.w("SBGUIDE", "grid width out of range; clamped") }
+        }
+        return width.coerceIn(-MaxGridWidth, MaxGridWidth)
+    }
 
     /** The time a break must last to be drawn [CompactBelow] wide or wider: a shorter one is not a focus stop. */
     val narrowBreakBelowMs: Long = ceil(CompactBelow.value / viewportWidth.value * spanMs).toLong()
