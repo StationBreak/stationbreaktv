@@ -142,7 +142,7 @@ internal fun speechOf(
 
         is Announced.Pick -> {
             val label = labelOf(announced.choice, announced.panel, announced.locked)
-            Speech(listOfNotNull(question(announced, ui), label).joinToString(". "), null)
+            Speech(spokenParts(question(announced, ui), label, join = joiner(R.string.spoken_sentence)), null)
         }
 
         is Announced.Digit -> {

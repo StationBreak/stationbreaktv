@@ -19,6 +19,8 @@ import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.PlayRowKind
 import tv.stationbreak.feature.channels.builder.playRowsOf
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+import tv.stationbreak.feature.channels.ui.joiner
+import tv.stationbreak.feature.channels.ui.spokenParts
 
 /** What the Play page lists: the rows the draft shows, and the kept settings with the action that drops them. */
 private sealed interface PlayLine {
@@ -120,7 +122,7 @@ private fun OrderRow(
     val kept = draft.keptInForce.filterIsInstance<KeptItem.Order>().firstOrNull()
     val name = if (order == null && kept != null) keptText(kept) else orderName(order ?: PlayOrder.Shuffle)
     val hint = if (order != null || kept == null) orderHint(order ?: PlayOrder.Shuffle) else null
-    FocusLine(focused, tag, spoken = Spoken(listOfNotNull(name, hint).joinToString(". "))) {
+    FocusLine(focused, tag, spoken = Spoken(spokenParts(name, hint, join = joiner(R.string.spoken_sentence)))) {
         Column {
             Text(name, style = MaterialTheme.typography.bodyLarge)
             if (hint != null) {

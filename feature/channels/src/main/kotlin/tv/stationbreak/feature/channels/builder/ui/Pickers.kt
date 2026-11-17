@@ -29,6 +29,8 @@ import tv.stationbreak.feature.channels.builder.PickerRow
 import tv.stationbreak.feature.channels.builder.PickerView
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+import tv.stationbreak.feature.channels.ui.joiner
+import tv.stationbreak.feature.channels.ui.spokenParts
 
 private val TabsWidth = 168.dp
 
@@ -172,7 +174,7 @@ private fun EntryLine(
     focused: Boolean,
 ) {
     val live = if (row.live) stringResource(R.string.builder_live) else null
-    val said = listOfNotNull(row.label, live).joinToString(", ")
+    val said = spokenParts(row.label, live, join = joiner(R.string.spoken_pair))
     FocusLine(focused, BuilderTags.entry(row.key), ticked = row.ticked, spoken = Spoken(said)) {
         Row {
             Text(

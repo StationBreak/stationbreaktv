@@ -42,6 +42,8 @@
     <string name="channels_shelf_opt_in">Only on if you switch it on</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
+    <string name="spoken_pair">%1$s, %2$s</string>
+    <string name="spoken_sentence">%1$s. %2$s</string>
     <string name="channels_reset">Reset channels</string>
     <string name="channels_picker_digit">Digit %1$d of %2$d, %3$d</string>
     <string name="channels_reset_confirm">Reset channels? Your numbers and switched-off channels on this TV will be lost.</string>

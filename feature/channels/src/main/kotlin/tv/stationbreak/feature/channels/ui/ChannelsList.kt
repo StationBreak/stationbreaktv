@@ -146,7 +146,7 @@ private fun RowLine(
     val reason = reasonOf(row)
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
     val labels = labelsOf(row)
-    val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason)
+    val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
     Column(
         Modifier
             .fillMaxWidth()

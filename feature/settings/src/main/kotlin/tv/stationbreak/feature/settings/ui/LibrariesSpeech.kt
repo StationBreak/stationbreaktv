@@ -35,7 +35,8 @@ internal fun tickStateOf(row: LibraryRow): String =
 @Composable
 internal fun spokenOf(row: LibraryRow): String {
     val status = statusOf(row)?.first
-    return if (status == null) libraryName(row) else "${libraryName(row)}, $status"
+    val name = libraryName(row)
+    return if (status == null) name else stringResource(R.string.settings_libraries_spoken, name, status)
 }
 
 /**

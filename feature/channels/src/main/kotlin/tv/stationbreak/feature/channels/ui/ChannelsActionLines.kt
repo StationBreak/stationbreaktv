@@ -61,7 +61,11 @@ internal fun HouseholdLine(
 /** What a screen reader says for the "Use my collections" switch: the label and the hint, never the state. */
 @Composable
 internal fun householdSpoken(): String =
-    "${stringResource(R.string.channels_use_my_collections)}, ${stringResource(R.string.channels_use_my_collections_hint)}"
+    stringResource(
+        R.string.spoken_pair,
+        stringResource(R.string.channels_use_my_collections),
+        stringResource(R.string.channels_use_my_collections_hint),
+    )
 
 /** The two lines that are not switches: New channel above the first group and Reset after the last. */
 @Composable

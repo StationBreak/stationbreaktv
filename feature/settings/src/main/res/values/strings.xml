@@ -28,6 +28,7 @@
     <!-- placeholder: design partner. A library to add was not in the server's last listing. -->
     <string name="settings_libraries_not_listed">The server isn\'t showing that library right now.</string>
     <!-- placeholder: design partner. A library this TV uses whose name no listing has given yet. -->
+    <string name="settings_libraries_spoken">%1$s, %2$s</string>
     <string name="settings_libraries_unnamed">A library this TV uses</string>
     <!-- Spoken with a row: its state. -->
     <string name="settings_libraries_ticked">Ticked</string>
