@@ -51,7 +51,8 @@ private fun overlayCommand(
 
         Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
 
-        Key.Menu -> LiveCommand.Previous
+        // Menu, and the remote's own Last Channel key, return to the channel before this one.
+        Key.Menu, Key.LastChannel -> LiveCommand.Previous
 
         Key.Info -> LiveCommand.ShowInfo
 

@@ -73,6 +73,19 @@ class HeldKeyRepeatTest {
     }
 
     @Test
+    fun theLastChannelKeyIsLastChannelAndAHeldOneGoesBackOnce() {
+        assertTrue(down(Key.LastChannel, 0, OverlayUp.None))
+        assertTrue(down(Key.LastChannel, 1, OverlayUp.None))
+        assertTrue(release(Key.LastChannel, OverlayUp.None))
+        assertEquals(listOf<LiveCommand>(LiveCommand.Previous), sent)
+    }
+
+    @Test
+    fun theLastChannelKeyIsTheOverlaysOverTheGuide() {
+        assertEquals(null, mappedCommand(Key.LastChannel, OverlayUp(guide = true)))
+    }
+
+    @Test
     fun aHeldMenuGoesBackOnce() {
         assertTrue(down(Key.Menu, 0, OverlayUp.None))
         assertTrue(down(Key.Menu, 1, OverlayUp.None))
