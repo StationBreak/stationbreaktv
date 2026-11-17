@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -25,7 +26,6 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.R
-import java.util.Locale
 
 private fun headingTag(group: ChannelGroup): String =
     when (group) {
@@ -44,7 +44,7 @@ internal fun HeadingLine(
     count: Int,
 ) {
     val name = stringResource(groupName(group))
-    val shown = stringResource(R.string.channels_group_flag, name.uppercase(Locale.getDefault()), count)
+    val shown = stringResource(R.string.channels_group_flag, name.uppercase(LocalConfiguration.current.locales[0]), count)
     val spoken = pluralStringResource(R.plurals.channels_group_spoken, count, name, count)
     Column(
         Modifier
