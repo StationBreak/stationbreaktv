@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,6 +49,7 @@ import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
@@ -96,7 +98,7 @@ internal val HintGap = 4.dp
 internal val HintHeight = 20.dp
 private val HintPairGap = 20.dp
 private val HintActionGap = 6.dp
-private val KeyHeight = 16.dp
+private val KeyHeight = 16.dp // a minimum: the key grows with the font, inside the 20 dp hint row
 private val KeyStroke = 1.dp
 private val KeyRadius = 3.dp
 private val KeyPadding = 6.dp
@@ -475,40 +477,38 @@ private fun HintRow(
             if (!sheet) append("$HINT_SPACE$menuKey $openMenu")
         }
     val actionStyle = guideText(10.sp, FontWeight.Normal)
-    Row(
-        Modifier
-            .height(HintHeight)
-            .fillMaxWidth()
-            .testTag(GuideTags.HINT)
-            .clearAndSetSemantics { text = AnnotatedString(spoken) },
-        verticalAlignment = Alignment.CenterVertically,
+    // Pairs in display order; a rank is how long a pair stays when they do not all fit (0 goes last): Menu goes first,
+    // then the Left hint, then OK. The way out (Back) is the one thing no one would guess, so it is never dropped.
+    val ranks = hintRanks(hasOk = action != null, hasLeft = toChannel, hasMenu = !sheet)
+    HintFlow(
+        ranks = ranks,
+        gap = HintPairGap,
+        modifier =
+            Modifier
+                .height(HintHeight)
+                .fillMaxWidth()
+                .testTag(GuideTags.HINT)
+                .clearAndSetSemantics { text = AnnotatedString(spoken) },
     ) {
-        if (action != null) {
-            HintKey(ok, round = true)
-            HintAction(action, actionStyle)
-            Spacer(Modifier.width(HintPairGap))
-        }
-        if (toChannel) {
-            HintKey(left, round = false)
-            HintAction(about, actionStyle)
-            Spacer(Modifier.width(HintPairGap))
-        }
-        HintKey(back, round = false)
-        HintAction(exit, actionStyle)
-        if (!sheet) MenuHint(menuKey, openMenu, actionStyle)
+        if (action != null) HintPair(ok, action, actionStyle, round = true)
+        if (toChannel) HintPair(left, about, actionStyle, round = false)
+        HintPair(back, exit, actionStyle, round = false)
+        if (!sheet) HintPair(menuKey, openMenu, actionStyle, round = false)
     }
 }
 
-// The Menu key (#756): shown with the others while the sheet is closed.
+// One key and what it does: the unit the hint row keeps or drops whole (the Menu key, #756, is the first to go).
 @Composable
-private fun MenuHint(
+private fun HintPair(
     key: String,
     action: String,
     style: TextStyle,
+    round: Boolean,
 ) {
-    Spacer(Modifier.width(HintPairGap))
-    HintKey(key, round = false)
-    HintAction(action, style)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        HintKey(key, round)
+        HintAction(action, style)
+    }
 }
 
 @Composable
@@ -521,9 +521,10 @@ private fun HintAction(
     style = style,
     color = LocalGuideColors.current.textSecondary,
     maxLines = 1,
+    overflow = TextOverflow.Ellipsis,
 )
 
-/** An outlined key cap: a 1 dp stroke at 28%, 3 dp corners, 16 dp tall (the OK key is a circle), 10 sp SemiBold. */
+/** An outlined key cap: a 1 dp stroke at 28%, 3 dp corners, 16 dp tall at least (OK is a circle), 10 sp SemiBold. */
 @Composable
 private fun HintKey(
     label: String,
@@ -535,7 +536,7 @@ private fun HintKey(
         text = label,
         modifier =
             Modifier
-                .height(KeyHeight)
+                .heightIn(min = KeyHeight)
                 .border(KeyStroke, colors.keyCapStroke, shape)
                 .padding(horizontal = if (round) KeyRoundPadding else KeyPadding)
                 .wrapContentHeight(Alignment.CenterVertically),
