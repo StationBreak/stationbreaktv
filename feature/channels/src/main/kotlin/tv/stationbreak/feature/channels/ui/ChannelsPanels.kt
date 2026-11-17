@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -79,8 +82,11 @@ internal fun ChannelsPanelView(
             val row = ui.rows.firstOrNull { it.id == panel?.id }
             // The panel is held to the screen (see panelMaxHeight), so a long list of choices scrolls inside it, the
             // focused one kept in view; the title above it stays.
+            // At least one row tall, so a large font scale cannot squeeze it to nothing.
+            val rowStyle = MaterialTheme.typography.bodyLarge
+            val rowHeight = with(LocalDensity.current) { rowStyle.lineHeight.takeIf { it.isSpecified }.let { it ?: rowStyle.fontSize }.toDp() } + 2 * ChoiceRowPadding
             Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                Modifier.weight(1f, fill = false).heightIn(min = rowHeight).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 choicesOf(ui).forEachIndexed { i, choice ->
@@ -90,6 +96,8 @@ internal fun ChannelsPanelView(
         }
     }
 }
+
+private val ChoiceRowPadding = 8.dp
 
 private fun kindOf(
     ui: ChannelsUi,
@@ -109,7 +117,7 @@ private fun ChoiceRow(
             .fillMaxWidth()
             .scrollIntoViewWhen(focused)
             .panelFocus(focused)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = ChoiceRowPadding)
             .testTag(tagOf(choice))
             .semantics { selected = focused },
         style = MaterialTheme.typography.bodyLarge,
