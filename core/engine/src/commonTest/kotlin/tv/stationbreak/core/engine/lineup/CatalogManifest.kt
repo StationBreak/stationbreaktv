@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import tv.stationbreak.core.model.ordering.fnv1a64
 import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.Source
 
@@ -72,7 +73,7 @@ internal fun fingerprintOf(recipe: Recipe): String {
                     .append("]")
             }
         }
-    return fnv1a64(canonical)
+    return fnv1a64(canonical.encodeToByteArray()).toString(HEX_DIGITS).padStart(HEX_DIGITS, '0')
 }
 
 /**
@@ -221,16 +222,4 @@ private fun canonicalOf(theme: Theme): String =
 // A text with its UTF-8 byte length in front, so the canonical string cannot be read two ways.
 private fun text(value: String): String = "${value.encodeToByteArray().size}:$value"
 
-private const val FNV_OFFSET: ULong = 0xcbf29ce484222325uL
-private const val FNV_PRIME: ULong = 0x100000001b3uL
 private const val HEX_DIGITS = 16
-private const val BYTE_MASK = 0xFF
-
-private fun fnv1a64(value: String): String {
-    var hash = FNV_OFFSET
-    for (byte in value.encodeToByteArray()) {
-        hash = hash xor (byte.toInt() and BYTE_MASK).toULong()
-        hash *= FNV_PRIME
-    }
-    return hash.toString(HEX_DIGITS).padStart(HEX_DIGITS, '0')
-}
