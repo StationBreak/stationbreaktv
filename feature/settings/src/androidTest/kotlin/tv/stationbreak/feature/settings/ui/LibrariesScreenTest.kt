@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -166,6 +171,19 @@ class LibrariesScreenTest {
         until { !exists(SettingsTags.removing(BRAVO.id)) }
         compose.onNodeWithTag(SettingsTags.row(BRAVO.id)).assertIsOff()
         assertEquals(listOf(setOf(ALPHA.id)), choices.changes.toList())
+    }
+
+    // The screen keeps one focus stop and moves its own focus, so its root says the focused row (polite live region).
+    @Test
+    fun theRootSpeaksTheFocusedRow_asTheFocusMoves() {
+        show()
+        val screen = compose.onNodeWithTag(SettingsTags.LIBRARIES)
+        screen.assertContentDescriptionEquals("Alpha")
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Ticked"))
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        press(Key.DirectionDown)
+        screen.assertContentDescriptionEquals("Bravo")
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Not ticked"))
     }
 
     // The owner's report: reopened, the screen starts on the row it closed on, scrolled into view, not at the top.
