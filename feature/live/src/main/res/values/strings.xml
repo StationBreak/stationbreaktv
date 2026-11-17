@@ -54,6 +54,16 @@
         <item quantity="other">%1$d min behind</item>
     </plurals>
 
+    <!-- What TalkBack speaks for the banner: "07 Test Channel, Test Movie, 12 minutes left". -->
+    <string name="live_spoken_channel">%1$s %2$s</string>
+    <string name="live_spoken_program">%1$s, %2$s</string>
+    <plurals name="live_spoken_minutes_left">
+        <item quantity="one">%1$s, %2$d minute left</item>
+        <item quantity="other">%1$s, %2$d minutes left</item>
+    </plurals>
+    <!-- The title TalkBack gives the Select banner's row of buttons. -->
+    <string name="live_actions_pane">Channel actions</string>
+
     <!-- How far in the viewer joined, on the tune banner: "12 min in", or "Just started" under a minute. -->
     <string name="live_just_started">Just started</string>
     <string name="live_min_in">%1$d min in</string>

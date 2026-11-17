@@ -19,6 +19,8 @@ import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.PlayRowKind
 import tv.stationbreak.feature.channels.builder.playRowsOf
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+import tv.stationbreak.feature.channels.ui.joiner
+import tv.stationbreak.feature.channels.ui.spokenParts
 
 /** What the Play page lists: the rows the draft shows, and the kept settings with the action that drops them. */
 private sealed interface PlayLine {
@@ -87,23 +89,7 @@ private fun PlayRow(
     val tag = BuilderTags.playRow(kind)
     when (kind) {
         PlayRowKind.Order -> {
-            val order = draft.order
-            val kept = draft.keptInForce.filterIsInstance<KeptItem.Order>().firstOrNull()
-            FocusLine(focused, tag) {
-                Column {
-                    val name =
-                        if (order == null && kept != null) keptText(kept) else orderName(order ?: PlayOrder.Shuffle)
-                    Text(name, style = MaterialTheme.typography.bodyLarge)
-                    if (order != null || kept == null) {
-                        Text(
-                            orderHint(order ?: PlayOrder.Shuffle),
-                            Modifier.testTag(BuilderTags.ORDER_HINT),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ChannelsPalette.secondary,
-                        )
-                    }
-                }
-            }
+            OrderRow(draft, focused, tag)
         }
 
         PlayRowKind.SeriesCap -> {
@@ -122,6 +108,31 @@ private fun PlayRow(
 
         PlayRowKind.Kept -> {
             TextLine(stringResource(R.string.builder_use_builder_settings), focused, tag)
+        }
+    }
+}
+
+@Composable
+private fun OrderRow(
+    draft: ChannelDraft,
+    focused: Boolean,
+    tag: String,
+) {
+    val order = draft.order
+    val kept = draft.keptInForce.filterIsInstance<KeptItem.Order>().firstOrNull()
+    val name = if (order == null && kept != null) keptText(kept) else orderName(order ?: PlayOrder.Shuffle)
+    val hint = if (order != null || kept == null) orderHint(order ?: PlayOrder.Shuffle) else null
+    FocusLine(focused, tag, spoken = Spoken(spokenParts(name, hint, join = joiner(R.string.spoken_sentence)))) {
+        Column {
+            Text(name, style = MaterialTheme.typography.bodyLarge)
+            if (hint != null) {
+                Text(
+                    hint,
+                    Modifier.testTag(BuilderTags.ORDER_HINT),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ChannelsPalette.secondary,
+                )
+            }
         }
     }
 }

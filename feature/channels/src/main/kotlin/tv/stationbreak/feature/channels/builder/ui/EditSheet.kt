@@ -129,7 +129,7 @@ private fun SheetRowLine(
 
         SheetRow.Kids -> {
             val text = labelled(stringResource(R.string.builder_kids), onOff(draft.kids))
-            FocusLine(focused, tag, ticked = draft.kids, role = Role.Switch) {
+            FocusLine(focused, tag, ticked = draft.kids, role = Role.Switch, spoken = Spoken(text)) {
                 Text(text, style = MaterialTheme.typography.bodyLarge)
             }
         }
@@ -228,7 +228,9 @@ private fun NameLine(
     focused: Boolean,
     tag: String,
 ) {
-    FocusLine(focused, tag) {
+    val label = stringResource(R.string.builder_row_name)
+    val said = if (name.isEmpty()) label else labelled(label, name)
+    FocusLine(focused, tag, spoken = Spoken(said).takeUnless { typing.active && focused }) {
         if (typing.active && focused) {
             TypedField(name, typing.onType, typing.onDone, BuilderTags.NAME_INPUT)
         } else if (name.isEmpty()) {

@@ -43,7 +43,8 @@ private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
 
 /**
- * "Signed in as", reached by Back from the library picker (spec 05, Unit 4). Back from here returns to the picker.
+ * "Signed in as", reached by Back from the library picker (spec 05, Unit 4). Back from here leaves the app (owner
+ * decision 2026-11-16); Continue returns to the picker.
  *
  * @param onContinue back to the picker, signed in as before.
  * @param onSwitchUser the user was signed out: the sign-in form comes back for the same server.

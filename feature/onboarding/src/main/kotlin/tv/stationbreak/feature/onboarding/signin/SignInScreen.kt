@@ -214,6 +214,7 @@ private fun Form(
         keyboardType = KeyboardType.Text,
         imeAction = ImeAction.Next,
         onImeAction = { focus.password.requestFocus() },
+        error = (state.phase as? SignInPhase.InvalidInput)?.let { stringResource(it.copy.message) },
         modifier =
             Modifier
                 .focusProperties { down = focus.password }

@@ -28,7 +28,10 @@ internal fun NameStep(
     val draft = ui.draft
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         val onName = ui.focus == BuilderFocus.NameRow(NameRowKind.Name)
-        FocusLine(onName, BuilderTags.nameRow(NameRowKind.Name)) {
+        val nameHint = stringResource(R.string.builder_field_name)
+        // While the viewer types, the keyboard and the field speak for themselves.
+        val said = if (typing.active && onName) null else Spoken(draft.name.ifEmpty { nameHint })
+        FocusLine(onName, BuilderTags.nameRow(NameRowKind.Name), spoken = said) {
             if (typing.active && onName) {
                 TypedField(draft.name, typing.onType, typing.onDone, BuilderTags.NAME_INPUT)
             } else if (draft.name.isEmpty()) {

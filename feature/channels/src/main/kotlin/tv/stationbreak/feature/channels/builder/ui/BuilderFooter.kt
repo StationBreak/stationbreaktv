@@ -85,8 +85,10 @@ internal fun previewText(preview: PreviewView): String =
 @Composable
 private fun NextButton(ui: BuilderUi) {
     val enabled = ui.nextEnabled
+    val label = stringResource(if (ui.donePage) R.string.builder_done else R.string.builder_next)
+    AnnounceWhenFocused(ui.focus == BuilderFocus.Next, Spoken(label))
     Text(
-        stringResource(if (ui.donePage) R.string.builder_done else R.string.builder_next),
+        label,
         Modifier
             .fillMaxWidth()
             .drawnFocus(ui.focus == BuilderFocus.Next)

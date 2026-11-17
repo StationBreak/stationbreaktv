@@ -91,7 +91,7 @@ internal fun LibrariesSettingsScreen(
     val panel = LocalPanelColors.current
     // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        BoxWithConstraints(modifier.fillMaxSize().testTag(SettingsTags.LIBRARIES)) {
+        BoxWithConstraints(modifier.fillMaxSize().testTag(SettingsTags.LIBRARIES).announcingFocus(state)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val width = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)
             Column(
@@ -195,18 +195,10 @@ private fun LibraryLine(
     row: LibraryRow,
     focused: Boolean,
 ) {
-    val name = row.name ?: stringResource(R.string.settings_libraries_unnamed)
-    // A press not stored yet shows as saving or removing; a stored add still being read, as adding.
-    val status =
-        when (row.status) {
-            RowStatus.Saving -> stringResource(R.string.settings_libraries_saving) to SettingsTags.saving(row.id)
-            RowStatus.Removing -> stringResource(R.string.settings_libraries_removing) to SettingsTags.removing(row.id)
-            RowStatus.Adding -> stringResource(R.string.settings_libraries_adding) to SettingsTags.adding(row.id)
-            null -> null
-        }
-    val tickState =
-        stringResource(if (row.ticked) R.string.settings_libraries_ticked else R.string.settings_libraries_unticked)
-    val spoken = status?.let { "$name, ${it.first}" } ?: name
+    val name = libraryName(row)
+    val status = statusOf(row)
+    val tickState = tickStateOf(row)
+    val spoken = spokenOf(row)
     Row(
         Modifier
             .fillMaxWidth()

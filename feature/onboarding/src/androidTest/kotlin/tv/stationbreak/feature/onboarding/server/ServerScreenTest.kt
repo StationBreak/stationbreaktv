@@ -260,6 +260,16 @@ class ServerScreenTest {
     }
 
     @Test
+    fun aFieldErrorIsALiveRegionAndTheFieldItselfSaysIt() {
+        launch()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        val polite = SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite)
+        compose.onNodeWithTag(ServerTags.FIELD_ERROR).assert(polite)
+        compose.onNodeWithTag(ServerTags.FIELD).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+    }
+
+    @Test
     fun testingABlankFieldAgainBringsFocusBackToTheField() {
         launch()
         press(KeyEvent.KEYCODE_DPAD_DOWN)

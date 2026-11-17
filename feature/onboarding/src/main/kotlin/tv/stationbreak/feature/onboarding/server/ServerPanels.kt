@@ -60,7 +60,7 @@ private const val SPINNER_DELAY_MS = 400L
 @Composable
 internal fun FieldError(copy: ErrorCopy) {
     Row(
-        modifier = Modifier.testTag(ServerTags.FIELD_ERROR),
+        modifier = Modifier.testTag(ServerTags.FIELD_ERROR).politeLiveRegion(),
         horizontalArrangement = Arrangement.spacedBy(TightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -14,11 +14,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.node.RootForTest
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -609,6 +611,41 @@ class ChannelsScreenTest {
     private fun pressTogether(vararg pads: Pad) {
         compose.onRoot().performKeyInput { pads.forEach { pressKey(keyOf(it)) } }
         compose.waitForIdle()
+    }
+
+    // The screen keeps one focus stop and moves its own focus, so its root says what is focused (polite live region).
+    @Test
+    fun theRootSpeaksTheFocusedRow_asTheFocusMoves() {
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        val screen = compose.onNodeWithTag(ChannelsTags.SCREEN)
+        screen.assertContentDescriptionContains("Alpha", substring = true)
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        press(Pad.Down)
+        screen
+            .assertContentDescriptionContains("Bravo", substring = true)
+            .assertContentDescriptionContains("Nothing in your libraries fits this channel", substring = true)
+        // Up from Bravo: Alpha, then New, then the "Use my collections" switch above it.
+        press(Pad.Up, Pad.Up)
+        screen.assertContentDescriptionContains("New channel", substring = true)
+        press(Pad.Up)
+        screen.assertContentDescriptionContains("Use my collections", substring = true)
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "On"))
+    }
+
+    @Test
+    fun theRootSpeaksTheFocusedChoice_whileThePanelIsOpen() {
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL) }
+        val screen = compose.onNodeWithTag(ChannelsTags.SCREEN)
+        screen.assertContentDescriptionContains("Watch", substring = true)
+        press(Pad.Down)
+        screen.assertContentDescriptionContains("Switch off", substring = true)
+        press(Pad.Back)
+        until { !exists(ChannelsTags.PANEL) }
+        screen.assertContentDescriptionContains("Alpha", substring = true)
     }
 
     @Test

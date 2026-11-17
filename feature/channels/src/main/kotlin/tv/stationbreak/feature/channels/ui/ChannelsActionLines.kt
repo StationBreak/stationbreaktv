@@ -31,6 +31,7 @@ internal fun HouseholdLine(
     val state = stringResource(if (on) R.string.channels_switch_on else R.string.channels_switch_off)
     val label = stringResource(R.string.channels_use_my_collections)
     val hint = stringResource(R.string.channels_use_my_collections_hint)
+    val spoken = householdSpoken()
     Column(
         Modifier
             .fillMaxWidth()
@@ -39,7 +40,7 @@ internal fun HouseholdLine(
             .testTag(ChannelsTags.HOUSEHOLD)
             .clearAndSetSemantics {
                 // One announcement: the label and the hint; the state is the toggle's, not read as text.
-                contentDescription = "$label, $hint"
+                contentDescription = spoken
                 selected = focused
                 role = Role.Switch
                 toggleableState = ToggleableState(on)
@@ -56,6 +57,15 @@ internal fun HouseholdLine(
         )
     }
 }
+
+/** What a screen reader says for the "Use my collections" switch: the label and the hint, never the state. */
+@Composable
+internal fun householdSpoken(): String =
+    stringResource(
+        R.string.spoken_pair,
+        stringResource(R.string.channels_use_my_collections),
+        stringResource(R.string.channels_use_my_collections_hint),
+    )
 
 /** The two lines that are not switches: New channel above the first group and Reset after the last. */
 @Composable

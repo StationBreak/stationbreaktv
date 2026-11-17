@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
@@ -198,6 +203,23 @@ class BuilderStepsTest {
                 .fetchSemanticsNode()
                 .boundsInRoot.top
         assertTrue("Narrow at $narrow, first entry at $first", narrow < first)
+    }
+
+    // The builder keeps one focus stop and moves its own focus, so its root says the focused line (polite live region).
+    @Test
+    fun theRootSpeaksTheFocusedLine_asTheFocusMoves() {
+        show()
+        val screen = compose.onNodeWithTag(BuilderTags.SCREEN)
+        screen.assertContentDescriptionContains("Libraries", substring = true)
+        press(Pad.Right)
+        screen
+            .assertContentDescriptionContains("Library 1", substring = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Not ticked"))
+        press(Pad.Select)
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Ticked"))
+        press(Pad.Down)
+        screen.assertContentDescriptionContains("Next", substring = true)
+        screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
     @Test

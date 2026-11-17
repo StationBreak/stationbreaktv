@@ -2,8 +2,13 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -152,6 +157,27 @@ class LiveScreenTest {
         val withYear = ProgramInfo(id, ScheduleItemKind.Episode, "Test Episode One", "Test Series B", 2, 5, 2011)
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = withYear)))
         compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("S2 E5 · Test Episode One")
+    }
+
+    // TalkBack hears one polite line per tune: channel, program and minutes left (30 min slot, joined at its start).
+    @Test
+    fun theTuneBannerIsOnePoliteLiveRegionWithASpokenDescription() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
+        val spoken = compose.onNode(hasContentDescription("04 Test Channel, Test Movie A, 30 minutes left"))
+        spoken.assertExists()
+        spoken.assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite),
+        )
+    }
+
+    @Test
+    fun theChannelBannerIsOnePoliteLiveRegionWithASpokenDescription() {
+        compose.setContent { StationBreakTheme { ChannelBanner(ChannelTag(4, "Test Channel", null)) } }
+        compose.waitForIdle()
+        compose
+            .onNodeWithTag(LiveTags.BANNER)
+            .assertContentDescriptionEquals("04 Test Channel")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
     @Test

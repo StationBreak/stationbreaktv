@@ -29,6 +29,8 @@ import tv.stationbreak.feature.channels.builder.PickerRow
 import tv.stationbreak.feature.channels.builder.PickerView
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+import tv.stationbreak.feature.channels.ui.joiner
+import tv.stationbreak.feature.channels.ui.spokenParts
 
 private val TabsWidth = 168.dp
 
@@ -41,6 +43,7 @@ internal fun SourceTabs(
     Column(modifier.width(TabsWidth)) {
         SourceKindTab.entries.forEach { tab ->
             val focused = ui.focus == BuilderFocus.Tab(tab)
+            AnnounceWhenFocused(focused, Spoken(tabName(tab)))
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -170,7 +173,9 @@ private fun EntryLine(
     row: PickerRow,
     focused: Boolean,
 ) {
-    FocusLine(focused, BuilderTags.entry(row.key), ticked = row.ticked) {
+    val live = if (row.live) stringResource(R.string.builder_live) else null
+    val said = spokenParts(row.label, live, join = joiner(R.string.spoken_pair))
+    FocusLine(focused, BuilderTags.entry(row.key), ticked = row.ticked, spoken = Spoken(said)) {
         Row {
             Text(
                 if (row.ticked) TICK else UNTICKED,
@@ -198,7 +203,11 @@ private fun SearchLine(
     focused: Boolean,
     typing: Typing,
 ) {
-    FocusLine(focused, BuilderTags.SEARCH) {
+    val first = CatalogPicker.SEARCH_LENGTH.first
+    val last = CatalogPicker.SEARCH_LENGTH.last
+    val hint = stringResource(R.string.builder_search_hint, first, last)
+    val said = Spoken(text.ifEmpty { hint }).takeUnless { typing.active && focused }
+    FocusLine(focused, BuilderTags.SEARCH, spoken = said) {
         if (typing.active && focused) {
             TypedField(text, typing.onType, typing.onDone, BuilderTags.SEARCH_INPUT)
         } else if (text.isEmpty()) {
