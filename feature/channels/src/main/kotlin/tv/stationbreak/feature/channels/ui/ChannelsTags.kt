@@ -73,7 +73,16 @@ object ChannelsTags {
     const val HEADING_SHELF = "channels:heading:shelf"
     const val HEADING_OFF = "channels:heading:off"
 
+    /** The state at the end of the "Use my collections" row: On or Off. */
+    const val HOUSEHOLD_STATE = "channels:household:state"
+
     fun row(channel: ChannelId) = "channels:row:${channel.value}"
+
+    /** The channel's mark beside its number in the list. */
+    fun rowMark(channel: ChannelId) = "channels:row-mark:${channel.value}"
+
+    /** The channel's mark at the head of its actions panel. */
+    const val PANEL_MARK = "channels:panel:mark"
 
     /** The reason an On channel has nothing to air, when it has one. */
     fun reason(channel: ChannelId) = "channels:reason:${channel.value}"

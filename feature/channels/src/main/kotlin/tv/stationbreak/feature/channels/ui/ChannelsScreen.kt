@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -34,6 +35,8 @@ import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.mark.LocalMarkCache
+import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.feature.channels.ChannelsMessage
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
@@ -55,7 +58,11 @@ internal fun ChannelsScreen(
     // Positioned left to right whatever the device's language, as the picture's hole is top-right in screen
     // coordinates; the text inside gets the device's own direction back.
     val textDirection = LocalLayoutDirection.current
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Ltr,
+        // The guide provides the process-wide cache over its own screens; opened alone, the screen takes the same one.
+        LocalMarkCache provides (LocalMarkCache.current ?: MarkCaches.get(LocalContext.current)),
+    ) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(ChannelsTags.SCREEN).announcingFocus(ui)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             val listWidth = (pictureHole.left - safe.left - PanelGap).coerceAtLeast(0.dp)

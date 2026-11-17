@@ -9,6 +9,13 @@
     <string name="channels_group_on">On</string>
     <string name="channels_group_shelf">More channels</string>
     <string name="channels_group_off">Off</string>
+    <!-- A group's flag: its name in capitals, a middle dot and how many channels it holds (shown, not spoken). -->
+    <string name="channels_group_flag">%1$s · %2$d</string>
+    <!-- What a screen reader says for the flag: the group's name, then its count. -->
+    <plurals name="channels_group_spoken">
+        <item quantity="one">%1$s, %2$d channel</item>
+        <item quantity="other">%1$s, %2$d channels</item>
+    </plurals>
     <string name="channels_label_kids">Kids</string>
     <string name="channels_label_leftovers">Leftovers</string>
     <string name="channels_label_custom">Custom</string>

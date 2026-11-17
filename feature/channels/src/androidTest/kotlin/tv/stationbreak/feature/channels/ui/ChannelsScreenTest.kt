@@ -104,6 +104,8 @@ import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.core.ui.mark.MarkKind
+import tv.stationbreak.core.ui.mark.MarkKindKey
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -641,6 +643,49 @@ class ChannelsScreenTest {
         press(Pad.Up)
         screen.assertContentDescriptionContains("Use my collections", substring = true)
         screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "On"))
+    }
+
+    @Test
+    fun groupFlagsShowTheirCountsAndAreHeadings() {
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        // On: Alpha and Bravo; More channels: Charlie and Night; Off: Delta.
+        listOf("ON \u00B7 2", "MORE CHANNELS \u00B7 2", "OFF \u00B7 1").forEach { flag ->
+            assertTrue(flag, compose.runOnUiThread { nodes(hasText(flag)).isNotEmpty() })
+        }
+        val spoken =
+            mapOf(
+                ChannelsTags.HEADING_ON to "On, 2 channels",
+                ChannelsTags.HEADING_SHELF to "More channels, 2 channels",
+                ChannelsTags.HEADING_OFF to "Off, 1 channel",
+            )
+        spoken.forEach { (tag, words) ->
+            val node = compose.runOnUiThread { nodes(hasTestTag(tag)).single() }
+            assertTrue("$tag is a heading", node.config.contains(SemanticsProperties.Heading))
+            assertEquals(words, node.config.getOrNull(SemanticsProperties.ContentDescription)?.single())
+        }
+    }
+
+    @Test
+    fun useMyCollectionsShowsItsStateAtTheEndOfTheRow() {
+        show(ALPHA)
+        until { exists(ChannelsTags.HOUSEHOLD_STATE) }
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD_STATE, useUnmergedTree = true).assertTextEquals("On")
+        // Its label and its description line stay on the row, apart from the state.
+        compose.onNodeWithTag(ChannelsTags.HOUSEHOLD).assertContentDescriptionContains("Use my collections", true)
+    }
+
+    @Test
+    fun aChannelRowAndItsActionsPanelShowTheChannelsMark() {
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        val row = compose.runOnUiThread { nodes(hasTestTag(ChannelsTags.rowMark(ALPHA))).single() }
+        // No logo is bundled for the test channels, so the mark falls back to the initials, as the guide's does.
+        assertEquals(MarkKind.Initials, row.config.getOrNull(MarkKindKey))
+        press(Pad.Select)
+        until { exists(ChannelsTags.PANEL_MARK) }
+        val head = compose.runOnUiThread { nodes(hasTestTag(ChannelsTags.PANEL_MARK)).single() }
+        assertEquals(MarkKind.Initials, head.config.getOrNull(MarkKindKey))
     }
 
     @Test

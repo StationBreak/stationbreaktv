@@ -4,12 +4,14 @@ package tv.stationbreak.feature.channels.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -21,6 +23,8 @@ import androidx.compose.ui.unit.isSpecified
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.ui.mark.ChannelMark
+import tv.stationbreak.core.ui.mark.markInitialsOf
 import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.core.ui.scrollIntoViewWhen
 import tv.stationbreak.feature.channels.ChannelRow
@@ -67,7 +71,19 @@ internal fun ChannelsPanelView(
                     stringResource(R.string.channels_reset_confirm)
                 }
             }
-        Text(text, Modifier.testTag(ChannelsTags.PANEL_TEXT), style = MaterialTheme.typography.titleMedium)
+        val title = @Composable {
+            Text(text, Modifier.testTag(ChannelsTags.PANEL_TEXT), style = MaterialTheme.typography.titleMedium)
+        }
+        if (panel is ChannelsPanel.Actions || panel is ChannelsPanel.Number) {
+            // The channel's mark at the head, in the guide's 50 x 28 box.
+            val markKey = ui.rows.firstOrNull { it.id == panel.id }?.markKey
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChannelMark(markKey, markInitialsOf(name), Modifier.testTag(ChannelsTags.PANEL_MARK))
+                title()
+            }
+        } else {
+            title()
+        }
         if (panel is ChannelsPanel.Actions && kindOf(ui, panel) == ChannelKind.UnusableCustom) {
             Text(
                 stringResource(R.string.builder_newer_app_channel),

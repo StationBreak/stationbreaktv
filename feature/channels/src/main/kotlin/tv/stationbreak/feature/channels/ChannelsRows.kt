@@ -34,6 +34,7 @@ internal fun channelRows(
                 shelfReason = if (group == ChannelGroup.Off) null else c.shelfReason,
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
                 gettingReady = waiting,
+                markKey = c.recipeKey,
             )
         }
 
