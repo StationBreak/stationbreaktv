@@ -28,6 +28,27 @@ internal class BannerCopy(
     }
 }
 
+/**
+ * The words TalkBack speaks for a banner, from resources: a plain holder, so [BannerText.spoken] is tested on the JVM.
+ * Each part is a whole string with placeholders, so a locale can order the words as it needs.
+ */
+internal class SpokenCopy(
+    val channel: (number: String, name: String) -> String,
+    val withProgram: (channel: String, title: String) -> String,
+    val withMinutes: (spoken: String, minutes: Int) -> String,
+) {
+    companion object {
+        fun from(resources: Resources) =
+            SpokenCopy(
+                channel = { number, name -> resources.getString(R.string.live_spoken_channel, number, name) },
+                withProgram = { channel, title -> resources.getString(R.string.live_spoken_program, channel, title) },
+                withMinutes = { spoken, minutes ->
+                    resources.getQuantityString(R.plurals.live_spoken_minutes_left, minutes, spoken, minutes)
+                },
+            )
+    }
+}
+
 /** What the banner says about progress, the next program and episodes (spec 14); the shared rules are [ProgramText]. */
 internal object BannerText {
     /** The longest title the "Next" line shows, ellipsis included: the time after it must stay in view. */
@@ -53,6 +74,23 @@ internal object BannerText {
         endMs: Long,
         nowMs: Long,
     ): Int = ProgramText.minutesUntil(endMs, maxOf(nowMs, startMs))
+
+    /**
+     * What TalkBack reads when a banner appears: "<number> <name>, <title>, <n> minutes left". It depends on the
+     * channel and the program alone ([minutesLeft] is read once, when the banner appears, and is null on a card for
+     * what comes next), so the per-minute tick never changes it and the announcement is made once per tune.
+     */
+    fun spoken(
+        number: String,
+        channelName: String,
+        title: String?,
+        minutesLeft: Int?,
+        copy: SpokenCopy,
+    ): String {
+        val channel = copy.channel(number, channelName)
+        val named = if (title.isNullOrBlank()) channel else copy.withProgram(channel, title)
+        return if (minutesLeft == null) named else copy.withMinutes(named, minutesLeft)
+    }
 
     /** [title] cut to [NEXT_TITLE_MAX] characters, the last one an ellipsis, when it is longer. */
     fun capTitle(title: String): String =

@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -158,11 +159,13 @@ internal fun ActionsRow(
     val behindNow by rememberUpdatedState(behind)
     var liveFocused by remember { mutableStateOf(false) }
     InfoTakesOverFromLive(behind, first) { liveFocused }
+    val paneTitleText = stringResource(R.string.live_actions_pane)
     Row(
         Modifier
             .fillMaxWidth()
             .height(ACTION_ROW_HEIGHT)
             .padding(horizontal = 16.dp)
+            .semantics { paneTitle = paneTitleText }
             .testTag(LiveTags.BANNER_ACTIONS),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,

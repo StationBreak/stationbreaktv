@@ -30,6 +30,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -145,6 +149,12 @@ internal fun ChannelBanner(
 ) {
     ChromeTheme {
         val colors = LocalGuideColors.current
+        val context = LocalContext.current
+        val spoken =
+            remember(context, channel) {
+                val copy = SpokenCopy.from(context.resources)
+                BannerText.spoken(channelNumber(channel.number), channel.name, null, null, copy)
+            }
         BoxWithConstraints(modifier.fillMaxSize()) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             Row(
@@ -155,6 +165,7 @@ internal fun ChannelBanner(
                     .height(TuneHeight)
                     .chromeSurface(colors)
                     .padding(horizontal = SidePadding)
+                    .spokenLiveRegion(spoken)
                     .testTag(LiveTags.BANNER),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -177,6 +188,33 @@ internal fun ChannelBanner(
                 )
             }
         }
+    }
+}
+
+/** One node for TalkBack: [spoken] in a polite live region, so a tune is announced; its parts stay in the tree. */
+private fun Modifier.spokenLiveRegion(spoken: String) =
+    clearAndSetSemantics {
+        contentDescription = spoken
+        liveRegion = LiveRegionMode.Polite
+    }
+
+/**
+ * What TalkBack says for [banner]. Read once per banner, with the clock as it is then: the line must not change on the
+ * minute tick, or TalkBack would announce it again.
+ */
+@Composable
+private fun rememberSpoken(
+    banner: Banner,
+    clock: () -> Long,
+): String {
+    val context = LocalContext.current
+    return remember(banner, context) {
+        val left =
+            BannerText
+                .minutesLeft(banner.slotStartMs, banner.slotEndMs, clock())
+                .takeIf { banner.label != BannerLabel.UpNext }
+        val number = channelNumber(banner.number)
+        BannerText.spoken(number, banner.channelName, banner.title, left, SpokenCopy.from(context.resources))
     }
 }
 
@@ -217,6 +255,7 @@ private fun BannerStrip(
             banner.next?.let { BannerText.nextLine(it, programCopy, ZoneId.systemDefault(), is24h) }
         }
     val now = rememberMinuteClock(clock)
+    val spoken = rememberSpoken(banner, clock)
     Column(
         modifier
             .fillMaxWidth()
@@ -230,7 +269,7 @@ private fun BannerStrip(
         } else {
             ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
         }
-        BannerRow(banner, BannerLines(episode, slot, next, joined), programCopy, now)
+        BannerRow(banner, BannerLines(episode, slot, next, joined), programCopy, now, spoken)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
             ActionsRow(
@@ -266,10 +305,16 @@ private fun BannerRow(
     lines: BannerLines,
     programCopy: ProgramCopy,
     now: LongState,
+    spoken: String,
 ) {
     val colors = LocalGuideColors.current
+    // One node for TalkBack, a polite live region, so the tune is announced; the buttons below stay their own nodes.
     Row(
-        Modifier.fillMaxWidth().height(RowHeight).padding(horizontal = SidePadding),
+        Modifier
+            .fillMaxWidth()
+            .height(RowHeight)
+            .padding(horizontal = SidePadding)
+            .spokenLiveRegion(spoken),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ChannelMarkBox(banner.recipeKey, banner.channelName)

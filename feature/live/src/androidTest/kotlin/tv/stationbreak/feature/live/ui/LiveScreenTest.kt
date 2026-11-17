@@ -2,8 +2,13 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -78,7 +83,7 @@ class LiveScreenTest {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertTextEquals("Test Movie A")
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE, useUnmergedTree = true).assertTextEquals("Test Movie A")
         compose.onNodeWithText("TUNING IN").assertExists()
         compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
     }
@@ -86,45 +91,47 @@ class LiveScreenTest {
     @Test
     fun anEpisodeShowsItsSeriesAndEpisodeLine() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = episode)))
-        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertTextEquals("Test Series B")
-        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("S2 E5 · Test Episode One")
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE, useUnmergedTree = true).assertTextEquals("Test Series B")
+        compose
+            .onNodeWithTag(LiveTags.BANNER_SUBTITLE, useUnmergedTree = true)
+            .assertTextEquals("S2 E5 · Test Episode One")
     }
 
     @Test
     fun aMovieHasNoEpisodeLine() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
-        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
     fun theTuneBannerSaysHowFarInBeforeTheMinutesLeft() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("12 min in")
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED, useUnmergedTree = true).assertTextEquals("12 min in")
     }
 
     @Test
     fun aShowJoinedUnderAMinuteInSaysJustStarted() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, joinedMs = 20_000)))
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("Just started")
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED, useUnmergedTree = true).assertTextEquals("Just started")
     }
 
     @Test
     fun aLingeringBannerKeepsHowFarIn() {
         show(LiveState.Watching(banner(BannerLabel.Now)))
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertTextEquals("12 min in")
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED, useUnmergedTree = true).assertTextEquals("12 min in")
     }
 
     @Test
     fun theSelectBannerHasNoHowFarIn() {
         show(LiveState.Watching(banner(BannerLabel.Now, actions = true)))
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
     fun theTuneBannersRightColumnIsTheNextLineAloneWhateverIsPlaying() {
         val next = NextProgram("Test Movie B", START + 30 * MINUTE)
         show(LiveState.Watching(banner(BannerLabel.Now, next = next, stream = facts)))
-        compose.onNodeWithTag(LiveTags.BANNER_NEXT).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_NEXT, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("1080p", substring = true).assertDoesNotExist()
         compose.onNodeWithText("HEVC", substring = true).assertDoesNotExist()
     }
@@ -134,7 +141,7 @@ class LiveScreenTest {
         val next = NextProgram("Test Movie B", START + 30 * MINUTE)
         show(LiveState.Watching(banner(BannerLabel.Now, actions = true, next = next, stream = facts)))
         // The stream facts are on the chips; the right column is the "Next" line and nothing else.
-        val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT).fetchSemanticsNode()
+        val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT, useUnmergedTree = true).fetchSemanticsNode()
         val text = node.config[SemanticsProperties.Text].joinToString("") { it.text }
         assertTrue(text, text.startsWith("Next: Test Movie B at "))
         assertFalse(text, text.contains("1080p") || text.contains("HEVC"))
@@ -144,34 +151,57 @@ class LiveScreenTest {
     fun aFilmShowsItsYearOnTheMetaLine() {
         val film = ProgramInfo(id, ScheduleItemKind.Movie, "Test Movie A", null, null, null, 2002)
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = film)))
-        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("2002")
+        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE, useUnmergedTree = true).assertTextEquals("2002")
     }
 
     @Test
     fun anEpisodeShowsItsEpisodeLineNotAYear() {
         val withYear = ProgramInfo(id, ScheduleItemKind.Episode, "Test Episode One", "Test Series B", 2, 5, 2011)
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, info = withYear)))
-        compose.onNodeWithTag(LiveTags.BANNER_SUBTITLE).assertTextEquals("S2 E5 · Test Episode One")
+        compose
+            .onNodeWithTag(LiveTags.BANNER_SUBTITLE, useUnmergedTree = true)
+            .assertTextEquals("S2 E5 · Test Episode One")
+    }
+
+    // TalkBack hears one polite line per tune: channel, program and minutes left (30 min slot, joined at its start).
+    @Test
+    fun theTuneBannerIsOnePoliteLiveRegionWithASpokenDescription() {
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
+        val spoken = compose.onNode(hasContentDescription("04 Test Channel, Test Movie A, 30 minutes left"))
+        spoken.assertExists()
+        spoken.assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite),
+        )
+    }
+
+    @Test
+    fun theChannelBannerIsOnePoliteLiveRegionWithASpokenDescription() {
+        compose.setContent { StationBreakTheme { ChannelBanner(ChannelTag(4, "Test Channel", null)) } }
+        compose.waitForIdle()
+        compose
+            .onNodeWithTag(LiveTags.BANNER)
+            .assertContentDescriptionEquals("04 Test Channel")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
     }
 
     @Test
     fun aChannelWithNoMarkNamesItselfAfterTheNumber() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
-        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertTextEquals("Test Channel")
+        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL, useUnmergedTree = true).assertTextEquals("Test Channel")
     }
 
     @Test
     fun aChannelWithAMarkLeavesItsNameToTheMark() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn, recipeKey = "little-farm")))
-        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_CHANNEL, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
     fun aCutInShowsNowAndNoJoinedLine() {
         show(LiveState.Watching(banner(BannerLabel.Now, joinedMs = null)))
         compose.onNodeWithText("NOW").assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_JOINED).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER_JOINED, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SLOT, useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -222,8 +252,8 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
         compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithText("07").assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SLOT, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -231,7 +261,7 @@ class LiveScreenTest {
         show(LiveState.TechnicalDifficulties(null, ChannelTag(7, "Laughs")))
         compose.onNodeWithText("TECHNICAL DIFFICULTIES").assertExists()
         compose.onNodeWithText("Laughs").assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -264,8 +294,8 @@ class LiveScreenTest {
         compose.onNodeWithText("07").assertExists()
         compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.BANNER_SLOT).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_TITLE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_SLOT, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test

@@ -97,7 +97,7 @@ class LiveBannerActionsTest {
     fun progressAndNextAreShown() {
         show(banner())
         compose.onNodeWithTag(LiveTags.BANNER_PROGRESS).assertExists()
-        val next = compose.onNodeWithTag(LiveTags.BANNER_NEXT)
+        val next = compose.onNodeWithTag(LiveTags.BANNER_NEXT, useUnmergedTree = true)
         next.assertExists()
         val text = next.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }
         assertTrue(text, text.startsWith("Next: Test Movie B at "))
@@ -118,7 +118,7 @@ class LiveBannerActionsTest {
     fun noNextLineWhenNothingFollows() {
         show(banner(next = null))
         compose.onNodeWithTag(LiveTags.BANNER_PROGRESS).assertExists()
-        compose.onNodeWithTag(LiveTags.BANNER_NEXT).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER_NEXT, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
