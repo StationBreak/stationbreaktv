@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -55,7 +56,8 @@ private const val MASK_CHARACTER = '•'
  * [label] is the field's name for a screen reader ("Username"); the hint is only a hint and goes when text is typed.
  * An unmasked field also says its value as its state. With [masked] the text is shown as dots while it is edited and
  * while it rests, and the field is marked as a password so the system keyboard treats it as one. [fieldTag] is on the
- * focusable box and [inputTag] on the editable text.
+ * focusable box and [inputTag] on the editable text. A non-null [error] is set as the field's semantic error, so a
+ * screen reader says it with the field's name.
  */
 @Suppress("LongParameterList") // One parameter each for value, hint, tags, keyboard and action.
 @Composable
@@ -71,6 +73,7 @@ internal fun TvTextField(
     onImeAction: () -> Unit,
     modifier: Modifier = Modifier,
     masked: Boolean = false,
+    error: String? = null,
 ) {
     var editing by remember { mutableStateOf(false) }
     val inner = remember { FocusRequester() }
@@ -87,6 +90,8 @@ internal fun TvTextField(
         modifier =
             modifier.fillMaxWidth().testTag(fieldTag).semantics {
                 contentDescription = label
+                // Focus returns here after a bad entry, so the field itself says what is wrong.
+                error?.let { error(it) }
                 // A masked value is never spoken.
                 if (!masked && value.isNotEmpty()) stateDescription = value
             },

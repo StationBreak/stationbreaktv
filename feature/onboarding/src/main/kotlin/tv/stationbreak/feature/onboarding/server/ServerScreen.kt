@@ -144,6 +144,7 @@ internal fun ServerScreen(
                     onValueChange = onInputChange,
                     onDone = { focus.test.requestFocus() },
                     fieldFocus = focus.field,
+                    error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
                 )
                 (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
                 ServerButton(
@@ -273,6 +274,7 @@ private fun AddressField(
     onValueChange: (String) -> Unit,
     onDone: () -> Unit,
     fieldFocus: FocusRequester,
+    error: String?,
 ) {
     TvTextField(
         value = value,
@@ -285,5 +287,6 @@ private fun AddressField(
         imeAction = ImeAction.Done,
         onImeAction = onDone,
         modifier = Modifier.focusRequester(fieldFocus),
+        error = error,
     )
 }

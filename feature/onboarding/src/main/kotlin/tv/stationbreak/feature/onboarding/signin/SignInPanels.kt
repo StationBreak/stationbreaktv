@@ -168,7 +168,12 @@ internal fun QuickConnectPanel(
             val spoken = stringResource(R.string.quick_connect_code_description, code.toList().joinToString(" "))
             Text(
                 text = code,
-                modifier = Modifier.testTag(SignInTags.QUICK_CONNECT_CODE).semantics { contentDescription = spoken },
+                modifier =
+                    Modifier
+                        .testTag(SignInTags.QUICK_CONNECT_CODE)
+                        // Focus sits on Cancel, so the code is announced when it arrives, digit by digit.
+                        .politeLiveRegion()
+                        .semantics { contentDescription = spoken },
                 fontSize = CodeSize,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,

@@ -57,6 +57,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ConnectedServer
 import tv.stationbreak.feature.onboarding.server.ServerHandOff
+import tv.stationbreak.feature.onboarding.server.ServerTags
 import tv.stationbreak.feature.onboarding.typeWhenReady
 
 /** A [MediaServer] whose Quick Connect can be driven by the test. */
@@ -245,6 +246,17 @@ class SignInScreenTest {
         compose.onNodeWithText("Type your username", substring = true).assertExists()
         compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
         assertTrue(server.fake.signInCalls.isEmpty())
+    }
+
+    @Test
+    fun aFieldErrorIsALiveRegionAndTheFieldItselfSaysIt() {
+        launch()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(ServerTags.FIELD_ERROR).assert(politeLiveRegion)
+        compose.onNodeWithTag(SignInTags.USERNAME).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+        compose.onNodeWithTag(SignInTags.PASSWORD).assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Error))
     }
 
     @Test
@@ -437,6 +449,11 @@ class SignInScreenTest {
         runBlocking { server.quickConnectUpdates.emit(QuickConnectState.CodeIssued("123456")) }
         compose.waitForIdle()
         compose.onNodeWithTag(SignInTags.QUICK_CONNECT_CODE).assert(hasText("123456"))
+        // Focus stays on Cancel, so the code announces itself, read digit by digit.
+        compose.onNodeWithTag(SignInTags.QUICK_CONNECT_CODE).assert(politeLiveRegion)
+        compose
+            .onNodeWithTag(SignInTags.QUICK_CONNECT_CODE)
+            .assert(hasContentDescription("1 2 3 4 5 6", substring = true))
         compose.onNodeWithText("another device", substring = true).assertExists()
         compose.onNodeWithTag(SignInTags.QUICK_CONNECT_CANCEL).assertIsFocused()
     }
