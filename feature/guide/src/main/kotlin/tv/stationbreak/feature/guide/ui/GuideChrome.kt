@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.rememberMotionReduced
+import tv.stationbreak.core.ui.LocalMotionReduced
 
 /** The focused card does not grow: focus is a fill change only. [guideFocusBounds] still takes an extent. */
 internal val GuideFocusExtendX = 0.dp
@@ -35,7 +35,7 @@ private const val FOCUS_MOTION_MS = 160
 /** 160 ms ease-out, or immediate when the TV's animator scale is off. */
 @Composable
 internal fun guideFocusMotion(): FiniteAnimationSpec<Float> =
-    if (rememberMotionReduced().value) snap() else tween(durationMillis = FOCUS_MOTION_MS, easing = EaseOut)
+    if (LocalMotionReduced.current) snap() else tween(durationMillis = FOCUS_MOTION_MS, easing = EaseOut)
 
 /** How far a focused card grows, in pixels, and how far along that growth [amount] is (0 at rest, 1 focused). */
 internal data class FocusExtent(

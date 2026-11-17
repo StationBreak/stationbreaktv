@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.core.ui.rememberMotionReduced
+import tv.stationbreak.core.ui.LocalMotionReduced
 import kotlin.math.min
 
 // The title block is 46 dp tall, and the logo that stands for the title is at most that tall and 70% of the panel
@@ -69,7 +69,7 @@ internal fun PanelTitle(
     colors: GuideColors,
 ) {
     val reveal = remember(cell) { Animatable(if (logo != null) 1f else 0f) }
-    val reduced by rememberMotionReduced()
+    val reduced = LocalMotionReduced.current
     LaunchedEffect(cell, logo != null) {
         val fade = if (reduced) snap<Float>() else tween(LOGO_FADE_MS, easing = LinearEasing)
         reveal.animateTo(if (logo != null) 1f else 0f, fade)

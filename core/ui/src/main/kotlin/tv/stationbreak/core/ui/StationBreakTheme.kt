@@ -2,6 +2,8 @@
 package tv.stationbreak.core.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
@@ -22,5 +24,8 @@ const val HINT_ALPHA = 0.9f
  */
 @Composable
 fun StationBreakTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = StationBreakDarkColors, typography = StationBreakTypography, content = content)
+    val motionReduced by rememberMotionReduced()
+    CompositionLocalProvider(LocalMotionReduced provides motionReduced) {
+        MaterialTheme(colorScheme = StationBreakDarkColors, typography = StationBreakTypography, content = content)
+    }
 }

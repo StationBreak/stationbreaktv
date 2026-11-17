@@ -44,7 +44,7 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.core.ui.rememberMotionReduced
+import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
 
@@ -140,7 +140,7 @@ private fun spinnerTurn(): Float =
 /** DESIGN(#383): placeholder. A turning arc: the app has no spinner of its own. */
 @Composable
 private fun Spinner() {
-    val reduced by rememberMotionReduced()
+    val reduced = LocalMotionReduced.current
     // Held still when animations are off: the arc stays, and so do the text and the progress semantics.
     val turn = if (reduced) 0f else spinnerTurn()
     val seeking = stringResource(R.string.live_transport_seeking)

@@ -20,7 +20,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
-import tv.stationbreak.core.ui.rememberMotionReduced
+import tv.stationbreak.core.ui.LocalMotionReduced
 
 private const val SWEEP_DEGREES = 270f
 private const val FULL_TURN = 360f
@@ -36,7 +36,7 @@ internal fun ProgressSpinner(
     modifier: Modifier = Modifier,
 ) {
     val color = MaterialTheme.colorScheme.onSurface
-    val reduced by rememberMotionReduced()
+    val reduced = LocalMotionReduced.current
     // Held still when animations are off.
     val turn = if (reduced) 0f else spinnerTurn()
     Canvas(modifier = modifier.size(28.dp).then(describedAs(contentDescription))) {

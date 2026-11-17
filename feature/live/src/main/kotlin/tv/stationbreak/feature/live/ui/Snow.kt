@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.rememberMotionReduced
+import tv.stationbreak.core.ui.LocalMotionReduced
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -77,7 +77,7 @@ internal object SnowFrames {
 internal fun Snow(modifier: Modifier = Modifier) {
     val frames by produceState(SnowFrames.cached) { value = SnowFrames.get() }
     var frame by remember { mutableIntStateOf(0) }
-    val reduced by rememberMotionReduced()
+    val reduced = LocalMotionReduced.current
     LaunchedEffect(reduced) {
         // With animations off the snow holds one frame.
         if (reduced) {
