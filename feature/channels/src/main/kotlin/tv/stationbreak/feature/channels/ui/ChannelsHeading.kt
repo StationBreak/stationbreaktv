@@ -44,7 +44,8 @@ internal fun HeadingLine(
     count: Int,
 ) {
     val name = stringResource(groupName(group))
-    val shown = stringResource(R.string.channels_group_flag, name.uppercase(LocalConfiguration.current.locales[0]), count)
+    val locale = LocalConfiguration.current.locales[0]
+    val shown = stringResource(R.string.channels_group_flag, name.uppercase(locale), count)
     val spoken = pluralStringResource(R.plurals.channels_group_spoken, count, name, count)
     Column(
         Modifier
