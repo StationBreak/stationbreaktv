@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.PickerKind
@@ -80,3 +81,34 @@ internal fun overviewScrollForward(
         key == Key.DirectionUp -> false
         else -> null
     }
+
+/**
+ * The overview's share of a key event: true when it is consumed. A first down that [overviewScrollForward] takes is
+ * recorded in [held] and calls [step]; its auto-repeats step again and its release is consumed, even if the overlay is
+ * gone by then, so the flip never sees any of the press. Everything else is false and goes on to [handleLiveKey].
+ */
+@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
+internal fun handleOverviewKey(
+    type: KeyEventType,
+    key: Key,
+    repeat: Int,
+    up: OverlayUp,
+    held: HeldKeys,
+    overflows: Boolean,
+    step: (forward: Boolean) -> Unit,
+): Boolean {
+    val press = held.consumedPress(key) as? KeyAction.Scroll
+    val down = type == KeyEventType.KeyDown
+    val forward =
+        when {
+            down && repeat > 0 -> press?.forward
+            down -> overviewScrollForward(key, up, overflows)
+            else -> null
+        }
+    if (forward != null) {
+        if (repeat == 0) held.hold(key, KeyAction.Scroll(forward))
+        step(forward)
+    }
+    val released = type == KeyEventType.KeyUp && press != null && held.releases(key, type)
+    return forward != null || released
+}

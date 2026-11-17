@@ -3,9 +3,11 @@ package tv.stationbreak.core.ui
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import kotlin.math.roundToInt
 
 /** The program info panel's overview scrolls a few lines to a press of Down or Up (#703). */
 class OverviewScrollTest {
@@ -30,5 +32,18 @@ class OverviewScrollTest {
             val scroll = ScrollState(0)
             scroll.stepOverview(forward = false, density)
             assertEquals(0, scroll.value)
+        }
+
+    @Test
+    fun theCapAndTheStepFollowTheFontScale() =
+        runBlocking {
+            val big = Density(density = 2f, fontScale = 1.3f)
+            // Whatever the platform's font scaling makes of an 18 sp line (non-linear on newer Android).
+            val linePx = with(big) { 18.sp.toPx() }
+            // Six lines fit whole under the cap, and a press is three of them.
+            assertEquals(6 * linePx, with(big) { big.overviewMaxHeight().toPx() }, 0.5f)
+            val scroll = ScrollState(0)
+            scroll.stepOverview(forward = true, big)
+            assertEquals((3 * linePx).roundToInt(), scroll.value)
         }
 }

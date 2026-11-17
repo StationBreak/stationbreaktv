@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -37,6 +38,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -47,7 +49,9 @@ import kotlin.math.roundToInt
 private const val OVERVIEW_MAX_LINES = 6
 private const val OVERVIEW_STEP_LINES = 3
 private const val FADE_FRACTION = 0.25f
-private val OverviewLineHeight = 18.dp
+
+// In sp, as the text is: the cap and the step then follow the font scale with it.
+private val OverviewLineHeight = 18.sp
 private const val DETAIL_SEPARATOR = " · "
 private const val PANEL_FRACTION = 0.65f
 private const val SKELETON_ALPHA = 0.12f
@@ -141,14 +145,14 @@ private fun Overview(
         Modifier
             .fillMaxWidth()
             .padding(top = 4.dp)
-            .heightIn(max = OverviewLineHeight * OVERVIEW_MAX_LINES)
+            .heightIn(max = LocalDensity.current.overviewMaxHeight())
             .fadeClippedEdges(scroll)
             .verticalScroll(scroll),
     ) {
         Text(
             text = text,
             modifier = Modifier.fillMaxWidth().testTag(ProgramInfoTags.OVERVIEW),
-            style = guideText(13.sp, FontWeight.Normal).copy(lineHeight = OverviewLineHeight.value.sp),
+            style = guideText(13.sp, FontWeight.Normal).copy(lineHeight = OverviewLineHeight),
             color = LocalGuideColors.current.textPrimary,
         )
     }
@@ -218,13 +222,16 @@ suspend fun ScrollState.stepOverview(
     forward: Boolean,
     density: Density,
 ) {
-    val step = with(density) { (OverviewLineHeight * OVERVIEW_STEP_LINES).toPx() }.roundToInt()
+    val step = with(density) { OverviewLineHeight.toPx() * OVERVIEW_STEP_LINES }.roundToInt()
     scrollBy((if (forward) step else -step).toFloat())
 }
 
 /** Fades the top or bottom [FADE_FRACTION] of the box out where [scroll] has more behind it: the cue to press on. */
 private fun Modifier.fadeClippedEdges(scroll: ScrollState): Modifier =
-    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+    graphicsLayer {
+        // Only a long overview pays for the offscreen layer; a short one is drawn exactly as it was.
+        compositingStrategy = if (scroll.maxValue > 0) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+    }.drawWithContent {
         drawContent()
         val top = if (scroll.canScrollBackward) 0f else 1f
         val bottom = if (scroll.canScrollForward) 0f else 1f
@@ -239,3 +246,9 @@ private fun Modifier.fadeClippedEdges(scroll: ScrollState): Modifier =
             blendMode = BlendMode.DstIn,
         )
     }
+
+/**
+ * One line is converted, then multiplied: font scaling is not linear on newer Android, so six lines' worth of sp is not
+ * six converted lines. The height of [OVERVIEW_MAX_LINES] lines of the overview at this density and font scale.
+ */
+internal fun Density.overviewMaxHeight(): Dp = (OverviewLineHeight.toPx() * OVERVIEW_MAX_LINES).toDp()

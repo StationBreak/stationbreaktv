@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -199,10 +198,20 @@ internal fun LiveKeysRoot(
             .focusRequester(focus)
             .onPreviewKeyEvent { event ->
                 val up = upNow?.invoke() ?: composed
-                val forward = overviewScrollForward(event.key, up, overview.maxValue > 0)
-                if (forward != null) {
-                    // The press, its repeats and its release are the overview's: the channel does not flip.
-                    if (event.type == KeyEventType.KeyDown) scope.launch { overview.stepOverview(forward, density) }
+                val step = { forward: Boolean ->
+                    scope.launch { overview.stepOverview(forward, density) }
+                    Unit
+                }
+                if (handleOverviewKey(
+                        event.type,
+                        event.key,
+                        event.nativeKeyEvent.repeatCount,
+                        up,
+                        held,
+                        overview.maxValue > 0,
+                        step,
+                    )
+                ) {
                     true
                 } else {
                     handleLiveKey(event, up, held, onGuide, onCommand).also { logLiveKey(event, it, state, up) }
