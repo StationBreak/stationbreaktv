@@ -61,8 +61,8 @@ class ChannelsPaletteTest {
 
     @Test
     fun theDefaultKeepsTheSheetTheDesignGave() {
-        assertEquals(Color(0xFF141518), PanelColors.Dark.sheet.surface)
-        assertEquals(Color(0xFF3A3B40), PanelColors.Dark.sheet.line)
+        assertEquals(Color(0xFF262320), PanelColors.Dark.sheet.surface)
+        assertEquals(Color(0xFF3D3832), PanelColors.Dark.sheet.line)
         assertEquals(Color(0xFFFFD166), PanelColors.Dark.sheet.ratingBadge)
     }
 }

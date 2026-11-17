@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -35,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
@@ -47,6 +47,7 @@ import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideFigures
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.teletype
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
@@ -64,8 +65,6 @@ private val MetaGap = 8.dp
 // ends in an ellipsis reads better than one clipped mid-line.
 private val OVERVIEW_LINE_HEIGHT = 15.sp
 
-/** ON NOW: 10 sp, not the spec's 8.5, which is under the 10 sp floor the guide holds; bold, tracked +6%. */
-private const val ON_NOW_TRACKING = 0.06f
 private const val DESCRIBE_AFTER_MS = 150L
 
 /**
@@ -277,8 +276,8 @@ private fun MetaRow(
     Row(horizontalArrangement = Arrangement.spacedBy(MetaGap), verticalAlignment = Alignment.CenterVertically) {
         if (onNow) {
             Text(
-                text = stringResource(R.string.guide_now).uppercase(),
-                style = guideText(10.sp, FontWeight.Bold).copy(letterSpacing = ON_NOW_TRACKING.em),
+                text = stringResource(R.string.guide_now).uppercase(LocalConfiguration.current.locales[0]),
+                style = teletype(10.sp),
                 color = colors.accent,
                 maxLines = 1,
             )

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -8,11 +9,13 @@ import org.junit.Test
 /** The default colours of a panel with no guide around it (inside the guide, the guide provides its own). */
 class PanelColorsTest {
     @Test
-    fun theDefaultIsInkCreamAndThePrimaryRing() {
-        assertEquals(BroadcastColors.Ink, PanelColors.Dark.ground)
-        assertEquals(BroadcastColors.Cream, PanelColors.Dark.text)
-        assertEquals(StationBreakDarkColors.onSurfaceVariant, PanelColors.Dark.secondary)
-        assertEquals(StationBreakDarkColors.primary, PanelColors.Dark.ring)
+    fun theDefaultIsWarmInkCreamMutedAndOrange() {
+        assertEquals(Color(0xFF1C1B19), PanelColors.Dark.ground)
+        assertEquals(Color(0xFFF3EEE3), PanelColors.Dark.text)
+        assertEquals(Color(0xFFB3AB9D), PanelColors.Dark.secondary)
+        assertEquals(Color(0xFFE8642C), PanelColors.Dark.ring)
+        assertEquals(GuideColors.Dark.panel.ground, PanelColors.Dark.ground)
+        assertEquals(GuideColors.Dark.sheet, PanelColors.Dark.sheet)
     }
 
     @Test

@@ -15,15 +15,21 @@ class GuideColorsTest {
     @Test
     fun darkAndLightUseTheOverhaulTokens() {
         val dark = GuideColors.Dark
-        assertEquals(Color(0xFF0E0F11), dark.page)
+        assertEquals(Color(0xFF1C1B19), dark.page)
         assertEquals(dark.page, dark.pageGradientStart)
-        assertEquals(Color.White.copy(alpha = 0.06f), dark.card)
+        assertEquals(Color(0xFF262320), dark.card)
         assertEquals(Color(0xFFE8642C), dark.focusFill)
-        assertEquals(Color(0xFF1A0D06), dark.focusText)
-        assertEquals(Color.White.copy(alpha = 0.08f), dark.progressTrack)
-        assertEquals(Color.White.copy(alpha = 0.90f), dark.textPrimary)
-        assertEquals(Color.White.copy(alpha = 0.58f), dark.textSecondary)
-        assertEquals(Color.White.copy(alpha = 0.38f), dark.textSupporting)
+        assertEquals(Color(0xFFE8642C), dark.accent)
+        assertEquals(Color(0xFFE8642C), dark.nowLine)
+        assertEquals(Color(0xFFE8642C), dark.progressFill)
+        assertEquals(Color(0xFF1C1B19), dark.focusText)
+        assertEquals(Color(0xFF1C1B19).copy(alpha = 0.90f), dark.focusTextSecondary)
+        assertEquals(Color(0xFF3D3832), dark.progressTrack)
+        assertEquals(Color(0xFF3D3832), dark.line)
+        assertEquals(Color(0xFFCFCBC2), dark.keyCapStroke)
+        assertEquals(Color(0xFFF3EEE3), dark.textPrimary)
+        assertEquals(Color(0xFFB3AB9D), dark.textSecondary)
+        assertEquals(Color(0xFFB3AB9D), dark.textSupporting)
         assertEquals(dark.textPrimary, dark.programmeText)
 
         val light = GuideColors.Light
@@ -41,19 +47,25 @@ class GuideColorsTest {
     }
 
     @Test
-    fun noWarmTintsRemain() {
-        // Every neutral role is grey: equal red, green and blue to within the 1-2 steps the near-black page keeps.
-        for (c in listOf(GuideColors.Dark, GuideColors.Light)) {
-            for (neutral in listOf(c.card, c.textPrimary, c.textSecondary, c.textSupporting, c.progressTrack)) {
-                val channels = listOf(neutral.red, neutral.green, neutral.blue)
-                val spread = channels.max() - channels.min()
-                assertTrue("neutral $neutral is tinted", spread <= NEUTRAL_SPREAD)
-            }
-            // The page may lean cool (Light's blue-grey reads calmer on a TV than a pure grey) but never warm.
-            val spread = listOf(c.page.red, c.page.green, c.page.blue).let { it.max() - it.min() }
-            assertTrue("page ${c.page} is tinted", spread <= PAGE_SPREAD)
-            assertTrue("page ${c.page} is warm", c.page.blue >= c.page.red)
+    fun darkIsWarmAndLightStaysNeutral() {
+        // Dark's neutrals all lean warm (red above blue), as the brand's ink does.
+        val dark = GuideColors.Dark
+        val darkNeutrals =
+            listOf(dark.page, dark.card, dark.textPrimary, dark.textSecondary, dark.textSupporting, dark.line)
+        for (neutral in darkNeutrals) {
+            assertTrue("dark neutral $neutral is not warm", neutral.red > neutral.blue)
         }
+        // Light is unchanged: grey neutrals over a cool-leaning page, never warm.
+        val light = GuideColors.Light
+        val lightNeutrals =
+            listOf(light.card, light.textPrimary, light.textSecondary, light.textSupporting, light.progressTrack)
+        for (neutral in lightNeutrals) {
+            val channels = listOf(neutral.red, neutral.green, neutral.blue)
+            assertTrue("neutral $neutral is tinted", channels.max() - channels.min() <= NEUTRAL_SPREAD)
+        }
+        val spread = listOf(light.page.red, light.page.green, light.page.blue).let { it.max() - it.min() }
+        assertTrue("page ${light.page} is tinted", spread <= PAGE_SPREAD)
+        assertTrue("page ${light.page} is warm", light.page.blue >= light.page.red)
     }
 
     @Test
@@ -88,9 +100,9 @@ class GuideColorsTest {
     @Test
     fun theDarkPanelIsTheGuidesOwnTokens_andIsOneInstance() {
         val panel = GuideColors.Dark.panel
-        assertEquals(Color(0xFF0E0F11), panel.ground)
-        assertEquals(Color.White.copy(alpha = 0.90f), panel.text)
-        assertEquals(Color.White.copy(alpha = 0.58f), panel.secondary)
+        assertEquals(Color(0xFF1C1B19), panel.ground)
+        assertEquals(Color(0xFFF3EEE3), panel.text)
+        assertEquals(Color(0xFFB3AB9D), panel.secondary)
         assertEquals(Color(0xFFE8642C), panel.ring)
         // One instance per theme, so the static local it feeds does not recompose its subtree on every read.
         assertTrue(GuideColors.Dark.panel === GuideColors.Dark.panel)
@@ -123,7 +135,9 @@ class GuideColorsTest {
             val card = c.card.compositeOver(c.page)
             assertContrast(3.0, c.textSupporting, c.page, "$name tertiary over the page", c.page)
             assertContrast(3.0, c.textSupporting, card, "$name tertiary over a card", c.page)
-            // It does not reach the 4.5:1 text needs, so it must not be used for text.
+            // Light's does not reach the 4.5:1 text needs, so it must not be used for text. Dark's is the brand muted,
+            // which does clear it, so only the 3:1 stroke floor above is asserted for Dark.
+            if (c === GuideColors.Dark) continue
             val seen = c.textSupporting.compositeOver(c.page).luminance()
             val ratio = (maxOf(seen, c.page.luminance()) + 0.05) / (minOf(seen, c.page.luminance()) + 0.05)
             assertTrue("$name tertiary is $ratio: if it now clears 4.5, this guard can go", ratio < 4.5)
@@ -142,7 +156,7 @@ class GuideColorsTest {
     fun noPillsOrChipsRemain() {
         // The menu is text tabs and the NOW chip is text: the tokens for their fills are gone, and the key cap is an
         // outline whose label is primary text.
-        assertEquals(0.28f, GuideColors.Dark.keyCapStroke.alpha, 0.01f)
+        assertEquals(Color(0xFFCFCBC2), GuideColors.Dark.keyCapStroke)
         // Light's cap outline is its line.
         assertEquals(GuideColors.Light.line, GuideColors.Light.keyCapStroke)
     }
@@ -150,7 +164,7 @@ class GuideColorsTest {
     @Test
     fun theNowLineIsFaintAndTheTimelineRulesAreFainter() {
         assertEquals(0.35f, GuideColors.Dark.nowRailAlpha)
-        assertEquals(0.10f, GuideColors.Dark.line.alpha, 0.01f)
+        assertEquals(Color(0xFF3D3832), GuideColors.Dark.line)
         // On the grey page 35% of the accent is lost, so Light's now-line and triangle are stronger.
         assertEquals(0.60f, GuideColors.Light.nowRailAlpha)
         assertEquals(0.16f, GuideColors.Light.line.alpha, 0.01f)
@@ -208,8 +222,8 @@ class GuideColorsTest {
 
     @Test
     fun theSheetColoursAreOnePerThemeAndReachThePanel() {
-        assertEquals(Color(0xFF141518), GuideColors.Dark.sheet.surface)
-        assertEquals(Color(0xFF3A3B40), GuideColors.Dark.sheet.line)
+        assertEquals(Color(0xFF262320), GuideColors.Dark.sheet.surface)
+        assertEquals(Color(0xFF3D3832), GuideColors.Dark.sheet.line)
         assertEquals(Color(0xFFFFD166), GuideColors.Dark.sheet.ratingBadge)
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             assertSame(c.sheet, c.panel.sheet)

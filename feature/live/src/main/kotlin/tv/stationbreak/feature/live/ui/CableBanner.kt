@@ -54,6 +54,7 @@ import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideFigures
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.teletype
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
@@ -404,7 +405,7 @@ private fun MetaLine(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(labelText(banner.label)).uppercase(LocalConfiguration.current.locales[0]),
-            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.4.sp),
+            style = teletype(LabelSize),
             color = colors.accent,
             maxLines = 1,
         )

@@ -30,11 +30,12 @@ class ChannelTileLookTest {
     }
 
     @Test
-    fun theStrokeIsWhiteAtTwentyEightPercentInDark() {
-        assertEquals(0.28f, GuideColors.Dark.keyCapStroke.alpha, 0.005f) // 8-bit alpha: 71/255
-        assertEquals(1f, GuideColors.Dark.keyCapStroke.red, 0.001f)
-        assertEquals(1f, GuideColors.Dark.keyCapStroke.green, 0.001f)
-        assertEquals(1f, GuideColors.Dark.keyCapStroke.blue, 0.001f)
+    fun theStrokeIsTheBrandGreyInDark() {
+        assertEquals(
+            androidx.compose.ui.graphics
+                .Color(0xFFCFCBC2),
+            GuideColors.Dark.keyCapStroke,
+        )
     }
 
     @Test

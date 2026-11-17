@@ -8,8 +8,8 @@ import androidx.compose.ui.graphics.Color
  * The colours of a panel that is drawn over the guide (Settings, Libraries): its ground, its text, its quieter text
  * and its focus ring. The guide provides these from its own Dark or Light tokens through [LocalPanelColors], so a
  * panel follows the guide's appearance without a feature depending on the guide. Inside the guide the panel takes the
- * guide's tokens in both themes, so Dark there is the guide's own (its page, white text, orange ring). [Dark] here is
- * only the default for a panel shown with no guide around it (Ink, Cream and the theme's primary ring). Text colours
+ * guide's tokens in both themes, so Dark there is the guide's own (its page, cream text, orange ring). [Dark] here is
+ * only the default for a panel shown with no guide around it (the same warm ink, cream, muted and orange). Text colours
  * may carry an alpha; contrast is judged on the composite over [ground]. [sheet] is the sheet over the guide; text on
  * its surface is [text] and [secondary].
  */
@@ -23,10 +23,10 @@ class PanelColors(
     companion object {
         val Dark =
             PanelColors(
-                ground = BroadcastColors.Ink,
-                text = BroadcastColors.Cream,
-                secondary = StationBreakDarkColors.onSurfaceVariant,
-                ring = StationBreakDarkColors.primary,
+                ground = BrandColors.Ink,
+                text = BrandColors.Cream,
+                secondary = BrandColors.Muted,
+                ring = BrandColors.Orange,
                 sheet = DarkSheet,
             )
     }
@@ -34,7 +34,7 @@ class PanelColors(
 
 /**
  * A sheet drawn over the guide: its [surface], the 1 dp [line] on its edge toward the screen, and the [ratingBadge]
- * (the content-rating / kids badge) drawn on it. Dark: #141518, #3A3B40, #FFD166. Light: a step above the page, ink at
+ * (the content-rating / kids badge) drawn on it. Dark: #262320, #3D3832, #FFD166. Light: a step above the page, ink at
  * 20%, and a dark amber (a pale yellow vanishes on it). No defaults: a palette states all three.
  */
 class SheetColors(
