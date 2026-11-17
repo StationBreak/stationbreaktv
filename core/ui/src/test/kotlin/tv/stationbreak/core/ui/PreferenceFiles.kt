@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
@@ -35,11 +36,18 @@ class PreferenceFiles(
         return data
     }
 
-    /** Waits until the file holds [expected] under [key]. */
+    /**
+     * Waits until the file holds [expected] under [key]. It reads afresh each time rather than collecting [data]: a
+     * collector that starts while a write is in flight is not always sent that write.
+     */
     fun <S> awaitStored(
         key: Preferences.Key<S>,
         expected: S,
-    ) = runBlocking { withTimeout(TIMEOUT_MS) { data.data.first { it[key] == expected } } }
+    ) = runBlocking {
+        withTimeout(TIMEOUT_MS) {
+            while (data.data.first()[key] != expected) delay(POLL_MS)
+        }
+    }
 
     override fun close() {
         runBlocking {
@@ -54,5 +62,6 @@ class PreferenceFiles(
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
+        const val POLL_MS = 10L
     }
 }

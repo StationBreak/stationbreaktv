@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
@@ -68,11 +69,13 @@ class GuideThemeStoreTest {
         val store = store(data)
         store.choose(GuideTheme.Light)
         assertEquals(GuideTheme.Light, store.theme.value)
-        runBlocking { withTimeout(TIMEOUT_MS) { data.data.first { it[key] == "Light" } } }
+        // Read afresh until the write lands: a collector started mid-write is not always sent that write.
+        runBlocking { withTimeout(TIMEOUT_MS) { while (data.data.first()[key] != "Light") delay(POLL_MS) } }
         assertEquals(GuideTheme.Light, store(reopen()).theme.value)
     }
 
     private companion object {
         const val TIMEOUT_MS = 5_000L
+        const val POLL_MS = 10L
     }
 }
