@@ -309,19 +309,23 @@ internal class ReportWorker(
         return state != null
     }
 
-    /** Playing on the first check-in that gets through, Progress after. Always at the safe position. */
+    /**
+     * Playing on the first check-in that gets through, Progress after. Always at the safe position (resume point, else
+     * 0; ADR-0018), never the viewer's real position, so the log says `safePos`, not `pos`. The played mark uses the
+     * ledger's viewed time, not this value.
+     */
     private suspend fun checkIn(v: OpenVisit) {
         if (!v.userRead && !readUserData(v)) return
         val position = v.safePosition(ledger.isMarked(v.key))
         if (v.started && !v.needsFreshStart) {
             val paused = v.pausedAt != null
             if (calls.call { server.reportProgress(session, v.report(position, paused)) } != null) {
-                log("report progress ${if (paused) "paused=1 " else ""}pos=${position.inWholeMilliseconds}")
+                log("report progress ${if (paused) "paused=1 " else ""}safePos=${position.inWholeMilliseconds}")
             }
         } else if (calls.call { server.reportStart(session, v.report(position)) } != null) {
             v.started = true
             v.needsFreshStart = false
-            log("report start pos=${position.inWholeMilliseconds}")
+            log("report start safePos=${position.inWholeMilliseconds}")
         }
     }
 
@@ -339,7 +343,7 @@ internal class ReportWorker(
             if (!calls.halted && v.started) {
                 val position = v.safePosition(ledger.isMarked(v.key))
                 val sent = calls.call { server.reportStopped(session, v.report(position), failed = true) }
-                if (sent != null) log("report stop pos=${position.inWholeMilliseconds}")
+                if (sent != null) log("report stop safePos=${position.inWholeMilliseconds}")
             }
         }
     }

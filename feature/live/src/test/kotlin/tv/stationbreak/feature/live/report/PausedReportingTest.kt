@@ -158,7 +158,7 @@ class PausedReportingTest {
             rig.playing()
             rig.reporter.paused()
             rig.at(60_000)
-            assertTrue(rig.lines.contains("report progress paused=1 pos=7000"))
+            assertTrue(rig.lines.contains("report progress paused=1 safePos=7000"))
         }
 
     @Test

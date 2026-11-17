@@ -336,7 +336,7 @@ class PlaybackReporterTest {
             rig.at(120_000)
             rig.reporter.leave()
             rig.at(123_000)
-            val shape = Regex("report (start|progress|stop|played|error)( [a-z]+=[a-z0-9]+)*")
+            val shape = Regex("report (start|progress|stop|played|error)( [a-zA-Z]+=[a-z0-9]+)*")
             assertTrue(rig.lines.isNotEmpty())
             rig.lines.forEach { assertTrue(it, shape.matches(it)) }
             val kinds = rig.lines.map { it.substringAfter("report ").substringBefore(' ') }.toSet()
