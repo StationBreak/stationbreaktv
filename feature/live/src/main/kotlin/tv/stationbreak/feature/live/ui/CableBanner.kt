@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,6 +28,7 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -103,11 +105,16 @@ internal fun CableBanner(
     ChromeTheme {
         var origin by remember { mutableStateOf(0f) }
         var chips by remember { mutableStateOf(mapOf<PickerKind, Float>()) }
+        // The banner's real height (it grows with a larger font), so the picker clears it; 0 until it is measured.
+        var bannerPx by remember { mutableIntStateOf(0) }
         BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot().x }) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             BannerStrip(
                 banner,
-                Modifier.align(Alignment.BottomCenter).padding(start = safe.left, end = safe.left, bottom = safe.top),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = safe.left, end = safe.left, bottom = safe.top)
+                    .onSizeChanged { bannerPx = it.height },
                 Actions(
                     onInfo,
                     onLast,
@@ -127,6 +134,7 @@ internal fun CableBanner(
                 val density = LocalDensity.current
                 val chipLeft = with(density) { ((chips[open] ?: origin) - origin).toDp() }
                 val left = with(density) { pickerLeft(chipLeft, safe.left, safe.right).roundToPx() }
+                val bannerHeight = if (bannerPx > 0) with(density) { bannerPx.toDp() } else SelectHeight
                 TrackPicker(
                     open,
                     facts,
@@ -135,7 +143,7 @@ internal fun CableBanner(
                     Modifier
                         // Absolute, not start-relative: the x is a measured screen position, which RTL must not mirror.
                         .align(AbsoluteAlignment.BottomLeft)
-                        .padding(bottom = safe.top + SelectHeight + 4.dp)
+                        .padding(bottom = safe.top + bannerHeight + 4.dp)
                         .absoluteOffset { IntOffset(left, 0) },
                 )
             }
