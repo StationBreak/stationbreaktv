@@ -2,6 +2,7 @@
 package tv.stationbreak.core.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.ScrollState
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
@@ -10,7 +11,9 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,6 +35,8 @@ class ProgramInfoOverlayTest {
         val episodeLine: String? = "S1 E2 · Episode One",
     )
 
+    private val scroll = ScrollState(0)
+
     private fun show(details: Details = Details()) =
         compose.setContent {
             StationBreakTheme {
@@ -45,6 +50,7 @@ class ProgramInfoOverlayTest {
                     genres = details.genres,
                     runtimeMinutes = details.runtimeMinutes,
                     loading = details.loading,
+                    overviewScroll = scroll,
                 )
             }
         }
@@ -135,5 +141,35 @@ class ProgramInfoOverlayTest {
         show()
         val panel = compose.onNodeWithText("Test Show").fetchSemanticsNode()
         assertEquals(LiveRegionMode.Polite, panel.config[SemanticsProperties.LiveRegion])
+    }
+
+    private val longOverview = (1..60).joinToString(" ") { "Sentence $it." }
+
+    @Test
+    fun aLongOverviewScrollsDownAndBackUp() {
+        show(Details(overview = longOverview))
+        compose.waitForIdle()
+        assertTrue(scroll.maxValue > 0)
+        val density = Density(compose.activity.resources.displayMetrics.density)
+        compose.runOnIdle { runBlocking { scroll.stepOverview(forward = true, density) } }
+        val moved = scroll.value
+        assertTrue(moved > 0)
+        compose.runOnIdle { runBlocking { scroll.stepOverview(forward = false, density) } }
+        assertTrue(scroll.value < moved)
+        tag(ProgramInfoTags.CLOSE_HINT).assertIsDisplayed()
+    }
+
+    @Test
+    fun aLongOverviewIsWholeInTheSemantics() {
+        show(Details(overview = longOverview))
+        val texts = compose.onNodeWithText("Test Show").fetchSemanticsNode().config[SemanticsProperties.Text]
+        assertTrue(texts.any { it.text == longOverview })
+    }
+
+    @Test
+    fun aShortOverviewDoesNotScroll() {
+        show(Details(overview = "A test overview."))
+        compose.waitForIdle()
+        assertEquals(0, scroll.maxValue)
     }
 }

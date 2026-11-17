@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -10,14 +12,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -26,13 +37,21 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import kotlin.math.roundToInt
 
 private const val OVERVIEW_MAX_LINES = 6
+private const val OVERVIEW_STEP_LINES = 3
+private const val FADE_FRACTION = 0.25f
+
+// In sp, as the text is: the cap and the step then follow the font scale with it.
+private val OverviewLineHeight = 18.sp
 private const val DETAIL_SEPARATOR = " · "
 private const val PANEL_FRACTION = 0.65f
 private const val SKELETON_ALPHA = 0.12f
@@ -48,7 +67,10 @@ private val PanelMaxWidth = 600.dp
  * not loading it simply shows the always-present lines, with nothing error-like. Sits bottom-left inside the 5% safe
  * area, over the guide's tokens (`page` at 96%, 11 sp channel line, 24 sp title, 13 sp body), as wide as 65% of that
  * area but never under 480 dp or over 600 dp. It holds no focus, so its last line
- * says how to close it. The caller supplies the already-formatted strings. Read as one unit by a screen reader.
+ * says how to close it. An overview longer than [OVERVIEW_MAX_LINES] lines scrolls in place, fading at the clipped
+ * edge, by [overviewScroll], which the caller holds so the remote's Down and Up (the screen's, not the panel's) can
+ * move it with [stepOverview]; the whole text stays in the semantics for a screen reader.
+ * The caller supplies the already-formatted strings. Read as one unit by a screen reader.
  */
 @Suppress("LongParameterList") // Stateless display: one parameter per fact shown, as the spec 17 contract gives them.
 @Composable
@@ -63,6 +85,7 @@ fun ProgramInfoOverlay(
     runtimeMinutes: Int?,
     loading: Boolean,
     modifier: Modifier = Modifier,
+    overviewScroll: ScrollState = rememberScrollState(),
 ) {
     BoxWithConstraints(modifier.fillMaxSize()) {
         val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
@@ -105,18 +128,33 @@ fun ProgramInfoOverlay(
             detailLine(year, genres, runtimeMinutes)?.let { Line(it, ProgramInfoTags.DETAILS) }
             // 10 dp before the paragraph: the 6 dp between lines plus 4.
             overview?.let {
-                Text(
-                    text = it,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp).testTag(ProgramInfoTags.OVERVIEW),
-                    style = guideText(13.sp, FontWeight.Normal).copy(lineHeight = 18.sp),
-                    color = colors.textPrimary,
-                    maxLines = OVERVIEW_MAX_LINES,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Overview(it, overviewScroll)
             }
             if (loading && overview == null) Skeleton()
             Line(stringResource(R.string.program_back_to_close), ProgramInfoTags.CLOSE_HINT)
         }
+    }
+}
+
+@Composable
+private fun Overview(
+    text: String,
+    scroll: ScrollState,
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .heightIn(max = LocalDensity.current.overviewMaxHeight())
+            .fadeClippedEdges(scroll)
+            .verticalScroll(scroll),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.fillMaxWidth().testTag(ProgramInfoTags.OVERVIEW),
+            style = guideText(13.sp, FontWeight.Normal).copy(lineHeight = OverviewLineHeight),
+            color = LocalGuideColors.current.textPrimary,
+        )
     }
 }
 
@@ -178,3 +216,39 @@ private fun Skeleton() {
         }
     }
 }
+
+/** Moves the overview by [OVERVIEW_STEP_LINES] lines, forward (down) or back (up); stops at either end. */
+suspend fun ScrollState.stepOverview(
+    forward: Boolean,
+    density: Density,
+) {
+    val step = with(density) { OverviewLineHeight.toPx() * OVERVIEW_STEP_LINES }.roundToInt()
+    scrollBy((if (forward) step else -step).toFloat())
+}
+
+/** Fades the top or bottom [FADE_FRACTION] of the box out where [scroll] has more behind it: the cue to press on. */
+private fun Modifier.fadeClippedEdges(scroll: ScrollState): Modifier =
+    graphicsLayer {
+        // Only a long overview pays for the offscreen layer; a short one is drawn exactly as it was.
+        compositingStrategy = if (scroll.maxValue > 0) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+    }.drawWithContent {
+        drawContent()
+        val top = if (scroll.canScrollBackward) 0f else 1f
+        val bottom = if (scroll.canScrollForward) 0f else 1f
+        if (top == 1f && bottom == 1f) return@drawWithContent
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.Black.copy(alpha = top),
+                FADE_FRACTION to Color.Black,
+                1f - FADE_FRACTION to Color.Black,
+                1f to Color.Black.copy(alpha = bottom),
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/**
+ * One line is converted, then multiplied: font scaling is not linear on newer Android, so six lines' worth of sp is not
+ * six converted lines. The height of [OVERVIEW_MAX_LINES] lines of the overview at this density and font scale.
+ */
+internal fun Density.overviewMaxHeight(): Dp = (OverviewLineHeight.toPx() * OVERVIEW_MAX_LINES).toDp()

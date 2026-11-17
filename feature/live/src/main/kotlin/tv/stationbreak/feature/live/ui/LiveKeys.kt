@@ -56,6 +56,11 @@ internal sealed interface KeyAction {
     data class Guide(
         val open: Boolean,
     ) : KeyAction
+
+    /** A press that scrolled the program info's overview ([handleOverviewKey]). */
+    data class Scroll(
+        val forward: Boolean,
+    ) : KeyAction
 }
 
 /**
@@ -193,6 +198,7 @@ internal fun handleLiveKey(
         when (action) {
             is KeyAction.Send -> send(action.command.timed(repeat = false, atMs = atMs))
             is KeyAction.Guide -> guide(action.open)
+            is KeyAction.Scroll -> Unit
         }
         held.hold(key, action)
     } else if (type == KeyEventType.KeyDown) {
