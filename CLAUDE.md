@@ -77,8 +77,8 @@ on each other or on `data:*`. `checkArchitecture` fails the build when an edge b
 - Viewer preferences go through Jetpack DataStore (`androidx.datastore`). Do not add another
   `SharedPreferences` file.
 - Durable files in `data:settings` use the staged `.new`, `fd.sync()`, rename, directory-fsync writer
-  (`DiskLineupFiles` / `DiskRecordFile`). Do not use `android.util.AtomicFile` (its `.bak` scheme on
-  API 25 can leave the only copy truncated).
+  (`DiskLineupFiles` / `DiskRecordFile` / `DiskBlobFiles`). Do not use `android.util.AtomicFile` (its `.bak`
+  scheme on API 25 can leave the only copy truncated); `checkAtomicFile` fails the build if it returns.
 - DRY. If the same logic exists, call it. No dead code: delete an unused function instead of leaving it.
 - Small pull requests, one change each, as CONTRIBUTING.md requires. Sign off every commit
   (`git commit -s`).
