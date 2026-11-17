@@ -65,25 +65,12 @@ internal fun HintFlow(
 ) {
     Layout(content, modifier) { measurables, constraints ->
         val gapPx = gap.roundToPx()
-        val loose = Constraints(maxHeight = constraints.maxHeight)
+        // Each child is measured once, at no wider than the row: a pair that would be wider than the row reports the
+        // row's width, which is all [visibleHints] needs to drop it (or, first-ranked, to keep it cut with an ellipsis).
+        val loose = Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight)
         val natural = measurables.map { it.measure(loose) }
         val shown = visibleHints(natural.map { it.width }, ranks, gapPx, constraints.maxWidth)
-        val placeables =
-            natural.mapIndexedNotNull { i, placeable ->
-                when {
-                    !shown[i] -> {
-                        null
-                    }
-
-                    placeable.width > constraints.maxWidth -> {
-                        measurables[i].measure(loose.copy(maxWidth = constraints.maxWidth))
-                    }
-
-                    else -> {
-                        placeable
-                    }
-                }
-            }
+        val placeables = natural.filterIndexed { i, _ -> shown[i] }
         val height = placeables.maxOfOrNull { it.height } ?: 0
         val rowHeight = maxOf(height, constraints.minHeight)
         layout(constraints.maxWidth, rowHeight) {
