@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -203,6 +204,28 @@ class GuideColorsTest {
                         .toList()
                 }.sorted()
         assertEquals(listOf("GuideCells.kt"), readers)
+    }
+
+    @Test
+    fun theSheetColoursAreOnePerThemeAndReachThePanel() {
+        assertEquals(Color(0xFF141518), GuideColors.Dark.sheet.surface)
+        assertEquals(Color(0xFF3A3B40), GuideColors.Dark.sheet.line)
+        assertEquals(Color(0xFFFFD166), GuideColors.Dark.sheet.ratingBadge)
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertSame(c.sheet, c.panel.sheet)
+            assertTrue("$name sheet is not the page", c.sheet.surface != c.page)
+        }
+    }
+
+    @Test
+    fun textAndTheFocusRingReadOnTheSheetInBothThemes() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertContrast(4.5, c.textPrimary, c.sheet.surface, "$name text on the sheet", c.page)
+            assertContrast(4.5, c.textSecondary, c.sheet.surface, "$name secondary text on the sheet", c.page)
+            assertContrast(4.5, c.sheet.ratingBadge, c.sheet.surface, "$name kids tag on the sheet", c.page)
+            assertContrast(3.0, c.focusFill, c.sheet.surface, "$name focus ring on the sheet", c.page)
+            assertContrast(4.5, c.focusText, c.focusFill, "$name focused menu row text on the fill", c.page)
+        }
     }
 
     private fun assertContrast(

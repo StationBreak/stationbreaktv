@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -125,7 +125,9 @@ internal fun BuilderScreen(
     typing: Typing,
     modifier: Modifier = Modifier,
 ) {
-    // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
+    // Positioned left to right whatever the device's language, as the picture's hole is top-right in screen
+    // coordinates; the text inside gets the device's own direction back.
+    val textDirection = LocalLayoutDirection.current
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         val announcer = remember { Announcer() }
         BoxWithConstraints(modifier.fillMaxSize().testTag(BuilderTags.SCREEN).announcing(announcer)) {
@@ -134,10 +136,11 @@ internal fun BuilderScreen(
             CompositionLocalProvider(
                 LocalContentColor provides ChannelsPalette.text,
                 LocalAnnouncer provides announcer,
+                LocalLayoutDirection provides textDirection,
             ) {
                 Column(
                     Modifier
-                        .offset(safe.left, safe.top)
+                        .absoluteOffset(safe.left, safe.top)
                         .width(bandWidth)
                         .height(safe.bottom - safe.top)
                         .background(ChannelsPalette.ground),
@@ -152,7 +155,7 @@ internal fun BuilderScreen(
                         ui,
                         confirm,
                         Modifier
-                            .offset(pictureHole.left, pictureHole.bottom + PanelGap)
+                            .absoluteOffset(pictureHole.left, pictureHole.bottom + PanelGap)
                             .width(safe.right - pictureHole.left)
                             .background(ChannelsPalette.ground),
                     )
@@ -174,7 +177,13 @@ private fun Header(ui: BuilderUi) {
                     .ifBlank { ui.storedName }
                     .ifBlank { stringResource(R.string.builder_new_channel) }
             }
-        Text(title, Modifier.testTag(BuilderTags.TITLE), style = MaterialTheme.typography.titleLarge, maxLines = 1)
+        Text(
+            title,
+            Modifier.testTag(BuilderTags.TITLE),
+            style = MaterialTheme.typography.titleLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         if (ui.onSheet) {
             Text(
                 stringResource(R.string.builder_edit),

@@ -27,6 +27,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -34,6 +35,7 @@ import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -429,6 +431,8 @@ class ChannelsScreenTest {
             .assertTextContains("Nothing in your libraries fits this channel", substring = true)
         assertTrue(!exists(ChannelsTags.reason(ALPHA)))
         compose.onNodeWithTag(ChannelsTags.row(ALPHA)).assertIsSelected()
+        // Reset is the list's last line; with the app's type it can sit below the fold, so walk the list to it.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag(ChannelsTags.RESET))
         assertTrue(exists(ChannelsTags.RESET))
     }
 

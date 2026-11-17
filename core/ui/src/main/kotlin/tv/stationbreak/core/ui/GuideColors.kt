@@ -45,16 +45,27 @@ class GuideColors(
      * colour render as it is (Dark). See `channelmarks` in `core/ui/CHANNELMARKS.md`.
      */
     val markTint: Color? = null,
+    /**
+     * A sheet drawn over the guide (the menu sheet, a channel's properties): its surface is the design's #141518 in
+     * Dark, a step lighter than the page in Light, so a sheet stands off the dimmed guide behind it in both.
+     */
+    val sheet: SheetColors,
 ) {
     /** What a panel drawn over the guide (Settings, Libraries) takes from this theme, via `LocalPanelColors`. */
     val panel: PanelColors =
-        PanelColors(ground = page, text = textPrimary, secondary = textSecondary, ring = focusFill)
+        PanelColors(
+            ground = page,
+            text = textPrimary,
+            secondary = textSecondary,
+            ring = focusFill,
+            sheet = sheet,
+        )
 
     companion object {
         val Dark =
             GuideColors(
-                page = Color(0xFF0E0F11),
-                pageGradientStart = Color(0xFF0E0F11),
+                page = DARK_PAGE,
+                pageGradientStart = DARK_PAGE,
                 card = Color.White.copy(alpha = CARD_ALPHA),
                 textPrimary = Color.White.copy(alpha = PRIMARY_ALPHA),
                 textSecondary = Color.White.copy(alpha = SECONDARY_ALPHA_DARK),
@@ -70,6 +81,7 @@ class GuideColors(
                 progressTrack = Color.White.copy(alpha = TRACK_ALPHA),
                 line = Color.White.copy(alpha = LINE_ALPHA),
                 keyCapStroke = Color.White.copy(alpha = KEY_STROKE_ALPHA),
+                sheet = DarkSheet,
             )
 
         /**
@@ -98,6 +110,12 @@ class GuideColors(
                 line = INK.copy(alpha = LINE_ALPHA_LIGHT),
                 keyCapStroke = INK.copy(alpha = LINE_ALPHA_LIGHT),
                 markTint = INK,
+                sheet =
+                    SheetColors(
+                        surface = LIGHT_SHEET,
+                        line = INK.copy(alpha = SHEET_LINE_ALPHA_LIGHT),
+                        ratingBadge = LIGHT_RATING_BADGE,
+                    ),
             )
     }
 }
@@ -105,9 +123,17 @@ class GuideColors(
 /** Dark unless a caller provides the saved choice. Never the system theme. */
 val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 
+/** The Dark sheet, shared with [PanelColors.Dark]: that must not read it off [GuideColors] (an init cycle). */
+internal val DarkSheet =
+    SheetColors(surface = Color(0xFF141518), line = Color(0xFF3A3B40), ratingBadge = Color(0xFFFFD166))
+
 // Text and surfaces are the one neutral (white in Dark, ink in Light) at fixed alphas, so every role steps from the
 // page without a warm tint. Light has its own alphas: its page is darker than a near-white one, so the card, the rules
 // and the track are stronger and its text is held at 4.5:1 on both the page and the card.
+private val LIGHT_SHEET = Color(0xFFE4E6EA)
+private val LIGHT_RATING_BADGE = Color(0xFF7A4B00)
+private const val SHEET_LINE_ALPHA_LIGHT = 0.20f
+private val DARK_PAGE = Color(0xFF0E0F11)
 private val INK = Color(0xFF111214)
 private val LIGHT_PAGE = Color(0xFFD2D5DA)
 private val LIGHT_ACCENT = Color(0xFF8F3811)

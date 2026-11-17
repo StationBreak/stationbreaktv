@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.LocalMotionReduced
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -68,14 +69,21 @@ internal object SnowFrames {
 }
 
 /**
- * Dim, moving snow (board D): the ink ground with the noise at about 28%, cycling about every 80 ms, under a vignette.
+ * Dim, moving snow (board D): the ink ground with the noise at about 28%, cycling about every 80 ms (one held frame
+ * when animations are off), under a vignette.
  * Until the frames exist (the first tune of the process) it is the plain ink ground.
  */
 @Composable
 internal fun Snow(modifier: Modifier = Modifier) {
     val frames by produceState(SnowFrames.cached) { value = SnowFrames.get() }
     var frame by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
+    val reduced = LocalMotionReduced.current
+    LaunchedEffect(reduced) {
+        // With animations off the snow holds one frame.
+        if (reduced) {
+            frame = 0
+            return@LaunchedEffect
+        }
         // Cooperates with a test clock, which ends an endless animation instead of waiting on it for ever.
         while (true) {
             withInfiniteAnimationFrameMillis { millis -> frame = ((millis / FRAME_MS) % FRAME_COUNT).toInt() }

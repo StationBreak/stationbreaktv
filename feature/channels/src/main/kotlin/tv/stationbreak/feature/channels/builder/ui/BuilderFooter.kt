@@ -8,7 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -16,13 +18,14 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.SkippedPick
-import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderStep
 import tv.stationbreak.feature.channels.builder.BuilderUi
 import tv.stationbreak.feature.channels.builder.PreviewView
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
+import tv.stationbreak.feature.channels.ui.channelsSecondaryLine
 
 private const val PREVIEW_ITEMS = 3
 private const val NOTE_LINES = 2
@@ -87,20 +90,35 @@ private fun NextButton(ui: BuilderUi) {
     val enabled = ui.nextEnabled
     val label = stringResource(if (ui.donePage) R.string.builder_done else R.string.builder_next)
     AnnounceWhenFocused(ui.focus == BuilderFocus.Next, Spoken(label))
-    Text(
-        label,
+    // A disabled item here is dimmed and says why in a line at full strength, as a channel row does: the state is
+    // never told by the dimming alone.
+    Column(
         Modifier
             .fillMaxWidth()
-            .drawnFocus(ui.focus == BuilderFocus.Next)
+            .panelFocus(ui.focus == BuilderFocus.Next)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(BuilderTags.NEXT)
-            .semantics {
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
                 selected = ui.focus == BuilderFocus.Next
                 if (!enabled) disabled()
             },
-        style = MaterialTheme.typography.bodyLarge,
-        color = if (enabled) ChannelsPalette.text else ChannelsPalette.dimmed,
-    )
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) ChannelsPalette.text else ChannelsPalette.dimmed,
+        )
+        // The one reason Next can name is the Sources page's; on the Name step the field shows its own problem.
+        if (!enabled && ui.step == BuilderStep.Sources) {
+            Text(
+                stringResource(R.string.builder_next_needs_source),
+                Modifier.testTag(BuilderTags.NEXT_REASON),
+                style = channelsSecondaryLine(),
+                color = ChannelsPalette.secondary,
+            )
+        }
+    }
 }
 
 @Composable

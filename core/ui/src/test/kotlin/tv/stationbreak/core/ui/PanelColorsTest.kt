@@ -16,6 +16,15 @@ class PanelColorsTest {
     }
 
     @Test
+    fun theDefaultSheetReadsToo() {
+        val p = PanelColors.Dark
+        val s = p.sheet.surface
+        assertContrastAtLeast(4.5, p.text.compositeOver(s), s, "text on the sheet")
+        assertContrastAtLeast(4.5, p.secondary.compositeOver(s), s, "secondary on the sheet")
+        assertContrastAtLeast(4.5, p.sheet.ratingBadge, s, "rating badge on the sheet")
+    }
+
+    @Test
     fun theDefaultReadsOnItsGround() {
         val p = PanelColors.Dark
         assertContrastAtLeast(4.5, p.text.compositeOver(p.ground), p.ground, "text")

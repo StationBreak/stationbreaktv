@@ -2,13 +2,16 @@
 package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -20,10 +23,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
@@ -33,6 +39,7 @@ import tv.stationbreak.feature.channels.builder.BuilderEvent
 import tv.stationbreak.feature.channels.builder.BuilderMode
 import tv.stationbreak.feature.channels.builder.BuilderViewModel
 import tv.stationbreak.feature.channels.builder.ui.BuilderRoot
+import tv.stationbreak.feature.channels.choicesOf
 import tv.stationbreak.feature.channels.dialogOpen
 
 /**
@@ -99,8 +106,20 @@ internal fun ChannelsRoot(
     LaunchedEffect(keys, building) { if (!building) keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
     val resources = LocalResources.current
+    // The properties sheet's info column scrolls; the keys scroll it from the ends of its actions.
+    val sheetScroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val stepPx = with(LocalDensity.current) { SHEET_SCROLL_STEP.toPx() }
     val actions =
-        remember(viewModel, openedAtNanos) { ChannelsActions(viewModel, sheetOnly = about != null) { done(it) } }
+        remember(viewModel, openedAtNanos) {
+            ChannelsActions(
+                viewModel,
+                sheetOnly = about != null,
+                scrollSheet = { down ->
+                    scope.launch { sheetScroll.animateScrollBy(if (down) stepPx else -stepPx) }
+                },
+            ) { done(it) }
+        }
     SheetSession(about, ui, viewModel, actions, openedAtNanos)
     // The builder is made clean for its mode before it is drawn, so it never shows an earlier visit.
     var opened by remember { mutableStateOf<BuilderMode?>(null) }
@@ -115,6 +134,7 @@ internal fun ChannelsRoot(
             ui = ui.beneathBuilder(),
             pictureHole = pictureHole,
             sheetOnly = about != null,
+            sheetScroll = sheetScroll,
             modifier =
                 Modifier
                     .focusRequester(keys)
@@ -168,6 +188,9 @@ internal fun openBuilder(
         is BuilderMode.Edit -> builder.openEdit(mode.id)
     }
 }
+
+/** How far one Up or Down at the end of the sheet's actions scrolls its info column. */
+private val SHEET_SCROLL_STEP = 48.dp
 
 /** A key the screen takes. */
 internal enum class Pad { Up, Down, Left, Right, Select, Back }
@@ -223,6 +246,7 @@ internal fun padToAct(
 internal class ChannelsActions(
     private val vm: ChannelsViewModel,
     private val sheetOnly: Boolean = false,
+    private val scrollSheet: (down: Boolean) -> Unit = {},
     private val onDone: (ChannelId?) -> Unit,
 ) {
     // The screen is finished once: a key that follows (a fast double Back) is ignored.
@@ -286,7 +310,26 @@ internal class ChannelsActions(
         }
     }
 
+    // On the properties sheet (no panel over it), Up from the first action and Down from the last have nowhere to move
+    // the choice, so they scroll the sheet's info column instead.
+    private fun sheetEdge(
+        ui: ChannelsUi,
+        pad: Pad,
+    ): Boolean {
+        val onSheet = ui.about != null && ui.panel == null && !ui.confirmingReset
+        val edge =
+            onSheet &&
+                when (pad) {
+                    Pad.Up -> ui.choice <= 0
+                    Pad.Down -> ui.choice >= choicesOf(ui).lastIndex
+                    else -> false
+                }
+        if (edge) scrollSheet(pad == Pad.Down)
+        return edge
+    }
+
     private fun panel(pad: Pad) {
+        if (sheetEdge(vm.ui.value, pad)) return
         when (pad) {
             Pad.Up -> vm.panelMove(PanelMove.Up)
             Pad.Down -> vm.panelMove(PanelMove.Down)

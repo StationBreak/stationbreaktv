@@ -18,16 +18,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
+import tv.stationbreak.core.ui.BroadcastType
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.server.BodySize
-import tv.stationbreak.feature.onboarding.server.DetailsSize
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
@@ -59,7 +59,7 @@ internal fun SigningInStatus() {
         }
         Text(
             text = stringResource(R.string.signin_signing_in),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -71,7 +71,7 @@ internal fun SignedInStatus() {
     Text(
         text = stringResource(R.string.signin_signed_in),
         modifier = Modifier.testTag(SignInTags.SIGNED_IN).politeLiveRegion(),
-        fontSize = BodySize,
+        style = MaterialTheme.typography.screenBody,
         color = MaterialTheme.colorScheme.onSurface,
     )
 }
@@ -98,7 +98,7 @@ internal fun SignInErrorPanel(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = messageText(phase.error, phase.copy),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -108,7 +108,7 @@ internal fun SignInErrorPanel(
                         } else {
                             stringResource(R.string.error_details_with_cause, details, cause)
                         },
-                    fontSize = DetailsSize,
+                    style = MaterialTheme.typography.screenDetail,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -136,9 +136,17 @@ internal fun SignInNotice(
     ) {
         ProblemIcon()
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(text = message, fontSize = BodySize, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = message,
+                style = MaterialTheme.typography.screenBody,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             if (details != null) {
-                Text(text = details, fontSize = DetailsSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.screenDetail,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -154,13 +162,13 @@ internal fun QuickConnectPanel(
     Column(verticalArrangement = Arrangement.spacedBy(Gap)) {
         Text(
             text = stringResource(R.string.quick_connect_instructions),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
         if (code == null) {
             Text(
                 text = stringResource(R.string.quick_connect_getting_code),
-                fontSize = BodySize,
+                style = MaterialTheme.typography.screenBody,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
@@ -175,7 +183,7 @@ internal fun QuickConnectPanel(
                         .politeLiveRegion()
                         .semantics { contentDescription = spoken },
                 fontSize = CodeSize,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = BroadcastType.Mono,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = CodeSpacing,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -189,7 +197,7 @@ internal fun QuickConnectPanel(
                 ProgressSpinner(contentDescription = null)
                 Text(
                     text = stringResource(R.string.quick_connect_waiting),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

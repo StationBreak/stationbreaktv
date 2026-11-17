@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import android.provider.Settings
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -15,9 +13,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalMotionReduced
 
 /** The focused card does not grow: focus is a fill change only. [guideFocusBounds] still takes an extent. */
 internal val GuideFocusExtendX = 0.dp
@@ -37,21 +35,7 @@ private const val FOCUS_MOTION_MS = 160
 /** 160 ms ease-out, or immediate when the TV's animator scale is off. */
 @Composable
 internal fun guideFocusMotion(): FiniteAnimationSpec<Float> =
-    if (guideMotionReduced()) snap() else tween(durationMillis = FOCUS_MOTION_MS, easing = EaseOut)
-
-@Composable
-private fun guideMotionReduced(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        runCatching {
-            Settings.Global.getFloat(
-                context.contentResolver,
-                Settings.Global.ANIMATOR_DURATION_SCALE,
-                1f,
-            ) == 0f
-        }.getOrDefault(false)
-    }
-}
+    if (LocalMotionReduced.current) snap() else tween(durationMillis = FOCUS_MOTION_MS, easing = EaseOut)
 
 /** How far a focused card grows, in pixels, and how far along that growth [amount] is (0 at rest, 1 focused). */
 internal data class FocusExtent(

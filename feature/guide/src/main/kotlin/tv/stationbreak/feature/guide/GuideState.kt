@@ -99,6 +99,8 @@ internal data class CellDetails(
     val item: ItemDetails?,
     val loading: Boolean,
     val logo: ImageBitmap? = null,
+    /** The cell's channel, so the panel can say when it is the one playing; null where nothing needs it. */
+    val channel: ChannelId? = null,
 )
 
 /** One-off things the guide asks of its screen. */

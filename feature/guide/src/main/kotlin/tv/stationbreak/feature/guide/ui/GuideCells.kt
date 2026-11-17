@@ -51,6 +51,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.CellKind
@@ -249,6 +250,7 @@ internal fun GuideCellView(
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
+    playing: Boolean = false,
 ) {
     val focused by remember(channel, cell.startMs, focusOf) {
         derivedStateOf { focusOf()?.let { it.channel == channel && it.cellStartMs == cell.startMs } == true }
@@ -299,7 +301,7 @@ internal fun GuideCellView(
             // kept; the unmerged tree still has the Text node.
             .clearAndSetSemantics {
                 selected = focused
-                contentDescription = cellDescription(resources, cell, labels.described, onNow, is24h)
+                contentDescription = cellDescription(resources, cell, labels.described, onNow, is24h, playing)
             },
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -406,8 +408,6 @@ private fun numbersOf(info: ProgramInfo): String? {
     }
 }
 
-/** The line height, as a multiple of the font size, that the room for two lines is counted with. */
-internal const val LINE_HEIGHT_FACTOR = 1.2f
 private const val TITLE_SP = 13f
 private const val SECOND_LINE_SP = 11f
 
@@ -415,13 +415,13 @@ private const val SECOND_LINE_SP = 11f
 private val SecondLineStyle = guideText(SECOND_LINE_SP.sp, FontWeight.Normal)
 
 /**
- * Whether a title line (13 sp) and a second line (11 sp), each [LINE_HEIGHT_FACTOR] tall at [fontScale], and the cell's
+ * Whether a title line (13 sp) and a second line (11 sp), each [PROSE_LINE_HEIGHT] tall at [fontScale], and the cell's
  * 1 dp inset on both sides fit in a row [rowHeightDp] high. When they do not, the second line is dropped, not clipped.
  */
 internal fun twoLinesFit(
     fontScale: Float,
     rowHeightDp: Float,
-): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * LINE_HEIGHT_FACTOR + 2 * CellInset.value <= rowHeightDp
+): Boolean = (TITLE_SP + SECOND_LINE_SP) * fontScale * PROSE_LINE_HEIGHT + 2 * CellInset.value <= rowHeightDp
 
 /**
  * The second line of an episode's cell, "S1 E19" (or "E19"): null for a movie, a slate, an episode with no numbers, a
@@ -439,17 +439,23 @@ internal fun secondLineOf(
         ?.takeIf { twoLinesFit(fontScale, rowHeightDp) }
         ?.let(::numbersOf)
 
-/** "Title, 8:30 – 9:00 PM", and ", on now" for the program airing: what a screen reader says about a cell. */
+/**
+ * "Title, 8:30 – 9:00 PM", and ", on now" for the program airing, then ", playing" when it is on the channel live TV
+ * is playing: what a screen reader says about a cell.
+ */
+@Suppress("LongParameterList") // The cell, its title, its three states and the clock's format.
 private fun cellDescription(
     resources: Resources,
     cell: GuideCell,
     title: String,
     onNow: Boolean,
     is24h: Boolean,
+    playing: Boolean,
 ): String {
     val slot = ProgramText.slot(cell.startMs, cell.endMs, ZoneId.systemDefault(), is24h)
     val described = resources.getString(R.string.guide_cell_description, title, slot)
-    return if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
+    val now = if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
+    return if (playing && onNow) resources.getString(R.string.guide_cell_playing, now) else now
 }
 
 /** Draws [ellipsis] in [color], centred on [span] (the part of the cell in view, from its outer edge) if any. */

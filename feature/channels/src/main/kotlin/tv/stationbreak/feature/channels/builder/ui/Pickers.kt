@@ -15,12 +15,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
-import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
@@ -47,7 +49,7 @@ internal fun SourceTabs(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .drawnFocus(focused)
+                    .panelFocus(focused)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag(BuilderTags.tab(tab))
                     .semantics { selected = tab == ui.tab },
@@ -55,7 +57,12 @@ internal fun SourceTabs(
                 val open = tab == ui.tab
                 Text(
                     tabName(tab),
-                    style = MaterialTheme.typography.bodyLarge,
+                    // The open tab is told by more than its colour: a heavier weight and an underline.
+                    style =
+                        MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = if (open) FontWeight.SemiBold else FontWeight.Normal,
+                            textDecoration = if (open) TextDecoration.Underline else TextDecoration.None,
+                        ),
                     color = if (open) ChannelsPalette.text else ChannelsPalette.secondary,
                 )
             }
@@ -123,7 +130,8 @@ internal fun SourceList(
     modifier: Modifier = Modifier,
 ) {
     val lines = remember(ui.tab, ui.entries, ui.narrow != null) { linesOf(ui) }
-    val focused = lines.indexOfFirst { it.isFocus(ui.focus) }
+    val focus = ui.focus
+    val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
     FocusedLines(lines, focused, key = { it.key }, modifier = modifier.testTag(BuilderTags.LIST)) { line, isFocused ->
         when (line) {
             SourceLine.Search -> SearchLine(ui.searchText, isFocused, typing)

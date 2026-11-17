@@ -51,9 +51,10 @@ import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.server.BodySize
-import tv.stationbreak.feature.onboarding.server.DetailsSize
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
@@ -62,11 +63,9 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
 private val RowHeight = 64.dp
 private val BoxSize = 28.dp
-private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.08f
 
 /**
@@ -142,12 +141,7 @@ internal fun LibrariesScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = maxWidth * OVERSCAN,
-                        end = maxWidth * OVERSCAN,
-                        top = maxHeight * TOP_OFFSET,
-                        bottom = maxHeight * OVERSCAN,
-                    ),
+                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
@@ -156,12 +150,12 @@ internal fun LibrariesScreen(
             ) {
                 Text(
                     text = stringResource(R.string.libraries_headline),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
                     text = stringResource(R.string.libraries_subtitle),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Content(state, focus, onToggle, onDone, onRetry)
@@ -218,7 +212,7 @@ private fun LoadingStatus() {
         ProgressSpinner(contentDescription = stringResource(R.string.libraries_progress_description))
         Text(
             text = stringResource(R.string.libraries_loading),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -239,8 +233,16 @@ private fun Problem(
         Row(horizontalArrangement = Arrangement.spacedBy(TightGap), verticalAlignment = Alignment.Top) {
             ProblemIcon()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(text = message, fontSize = BodySize, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = details, fontSize = DetailsSize, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.screenBody,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.screenDetail,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         // After a failed Done there is no Retry of its own: Done, right below, is the retry.
@@ -293,7 +295,7 @@ private fun Checklist(
             ProblemIcon()
             Text(
                 text = stringResource(R.string.libraries_none_ticked),
-                fontSize = BodySize,
+                style = MaterialTheme.typography.screenBody,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -349,10 +351,10 @@ private fun LibraryRow(
         ) {
             TickBox(ticked)
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(text = library.name, fontSize = BodySize, color = colors.onSurface)
+                Text(text = library.name, style = MaterialTheme.typography.screenBody, color = colors.onSurface)
                 // A library named after its kind ("Movies") says it once: the line would be read out twice.
                 if (!kind.equals(library.name, ignoreCase = true)) {
-                    Text(text = kind, fontSize = DetailsSize, color = colors.onSurfaceVariant)
+                    Text(text = kind, style = MaterialTheme.typography.screenDetail, color = colors.onSurfaceVariant)
                 }
             }
         }

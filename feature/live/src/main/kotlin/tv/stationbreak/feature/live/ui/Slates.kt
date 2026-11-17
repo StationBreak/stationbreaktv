@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.BroadcastType
@@ -26,7 +27,9 @@ import tv.stationbreak.feature.live.R
 private const val DIFFICULTIES_TV_Y = 202f
 private const val IDENT_TV_Y = 212f
 private const val DIFFICULTIES_TOP = 272f
-private const val IDENT_TOP = 278f
+
+// The wordmark sits 4 units above board E2 so its foot clears a three-line note (#831 frames).
+private const val IDENT_TOP = 274f
 private const val NO_CHANNELS_TOP = 396f
 private const val DISC_TEXT_WIDTH = 280f
 private const val NO_CHANNELS_WIDTH = 230f
@@ -37,11 +40,17 @@ private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
-private const val NOTE_TOP = 378f
-private const val NOTE_WIDTH = 166f
-private const val NOTE_SIZE = 8.5f
+private const val NOTE_TOP = 377f
+private const val NOTE_WIDTH = 146f
+private const val NOTE_SIZE = 10.5f
 private const val NOTE_SPACING_EM = 0.03f
-private const val NOTE_LINES = 2
+private const val NOTE_LINES = 3
+
+// Space Mono's default line is about 1.5 em; three lines at that height end below the disc (y ~424 of 419).
+private const val NOTE_LINE_HEIGHT = 1.2f
+
+/** The project's text floor: the note is the only instruction on the no-libraries slate, so it never goes below it. */
+private val NOTE_FLOOR = 10.sp
 
 /** The slate for a show that is missing or will not play (design: board E2), with the "Up next" banner when known. */
 @Composable
@@ -130,7 +139,7 @@ internal fun NoChannelsSlate() {
 
 /**
  * None of this TV's libraries is available (spec 26): the ident card, with where to choose them set as the card's
- * reason is, two lines at most inside the centre disc.
+ * reason is, three lines at most inside the centre disc.
  */
 @Composable
 internal fun NoLibrariesSlate() {
@@ -143,9 +152,11 @@ internal fun NoLibrariesSlate() {
 }
 
 /**
- * The reason on an ident card: two lines at most, set small and tight so both sit inside the centre disc (radius 150
- * about y 288) below the wordmark, which ends at y 378. The box is 166 wide from y 378 to about y 403: its bottom
- * corners are 142 from the centre, 8 inside the rim.
+ * The reason on an ident card: three lines at most, set tight so all sit inside the centre disc (radius 150 about
+ * y 288) below the wordmark, which ends at y 374. The text is never under 10 sp ([NOTE_FLOOR]); at that size the
+ * copy needs a third line, set at 1.2x line height so the box (146 wide from y 377) ends by about y 418, its bottom
+ * corners about 149 of 150 from the centre on the emulator. The 3 units between wordmark and box keep BREAK's foot
+ * off the first line.
  */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
@@ -153,6 +164,7 @@ private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
     text: String,
     tag: String = LiveTags.IDENT_NOTE,
 ) {
+    val noteSize = card.sp(NOTE_SIZE).let { if (it < NOTE_FLOOR) NOTE_FLOOR else it }
     Text(
         text = text,
         modifier =
@@ -161,7 +173,11 @@ private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
                 .offset(y = card.dp(NOTE_TOP))
                 .width(card.dp(NOTE_WIDTH))
                 .testTag(tag),
-        style = mono(card.sp(NOTE_SIZE)).copy(letterSpacing = card.sp(NOTE_SIZE) * NOTE_SPACING_EM),
+        style =
+            mono(noteSize).copy(
+                letterSpacing = noteSize * NOTE_SPACING_EM,
+                lineHeight = noteSize * NOTE_LINE_HEIGHT,
+            ),
         color = BroadcastColors.Ink,
         textAlign = TextAlign.Center,
         maxLines = NOTE_LINES,

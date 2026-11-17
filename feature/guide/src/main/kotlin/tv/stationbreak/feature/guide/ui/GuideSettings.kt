@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ScreenFit
+import tv.stationbreak.core.ui.guideProse
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.R
@@ -295,7 +296,7 @@ private fun SyncStatus(state: SyncNowState) {
             Modifier
                 .testTag(GuideTags.SETTINGS_SYNC_STATUS)
                 .semantics { liveRegion = LiveRegionMode.Polite },
-        style = guideText(13.sp, FontWeight.Normal),
+        style = guideProse(13.sp, FontWeight.Normal),
         color = LocalGuideColors.current.textSecondary,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,

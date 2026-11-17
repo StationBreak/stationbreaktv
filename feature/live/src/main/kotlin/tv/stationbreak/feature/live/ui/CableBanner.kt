@@ -9,25 +9,30 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -57,7 +62,6 @@ import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TrackSelection
 import java.time.ZoneId
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /** The tune banner: 2 dp progress line and a 54 dp row inside a 1 dp border. */
 private val TuneHeight = 58.dp
@@ -67,7 +71,7 @@ private val SelectHeight = 102.dp
 private val ProgressHeight = 2.dp
 private val RowHeight = 54.dp
 private val SidePadding = 16.dp
-private val LabelSize = 8.5.sp
+private val LabelSize = 10.sp
 private val NumberSize = 13.sp
 private val TitleSize = 18.sp
 private val MetaSize = 11.sp
@@ -101,11 +105,16 @@ internal fun CableBanner(
     ChromeTheme {
         var origin by remember { mutableStateOf(0f) }
         var chips by remember { mutableStateOf(mapOf<PickerKind, Float>()) }
+        // The banner's real height (it grows with a larger font), so the picker clears it; 0 until it is measured.
+        var bannerPx by remember { mutableIntStateOf(0) }
         BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot().x }) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
             BannerStrip(
                 banner,
-                Modifier.align(Alignment.BottomCenter).padding(start = safe.left, end = safe.left, bottom = safe.top),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = safe.left, end = safe.left, bottom = safe.top)
+                    .onSizeChanged { bannerPx = it.height },
                 Actions(
                     onInfo,
                     onLast,
@@ -122,16 +131,20 @@ internal fun CableBanner(
             val facts = banner.stream
             if (open != null && facts != null) {
                 // Above its chip, left edges together, clear of the 5% safe area and the banner under it.
-                val left = (chips[open] ?: origin) - origin
+                val density = LocalDensity.current
+                val chipLeft = with(density) { ((chips[open] ?: origin) - origin).toDp() }
+                val left = with(density) { pickerLeft(chipLeft, safe.left, safe.right).roundToPx() }
+                val bannerHeight = if (bannerPx > 0) with(density) { bannerPx.toDp() } else SelectHeight
                 TrackPicker(
                     open,
                     facts,
                     onChoose,
                     banner.programNames,
                     Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(bottom = safe.top + SelectHeight + 4.dp)
-                        .offset { IntOffset(left.roundToInt(), 0) },
+                        // Absolute, not start-relative: the x is a measured screen position, which RTL must not mirror.
+                        .align(AbsoluteAlignment.BottomLeft)
+                        .padding(bottom = safe.top + bannerHeight + 4.dp)
+                        .absoluteOffset { IntOffset(left, 0) },
                 )
             }
         }
@@ -162,7 +175,7 @@ internal fun ChannelBanner(
                     .align(Alignment.BottomCenter)
                     .padding(start = safe.left, end = safe.left, bottom = safe.top)
                     .fillMaxWidth()
-                    .height(TuneHeight)
+                    .heightIn(min = TuneHeight)
                     .chromeSurface(colors)
                     .padding(horizontal = SidePadding)
                     .spokenLiveRegion(spoken)
@@ -262,7 +275,7 @@ private fun BannerStrip(
     Column(
         modifier
             .fillMaxWidth()
-            .height(if (banner.actions) SelectHeight else TuneHeight)
+            .heightIn(min = if (banner.actions) SelectHeight else TuneHeight)
             .chromeSurface(colors)
             .padding(1.dp)
             .testTag(LiveTags.BANNER),
@@ -315,7 +328,7 @@ private fun BannerRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(RowHeight)
+            .heightIn(min = RowHeight)
             .padding(horizontal = SidePadding)
             .spokenLiveRegion(spoken),
         verticalAlignment = Alignment.CenterVertically,
@@ -391,7 +404,7 @@ private fun MetaLine(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(labelText(banner.label)).uppercase(LocalConfiguration.current.locales[0]),
-            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.6.sp),
+            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.4.sp),
             color = colors.accent,
             maxLines = 1,
         )

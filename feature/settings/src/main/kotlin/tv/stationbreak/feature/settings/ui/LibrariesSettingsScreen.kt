@@ -89,7 +89,9 @@ internal fun LibrariesSettingsScreen(
 ) {
     // The guide's Dark or Light, as it provides it; Dark when there is no guide around.
     val panel = LocalPanelColors.current
-    // Left to right whatever the device's language, as the picture's hole is top-right in screen coordinates.
+    // Positioned left to right whatever the device's language, as the picture's hole is top-right in screen
+    // coordinates; the text inside gets the device's own direction back.
+    val textDirection = LocalLayoutDirection.current
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.fillMaxSize().testTag(SettingsTags.LIBRARIES).announcingFocus(state)) {
             val safe = ScreenLayout.safeArea(DpSize(maxWidth, maxHeight), LocalScreenFit.current)
@@ -102,7 +104,10 @@ internal fun LibrariesSettingsScreen(
                     .background(panel.ground),
             ) {
                 // Not inside a Surface, so the content colour would be tv-material's black default.
-                CompositionLocalProvider(LocalContentColor provides panel.text) {
+                CompositionLocalProvider(
+                    LocalContentColor provides panel.text,
+                    LocalLayoutDirection provides textDirection,
+                ) {
                     Header(state)
                     LibraryList(state, Modifier.weight(1f))
                 }

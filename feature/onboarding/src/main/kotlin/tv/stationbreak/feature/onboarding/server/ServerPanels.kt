@@ -53,6 +53,8 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
 
 private const val SPINNER_DELAY_MS = 400L
@@ -67,7 +69,7 @@ internal fun FieldError(copy: ErrorCopy) {
         ProblemIcon()
         Text(
             text = stringResource(copy.message),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -84,7 +86,7 @@ internal fun NotTrustedNotice() {
         ProblemIcon()
         Text(
             text = stringResource(R.string.server_not_trusted),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -109,7 +111,7 @@ internal fun TestingStatus() {
         }
         Text(
             text = stringResource(R.string.server_testing),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -125,7 +127,7 @@ internal fun ConnectedPanel(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = stringResource(R.string.server_connected_name, phase.server.server.name),
-                fontSize = BodySize,
+                style = MaterialTheme.typography.screenBody,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
@@ -135,7 +137,7 @@ internal fun ConnectedPanel(
                         phase.server.server.version
                             .toString(),
                     ),
-                fontSize = DetailsSize,
+                style = MaterialTheme.typography.screenDetail,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (phase.acknowledgement != null) {
@@ -165,7 +167,7 @@ internal fun NotEncryptedNotice(tag: String) {
         ProblemIcon()
         Text(
             text = stringResource(R.string.server_connected_cleartext),
-            fontSize = DetailsSize,
+            style = MaterialTheme.typography.screenDetail,
             color = MaterialTheme.colorScheme.error,
         )
     }
@@ -191,7 +193,7 @@ internal fun ErrorPanel(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = messageText(phase.error, copy),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -201,7 +203,7 @@ internal fun ErrorPanel(
                         } else {
                             stringResource(R.string.error_details_with_cause, details, cause)
                         },
-                    fontSize = DetailsSize,
+                    style = MaterialTheme.typography.screenDetail,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

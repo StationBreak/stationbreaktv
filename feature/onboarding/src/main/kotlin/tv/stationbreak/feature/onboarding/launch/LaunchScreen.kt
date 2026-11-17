@@ -29,9 +29,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.server.BodySize
-import tv.stationbreak.feature.onboarding.server.DetailsSize
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -43,9 +44,7 @@ import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
 
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
-private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -119,12 +118,7 @@ internal fun LaunchScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = maxWidth * OVERSCAN,
-                        end = maxWidth * OVERSCAN,
-                        top = maxHeight * TOP_OFFSET,
-                        bottom = maxHeight * OVERSCAN,
-                    ),
+                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
@@ -154,7 +148,7 @@ private fun Progress() {
         ProgressSpinner(contentDescription = stringResource(R.string.launch_progress_description))
         Text(
             text = stringResource(R.string.launch_checking),
-            fontSize = BodySize,
+            style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
         )
     }
@@ -177,7 +171,7 @@ private fun Unavailable(
     val details = stringResource(copy.details)
     Text(
         text = stringResource(R.string.launch_unavailable_title),
-        style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+        style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
     Column(
@@ -189,7 +183,7 @@ private fun Unavailable(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = messageText(error, copy),
-                    fontSize = BodySize,
+                    style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
@@ -199,7 +193,7 @@ private fun Unavailable(
                         } else {
                             stringResource(R.string.error_details_with_cause, details, cause)
                         },
-                    fontSize = DetailsSize,
+                    style = MaterialTheme.typography.screenDetail,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

@@ -1125,7 +1125,12 @@ internal class GuideViewModel
                 // Same cell, maybe rebuilt (a window that was extended, or a lineup change that renumbered or renamed
                 // its channel): show the new one, keep waiting or showing.
                 shownPanel.value =
-                    shownPanel.value?.copy(cell = cell, channelNumber = row.number, channelName = row.name)
+                    shownPanel.value?.copy(
+                        cell = cell,
+                        channelNumber = row.number,
+                        channelName = row.name,
+                        channel = row.channel,
+                    )
                 return
             }
             dwellJob?.cancel()
@@ -1135,10 +1140,19 @@ internal class GuideViewModel
             // Details held and the logo decoded and held: the whole panel at once, no rest and no text title first.
             val held = cached?.logo?.let(logos::cached)
             if (cached != null && held != null) {
-                shownPanel.value = CellDetails(cell, row.number, row.name, cached, loading = false, logo = held)
+                shownPanel.value =
+                    CellDetails(
+                        cell,
+                        row.number,
+                        row.name,
+                        cached,
+                        loading = false,
+                        logo = held,
+                        channel = row.channel,
+                    )
                 dwellJob = null
             } else {
-                shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting)
+                shownPanel.value = CellDetails(cell, row.number, row.name, cached, waiting, channel = row.channel)
                 dwellJob = if (id != null) session?.launch { restOn(id, cached, focus) } else null
             }
         }

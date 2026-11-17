@@ -7,6 +7,7 @@ import org.junit.Test
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderEvent
 import tv.stationbreak.feature.channels.ui.ChannelsActions
+import tv.stationbreak.feature.channels.ui.Pad
 
 /** How the screen's key handler finishes after the builder ends (spec 22). */
 class ChannelsActionsTest {
@@ -47,5 +48,30 @@ class ChannelsActionsTest {
             actions.builderEnded(BuilderEvent.Closed)
             assertTrue(done.isEmpty())
             assertEquals(null, rig.ui.builder)
+        }
+
+    // The sheet's choice cannot move past its first or last action, so those keys scroll its info column instead.
+    @Test
+    fun upFromTheFirstActionAndDownFromTheLastScrollTheSheet() =
+        channelsTest(trio) { rig ->
+            val scrolls = mutableListOf<Boolean>()
+            val actions = ChannelsActions(rig.vm, scrollSheet = { scrolls += it }) { }
+            rig.open(this, current = A)
+            rig.vm.select()
+            repeat(choicesOf(rig.ui).lastIndex) { rig.vm.panelMove(PanelMove.Down) }
+            rig.vm.panelSelect()
+            val last = choicesOf(rig.ui).lastIndex
+            assertEquals(A, rig.ui.about)
+
+            actions.pad(Pad.Up)
+            assertEquals(listOf(false), scrolls)
+            actions.pad(Pad.Down)
+            assertEquals("the choice moves while there is a next one", listOf(false), scrolls)
+            assertEquals(1, rig.ui.choice)
+            repeat(last - 1) { actions.pad(Pad.Down) }
+            assertEquals(last, rig.ui.choice)
+            actions.pad(Pad.Down)
+            assertEquals(listOf(false, true), scrolls)
+            assertEquals(last, rig.ui.choice)
         }
 }

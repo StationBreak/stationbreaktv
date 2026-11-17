@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -163,7 +164,7 @@ internal fun ActionsRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(ACTION_ROW_HEIGHT)
+            .heightIn(min = ACTION_ROW_HEIGHT)
             .padding(horizontal = 16.dp)
             .semantics { paneTitle = paneTitleText }
             .testTag(LiveTags.BANNER_ACTIONS),
@@ -327,7 +328,7 @@ private fun Chip(
     } else {
         Row(
             modifier
-                .height(28.dp)
+                .heightIn(min = 28.dp)
                 .padding(horizontal = 12.dp)
                 .semantics(mergeDescendants = true) { contentDescription = description },
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -356,7 +357,7 @@ private fun ActionButton(
     val colors = LocalGuideColors.current
     Button(
         onClick = onClick,
-        modifier = modifier.height(28.dp).widthIn(min = 44.dp),
+        modifier = modifier.heightIn(min = 28.dp).widthIn(min = 44.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
         shape = ButtonDefaults.shape(ChromeShape),
         colors =

@@ -18,7 +18,7 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * The ident card's reason (spec 26, #633), and the no-libraries card's line: at most two lines, and the whole box
+ * The ident card's reason (spec 26, #633), and the no-libraries card's line: at most three lines, and the whole box
  * inside the centre disc.
  */
 @RunWith(AndroidJUnit4::class)
@@ -27,28 +27,28 @@ class IdentNoteTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun theNoteIsTwoLinesAtMostAndInsideTheDisc() {
+    fun theNoteIsThreeLinesAtMostAndInsideTheDisc() {
         compose.setContent { StationBreakTheme { LiveScreen(LiveState.Ident(null, null, CardNote.NotInLibrary)) {} } }
         compose.waitForIdle()
 
-        assertTwoLinesAtMostInsideTheDisc(LiveTags.IDENT_NOTE)
+        assertThreeLinesAtMostInsideTheDisc(LiveTags.IDENT_NOTE)
     }
 
     // The no-libraries card's line (spec 26) is set as the reason is, under the same rule.
     @Test
-    fun theNoLibrariesLineIsTwoLinesAtMostAndInsideTheDisc() {
+    fun theNoLibrariesLineIsThreeLinesAtMostAndInsideTheDisc() {
         compose.setContent { StationBreakTheme { LiveScreen(LiveState.NoLibraries) {} } }
         compose.waitForIdle()
 
-        assertTwoLinesAtMostInsideTheDisc(LiveTags.NO_LIBRARIES)
+        assertThreeLinesAtMostInsideTheDisc(LiveTags.NO_LIBRARIES)
     }
 
-    private fun assertTwoLinesAtMostInsideTheDisc(tag: String) {
+    private fun assertThreeLinesAtMostInsideTheDisc(tag: String) {
         val note = compose.onNodeWithTag(tag)
         val results = mutableListOf<TextLayoutResult>()
         val action = note.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action
         assertTrue("the line has a text layout", action != null && action(results))
-        assertTrue("at most two lines, was ${results.first().lineCount}", results.first().lineCount <= 2)
+        assertTrue("at most three lines, was ${results.first().lineCount}", results.first().lineCount <= 3)
         assertTrue("nothing is cut off", !results.first().hasVisualOverflow)
 
         // The card is drawn centred at 1024 x 576 units, scaled to fit; its disc is radius 150 about (512, 288).

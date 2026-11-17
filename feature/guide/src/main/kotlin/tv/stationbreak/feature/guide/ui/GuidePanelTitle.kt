@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -15,10 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.core.ui.guideText
 import kotlin.math.min
 
@@ -42,7 +44,9 @@ import kotlin.math.min
 // padding), the box including the plate, since logos are usually light and would be lost on the grey page.
 private val LogoMaxHeight = 46.dp
 private const val LOGO_MAX_WIDTH_FRACTION = 0.7f
-private val LogoPlate = Color(0xFF0E0F11).copy(alpha = 0.92f)
+
+// Theme-independent on purpose: a logo is drawn for a dark ground, so its plate is the Dark page in both themes.
+private val LogoPlate = GuideColors.Dark.page.copy(alpha = 0.92f)
 private val LogoPlateRadius = 2.dp
 private val LogoPlatePadding = 6.dp
 
@@ -56,7 +60,8 @@ private const val LOGO_FADE_MS = 120
  * The title block: 46 dp tall whether it holds the text title (24 sp) or the logo, plate included, with its content
  * left-aligned and centred vertically, so nothing below it moves when one takes the place of the other. [cell] names
  * the cell it is for: a logo that is there when the cell is first shown is simply there, and one that arrives later
- * fades in over [LOGO_FADE_MS] as the text fades out. The title stays the logo's name.
+ * fades in over [LOGO_FADE_MS] as the text fades out (an instant swap when animations are off). The title stays the
+ * logo's name.
  */
 @Composable
 internal fun PanelTitle(
@@ -66,8 +71,10 @@ internal fun PanelTitle(
     colors: GuideColors,
 ) {
     val reveal = remember(cell) { Animatable(if (logo != null) 1f else 0f) }
+    val reduced = LocalMotionReduced.current
     LaunchedEffect(cell, logo != null) {
-        reveal.animateTo(if (logo != null) 1f else 0f, tween(LOGO_FADE_MS, easing = LinearEasing))
+        val fade = if (reduced) snap<Float>() else tween(LOGO_FADE_MS, easing = LinearEasing)
+        reveal.animateTo(if (logo != null) 1f else 0f, fade)
     }
     Box(Modifier.fillMaxWidth().height(LogoMaxHeight), contentAlignment = Alignment.CenterStart) {
         if (logo == null || reveal.value < 1f) {

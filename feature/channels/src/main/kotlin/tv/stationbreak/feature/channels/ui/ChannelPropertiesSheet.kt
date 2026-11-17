@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -25,6 +31,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
@@ -34,7 +42,9 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.ui.ChannelHoldingsLines
 import tv.stationbreak.core.ui.HoldingsTags
-import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.LocalScreenFit
+import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -47,8 +57,8 @@ import tv.stationbreak.core.ui.R as UiR
 // The sheet's measures, from the design (docs/design/channel-properties.md): 380 dp of the 960 dp layout.
 private val SheetWidth = 380.dp
 private val Gutter = 16.dp
-internal const val SMALL_SP = 11
-private const val BODY_SP = 12
+internal const val SMALL_SP = 14
+private const val BODY_SP = 16
 private const val SCRIM_ALPHA = 0.55f
 
 /**
@@ -61,29 +71,57 @@ private const val SCRIM_ALPHA = 0.55f
 @Composable
 internal fun ChannelPropertiesSheet(
     ui: ChannelsUi,
+    textDirection: LayoutDirection,
+    scroll: ScrollState,
     modifier: Modifier = Modifier,
     toGuide: Boolean = false,
 ) {
     val row = ui.rows.firstOrNull { it.id == ui.about } ?: return
     val properties = ui.properties?.takeIf { it.summary.id == row.id }
-    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(ChannelsTags.ABOUT)) {
+    BoxWithConstraints(
+        modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(ChannelsTags.ABOUT),
+    ) {
+        val screen = DpSize(maxWidth, maxHeight)
+        val safe = ScreenLayout.safeArea(screen, LocalScreenFit.current)
+        val inset = sheetInsets(screen, safe, SheetWidth, Gutter)
+        // The ground runs to the screen's edge; the text keeps to the safe area (a TV may crop what is outside it).
         Row(
             Modifier
                 .align(Alignment.CenterEnd)
-                .width(SheetWidth)
+                .width(inset.width)
                 .fillMaxHeight()
                 .background(ChannelsPalette.sheet),
         ) {
             Box(Modifier.width(1.dp).fillMaxHeight().background(ChannelsPalette.sheetLine))
-            Column(Modifier.fillMaxSize().padding(Gutter), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Identity(row, properties)
-                if (properties == null) {
-                    Plain(stringResource(R.string.channel_props_loading), ChannelsTags.ABOUT_LOADING, secondary = true)
-                } else {
-                    Rules(row, properties)
+            CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        // Absolute: the sheet is on the screen's right edge whatever the text direction, so the safe
+                        // inset belongs to the right here too.
+                        .absolutePadding(left = Gutter, right = inset.end, top = inset.top, bottom = inset.bottom),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Identity(row, properties)
+                    // What it is and how it runs takes the room that is left and scrolls when it is longer; the
+                    // actions and the Back hint stay under it, where the focus is.
+                    Column(
+                        Modifier.weight(1f).scrollEdgeFade(scroll).verticalScroll(scroll),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (properties == null) {
+                            Plain(
+                                stringResource(R.string.channel_props_loading),
+                                ChannelsTags.ABOUT_LOADING,
+                                secondary = true,
+                            )
+                        } else {
+                            Rules(row, properties)
+                        }
+                        Status(row, properties)
+                    }
+                    Actions(ui, toGuide)
                 }
-                Status(row, properties)
-                Actions(ui, toGuide)
             }
         }
     }
@@ -158,7 +196,8 @@ private fun KeyValue(
     // Only a row with its own tag is a node of its own; the rest fold into their section's node (a merged node
     // nested in a merged node is not folded into its parent).
     Row(Modifier.fillMaxWidth().let { if (tag != null) it.testTag(tag).merged() else it }) {
-        Text(label, Modifier.width(96.dp), style = body(), color = ChannelsPalette.secondary)
+        // At least the design's 96 dp, and wider (up to 144) when a larger font needs it, so a label is not cut.
+        Text(label, Modifier.widthIn(min = 96.dp, max = 144.dp), style = body(), color = ChannelsPalette.secondary)
         Text(value, Modifier.weight(1f), style = body(), maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -192,7 +231,7 @@ private fun Actions(
                 labelOf(choice, ui.panel, isLocked(choice, row, ui)),
                 Modifier
                     .fillMaxWidth()
-                    .drawnFocus(!covered && i == ui.choice)
+                    .panelFocus(!covered && i == ui.choice)
                     .padding(horizontal = 10.dp, vertical = 6.dp)
                     .testTag(tagOf(choice))
                     .semantics { selected = !covered && i == ui.choice },

@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
-import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.StationBreakDarkColors
+import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.PanelColors
 
 /** How much of a dimmed (unavailable) row's name shows through; its reason line stays at full strength. */
 internal const val DIMMED_ALPHA = 0.7f
@@ -25,36 +25,49 @@ internal fun channelsSecondaryLine(): TextStyle =
     MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_LINE_SP.sp, lineHeight = SECONDARY_LINE_HEIGHT_SP.sp)
 
 /**
- * The text colours of the channel screen, all drawn on [BroadcastColors.Ink]. The screen reads these, and
- * `ChannelsPaletteTest` checks every one in [pairs] against WCAG 4.5:1, so the two cannot drift.
+ * The colours of the channel screens, read from the panel the guide provides ([LocalPanelColors]), so they follow the
+ * guide's Dark or Light theme; with no guide around, the panel's default is Ink and Cream, the screens' own. Text is
+ * drawn on [ground], and on [sheet] in the properties sheet. `ChannelsPaletteTest` checks every pair in [pairs] for
+ * both guide themes and the default against WCAG 4.5:1 (the ring 3:1), so the screen and the check cannot drift.
  */
 internal object ChannelsPalette {
-    val ground = BroadcastColors.Ink
+    val ground: Color @Composable get() = LocalPanelColors.current.ground
 
     /** Titles, names, panel text, choices and picker digits. The screen's default content colour. */
-    val text = BroadcastColors.Cream
+    val text: Color @Composable get() = LocalPanelColors.current.text
 
     /** Headings, the read-only note, message lines and reasons. */
-    val secondary = StationBreakDarkColors.onSurfaceVariant
+    val secondary: Color @Composable get() = LocalPanelColors.current.secondary
 
-    /** The properties sheet's ground (the design's #141518) and the 1 dp line on its left edge. */
-    val sheet = Color(0xFF141518)
-    val sheetLine = Color(0xFF3A3B40)
+    /** The focused row's ring: the guide's focus colour. */
+    val ring: Color @Composable get() = LocalPanelColors.current.ring
 
-    /** The kids tag on the sheet, the design's #FFD166. */
-    val kidsTag = Color(0xFFFFD166)
+    /** The properties sheet's ground. */
+    val sheet: Color @Composable get() = LocalPanelColors.current.sheet.surface
 
-    /** A dimmed row's name: [text] at [DIMMED_ALPHA] as it lands on [ground]. */
-    val dimmed = text.copy(alpha = DIMMED_ALPHA).compositeOver(ground)
+    /** The 1 dp line on the properties sheet's left edge. */
+    val sheetLine: Color @Composable get() = LocalPanelColors.current.sheet.line
 
-    /** Every text colour with the background it is drawn on, named for the failure message. */
-    val pairs: List<Triple<String, Color, Color>> =
+    /** The content-rating badge on the sheet. */
+    val ratingBadge: Color @Composable get() = LocalPanelColors.current.sheet.ratingBadge
+
+    /** A dimmed row's name: the panel's text at [DIMMED_ALPHA] of its own strength. */
+    val dimmed: Color @Composable get() = dimmed(LocalPanelColors.current)
+
+    /** [panel]'s text at [DIMMED_ALPHA] of its own alpha, as it lands on its ground. */
+    fun dimmed(panel: PanelColors): Color {
+        val faded = panel.text.copy(alpha = panel.text.alpha * DIMMED_ALPHA)
+        return faded.compositeOver(panel.ground)
+    }
+
+    /** Every text colour of [panel] with the background it is drawn on, named for the failure message. */
+    fun pairs(panel: PanelColors): List<Triple<String, Color, Color>> =
         listOf(
-            Triple("text on Ink", text, ground),
-            Triple("secondary on Ink", secondary, ground),
-            Triple("dimmed row on Ink", dimmed, ground),
-            Triple("text on the sheet", text, sheet),
-            Triple("secondary on the sheet", secondary, sheet),
-            Triple("kids tag on the sheet", kidsTag, sheet),
+            Triple("text on the ground", panel.text, panel.ground),
+            Triple("secondary on the ground", panel.secondary, panel.ground),
+            Triple("dimmed row on the ground", dimmed(panel), panel.ground),
+            Triple("text on the sheet", panel.text, panel.sheet.surface),
+            Triple("secondary on the sheet", panel.secondary, panel.sheet.surface),
+            Triple("rating badge on the sheet", panel.sheet.ratingBadge, panel.sheet.surface),
         )
 }

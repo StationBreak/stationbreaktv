@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
+import tv.stationbreak.core.ui.LocalMotionReduced
 
 private const val SWEEP_DEGREES = 270f
 private const val FULL_TURN = 360f
@@ -35,12 +36,9 @@ internal fun ProgressSpinner(
     modifier: Modifier = Modifier,
 ) {
     val color = MaterialTheme.colorScheme.onSurface
-    val turn by rememberInfiniteTransition(label = "spinner").animateFloat(
-        initialValue = 0f,
-        targetValue = FULL_TURN,
-        animationSpec = infiniteRepeatable(tween(TURN_MS, easing = LinearEasing), RepeatMode.Restart),
-        label = "turn",
-    )
+    val reduced = LocalMotionReduced.current
+    // Held still when animations are off.
+    val turn = if (reduced) 0f else spinnerTurn()
     Canvas(modifier = modifier.size(28.dp).then(describedAs(contentDescription))) {
         val stroke = 4.dp.toPx()
         drawArc(
@@ -54,6 +52,16 @@ internal fun ProgressSpinner(
         )
     }
 }
+
+@Composable
+private fun spinnerTurn(): Float =
+    rememberInfiniteTransition(label = "spinner")
+        .animateFloat(
+            initialValue = 0f,
+            targetValue = FULL_TURN,
+            animationSpec = infiniteRepeatable(tween(TURN_MS, easing = LinearEasing), RepeatMode.Restart),
+            label = "turn",
+        ).value
 
 private fun describedAs(description: String?): Modifier =
     if (description == null) Modifier else Modifier.semantics { contentDescription = description }

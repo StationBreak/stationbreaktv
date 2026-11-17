@@ -40,12 +40,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.BroadcastColors
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.StationBreakDarkColors
-import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
@@ -65,10 +63,8 @@ private val SheetLineWidth = 1.dp
 private const val MENU_ROW_SP = 13
 private const val HINT_SP = 11
 
-// The properties sheet's own surface (`ChannelsPalette` in feature:channels, which this feature cannot read): the
-// design's #141518 with a 1 dp line on the edge toward the screen, over a scrim of black at 55%.
-private val SheetGround = Color(0xFF141518)
-private val SheetLine = Color(0xFF3A3B40)
+// The sheet's surface and its 1 dp line on the edge toward the screen are the guide's own tokens (`sheet` and
+// `sheetLine`, the same the channel properties sheet takes), over a scrim of black at 55%: black dims either theme.
 private const val SCRIM_ALPHA = 0.55f
 
 /**
@@ -108,6 +104,7 @@ internal fun GuideMenuSheet(
     modifier: Modifier = Modifier,
 ) {
     val about by remember(aboutOf) { derivedStateOf(aboutOf) }
+    val colors = LocalGuideColors.current
     val back = stringResource(R.string.guide_key_back)
     val what = stringResource(if (backLeaves) R.string.guide_hint_exit else R.string.guide_hint_close_menu)
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SCRIM)) {
@@ -116,7 +113,7 @@ internal fun GuideMenuSheet(
                 .align(Alignment.CenterStart)
                 .width(MenuSheetWidth)
                 .fillMaxHeight()
-                .background(SheetGround)
+                .background(colors.sheet.surface)
                 .testTag(GuideTags.MENU_SHEET),
         ) {
             Column(
@@ -153,11 +150,11 @@ internal fun GuideMenuSheet(
                             .padding(start = RowTextPadding, bottom = insets.calculateBottomPadding())
                             .testTag(GuideTags.MENU_HINT),
                     style = guideText(HINT_SP.sp, FontWeight.Normal),
-                    color = StationBreakDarkColors.onSurfaceVariant,
+                    color = colors.textSecondary,
                     maxLines = 1,
                 )
             }
-            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(SheetLine))
+            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(colors.sheet.line))
         }
     }
 }
@@ -169,6 +166,7 @@ private fun MenuRow(
     focusedOf: () -> Boolean,
 ) {
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
+    val colors = LocalGuideColors.current
     Text(
         text = text,
         modifier =
@@ -179,11 +177,11 @@ private fun MenuRow(
                     selected = focused
                 }.fillMaxWidth()
                 .height(MenuRowHeight)
-                .drawnFocus(focused)
+                .panelFocus(focused)
                 .padding(horizontal = RowTextPadding)
                 .wrapContentHeight(Alignment.CenterVertically),
         style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
-        color = BroadcastColors.Cream,
+        color = colors.textPrimary,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )

@@ -4,11 +4,14 @@ package tv.stationbreak.feature.live.ui
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.SubtitleView
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The subtitle view for the live picture: it draws in the viewer's system caption style and text size (Settings,
@@ -36,18 +39,20 @@ internal fun SubtitleView.show(
 
 /**
  * The captions over the picture: lay it in the same box and with the same [modifier] as the video surface, so the
- * cues are placed inside the picture's own rectangle, not the screen's.
+ * cues are placed inside the picture's own rectangle, not the screen's. [cues] is collected here, so a cue change
+ * recomposes this layer alone.
  */
 @Composable
 @OptIn(markerClass = [UnstableApi::class])
 internal fun CaptionLayer(
-    cues: List<Cue>,
+    cues: StateFlow<List<Cue>>,
     hidden: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val shown by cues.collectAsStateWithLifecycle()
     AndroidView(
         factory = { captionView(it) },
         modifier = modifier,
-        update = { it.show(cues, hidden) },
+        update = { it.show(shown, hidden) },
     )
 }

@@ -35,6 +35,19 @@ fun guideText(
     platformStyle = NoFontPadding,
 )
 
+/** Line height of [guideProse]: 1.2 times the size, so a second line does not sit on the first one's descenders. */
+const val PROSE_LINE_HEIGHT = 1.2f
+
+/**
+ * [guideText] for text that can wrap onto a second line (a notice, a two-line row): the same face, with a 1.2x line
+ * height instead of the single-line chrome's tight one. Single-line labels keep [guideText] so their boxes keep their
+ * metrics.
+ */
+fun guideProse(
+    size: TextUnit,
+    weight: FontWeight,
+) = guideText(size, weight).copy(lineHeight = size * PROSE_LINE_HEIGHT)
+
 /** Times, ranges, the clock and channel numbers. Tabular figures. */
 fun guideFigures(
     size: TextUnit,

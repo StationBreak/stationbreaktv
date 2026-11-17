@@ -19,7 +19,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.drawnFocus
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
 
 /** "Use my collections", a switch at the top of the list: its state is read from the semantics, not from the text. */
@@ -35,7 +35,7 @@ internal fun HouseholdLine(
     Column(
         Modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.HOUSEHOLD)
             .clearAndSetSemantics {
@@ -78,7 +78,7 @@ internal fun NewLine(
         if (locked) stringResource(R.string.pro_marked_label, label) else label,
         Modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.NEW_CHANNEL)
             .semantics { selected = focused },
@@ -96,7 +96,7 @@ internal fun ResetLine(
         if (locked) stringResource(R.string.pro_marked_label, label) else label,
         Modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .panelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(ChannelsTags.RESET)
             .semantics { selected = focused },

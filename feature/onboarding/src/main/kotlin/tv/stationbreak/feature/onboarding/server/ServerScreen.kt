@@ -58,12 +58,11 @@ import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.TvTextField
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
 
 // Sizes only this screen uses.
-private val HeadlineSize = 40.sp
 private val ContentWidth = 640.dp
-private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -122,12 +121,7 @@ internal fun ServerScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = maxWidth * OVERSCAN,
-                        end = maxWidth * OVERSCAN,
-                        top = maxHeight * TOP_OFFSET,
-                        bottom = maxHeight * OVERSCAN,
-                    ),
+                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
@@ -136,7 +130,7 @@ internal fun ServerScreen(
             ) {
                 Text(
                     text = stringResource(R.string.server_headline),
-                    style = MaterialTheme.typography.headlineLarge.copy(fontSize = HeadlineSize),
+                    style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 AddressField(

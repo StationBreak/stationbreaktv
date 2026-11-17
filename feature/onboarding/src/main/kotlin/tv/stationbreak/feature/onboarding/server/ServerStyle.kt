@@ -59,12 +59,11 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
+import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
 
 // 10-foot sizes (spec 05, Adorabelle's defaults): body text is 18 sp or more and every target is 48 dp or more. The
 // buttons' padding makes them about 56 dp tall.
-internal val BodySize = 20.sp
-internal val DetailsSize = 18.sp
 internal val ButtonPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp)
 internal val ProblemIconSize = 32.dp
 internal val Gap = 20.dp
@@ -106,7 +105,7 @@ internal fun ServerButton(
         scale = FocusStyle.buttonScale(),
         contentPadding = ButtonPadding,
     ) {
-        Text(stringResource(label), fontSize = BodySize)
+        Text(stringResource(label), style = MaterialTheme.typography.screenBody)
     }
 }
 

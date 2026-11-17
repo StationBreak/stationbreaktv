@@ -70,6 +70,7 @@
     <string name="builder_step_name">Name and number</string>
     <string name="builder_next">Next</string>
     <string name="builder_done">Done</string>
+    <string name="builder_next_needs_source">Pick at least one source to go on</string>
     <string name="builder_source_libraries">Libraries</string>
     <string name="builder_source_collections">Collections</string>
     <string name="builder_source_tags">Tags</string>

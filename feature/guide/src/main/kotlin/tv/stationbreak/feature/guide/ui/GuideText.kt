@@ -15,11 +15,12 @@ import tv.stationbreak.feature.guide.R
 import java.time.ZoneId
 import kotlin.time.Duration
 
-/** "3 · Test Channel": the channel line of the panel and the overlay. */
+/** "3 · Test Channel", and " · Playing" ([playing], the word) for the channel live TV is on: the panel's line. */
 internal fun channelLine(
     number: Int,
     name: String,
-) = "$number · $name"
+    playing: String? = null,
+) = "$number · $name" + playing?.let { " · $it" }.orEmpty()
 
 /**
  * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate, "Station
