@@ -460,9 +460,21 @@ before the update. The viewer can switch it off and on again on a later day, whi
 it is an undo and changes nothing). If a later decision wants the inference to give `Added`, this ADR must
 then state the growth it causes and the version-5 trigger, and a test must pin the size.
 
-**Free and Pro (#793).** Not unaffected. What an added channel does when Pro lapses, or on free (for example: `Added`
-counts as `Touched`, or the channel is switched off), is #793's decision. It is not built here, and the rule above holds
-for every viewer until #793 decides.
+**Free, Pro and a refund (#793, #99).** Pro is a one-time purchase (#99), so Pro does not lapse; it can be revoked by a
+refund. On free, switching a starter on is Pro (#793), so an `Added` channel can only exist for a household that has
+bought Pro. Owner decision (2026-11-16) for a refund revocation:
+
+- **The starters are reset by force.** The lineup returns to the planner's 48 picks plus Odds & Ends (50). The viewer's
+  renumbers, hides, switch-offs and switch-ons, and every `Added` mark, are discarded, as in a viewer's reset (which keeps
+  custom channels). They are not stashed: a viewer who buys Pro again re-edits the starters, which the owner accepts as
+  a small inconvenience. A lineup with no `Added` mark writes version 3 or 4 again.
+- **Custom channels beyond the first 5 are locked, not deleted.** The 5 oldest by creation stay usable. The others stay
+  in the lineup file as the household's data, but are hidden and cannot be edited or aired. Buying Pro again unlocks
+  them. This refines #793's "a stored lineup with more than 5 customs keeps them": for a revoked household the extra
+  customs are kept but inaccessible.
+- Not built by this change. The lock needs a stored marker or a rule over creation order (a new lineup-file field if
+  stored, so a format-version decision), and the revocation reset needs the `ProEntitlement` port (#99). Both are to be
+  designed with #99.
 
 **The lineup file is version 5 for a household that switches a channel on** (and, for one day, one that switches a
 leaving channel off). The channel's `addedByViewer: true` needs version 5; a lineup with no added channel stays version 3
