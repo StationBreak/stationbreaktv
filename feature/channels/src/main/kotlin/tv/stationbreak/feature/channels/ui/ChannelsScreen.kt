@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -48,6 +50,7 @@ internal fun ChannelsScreen(
     pictureHole: DpRect,
     modifier: Modifier = Modifier,
     sheetOnly: Boolean = false,
+    sheetScroll: ScrollState = rememberScrollState(),
 ) {
     // Positioned left to right whatever the device's language, as the picture's hole is top-right in screen
     // coordinates; the text inside gets the device's own direction back.
@@ -79,7 +82,7 @@ internal fun ChannelsScreen(
             if (ui.about != null) {
                 CompositionLocalProvider(
                     LocalContentColor provides ChannelsPalette.text,
-                ) { ChannelPropertiesSheet(ui, textDirection, toGuide = sheetOnly) }
+                ) { ChannelPropertiesSheet(ui, textDirection, sheetScroll, toGuide = sheetOnly) }
             }
             val open = ui.panel != null || ui.confirmingReset
             if (open) {

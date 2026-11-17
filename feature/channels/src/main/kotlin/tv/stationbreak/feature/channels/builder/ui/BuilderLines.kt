@@ -44,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.keepVisible
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.core.ui.panelFocus
 
 private val LineGap = 2.dp
 

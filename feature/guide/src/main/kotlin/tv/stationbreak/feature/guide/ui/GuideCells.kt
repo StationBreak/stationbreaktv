@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import android.content.res.Resources
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
@@ -52,6 +51,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.CellKind

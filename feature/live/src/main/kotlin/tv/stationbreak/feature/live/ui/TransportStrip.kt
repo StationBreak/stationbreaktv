@@ -41,10 +41,10 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
 

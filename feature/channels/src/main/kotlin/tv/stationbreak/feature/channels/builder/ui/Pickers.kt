@@ -22,6 +22,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.OnlyKind
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderFocus
 import tv.stationbreak.feature.channels.builder.BuilderUi
@@ -30,7 +31,6 @@ import tv.stationbreak.feature.channels.builder.PickerRow
 import tv.stationbreak.feature.channels.builder.PickerView
 import tv.stationbreak.feature.channels.builder.SourceKindTab
 import tv.stationbreak.feature.channels.ui.ChannelsPalette
-import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ui.joiner
 import tv.stationbreak.feature.channels.ui.spokenParts
 

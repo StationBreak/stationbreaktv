@@ -35,8 +35,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.core.ui.LocalMotionReduced
+import tv.stationbreak.core.ui.guideText
 import kotlin.math.min
 
 // The title block is 46 dp tall, and the logo that stands for the title is at most that tall and 70% of the panel

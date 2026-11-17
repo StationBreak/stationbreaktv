@@ -42,8 +42,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
-import tv.stationbreak.core.ui.panelFocus
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,6 +44,7 @@ import tv.stationbreak.core.ui.ChannelHoldingsLines
 import tv.stationbreak.core.ui.HoldingsTags
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -72,6 +72,7 @@ private const val SCRIM_ALPHA = 0.55f
 internal fun ChannelPropertiesSheet(
     ui: ChannelsUi,
     textDirection: LayoutDirection,
+    scroll: ScrollState,
     modifier: Modifier = Modifier,
     toGuide: Boolean = false,
 ) {
@@ -105,7 +106,7 @@ internal fun ChannelPropertiesSheet(
                     // What it is and how it runs takes the room that is left and scrolls when it is longer; the
                     // actions and the Back hint stay under it, where the focus is.
                     Column(
-                        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        Modifier.weight(1f).verticalScroll(scroll),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         if (properties == null) {
