@@ -47,8 +47,8 @@ import tv.stationbreak.core.ui.R as UiR
 // The sheet's measures, from the design (docs/design/channel-properties.md): 380 dp of the 960 dp layout.
 private val SheetWidth = 380.dp
 private val Gutter = 16.dp
-internal const val SMALL_SP = 11
-private const val BODY_SP = 12
+internal const val SMALL_SP = 14
+private const val BODY_SP = 16
 private const val SCRIM_ALPHA = 0.55f
 
 /**

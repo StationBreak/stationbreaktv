@@ -20,16 +20,18 @@ A viewer should be able to answer, without leaving the TV, "what is this channel
 
 | Block | Content | Source |
 |---|---|---|
-| Identity | Mark (50×28dp box at 2× = 100×56dp), `CHANNEL <n>` 11sp `textSecondary`, name 20sp SemiBold, tags row: `BUILT-IN` / `CUSTOM` / `LEFTOVERS` and, when kid-safe, `KIDS · UP TO <rating>` in `#FFD166` | `ChannelSummary.kind`, `Recipe.kidSafe`, `maxRating` |
-| Personality | Recipe `personality` in quotes, 11sp italic `textSecondary`. Custom channels: omitted. | `StarterCatalogView.recipes[key].personality` |
+| Identity | Mark (50×28dp box at 2× = 100×56dp), `CHANNEL <n>` 14sp `textSecondary`, name 20sp SemiBold, tags row: `BUILT-IN` / `CUSTOM` / `LEFTOVERS` and, when kid-safe, `KIDS · UP TO <rating>` in `#FFD166` | `ChannelSummary.kind`, `Recipe.kidSafe`, `maxRating` |
+| Personality | Recipe `personality` in quotes, 14sp italic `textSecondary`. Custom channels: omitted. | `StarterCatalogView.recipes[key].personality` |
 | **What it plays** | Key/value rows: Genres, Tags, Years, Studios, Collections/Series/Items (named, not IDs), Libraries; **Always** = theme anchors; **Never** = exclusions + "anything rated above X"; **Narrowed to** = filters (kind, runtime, not-genres). Omit empty rows. | `ChannelSource.*.rules.sources/exclusions/filters`, `Recipe.theme.anchors` |
 | **How it runs** | Order (Shuffle / In order / Rotation / Chronological / Random in order / **Programmed** for Curated) with "· new day at <broadcastDay.start>"; block length when set; Schedule code | `ChannelRules.ordering`, `timing`, `seed` |
 | **What it holds** | (#757) The hours line, then **Home to:** (the titles whose home is the channel) or, for a channel with none, **Mostly:** (the six titles with the most hours): the same lines, from the same `ChannelHoldings` value, as the guide's channel box (`docs/design/guide-menu-and-channel-holdings.md`, section 2). Only home shows are listed; the hours and the title count are totals of everything the channel airs. A day whose homes are not known (built before they were kept) shows the hours line alone. Omitted for a channel that is off, hidden or has nothing today. | `ChannelProperties.holdings` (`ChannelHoldingsReader`) |
 | Status | One line with a 5dp dot: green **On since <date>** · *showing today* / *hidden today: <HiddenReason text>*; amber **Not switched on** · *<ShelfReason text>*; grey **Off** · *hidden by you* | `ChannelSummary.state/onSince/shelfReason`, `ScheduleSource.airings().hidden` |
-| Actions | Buttons 11sp Medium, 3dp radius, focused = accent fill + `focusText` | `actionsOf()` |
+| Actions | Buttons 16sp Medium, 3dp radius, focused = accent fill + `focusText` | `actionsOf()` |
 | Hint | `BACK` Return to the guide / to Channels | |
 
 Type and colour tokens are the guide's (`docs/design/guide-visual-overhaul.md`). Reuse `channels_reason_*`, `channels_shelf_*`, `channels_label_*` strings; add the handful of new ones (`channel_props_*`).
+
+Sheet type sizes: this sheet follows the Channels module's rule (`ChannelsPalette.kt`: the theme's 14sp secondary size is under the 10-foot minimum). Body text, key/value rows and actions are 16sp (the same as a channel row's reason line); captions (section titles, `CHANNEL <n>`, tags, the personality quote, the hint) are 14sp, the one step down, and never smaller. The earlier 11/12sp was a guide-density value that the sheet's distance does not support. At these sizes the sheet's content can be taller than the screen, so the content area must scroll with Actions and the hint pinned.
 
 ## Data: one new domain read
 
