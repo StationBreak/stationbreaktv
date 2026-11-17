@@ -27,7 +27,9 @@ import tv.stationbreak.feature.live.R
 private const val DIFFICULTIES_TV_Y = 202f
 private const val IDENT_TV_Y = 212f
 private const val DIFFICULTIES_TOP = 272f
-private const val IDENT_TOP = 278f
+
+// The wordmark sits 3 units above board E2 so its foot clears a three-line note (#831 frames).
+private const val IDENT_TOP = 275f
 private const val NO_CHANNELS_TOP = 396f
 private const val DISC_TEXT_WIDTH = 280f
 private const val NO_CHANNELS_WIDTH = 230f
@@ -38,7 +40,7 @@ private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
-private const val NOTE_TOP = 376f
+private const val NOTE_TOP = 378f
 private const val NOTE_WIDTH = 146f
 private const val NOTE_SIZE = 10.5f
 private const val NOTE_SPACING_EM = 0.03f
@@ -151,8 +153,9 @@ internal fun NoLibrariesSlate() {
 
 /**
  * The reason on an ident card: three lines at most, set tight so all sit inside the centre disc (radius 150 about
- * y 288) below the wordmark, which ends at y 378. The text is never under 10 sp ([NOTE_FLOOR]); at that size the
- * copy needs a third line, set at 1.2x line height so the box (146 wide from y 376) ends by about y 415.
+ * y 288) below the wordmark, which ends at y 375. The text is never under 10 sp ([NOTE_FLOOR]); at that size the
+ * copy needs a third line, set at 1.2x line height so the box (146 wide from y 378) ends by about y 417, its bottom
+ * corners about 148 from the centre. The 3 units between wordmark and box keep BREAK's foot off the first line.
  */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.NoteLine(

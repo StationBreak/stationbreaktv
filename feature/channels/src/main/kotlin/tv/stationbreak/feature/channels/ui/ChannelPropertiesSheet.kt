@@ -106,7 +106,7 @@ internal fun ChannelPropertiesSheet(
                     // What it is and how it runs takes the room that is left and scrolls when it is longer; the
                     // actions and the Back hint stay under it, where the focus is.
                     Column(
-                        Modifier.weight(1f).verticalScroll(scroll),
+                        Modifier.weight(1f).scrollEdgeFade(scroll).verticalScroll(scroll),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         if (properties == null) {
