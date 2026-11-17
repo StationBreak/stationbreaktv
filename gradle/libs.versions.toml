@@ -69,6 +69,9 @@ datastore = "1.2.1"
 # Media3 1.11.1 is the latest stable at least two weeks old (released 2026-09-11, checked 2026-10-21; 1.12 is still alpha).
 # minSdk 21, fine on API 25. Apache-2.0. The player of core:playback; its OkHttp data source is for `app`.
 media3 = "1.11.1"
+# Guava 33.7.2-android (published 2026-09-29): the first release fixed for GHSA-xxph-c9ww-hj94 (#539). Media3 1.11.1
+# asks for 33.3.1-android; core:playback constrains it up. Not a direct dependency of any module. Apache-2.0.
+guavaAndroid = "33.7.2-android"
 
 minSdk = "25"
 # Compose 1.12 requires compileSdk 37 (its AARs set minCompileSdk=37). minSdk and targetSdk are unchanged
@@ -95,6 +98,7 @@ androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
+guava-android = { module = "com.google.guava:guava", version.ref = "guavaAndroid" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 # The process lifecycle: the app coming to the foreground is an "open" for the library sync (spec 06). Same version as the rest.

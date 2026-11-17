@@ -149,6 +149,13 @@ android {
 }
 
 dependencies {
+    constraints {
+        // Every Media3 module brings Guava; the APK's copy must be the fixed one (GHSA-xxph-c9ww-hj94, #539), whatever
+        // path pulls it in. core:playback declares the same.
+        implementation(libs.guava.android) {
+            because("GHSA-xxph-c9ww-hj94 is fixed in 33.7.2 (#539)")
+        }
+    }
     // ADR-0004: app consumes the KMP shared core through Gradle's jvm variant.
     implementation(project(":core:model"))
     implementation(project(":core:domain"))
