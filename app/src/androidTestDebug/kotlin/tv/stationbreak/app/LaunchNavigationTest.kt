@@ -717,6 +717,7 @@ class LaunchNavigationTest {
         launchApp()
         awaitFocused(LibrariesTags.row("movies"))
         press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.row("movies"))
+        press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.COLLECTIONS)
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
 
         // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would).

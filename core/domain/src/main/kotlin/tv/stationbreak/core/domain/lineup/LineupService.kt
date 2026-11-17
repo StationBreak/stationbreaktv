@@ -250,6 +250,18 @@ class LineupService internal constructor(
         // True only when the store held no file and the session held no lineup: a new account, not a lost one.
         val isNew: Boolean = false,
         val repairs: TodayRepairs = TodayRepairs.NONE,
+        // Why [save] is false: a transient read failure (a retry can fix it) differs from a file that stays unwritable.
+        val readOnly: ReadOnly? = null,
+    )
+
+    /** Why a lineup may not be written. */
+    private enum class ReadOnly { NewerVersion, ReadFailed, LeftAlone }
+
+    /** What a locked entry holds once read: the start, the held (reconciled) lineup, and the lineup to work from. */
+    private data class Loaded(
+        val start: Start,
+        val held: Revisioned?,
+        val lineup: Lineup?,
     )
 
     private val lock = Any()
@@ -578,10 +590,23 @@ class LineupService internal constructor(
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         val savedSeq = savedSeqNow()
-        return entry.mutex.withLock { editLocked(owner, entry, account, edit, libraries, savedSeq) }
+        return entry.mutex.withLock {
+            editLocked(owner, entry, account, edit, libraries, savedSeq, loadedOf(owner, entry))
+        }
     }
 
-    // [edit], under the account's lock (held by the caller).
+    // Reads [entry] under its lock: the start, the reconciled held lineup, and the lineup to work from.
+    private suspend fun loadedOf(
+        owner: Owner,
+        entry: Entry,
+    ): Loaded {
+        val start = startOf(owner, entry)
+        entry.writable = start.save
+        val held = reconciled(entry, start)
+        return Loaded(start, held, held?.lineup ?: start.current)
+    }
+
+    // [edit], under the account's lock (held by the caller), from what [loadedOf] read.
     @Suppress("LongParameterList") // What one edit reads and carries.
     private suspend fun editLocked(
         owner: Owner,
@@ -590,11 +615,9 @@ class LineupService internal constructor(
         edit: LineupEdit,
         libraries: Set<ItemId>?,
         savedSeq: SavedSeqs?,
+        loaded: Loaded,
     ): Saved<EditOutcome>? {
-        val start = startOf(owner, entry)
-        entry.writable = start.save
-        val held = reconciled(entry, start)
-        val lineup = held?.lineup ?: start.current
+        val (start, held, lineup) = loaded
         if (!entry.writable || lineup == null) {
             noteWritable(entry)
             return null
@@ -1423,23 +1446,23 @@ class LineupService internal constructor(
         savedSeq: SavedSeqs?,
     ): SetupOutcome {
         val entry = entryOf(owner)
-        val start = startOf(owner, entry)
-        entry.writable = start.save
-        val held = reconciled(entry, start)
-        val lineup = held?.lineup ?: start.current
+        val loaded = loadedOf(owner, entry)
+        val (start, held, lineup) = loaded
         val before = held?.meta ?: start.meta
         val repairs = held?.repairs ?: start.repairs
         return when {
             !entry.writable -> {
                 noteWritable(entry)
-                SetupOutcome.Unwritable
+                // A transient read failure may clear on a retry; a newer app's file or one left alone will not.
+                if (start.readOnly == ReadOnly.ReadFailed) SetupOutcome.Failed else SetupOutcome.Unwritable
             }
 
             lineup?.finalised == true -> {
-                when (editLocked(owner, entry, account, LineupEdit.UseMyCollections(on), libraries, savedSeq)) {
-                    is Saved.Ok -> SetupOutcome.Applied
-                    null -> SetupOutcome.Unwritable
-                    else -> SetupOutcome.Failed
+                val edited = LineupEdit.UseMyCollections(on)
+                if (editLocked(owner, entry, account, edited, libraries, savedSeq, loaded) is Saved.Ok) {
+                    SetupOutcome.Applied
+                } else {
+                    SetupOutcome.Failed
                 }
             }
 
@@ -1523,7 +1546,7 @@ class LineupService internal constructor(
 
             StoredBytes.Failed -> {
                 report(LineupEvent.ReadFailedLeftAlone)
-                Start(session, sessionMeta, save = false, repairs = sessionRepairs)
+                Start(session, sessionMeta, save = false, repairs = sessionRepairs, readOnly = ReadOnly.ReadFailed)
             }
 
             is StoredBytes.Present -> {
@@ -1555,7 +1578,13 @@ class LineupService internal constructor(
             is LineupCodec.Decoded.NewerVersion -> {
                 report(LineupEvent.NewerVersionLeftAlone)
                 entry.disk = Disk.Version(decoded.version)
-                Start(session.lineup, session.meta, save = false, repairs = session.repairs)
+                Start(
+                    session.lineup,
+                    session.meta,
+                    save = false,
+                    repairs = session.repairs,
+                    readOnly = ReadOnly.NewerVersion,
+                )
             }
 
             LineupCodec.Decoded.Unreadable -> {
@@ -1615,7 +1644,7 @@ class LineupService internal constructor(
             Start(null, RefreshMeta(), save = true)
         } else {
             report(LineupEvent.UnreadableLeftAlone)
-            Start(session.lineup, session.meta, save = false, repairs = session.repairs)
+            Start(session.lineup, session.meta, save = false, repairs = session.repairs, readOnly = ReadOnly.LeftAlone)
         }
 
     // A lineup is saved only when its own bytes decode back to a lineup of this account, with the repair record and the

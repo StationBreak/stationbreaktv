@@ -269,12 +269,25 @@ class HouseholdSettingTest {
             assertEquals(SetupOutcome.Unwritable, service.chooseAtSetup(bad, chosen, on = false))
         }
 
-    // A lineup that may not be written (a file that cannot be read just now) is no failure a retry can fix.
+    // A read that fails just now may clear: a failure the viewer can retry, not a switch to drop.
     @Test
-    fun setupIsUnwritableWhenTheStoredLineupCannotBeRead() =
+    fun setupFailsWhenTheStoredLineupCannotBeReadJustNow() =
         runBlocking<Unit> {
             seed()
             store.inner.failReads = true
+
+            assertEquals(SetupOutcome.Failed, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+
+            store.inner.failReads = false
+            assertEquals(SetupOutcome.Applied, service.chooseAtSetup(ACCOUNT, chosen, on = false))
+        }
+
+    // An unreadable file that cannot be set aside is left alone for good: a retry will not help.
+    @Test
+    fun setupIsUnwritableWhenAnUnreadableFileCannotBeSetAside() =
+        runBlocking<Unit> {
+            store.inner.save(ACCOUNT, "not a lineup".encodeToByteArray())
+            store.inner.failWrites = true
 
             assertEquals(SetupOutcome.Unwritable, service.chooseAtSetup(ACCOUNT, chosen, on = false))
         }
