@@ -195,6 +195,11 @@ task 3.0, `FileServerSettings` (the `ServerSettings` implementation: the configu
 atomically replaced file in `noBackupFilesDir`). `app` binds both in `MediaServerModule`. The DataStore settings arrive with
 the stories that need them.
 
+One exception to DataStore living in `data:settings`: the viewer's on-screen preferences (screen fit, volume levelling,
+the guide theme) are kept by `core:ui`'s `ViewerPreference` in DataStore files of their own (#820). They were `core:ui`
+SharedPreferences stores before, they are read by the screens that draw with them, and they never reach a server or the
+schedule. `core:ui` exports DataStore (`api`) for that one helper.
+
 Since spec 12, `data:settings` also holds `FileLineupStore` (the `LineupStore` implementation in `core:domain`): one file per
 account, `lineup/<server>/<user>.json` under `filesDir`, replaced atomically. It keeps opaque bytes and knows nothing of
 their format; the codec is in `core:domain`. A path is built only from canonical IDs, a file over 1 MiB reads as a fault, and

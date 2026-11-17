@@ -14,6 +14,8 @@ android {
 dependencies {
     // MarkCache decodes channel logos off the main thread; its constructor and `arrivals` expose coroutines types.
     api(libs.kotlinx.coroutines.core)
+    // The viewer's preferences (#820): ViewerPreference takes a DataStore, and feature:guide keeps its theme in one.
+    api(libs.androidx.datastore.preferences)
 
     testImplementation(libs.kotlinx.coroutines.test)
 

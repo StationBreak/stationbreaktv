@@ -10,3 +10,16 @@ style:
     forbiddenImports:
       - value: 'okhttp3.logging.HttpLoggingInterceptor'
         reason: 'It logs URLs, headers and tokens (F0.3 R18). Use AdapterLog; S3.6.1 builds the redacting logger.'
+      - value: 'android.content.SharedPreferences'
+        reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
+  ForbiddenMethodCall:
+    active: true
+    methods:
+      - value: 'android.content.Context.getSharedPreferences'
+        reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
+      - value: 'android.preference.PreferenceManager.getDefaultSharedPreferences'
+        reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
+      - value: 'androidx.preference.PreferenceManager.getDefaultSharedPreferences'
+        reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
+      - value: 'android.app.Activity.getPreferences'
+        reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
