@@ -3,13 +3,19 @@ package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
@@ -24,7 +30,12 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.ShelfReason
+import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.keepVisible
+import tv.stationbreak.core.ui.mark.ChannelMark
+import tv.stationbreak.core.ui.mark.LocalMarkCache
+import tv.stationbreak.core.ui.mark.markInitialsOf
+import tv.stationbreak.core.ui.mark.variantForTint
 import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
@@ -43,6 +54,7 @@ private sealed interface Line {
 
     data class Heading(
         val group: ChannelGroup,
+        val count: Int,
     ) : Line
 
     data class Channel(
@@ -59,7 +71,7 @@ private fun linesOf(rows: List<ChannelRow>): List<Line> =
         ChannelGroup.entries.forEach { group ->
             val inGroup = rows.filter { it.group == group }
             if (inGroup.isEmpty()) return@forEach
-            add(Line.Heading(group))
+            add(Line.Heading(group, inGroup.size))
             inGroup.forEach { add(Line.Channel(it)) }
         }
         add(Line.Reset)
@@ -75,6 +87,7 @@ internal fun ChannelList(
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
     LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused, linesAbove = 1) }
+    RequestVisibleMarks(lines, state)
     LazyColumn(
         modifier.fillMaxWidth().testTag(ChannelsTags.LIST),
         state = state,
@@ -84,7 +97,7 @@ internal fun ChannelList(
             when (val line = lines[i]) {
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
                 Line.New -> NewLine(focused = i == focused, locked = !ui.canAddCustom)
-                is Line.Heading -> HeadingLine(line.group)
+                is Line.Heading -> HeadingLine(line.group, line.count)
                 is Line.Channel -> RowLine(line.row, focused = i == focused)
                 Line.Reset -> ResetLine(focused = i == focused, locked = !ui.isPro)
             }
@@ -110,34 +123,6 @@ private fun Line.key(): String =
         Line.Reset -> "reset"
     }
 
-private fun headingTag(group: ChannelGroup): String =
-    when (group) {
-        ChannelGroup.On -> ChannelsTags.HEADING_ON
-        ChannelGroup.Shelf -> ChannelsTags.HEADING_SHELF
-        ChannelGroup.Off -> ChannelsTags.HEADING_OFF
-    }
-
-@Composable
-private fun HeadingLine(group: ChannelGroup) {
-    val text = stringResource(groupName(group))
-    Text(
-        text,
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .testTag(headingTag(group)),
-        style = MaterialTheme.typography.labelLarge,
-        color = ChannelsPalette.secondary,
-    )
-}
-
-private fun groupName(group: ChannelGroup): Int =
-    when (group) {
-        ChannelGroup.On -> R.string.channels_group_on
-        ChannelGroup.Shelf -> R.string.channels_group_shelf
-        ChannelGroup.Off -> R.string.channels_group_off
-    }
-
 @Composable
 private fun RowLine(
     row: ChannelRow,
@@ -147,7 +132,7 @@ private fun RowLine(
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
-    Column(
+    Row(
         Modifier
             .fillMaxWidth()
             .panelFocus(focused)
@@ -158,32 +143,75 @@ private fun RowLine(
                 contentDescription = spoken
                 selected = focused
             },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val number = row.number?.toString().orEmpty()
-        // Only the number and name are dimmed: the reasons stay at full strength so they can be read.
+        // Only the number, the mark and the name are dimmed: the reasons stay at full strength so they can be read.
+        val dim = Modifier.alpha(if (reason != null) DIMMED_ALPHA else 1f)
         Text(
-            listOf(number, row.name, labels).filter { it.isNotEmpty() }.joinToString("  "),
-            Modifier.alpha(if (reason != null) DIMMED_ALPHA else 1f),
+            row.number?.toString().orEmpty(),
+            dim.widthIn(min = NUMBER_MIN_WIDTH),
             style = MaterialTheme.typography.bodyLarge,
         )
-        if (reason != null) {
+        // Tint and initials colour come from LocalGuideColors, which the guide host sets with LocalPanelColors.
+        ChannelMark(
+            row.markKey,
+            markInitialsOf(row.name),
+            dim.size(ROW_MARK_WIDTH, ROW_MARK_HEIGHT).testTag(ChannelsTags.rowMark(row.id)),
+        )
+        Column(Modifier.weight(1f)) {
             Text(
-                reason,
-                Modifier.testTag(ChannelsTags.reason(row.id)),
-                style = channelsSecondaryLine(),
-                color = ChannelsPalette.secondary,
+                listOf(row.name, labels).filter { it.isNotEmpty() }.joinToString("  "),
+                dim,
+                style = MaterialTheme.typography.bodyLarge,
             )
-        }
-        if (shelfReason != null) {
-            Text(
-                shelfReason,
-                Modifier.testTag(ChannelsTags.shelfReason(row.id)),
-                style = channelsSecondaryLine(),
-                color = ChannelsPalette.secondary,
-            )
+            if (reason != null) {
+                Text(
+                    reason,
+                    Modifier.testTag(ChannelsTags.reason(row.id)),
+                    style = channelsSecondaryLine(),
+                    color = ChannelsPalette.secondary,
+                )
+            }
+            if (shelfReason != null) {
+                Text(
+                    shelfReason,
+                    Modifier.testTag(ChannelsTags.shelfReason(row.id)),
+                    style = channelsSecondaryLine(),
+                    color = ChannelsPalette.secondary,
+                )
+            }
         }
     }
 }
+
+// A smaller box than the guide's 50 x 28 so the mark does not crowd a 16sp row; the same proportion.
+private val ROW_MARK_WIDTH = 40.dp
+private val ROW_MARK_HEIGHT = 22.dp
+private val NUMBER_MIN_WIDTH = 36.dp
+
+/**
+ * Asks the cache for the logos of the channels in view and a screenful each side; it only schedules the work. The
+ * cache, the mark's tint and its initials colour are the host's: the guide provides `LocalMarkCache` and
+ * `LocalGuideColors` (from the same theme as `LocalPanelColors`), and with no cache a mark draws its initials.
+ */
+@Composable
+private fun RequestVisibleMarks(
+    lines: List<Line>,
+    state: LazyListState,
+) {
+    val marks = LocalMarkCache.current
+    val variant = variantForTint(LocalGuideColors.current.markTint)
+    LaunchedEffect(lines, marks, variant) {
+        snapshotFlow { state.firstVisibleItemIndex }.collect { first ->
+            val from = maxOf(0, first - MARK_LOOKAHEAD)
+            val to = minOf(lines.size, first + MARK_LOOKAHEAD * 2)
+            marks?.request((from until to).mapNotNull { (lines[it] as? Line.Channel)?.row?.markKey }, variant)
+        }
+    }
+}
+
+private const val MARK_LOOKAHEAD = 12
 
 internal fun shelfReasonText(reason: ShelfReason): Int =
     when (reason) {

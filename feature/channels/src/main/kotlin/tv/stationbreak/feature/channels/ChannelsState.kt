@@ -29,6 +29,8 @@ internal data class ChannelRow(
     val hasOverride: Boolean,
     /** The viewer just switched this channel on and its day is still being built (#776): it has no reason yet. */
     val gettingReady: Boolean = false,
+    /** The catalog key of the channel's logo; null for a channel with none, which shows its initials. */
+    val markKey: String? = null,
 )
 
 /** The small dialog open over the list, about one channel. */

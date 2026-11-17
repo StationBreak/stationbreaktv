@@ -43,6 +43,8 @@ private val PanelGap = 16.dp
 /**
  * The channel screen: the title and the list in the band left of [pictureHole], and the open panel below the hole, all
  * inside the safe area. The focus is drawn from [ChannelsUi.focus] (ADR-0008 addendum), not Compose's focus search.
+ * The host (the guide) provides `LocalMarkCache`, `LocalGuideColors` and `LocalPanelColors`; with no mark cache a
+ * channel's mark draws its initials.
  */
 @Composable
 internal fun ChannelsScreen(

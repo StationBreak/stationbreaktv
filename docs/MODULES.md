@@ -130,7 +130,7 @@ moves no channel or number, yet must reload the grid. Live TV and flipping follo
 exist, and where); a channel's order reaches them through the schedule they read at the next block. When the channel
 playing is gone from the lineup, the guide tunes the neighbour by `neighbourOf` (the next higher number, else the next
 lower). The channel plate carries a 32 dp channel mark (spec 27): the logo bundled in `core:ui`'s `assets/channelmarks/` (`ChannelMark`, `MarkCache`),
-found by the channel's recipe key (`ChannelAiring.recipeKey`) and decoded off the main thread into `MarkCache`, else an
+found by the channel's recipe key (`ChannelAiring.recipeKey`; the Channels screen finds it by `ChannelSummary.recipeKey`) and decoded off the main thread into `MarkCache`, else an
 initials tile; the channel column is 168 dp wide to hold it. Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` and `LibrariesSlot` types, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.

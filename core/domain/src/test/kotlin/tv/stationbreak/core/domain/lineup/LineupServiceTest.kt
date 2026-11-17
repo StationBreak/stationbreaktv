@@ -587,11 +587,13 @@ class LineupServiceTest {
                     kid = true,
                     optIn = false,
                     playKey = toons.playKey,
+                    recipeKey = "toons",
                 )
             assertEquals(expected, toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
             assertEquals(ChannelKind.Leftovers, odds.kind)
             assertEquals("Odds", odds.name)
+            assertEquals("odds-and-ends", odds.recipeKey)
             val afterHours = summaries.first { it.id == LineupIds.starter("after-hours") }
             assertEquals(ChannelStatus.Shelf, afterHours.state)
         }
@@ -611,6 +613,19 @@ class LineupServiceTest {
             assertEquals(unfinalised, service.loaded(ACCOUNT)?.lineup, "the stored lineup is still read")
             service.refresh(ACCOUNT, LIBRARIES)
             assertTrue(checkNotNull(current()).finalised)
+        }
+
+    @Test
+    fun aCustomChannelHasNoRecipeKey() =
+        runBlocking<Unit> {
+            val source = ChannelSource.Custom(rules("Mine", Source.Genre("Comedy")))
+            val mine = channel("custom-1", 600, ChannelState.On, source)
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(mine)))
+
+            val summary = service.channels(ACCOUNT).first { it.isNotEmpty() }.single()
+
+            assertEquals(ChannelKind.Custom, summary.kind)
+            assertNull(summary.recipeKey, "only a starter or leftovers channel has a logo key")
         }
 
     @Test

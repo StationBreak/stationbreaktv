@@ -2,9 +2,11 @@
 package tv.stationbreak.feature.channels.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -16,6 +18,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -46,10 +50,17 @@ internal fun HouseholdLine(
                 toggleableState = ToggleableState(on)
             },
     ) {
-        Text(
-            "$label  $state",
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        // The state is the setting's value: at the row's end, in the primary colour, so it is not read as a heading.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                state,
+                Modifier.testTag(ChannelsTags.HOUSEHOLD_STATE),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = ChannelsPalette.text,
+                textAlign = TextAlign.End,
+            )
+        }
         Text(
             hint,
             style = MaterialTheme.typography.bodyMedium,

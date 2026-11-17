@@ -45,7 +45,7 @@ internal object ChannelsPalette {
     /** The properties sheet's ground. */
     val sheet: Color @Composable get() = LocalPanelColors.current.sheet.surface
 
-    /** The 1 dp line on the properties sheet's left edge. */
+    /** The 1 dp line: the properties sheet's left edge, and the rule above a list group's flag. */
     val sheetLine: Color @Composable get() = LocalPanelColors.current.sheet.line
 
     /** The content-rating badge on the sheet. */
