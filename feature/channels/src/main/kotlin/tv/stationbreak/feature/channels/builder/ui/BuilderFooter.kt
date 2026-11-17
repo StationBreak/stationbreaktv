@@ -109,7 +109,8 @@ private fun NextButton(ui: BuilderUi) {
             style = MaterialTheme.typography.bodyLarge,
             color = if (enabled) ChannelsPalette.text else ChannelsPalette.dimmed,
         )
-        if (!enabled) {
+        // The one reason Next can name is the Sources page's; on the Name step the field shows its own problem.
+        if (!enabled && ui.step == BuilderStep.Sources) {
             Text(
                 stringResource(R.string.builder_next_needs_source),
                 Modifier.testTag(BuilderTags.NEXT_REASON),
