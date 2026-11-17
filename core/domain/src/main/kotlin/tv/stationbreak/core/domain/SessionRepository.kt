@@ -6,6 +6,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -44,6 +46,12 @@ sealed interface RestoreOutcome {
     data class Unavailable(
         val error: MediaServerError,
     ) : RestoreOutcome
+
+    /**
+     * The user signed out, or someone signed in, while the server was being asked: what it confirmed is not the
+     * session any more, so nothing was published, written or cleared (#333).
+     */
+    data object Superseded : RestoreOutcome
 }
 
 /**
@@ -62,6 +70,13 @@ class SessionRepository(
     private val library = TolerantCache(cache)
     private val held = MutableStateFlow<Session?>(null)
 
+    // Moves on every sign-in ([save]) and every clear (sign-out, a rejected session), under [guard], which also covers
+    // their store writes. A [verify] or [restore] notes it before reading the store and asking the server, and
+    // publishes (or writes back) what the server confirmed only if it has not moved, so a check already in flight can
+    // never bring back a session the user signed out of or replaced meanwhile (#333). Never held across a server call.
+    private val guard = Mutex()
+    private var generation = 0L
+
     /**
      * The signed-in session, held in memory for whoever needs it after sign-in (the player's media requests read it
      * on every call). The one holder: [save], a confirmed [restore] and a confirmed [verify] set it; [clear],
@@ -75,8 +90,12 @@ class SessionRepository(
      * storage: the user is signed in for this run, so every other account's saved library goes now (spec 06 task 2.12).
      */
     suspend fun save(session: Session): PersistOutcome {
-        val outcome = write(session.toStored())
-        held.value = session
+        val outcome =
+            guard.withLock {
+                generation++
+                held.value = session
+                write(session.toStored())
+            }
         library.activate(session.libraryAccount())
         return outcome
     }
@@ -93,6 +112,7 @@ class SessionRepository(
      * An `http` to `https` upgrade the server adopted is written back, and the session is kept.
      */
     suspend fun restore(configured: ServerAddress): RestoreOutcome {
+        val started = guard.withLock { generation }
         val raw = (store.load(SESSION_KEY) as? SecretStoreResult.Success)?.value ?: return RestoreOutcome.SignedOut
         val stored = decode(raw)
         return when {
@@ -110,7 +130,7 @@ class SessionRepository(
             }
 
             else -> {
-                resume(stored)
+                resume(stored, started)
             }
         }
     }
@@ -122,6 +142,7 @@ class SessionRepository(
      */
     @Suppress("ReturnCount") // Each early return is a way the check ends without asking the server.
     suspend fun verify(configured: ServerAddress): RestoreOutcome {
+        val started = guard.withLock { generation }
         val raw = (store.load(SESSION_KEY) as? SecretStoreResult.Success)?.value ?: return RestoreOutcome.SignedOut
         val stored = decode(raw) ?: return RestoreOutcome.SignedOut
         if (!stored.address.bindsTo(configured) && !configured.bindsTo(stored.address)) {
@@ -129,8 +150,9 @@ class SessionRepository(
         }
         return when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
-                held.value = result.value
-                RestoreOutcome.Restored(result.value)
+                // Signed out (or in again) while the server was asked: what it confirmed is no longer the session.
+                val current = guard.withLock { (generation == started).also { if (it) held.value = result.value } }
+                if (current) RestoreOutcome.Restored(result.value) else RestoreOutcome.Superseded
             }
 
             is ServerResult.Failure -> {
@@ -141,17 +163,35 @@ class SessionRepository(
         }
     }
 
-    private suspend fun resume(stored: StoredSession): RestoreOutcome =
+    private suspend fun resume(
+        stored: StoredSession,
+        started: Long,
+    ): RestoreOutcome =
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
-                if (result.value.address != stored.address) write(result.value.toStored())
-                held.value = result.value
-                library.activate(result.value.libraryAccount())
-                RestoreOutcome.Restored(result.value)
+                // Published and written back only if nobody signed out or in while the server was asked (#333).
+                val current =
+                    guard.withLock {
+                        (generation == started).also {
+                            if (it) {
+                                if (result.value.address != stored.address) write(result.value.toStored())
+                                held.value = result.value
+                            }
+                        }
+                    }
+                if (current) {
+                    library.activate(result.value.libraryAccount())
+                    RestoreOutcome.Restored(result.value)
+                } else {
+                    RestoreOutcome.Superseded
+                }
             }
 
             is ServerResult.Failure -> {
-                if (onServerError(result.error, stored.libraryAccount())) {
+                // A refusal of a session that was replaced meanwhile must not clear the one that replaced it.
+                if (guard.withLock { generation } != started) {
+                    RestoreOutcome.Superseded
+                } else if (onServerError(result.error, stored.libraryAccount())) {
                     RestoreOutcome.Rejected(result.error)
                 } else {
                     RestoreOutcome.Unavailable(result.error)
@@ -181,8 +221,11 @@ class SessionRepository(
     }
 
     suspend fun clear() {
-        held.value = null
-        store.clear(SESSION_KEY)
+        guard.withLock {
+            generation++
+            held.value = null
+            store.clear(SESSION_KEY)
+        }
     }
 
     /**
