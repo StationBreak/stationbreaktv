@@ -36,6 +36,8 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +82,10 @@ internal val ChannelTileGap = 4.dp
 private val TilePadding = 2.dp
 private val TileLine = 1.dp
 private val TileRadius = 2.dp
+
+// The playing channel's marker: a 2 dp bar, 3 dp in from the tile's left, top and bottom edges.
+private val MarkerWidth = 2.dp
+private val MarkerInset = 3.dp
 private val LabelGap = 6.dp
 private val OutlineWidth = 2.dp
 private val OutlineRadius = 3.dp
@@ -139,6 +145,7 @@ internal fun GuideGrid(
                                 focusOf,
                                 viewportOf,
                                 nowOf,
+                                playing = row.channel == current,
                             )
                         }
                     }
@@ -165,6 +172,7 @@ private fun GuideRowCells(
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
+    playing: Boolean,
 ) {
     Layout(
         content = {
@@ -172,7 +180,7 @@ private fun GuideRowCells(
                 key(cell.startMs) {
                     val place =
                         remember(cell, originMs, geometry) { CellPlace(cell.startMs, cell.endMs, originMs, geometry) }
-                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf)
+                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf, playing)
                 }
             }
         },
@@ -192,10 +200,12 @@ private fun GuideRowCells(
  * The channel cell, drawn as a tile (#803): card fill, a 1 dp line outline and a 2 dp radius, the column's width less
  * the 4 dp gap to the first cell. Inside it the number, right-aligned, then the mark in a 50 by 28 dp box. The
  * channel's name is not drawn here: the details panel has it. On the row that holds the programme focus the number is
- * in the primary colour and the outline is the key caps' (white at 28%); the channel playing is told by its number in
- * the primary colour, not by an accent. While the focus is on the channel column (#631) the focused row's tile has a
- * 2 dp accent outline, inside its bounds. The outlines are read in the draw phase, so a focus move redraws and
- * recomposes nothing; only the number's colour changes with the row that holds the focus, on those two cells.
+ * in the primary colour and the outline is the key caps' (white at 28%); the channel playing is told by a primary-text
+ * bar, not by an accent. While the focus is on the channel column (#631) the focused row's tile has a
+ * 2 dp accent outline, inside its bounds. The channel playing also carries a 2 dp bar of primary text on the tile's
+ * left edge ([TileLook.marker]), which no focus state draws, and a "playing" state for a screen reader. The outlines
+ * are read in the draw phase, so a focus move redraws and recomposes nothing; only the number's colour changes with
+ * the row that holds the focus, on those two cells.
  */
 @Composable
 private fun ChannelCell(
@@ -205,15 +215,17 @@ private fun ChannelCell(
     channelFocusOf: () -> ChannelId?,
 ) {
     val colors = LocalGuideColors.current
+    val playingLabel = stringResource(R.string.guide_playing)
     // Both read when drawing, never in composition: a move to another row recomposes no channel cell.
     val lookNow = { tileLook(focusOf()?.channel == row.channel, playing, colors) }
     Row(
         Modifier
             .width(ChannelColumnWidth - ChannelTileGap)
             .fillMaxHeight()
-            .channelTile(colors.card) { lookNow().line }
+            .channelTile(colors.card, lookNow)
             .channelOutline(colors.accent) { channelFocusOf() == row.channel }
-            .padding(horizontal = TilePadding),
+            .padding(horizontal = TilePadding)
+            .semantics(mergeDescendants = true) { if (playing) stateDescription = playingLabel },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(
@@ -241,16 +253,19 @@ private fun Modifier.extendRight(extra: Dp): Modifier =
         layout(constraints.maxWidth, placeable.height) { placeable.place(0, 0) }
     }
 
-/** A channel tile's number colour and resting outline colour. */
+/** A channel tile's number colour, resting outline colour and, for the channel playing, its marker bar's colour. */
 internal data class TileLook(
     val number: Color,
     val line: Color,
+    val marker: Color? = null,
 )
 
 /**
  * The number is primary on the playing channel and on the row that holds the programme focus ([rowFocused]), else
- * secondary; the outline is the quiet line, or the key caps' stroke (white at 28% in Dark, the matching token in Light)
- * on the focused row. The channel-focus accent outline is drawn over this, on its own.
+ * secondary; the playing channel alone has a [TileLook.marker] (primary text: the accent is for focus, now and
+ * progress only), so it is told from a focused row by more than the number; the outline is the quiet line, or the
+ * key caps' stroke (white at 28% in Dark, the matching token in Light) on the focused row. The channel-focus
+ * accent outline is drawn over this, on its own.
  */
 internal fun tileLook(
     rowFocused: Boolean,
@@ -260,16 +275,17 @@ internal fun tileLook(
     TileLook(
         number = if (playing || rowFocused) colors.textPrimary else colors.textSecondary,
         line = if (rowFocused) colors.keyCapStroke else colors.line,
+        marker = if (playing) colors.textPrimary else null,
     )
 
 /**
- * The tile behind a channel cell (#803): [fill] with a [TileLine] outline of the colour [lineOf] says (read when
+ * The tile behind a channel cell (#803): [fill] with a [TileLine] outline of the colour [lookOf] says (read when
  * drawing, so a focus move redraws it and recomposes nothing), a [TileRadius] radius, [CellInset] from the rows above
- * and below as the cells are from each other.
+ * and below as the cells are from each other, and the [TileLook.marker] bar inside the left edge when there is one.
  */
 private fun Modifier.channelTile(
     fill: Color,
-    lineOf: () -> Color,
+    lookOf: () -> TileLook,
 ): Modifier =
     drawBehind {
         val inset = CellInset.toPx()
@@ -277,13 +293,23 @@ private fun Modifier.channelTile(
         val corner = CornerRadius(TileRadius.toPx())
         val height = size.height - 2 * inset
         drawRoundRect(fill, Offset(0f, inset), Size(size.width, height), corner)
+        val look = lookOf()
         drawRoundRect(
-            lineOf(),
+            look.line,
             topLeft = Offset(line / 2, inset + line / 2),
             size = Size(size.width - line, height - line),
             cornerRadius = corner,
             style = Stroke(line),
         )
+        look.marker?.let {
+            val gap = MarkerInset.toPx()
+            drawRoundRect(
+                it,
+                topLeft = Offset(gap, inset + gap),
+                size = Size(MarkerWidth.toPx(), height - 2 * gap),
+                cornerRadius = CornerRadius(MarkerWidth.toPx() / 2),
+            )
+        }
     }
 
 /** A [OutlineWidth] outline of [color] inside the bounds, drawn only while [focused] says so (read when drawing). */

@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import tv.stationbreak.core.ui.GuideColors
 
@@ -42,6 +43,20 @@ class ChannelTileLookTest {
             val look = tileLook(rowFocused = false, playing = true, colors = c)
             assertEquals(c.textPrimary, look.number)
             assertEquals(c.line, look.line)
+        }
+    }
+
+    @Test
+    fun onlyThePlayingChannelHasAMarker_andItIsNotTheAccent() {
+        for (c in themes) {
+            assertEquals(null, tileLook(rowFocused = false, playing = false, colors = c).marker)
+            assertEquals(null, tileLook(rowFocused = true, playing = false, colors = c).marker)
+            val playing = tileLook(rowFocused = false, playing = true, colors = c)
+            assertEquals(c.textPrimary, playing.marker)
+            assertNotEquals(c.accent, playing.marker)
+            // Told from a focused row that is not playing: same number, but only the playing one has the bar.
+            assertEquals(tileLook(rowFocused = true, playing = false, colors = c).number, playing.number)
+            assertNotEquals(tileLook(rowFocused = true, playing = false, colors = c).marker, playing.marker)
         }
     }
 

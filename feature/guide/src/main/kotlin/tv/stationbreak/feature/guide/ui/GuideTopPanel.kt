@@ -65,12 +65,16 @@ internal class ChannelBoxReaders(
     val identities: StateFlow<Map<ChannelId, ChannelIdentity>> = NoIdentities,
 )
 
-/** The top-left panel of [kind], in [modifier]'s place; [GuidePanelKind.Empty] keeps the place and draws nothing. */
+/**
+ * The top-left panel of [kind], in [modifier]'s place; [GuidePanelKind.Empty] keeps the place and draws nothing. The
+ * details panel says when its channel is the [current] one, the channel playing.
+ */
 @Composable
 internal fun TopPanel(
     kind: GuidePanelKind,
     parts: TopPanelParts,
     modifier: Modifier,
+    current: ChannelId? = null,
 ) {
     when (kind) {
         GuidePanelKind.Empty -> {
@@ -87,7 +91,7 @@ internal fun TopPanel(
         }
 
         GuidePanelKind.Details -> {
-            DetailsPanel(parts.panel, parts.nowOf, modifier)
+            DetailsPanel(parts.panel, parts.nowOf, modifier, current)
         }
     }
 }

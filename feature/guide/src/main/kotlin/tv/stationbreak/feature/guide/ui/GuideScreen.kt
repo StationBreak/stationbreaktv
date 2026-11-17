@@ -240,7 +240,7 @@ internal fun GuideScreen(
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel)
                 val parts =
                     TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, channelBox)
-                TopPanel(kind, parts, panelSize)
+                TopPanel(kind, parts, panelSize, current)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(
                     stateOf,

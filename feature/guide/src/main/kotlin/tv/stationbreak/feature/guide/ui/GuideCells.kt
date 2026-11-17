@@ -249,6 +249,7 @@ internal fun GuideCellView(
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
+    playing: Boolean = false,
 ) {
     val focused by remember(channel, cell.startMs, focusOf) {
         derivedStateOf { focusOf()?.let { it.channel == channel && it.cellStartMs == cell.startMs } == true }
@@ -299,7 +300,7 @@ internal fun GuideCellView(
             // kept; the unmerged tree still has the Text node.
             .clearAndSetSemantics {
                 selected = focused
-                contentDescription = cellDescription(resources, cell, labels.described, onNow, is24h)
+                contentDescription = cellDescription(resources, cell, labels.described, onNow, is24h, playing)
             },
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -439,17 +440,23 @@ internal fun secondLineOf(
         ?.takeIf { twoLinesFit(fontScale, rowHeightDp) }
         ?.let(::numbersOf)
 
-/** "Title, 8:30 – 9:00 PM", and ", on now" for the program airing: what a screen reader says about a cell. */
+/**
+ * "Title, 8:30 – 9:00 PM", and ", on now" for the program airing, then ", playing" when it is on the channel live TV
+ * is playing: what a screen reader says about a cell.
+ */
+@Suppress("LongParameterList") // The cell, its title, its three states and the clock's format.
 private fun cellDescription(
     resources: Resources,
     cell: GuideCell,
     title: String,
     onNow: Boolean,
     is24h: Boolean,
+    playing: Boolean,
 ): String {
     val slot = ProgramText.slot(cell.startMs, cell.endMs, ZoneId.systemDefault(), is24h)
     val described = resources.getString(R.string.guide_cell_description, title, slot)
-    return if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
+    val now = if (onNow) resources.getString(R.string.guide_cell_on_now, described) else described
+    return if (playing && onNow) resources.getString(R.string.guide_cell_playing, now) else now
 }
 
 /** Draws [ellipsis] in [color], centred on [span] (the part of the cell in view, from its outer edge) if any. */

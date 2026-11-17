@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
@@ -86,6 +87,7 @@ internal fun DetailsPanel(
     panel: StateFlow<CellDetails?>,
     nowOf: () -> Long?,
     modifier: Modifier,
+    current: ChannelId? = null,
 ) {
     val details by panel.collectAsStateWithLifecycle()
     val now by remember(nowOf) { derivedStateOf(nowOf) }
@@ -98,7 +100,8 @@ internal fun DetailsPanel(
         val shown = details
         if (shown != null) {
             val rested = restedOn(shown.channelNumber to shown.cell.startMs)
-            PanelLines(shown, now ?: shown.cell.startMs, describe = rested)
+            val playing = current != null && shown.channel == current
+            PanelLines(shown, now ?: shown.cell.startMs, describe = rested, playing = playing)
         }
     }
 }
@@ -189,6 +192,7 @@ private fun PanelLines(
     details: CellDetails,
     nowMs: Long,
     describe: Boolean,
+    playing: Boolean,
 ) {
     val copy = programCopy()
     val cell = details.cell
@@ -199,9 +203,10 @@ private fun PanelLines(
     val meta =
         remember(item, metaCopy, upNext) { upNext ?: item?.let { metaLine(it.year, it.runtime, it.genres, metaCopy) } }
     val colors = LocalGuideColors.current
+    val playingWord = if (playing) stringResource(R.string.guide_playing) else null
     Slot(PanelSlot.Channel) {
         Text(
-            text = channelLine(details.channelNumber, details.channelName),
+            text = channelLine(details.channelNumber, details.channelName, playingWord),
             modifier = Modifier.testTag(GuideTags.PANEL_CHANNEL),
             style = guideFigures(11.sp, FontWeight.Normal),
             color = colors.textSecondary,

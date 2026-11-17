@@ -29,8 +29,10 @@ Nothing on the grid said that Left reaches the channel box, or that its column c
 |---|---|---|
 | Resting | `textSecondary` | 1 dp `line` |
 | Holds the programme focus | `textPrimary` | 1 dp `keyCapStroke` (white at 28% in Dark, the matching Light token) |
-| The playing channel | `textPrimary` | as above, by its row's state |
+| The playing channel | `textPrimary` | as above, by its row's state, plus a 2 dp `textPrimary` bar (round ends) 3 dp in from the tile's left, top and bottom edges |
 | Channel focus (#631) | as above | 2 dp `accent`, unchanged |
+
+The bar is the playing channel's mark and no focus state draws it, so the playing channel is told from a focused row by more than its number; it is not the accent, which keeps its three jobs. The tile reads "Playing" to a screen reader (its state), the playing channel's on-now cell reads ", playing" after ", on now", and the details panel's channel line ends " · Playing" when its channel is the one playing.
 
 The outlines are read when drawing, so a focus move redraws and recomposes nothing; the number's colour is read when drawing too, so a move to another row recomposes no channel cell. Light uses the Light tokens throughout.
 
