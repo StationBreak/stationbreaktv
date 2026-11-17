@@ -70,6 +70,19 @@ class SignInTest {
     }
 
     @Test
+    fun aUsernameWithQuotesAndControlCharactersIsEscapedAsJson() {
+        jellyfin.on("POST", "/Users/AuthenticateByName") { jellyfin.json(authResult(token)) }
+        signIn(SignInRequest(jellyfin.address, "al\"i\\ce\n\u0001", "pw".toCharArray(), null))
+        val body =
+            jellyfin
+                .requests("/Users/AuthenticateByName")
+                .single()
+                .body!!
+                .utf8()
+        assertEquals("{\"Username\":\"al\\\"i\\\\ce\\n\\u0001\",\"Pw\":\"pw\"}", body)
+    }
+
+    @Test
     fun aBadPasswordIsHttpUnauthorized() {
         jellyfin.on("POST", "/Users/AuthenticateByName") { jellyfin.status(401) }
         assertIs<MediaServerError.HttpUnauthorized>(signIn(request()).errorOrNull())

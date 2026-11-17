@@ -204,6 +204,9 @@ dependencies {
     testImplementation(testFixtures(project(":core:domain")))
     // The benchmark playback run (src/benchmark) is tested with virtual time.
     testImplementation(libs.kotlinx.coroutines.test)
+    // The benchmark's JSON lines (src/benchmark/.../JsonLine.kt) are encoded by kotlinx.serialization (#822). It is
+    // already on every variant's runtime classpath through data:jellyfin; this only lets the benchmark compile against it.
+    "benchmarkImplementation"(libs.kotlinx.serialization.json)
 }
 
 // The manifest and XML-rule tests (BackupRulesTest, NetworkSecurityConfigTest) read these files straight off disk, so

@@ -1,34 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app.bench
 
-import java.util.Locale
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /** One flat JSON object on one line. Values are strings, numbers, booleans or null; nothing else is accepted. */
 internal fun jsonObject(vararg fields: Pair<String, Any?>): String = jsonObject(fields.asList())
 
-/** The same, from a list. */
+/** The same, from a list, encoded by kotlinx.serialization. A repeated name keeps its last value. */
 internal fun jsonObject(fields: List<Pair<String, Any?>>): String =
-    fields.joinToString(",", "{", "}") { (name, value) ->
-        val text =
-            when (value) {
-                null -> "null"
-                is String -> quote(value)
-                is Boolean, is Number -> value.toString()
-                else -> error("unsupported JSON value")
-            }
-        "${quote(name)}:$text"
-    }
+    Json.encodeToString(
+        JsonObject.serializer(),
+        JsonObject(fields.associate { (name, value) -> name to element(value) }),
+    )
 
-private fun quote(text: String): String =
-    buildString {
-        append('"')
-        for (c in text) {
-            when {
-                c == '"' -> append("\\\"")
-                c == '\\' -> append("\\\\")
-                c < ' ' -> append("\\u%04x".format(Locale.ROOT, c.code))
-                else -> append(c)
-            }
-        }
-        append('"')
+private fun element(value: Any?): JsonElement =
+    when (value) {
+        null -> JsonNull
+        is String -> JsonPrimitive(value)
+        is Boolean -> JsonPrimitive(value)
+        is Number -> JsonPrimitive(value)
+        else -> error("unsupported JSON value")
     }
