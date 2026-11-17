@@ -33,4 +33,14 @@
     <!-- Spoken with a row: its state. -->
     <string name="settings_libraries_ticked">Ticked</string>
     <string name="settings_libraries_unticked">Not ticked</string>
+    <!-- Proposed with the design session for #336, for Phil's review. Who is signed in, under the title: the server's
+         name, never its address (no user name is known after Quick Connect or a restart). -->
+    <string name="settings_signed_in_to">Signed in to %1$s</string>
+    <!-- The last row: a first Select arms it, a second signs out. -->
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_armed">Select again to sign out</string>
+    <string name="settings_signing_out">Signing out…</string>
+    <string name="settings_sign_out_note">You\'ll need to sign in again on this TV.</string>
+    <!-- Signed out here, but the server could not be told (offline, or it did not answer). -->
+    <string name="settings_signed_out_not_revoked">Signed out on this TV, but the server couldn\'t be told. Remove this TV in the server\'s dashboard. Press Select to go on.</string>
 </resources>

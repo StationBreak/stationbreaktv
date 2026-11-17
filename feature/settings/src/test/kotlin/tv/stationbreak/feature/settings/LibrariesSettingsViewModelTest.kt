@@ -706,7 +706,7 @@ class LibrariesSettingsViewModelTest {
             val clock = TestTimeSource()
             val main = StandardTestDispatcher(testScheduler)
             val worker = UnconfinedTestDispatcher(testScheduler)
-            val made = LibrariesSettingsViewModel(choices, main, clock, worker) { lines += it }
+            val made = LibrariesSettingsViewModel(choices, main, clock, worker, log = { lines += it })
             vm = made
             made.open()
             runCurrent()

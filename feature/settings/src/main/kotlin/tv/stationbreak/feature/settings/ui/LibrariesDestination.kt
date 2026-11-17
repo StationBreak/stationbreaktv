@@ -28,16 +28,19 @@ import tv.stationbreak.feature.settings.LibrariesSettingsViewModel
  * that asks the server for its libraries once.
  *
  * Keys: Up and Down move between the rows, Select ticks or unticks the focused one (applied at once), Back finishes
- * the screen: [onDone] is called once, and the host closes it.
+ * the screen: [onDone] is called once, and the host closes it. The last row signs out (#336): a first Select arms it,
+ * a second signs out, and a move or Back disarms it; once the sign-out has run, [onSignedOut] is called and the host
+ * leaves for launch routing, which asks for a new sign-in on the same server.
  */
 @Composable
 fun LibrariesDestination(
     pictureHole: DpRect,
     onDone: () -> Unit,
+    onSignedOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: LibrariesSettingsViewModel = hiltViewModel()
-    LibrariesRoot(viewModel, pictureHole, onDone, modifier)
+    LibrariesRoot(viewModel, pictureHole, onDone, onSignedOut, modifier)
 }
 
 /** [LibrariesDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -46,8 +49,11 @@ internal fun LibrariesRoot(
     viewModel: LibrariesSettingsViewModel,
     pictureHole: DpRect,
     onDone: () -> Unit,
+    onSignedOut: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val signedOut by rememberUpdatedState(onSignedOut)
+    LaunchedEffect(viewModel) { viewModel.signedOut.collect { signedOut() } }
     DisposableEffect(viewModel) {
         viewModel.open()
         onDispose { viewModel.close() }
@@ -131,6 +137,8 @@ internal class LibrariesActions(
             }
 
             Pad.Back -> {
+                // Back first disarms an armed sign-out; only an unarmed Back finishes the screen.
+                if (vm.disarm()) return
                 finished = true
                 onDone()
             }

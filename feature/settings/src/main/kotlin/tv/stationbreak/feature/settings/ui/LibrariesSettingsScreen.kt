@@ -62,6 +62,7 @@ import tv.stationbreak.feature.settings.LibraryRow
 import tv.stationbreak.feature.settings.Notice
 import tv.stationbreak.feature.settings.R
 import tv.stationbreak.feature.settings.RowStatus
+import tv.stationbreak.feature.settings.SignOutStep
 
 private val PanelGap = 16.dp
 private val TickSize = 24.dp
@@ -110,6 +111,7 @@ internal fun LibrariesSettingsScreen(
                 ) {
                     Header(state)
                     LibraryList(state, Modifier.weight(1f))
+                    if (state.signOut != null) SignOutLine(state.signOut, focused = state.signOutFocused)
                 }
             }
         }
@@ -124,6 +126,14 @@ private fun Header(state: LibrariesSettingsState) {
             Modifier.testTag(SettingsTags.TITLE),
             style = MaterialTheme.typography.titleLarge,
         )
+        state.serverName?.let {
+            Text(
+                stringResource(R.string.settings_signed_in_to, it),
+                Modifier.testTag(SettingsTags.SIGNED_IN),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_SP.sp),
+                color = LocalPanelColors.current.secondary,
+            )
+        }
         when (state.phase) {
             LibrariesPhase.Loading -> {
                 NoteLine(stringResource(R.string.settings_libraries_loading), SettingsTags.LOADING)
@@ -232,6 +242,36 @@ private fun LibraryLine(
                 )
             }
         }
+    }
+}
+
+// The last row (#336), drawn as a library row is, without a tick: "Sign out", "Select again to sign out" once armed,
+// and the note that the TV will need a new sign-in. Spoken as one button.
+@Composable
+private fun SignOutLine(
+    step: SignOutStep,
+    focused: Boolean,
+) {
+    val label = signOutLabel(step)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .drawnFocus(focused, LocalPanelColors.current.ring)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag(SettingsTags.SIGN_OUT)
+            .clearAndSetSemantics {
+                contentDescription = label
+                role = Role.Button
+                selected = focused
+                liveRegion = LiveRegionMode.Polite
+            },
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            stringResource(R.string.settings_sign_out_note),
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = SECONDARY_SP.sp),
+            color = LocalPanelColors.current.secondary,
+        )
     }
 }
 
