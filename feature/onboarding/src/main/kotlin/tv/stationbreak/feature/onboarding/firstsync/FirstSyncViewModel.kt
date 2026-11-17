@@ -141,9 +141,17 @@ internal class FirstSyncViewModel
         private fun failed(failure: SyncFailure): FirstSyncPhase {
             val error =
                 when (failure) {
-                    SyncFailure.Network -> MediaServerError.NetworkUnreachable()
-                    SyncFailure.SessionExpired -> MediaServerError.SessionExpired()
-                    SyncFailure.Server, SyncFailure.Suspect, SyncFailure.CacheRace -> MediaServerError.ServerError()
+                    SyncFailure.Network -> {
+                        MediaServerError.NetworkUnreachable()
+                    }
+
+                    SyncFailure.SessionExpired -> {
+                        MediaServerError.SessionExpired()
+                    }
+
+                    SyncFailure.Server, SyncFailure.Suspect, SyncFailure.CacheRace, SyncFailure.LibrariesGone -> {
+                        MediaServerError.ServerError()
+                    }
                 }
             return FirstSyncPhase.Failed(error, ErrorCopyTable.copyFor(error), failure == SyncFailure.SessionExpired)
         }
