@@ -87,4 +87,77 @@ class R8ConfigRulesTest {
         val config = section("/home/dev/stationbreaktv/app/proguard-rules.pro", "-dontshrink")
         assertEquals(listOf(R8Violation("-dontshrink", "app/proguard-rules.pro")), R8ConfigRules.violations(config))
     }
+
+    @Test
+    fun aTabAfterTheOption() = assertFlagged("-dontwarn\t**")
+
+    @Test
+    fun argumentsOnTheNextLine() = assertEquals(1, violations("-dontwarn", "**").size)
+
+    @Test
+    fun assumevaluesFromAnUnlistedSource() = assertFlagged("-assumevalues class a.B {", "    int x return 1;", "}")
+
+    @Test
+    fun assumevaluesFromComposePasses() {
+        val config = section("androidx.compose.runtime:runtime-android:1.12.1", "-assumevalues class a.B {", "}")
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
+    }
+
+    @Test
+    fun ignorewarnings() = assertFlagged("-ignorewarnings")
+
+    @Test
+    fun keepWithOnlyMethodsOfEveryClass() = assertFlagged("-keep class ** {", "    <methods>;", "}")
+
+    @Test
+    fun keepWithPublicMembersOfEveryClass() = assertFlagged("-keep class * { public *; }")
+
+    @Test
+    fun keepWithInitOfEveryClass() = assertFlagged("-keep class ** {", "    <init>(...);", "}")
+
+    @Test
+    fun keepnamesOfEveryClass() = assertFlagged("-keepnames class **")
+
+    @Test
+    fun wildcardAnnotationDoesNotNarrow() = assertFlagged("-keep @** class * { *; }")
+
+    @Test
+    fun metadataAnnotationDoesNotNarrow() = assertFlagged("-keep @kotlin.Metadata class *")
+
+    @Test
+    fun keepclassmembersWithSpecificMembersStillPasses() =
+        assertEquals(emptyList(), violations("-keepclassmembers class ** {", "    <init>(...);", "}"))
+
+    @Test
+    fun aSecondHeaderForTheSameSourceIsFlagged() {
+        val source = "androidx.compose.runtime:runtime-android:1.12.1"
+        val config = section(source) + section(source)
+        assertEquals(listOf("a second section header for this source file"), R8ConfigRules.violations(config).map { it.rule })
+    }
+
+    @Test
+    fun aLibraryWithTwoRuleFilesIsFine() {
+        val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: /x/"
+        assertEquals(emptyList(), R8ConfigRules.violations("${header}one.pro)\n-keep class a.B\n${header}two.pro)\n-keep class a.C\n"))
+    }
+
+    @Test
+    fun aCoordinateHeaderWithoutAnExtractedFileIsFlagged() {
+        val config =
+            "# The proguard configuration file for the following section is androidx.compose.runtime:runtime-android:1.12.1\n" +
+                "-assumenosideeffects class a.B\n"
+        assertEquals(1, R8ConfigRules.violations(config).count { it.rule == "a section header without an extracted file" })
+    }
+
+    @Test
+    fun keeppackagenamesWithNoArguments() = assertFlagged("-keeppackagenames")
+
+    @Test
+    fun keeppackagenamesOfAPackagePasses() = assertEquals(emptyList(), violations("-keeppackagenames com.a.**"))
+
+    @Test
+    fun anIfOnOneLineEvaluatesItsKeep() = assertFlagged("-if class a.B -keep class ** { *; }")
+
+    @Test
+    fun anIfWithANarrowKeepPasses() = assertEquals(emptyList(), violations("-if class a.B -keep class a.C"))
 }

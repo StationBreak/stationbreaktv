@@ -46,7 +46,7 @@ class AndroidAppPlugin : Plugin<Project> {
                             report.set(layout.buildDirectory.file("reports/r8/${variant.name}.txt"))
                             dependsOn("minify${capitalised}WithR8")
                         }
-                    tasks.matching { it.name == "minify${capitalised}WithR8" }.configureEach { finalizedBy(guard) }
+                    tasks.named { it == "minify${capitalised}WithR8" }.configureEach { finalizedBy(guard) }
                 }
             }
 
