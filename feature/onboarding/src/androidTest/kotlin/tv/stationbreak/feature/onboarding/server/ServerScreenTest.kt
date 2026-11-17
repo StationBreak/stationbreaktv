@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -52,6 +53,7 @@ import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
 import tv.stationbreak.feature.onboarding.trust.CertificateTrust
 import tv.stationbreak.feature.onboarding.trust.TrustTags
+import tv.stationbreak.feature.onboarding.typeWhenReady
 
 /** A [MediaServer] whose `discover` can be held open. */
 private class GatedServer(
@@ -210,13 +212,23 @@ class ServerScreenTest {
     }
 
     @Test
-    fun selectOpensTheFieldForEditingAndDoneMovesFocusToTest() {
+    fun goOnTheKeyboardRunsTestWithTheTypedAddress() {
         launch()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(ServerTags.FIELD_INPUT).assert(hasImeAction(ImeAction.Done))
+        compose.onNodeWithTag(ServerTags.FIELD_INPUT).assert(hasImeAction(ImeAction.Go))
+        // performTextInput stands in for a remote app's phone keyboard committing text.
+        compose.typeWhenReady(ServerTags.FIELD_INPUT, "jellyfin.example.test")
+        assertEquals("jellyfin.example.test", viewModel.state.value.input)
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
-        compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
+        assertEquals(listOf("jellyfin.example.test"), server.fake.discoverCalls)
+    }
+
+    @Test
+    fun theTipIsPlainTextBelowTheHelpLine() {
+        launch()
+        compose.onNodeWithTag(ServerTags.TIP).assert(hasText("Tip: you can type with your phone", substring = true))
+        compose.onNodeWithTag(ServerTags.TIP).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.RequestFocus))
     }
 
     @Test

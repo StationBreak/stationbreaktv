@@ -57,7 +57,9 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.HINT_ALPHA
 import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.RemoteAppTip
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
@@ -117,6 +119,12 @@ internal fun ServerScreen(
     val focus = remember { ServerFocus() }
     val phase = state.phase
     FocusFollowsPhase(phase, focus)
+    val runTest = {
+        // A blank field gives the same state again, which StateFlow drops, so the field would not get focus back from
+        // the state alone. Take it here.
+        if (state.input.isBlank()) focus.field.requestFocus()
+        onTest()
+    }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         // A 5% safe area on every side (overscan). The content starts at a fixed height, so the headline and the field
@@ -144,22 +152,18 @@ internal fun ServerScreen(
                     style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                RemoteAppTip(ServerTags.TIP)
                 AddressField(
                     value = state.input,
                     onValueChange = onInputChange,
-                    onDone = { focus.test.requestFocus() },
+                    onGo = runTest,
                     fieldFocus = focus.field,
                     error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
                 )
                 (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
                 ServerButton(
                     label = R.string.server_test,
-                    onClick = {
-                        // A blank field gives the same state again, which StateFlow drops, so the field would not get
-                        // focus back from the state alone. Take it here.
-                        if (state.input.isBlank()) focus.field.requestFocus()
-                        onTest()
-                    },
+                    onClick = runTest,
                     enabled = phase != ServerPhase.Testing,
                     modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
                 )
@@ -271,13 +275,13 @@ private fun focusAfterIdle(
 
 /**
  * The address box: the shared remote-friendly field with the URI keyboard. Done on the keyboard ends editing and
- * [onDone] moves focus on to Test.
+ * [onGo] runs Test.
  */
 @Composable
 private fun AddressField(
     value: String,
     onValueChange: (String) -> Unit,
-    onDone: () -> Unit,
+    onGo: () -> Unit,
     fieldFocus: FocusRequester,
     error: String?,
 ) {
@@ -288,9 +292,8 @@ private fun AddressField(
         hint = stringResource(R.string.server_address_hint),
         fieldTag = ServerTags.FIELD,
         inputTag = ServerTags.FIELD_INPUT,
-        keyboardType = KeyboardType.Uri,
-        imeAction = ImeAction.Done,
-        onImeAction = onDone,
+        keyboardOptions = FieldKeyboard.Address,
+        onImeAction = onGo,
         modifier = Modifier.focusRequester(fieldFocus),
         error = error,
     )

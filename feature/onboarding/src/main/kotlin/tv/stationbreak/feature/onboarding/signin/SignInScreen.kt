@@ -43,7 +43,9 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
+import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.RemoteAppTip
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
@@ -180,6 +182,7 @@ internal fun SignInScreen(
                         style = MaterialTheme.typography.screenBody,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    RemoteAppTip(SignInTags.TIP)
                     Form(
                         state,
                         focus,
@@ -216,8 +219,7 @@ private fun Form(
         hint = stringResource(R.string.signin_username_hint),
         fieldTag = SignInTags.USERNAME,
         inputTag = SignInTags.USERNAME_INPUT,
-        keyboardType = KeyboardType.Text,
-        imeAction = ImeAction.Next,
+        keyboardOptions = FieldKeyboard.Username,
         onImeAction = { focus.password.requestFocus() },
         error = (state.phase as? SignInPhase.InvalidInput)?.let { stringResource(it.copy.message) },
         modifier =
@@ -226,7 +228,7 @@ private fun Form(
                 .focusRequester(focus.username),
     )
     (state.phase as? SignInPhase.InvalidInput)?.let { FieldError(it.copy) }
-    PasswordRow(state, focus, onPasswordChange, onToggleShowPassword)
+    PasswordRow(state, focus, onPasswordChange, onToggleShowPassword, onSignIn)
     Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
         ServerButton(
             label = R.string.signin_sign_in,
@@ -254,13 +256,14 @@ private fun Form(
     }
 }
 
-/** The password field with its Show toggle beside it. Done on the keyboard moves focus to Sign in. */
+/** The password field with its Show toggle beside it. Done on the keyboard signs in. */
 @Composable
 private fun PasswordRow(
     state: SignInUiState,
     focus: SignInFocus,
     onPasswordChange: (String) -> Unit,
     onToggleShowPassword: () -> Unit,
+    onSignIn: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(Gap), verticalAlignment = Alignment.CenterVertically) {
         TvTextField(
@@ -270,9 +273,8 @@ private fun PasswordRow(
             hint = stringResource(R.string.signin_password_hint),
             fieldTag = SignInTags.PASSWORD,
             inputTag = SignInTags.PASSWORD_INPUT,
-            keyboardType = KeyboardType.Password,
-            imeAction = ImeAction.Done,
-            onImeAction = { focus.signIn.requestFocus() },
+            keyboardOptions = FieldKeyboard.Password,
+            onImeAction = onSignIn,
             masked = !state.showPassword,
             modifier =
                 Modifier

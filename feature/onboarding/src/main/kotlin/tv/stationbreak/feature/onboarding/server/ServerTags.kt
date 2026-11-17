@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.server
 /** Test tags for the server screen, public so `app`'s instrumented tests can find its parts. */
 object ServerTags {
     const val FIELD = "server:field"
+    const val TIP = "server:tip"
     const val FIELD_INPUT = "server:fieldInput"
     const val FIELD_ERROR = "server:fieldError"
     const val TEST = "server:test"

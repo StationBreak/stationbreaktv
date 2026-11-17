@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -267,14 +268,27 @@ class SignInScreenTest {
     }
 
     @Test
-    fun doneOnThePasswordMovesFocusToSignIn() {
+    fun doneOnThePasswordSignsInWithTheTypedText() {
         launch()
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.typeWhenReady(SignInTags.USERNAME_INPUT, "alice")
+        compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
+        compose.waitForIdle()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).assert(hasImeAction(ImeAction.Done))
+        compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "pw-not-real")
+        assertEquals("alice", viewModel.state.value.username)
+        assertEquals("pw-not-real", viewModel.state.value.password)
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
-        compose.onNodeWithTag(SignInTags.SIGN_IN).assertIsFocused()
+        assertEquals(1, server.fake.signInCalls.size)
+    }
+
+    @Test
+    fun theTipIsPlainTextBelowTheHelpLine() {
+        launch()
+        compose.onNodeWithTag(SignInTags.TIP).assert(hasText("Tip: you can type with your phone", substring = true))
+        compose.onNodeWithTag(SignInTags.TIP).assert(SemanticsMatcher.keyNotDefined(SemanticsActions.RequestFocus))
     }
 
     // Password sign-in
