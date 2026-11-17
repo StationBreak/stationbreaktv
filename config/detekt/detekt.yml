@@ -3,7 +3,12 @@ naming:
   FunctionNaming:
     # Compose functions are PascalCase by convention (the same exemption as ktlint's in .editorconfig).
     ignoreAnnotated: ['Composable']
+    # The default test paths, plus androidTestDebug: the app's instrumented tests that need the debug-only Hilt host (#436).
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidTestDebug/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
 style:
+  MagicNumber:
+    # The default test paths, plus androidTestDebug: the app's instrumented tests that need the debug-only Hilt host (#436).
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidTestDebug/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
   ForbiddenImport:
     active: true
     # R18 (F0.3): HttpLoggingInterceptor prints URLs, headers and tokens. It exists in no build type, debug included.
@@ -23,3 +28,7 @@ style:
         reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
       - value: 'android.app.Activity.getPreferences'
         reason: 'Viewer preferences go through Jetpack DataStore (CLAUDE.md, #820). Use core:ui ViewerPreference.'
+complexity:
+  TooManyFunctions:
+    # The default test paths, plus androidTestDebug: the app's instrumented tests that need the debug-only Hilt host (#436).
+    excludes: ['**/test/**', '**/androidTest/**', '**/androidTestDebug/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']

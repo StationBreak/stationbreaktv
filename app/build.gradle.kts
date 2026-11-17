@@ -95,6 +95,10 @@ android {
         testInstrumentationRunner = "tv.stationbreak.app.HiltTestRunner"
     }
 
+    // The build type the instrumented tests run against: debug, unless CI asks for the R8-minified benchmark build to
+    // run the security tests against shipped code (#436): `-Pstationbreak.testBuildType=benchmark`.
+    testBuildType = providers.gradleProperty("stationbreak.testBuildType").getOrElse("debug")
+
     // BuildConfig.DEBUG guards the debug-only lineup timing probe (LineupTimingProbe).
     buildFeatures {
         buildConfig = true
@@ -130,6 +134,8 @@ android {
         // initWith copies release's minify and shrink settings: keep them that way, or it measures code that is not shipped.
         create("benchmark") {
             initWith(getByName("release"))
+            // The instrumented-test APK's own rules, for the security tests run against this build (#436).
+            testProguardFiles("proguard-androidtest.pro")
             isDebuggable = false
             // Release code, but measured on a device: the warm switches are read here (like debug).
             buildConfigField("boolean", "WARM_SWITCHES", "true")

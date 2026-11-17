@@ -1044,6 +1044,103 @@ jobs:
   # (.github/scripts/fixtures/) are lockfiles too, so they're scanned as well.
   # Only on PRs that change the dependency files or the build logic (see `checks`), and not on drafts. `checks` is
   # skipped for a draft, so `deps` is empty then; `!cancelled()` keeps it running when a check fails.
+  # The security instrumented tests (#436) against the R8-minified benchmark build: release code with the release
+  # build's R8 rules, which `emulator` (a debug build, never minified) can't check. Only the five tests that guard
+  # the trust and secret-storage paths. On pushes to main and on PRs that can change what R8 produces (the release
+  # scope), as `verify` and `assemble` run the release variants then. One attempt: a failure here is re-run by hand.
+  emulator-minified:
+    needs: checks
+    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
+    runs-on: ubuntu-latest
+    # Setup 3 + cold build ~12 + attempt 18 (step limit) + uploads 2.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-disabled: true
+
+      # The emulator job's dependency cache, read only: this job never writes one.
+      - name: Restore Gradle caches
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-1
+          key: gradle-emulator-v2-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-emulator-v2-${{ runner.os }}-
+
+      # As in `emulator`: the AVD needs about 7.4 GB free.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost
+          df -h /
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # The instrumented tests run against the benchmark build type for this job only (app/build.gradle.kts).
+      - name: Build the minified app and test APKs
+        run: ./gradlew -Pstationbreak.testBuildType=benchmark :app:assembleGithubBenchmark :app:assembleGithubBenchmarkAndroidTest
+
+      - name: Security tests on the minified build (API 25 Android TV)
+        timeout-minutes: 18
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 25
+          target: android-tv
+          arch: x86
+          profile: tv_720p
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: >-
+            ./gradlew -Pstationbreak.testBuildType=benchmark :app:connectedGithubBenchmarkAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest
+
+      - name: Minified security test results
+        if: always()
+        run: |
+          shopt -s globstar nullglob
+          results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
+          if [ "${#results[@]}" -eq 0 ]; then
+            echo "::error::No instrumented test results from the minified build."
+            exit 1
+          fi
+          for f in "${results[@]}"; do
+            echo "::group::$f"
+            grep -oE '<testsuite [^>]*>' "$f" || true
+            grep -oE '<testcase [^>]*>' "$f" || true
+            grep -A5 '<failure' "$f" || true
+            echo "::endgroup::"
+          done
+
+      # Test reports only, no APK (ADR-0011 gates APKs).
+      - name: Upload the minified security test reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: instrumented-minified-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   osv-scanner:
     needs: checks
     if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true && needs.checks.outputs.deps == 'true' }}
