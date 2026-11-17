@@ -18,6 +18,8 @@ object R8ConfigRules {
     private val wildcardOnly = Regex("[*.]+")
     private val separators = Regex("[\\s,]+")
     private val noSpec = setOf("extends", "implements")
+    private val classKeywords = setOf("class", "interface", "enum", "!interface", "!enum")
+    private val sectionEnd = Regex("^# End of content from (.*)$")
     private val coordinateHeader = Regex("[^\\s/]+:[^\\s/]+:\\S+")
     private val ifKeep = Regex("\\s(-keep\\w*\\s.*)", RegexOption.DOT_MATCHES_ALL)
     private val keepFamily =
@@ -67,6 +69,7 @@ object R8ConfigRules {
         val found = mutableListOf<R8Violation>()
         val seen = mutableSetOf<String>()
         var source = "unknown"
+        var open: String? = null
         var directive = StringBuilder()
 
         fun flush() {
@@ -81,10 +84,24 @@ object R8ConfigRules {
         for (raw in configuration.lines()) {
             val line = raw.trim()
             val header = sectionHeader.matchEntire(line)
+            val end = sectionEnd.matchEntire(line)
             when {
+                end != null -> {
+                    flush()
+                    // AGP closes every section with its own end marker, so a copy of the header in a rule file
+                    // (a spoof) shows up as a header inside an open section, or an end with nothing open.
+                    if (end.groupValues[1] != open) {
+                        found += R8Violation("an end marker that does not close the open section", source)
+                    }
+                    open = null
+                    source = "unknown"
+                }
+
                 header != null -> {
                     flush()
                     val text = header.groupValues[1]
+                    if (open != null) found += R8Violation("a section header inside an open section", normalise(text))
+                    open = text
                     source = normalise(text)
                     // A rule file can contain a comment that looks like a header, to borrow another source's allowance.
                     // AGP always prints "(extracted file: …)" after a coordinate, and each file once (a library may have several files).
@@ -109,6 +126,7 @@ object R8ConfigRules {
             }
         }
         flush()
+        if (open != null) found += R8Violation("a section that is never closed", source)
         return found
     }
 
@@ -133,15 +151,21 @@ object R8ConfigRules {
     // `-keep… class ** { *; }`. For -keep and -keepnames (they keep the class itself) a wildcard-only class name is
     // enough, whatever the members. For the member families it needs `*;` (or all fields and methods), or no members at
     // all. Specific member lines (`native <methods>;`) pass. An annotation narrows the rule only if it names one type.
-    // shortcut: `class * extends X` is not caught as a keep-all (it is narrower). Revisit if a real rule slips past.
     private fun keepsEverything(
         option: String,
         args: List<String>,
         body: String,
     ): Boolean {
-        val className = args.lastOrNull() ?: return false
-        val narrowed = args.any { it.startsWith("@") && !wildcardOnly.matches(it.drop(1)) && it != "@kotlin.Metadata" }
-        if (narrowed || !wildcardOnly.matches(className) || args.dropLast(1).lastOrNull() in noSpec) return false
+        // Only an annotation naming exactly one type narrows the rule.
+        val narrowed = args.any { it.startsWith("@") && '*' !in it && '?' !in it && it != "@kotlin.Metadata" }
+        if (narrowed) return false
+        val classKeyword = args.indexOfFirst { it in classKeywords }
+        val superAt = args.indexOfFirst { it in noSpec }
+        val names = args.subList(classKeyword + 1, if (superAt >= 0) superAt else args.size)
+        val broad = { name: String -> wildcardOnly.matches(name) || name.startsWith("!") }
+        // With extends/implements the supertype is what limits the rule; otherwise every listed name does.
+        val candidate = if (superAt >= 0) args.drop(superAt + 1).any(broad) else names.any(broad)
+        if (!candidate) return false
         if (option == "-keep" || option == "-keepnames") return true
         val members =
             body

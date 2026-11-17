@@ -9,7 +9,7 @@ class R8ConfigRulesTest {
         source: String,
         vararg rules: String,
     ) = "# The proguard configuration file for the following section is $source (extracted file: /x/y/proguard.txt)\n" +
-        rules.joinToString("\n") + "\n"
+        rules.joinToString("\n") + "\n# End of content from $source (extracted file: /x/y/proguard.txt)\n"
 
     private fun violations(vararg rules: String) = R8ConfigRules.violations(section("com.evil:lib:1.0", *rules))
 
@@ -138,7 +138,9 @@ class R8ConfigRulesTest {
     @Test
     fun aLibraryWithTwoRuleFilesIsFine() {
         val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: /x/"
-        assertEquals(emptyList(), R8ConfigRules.violations("${header}one.pro)\n-keep class a.B\n${header}two.pro)\n-keep class a.C\n"))
+        val end = "# End of content from a:b:1 (extracted file: /x/"
+        val config = "${header}one.pro)\n-keep class a.B\n${end}one.pro)\n${header}two.pro)\n-keep class a.C\n${end}two.pro)\n"
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
     }
 
     @Test
@@ -160,4 +162,46 @@ class R8ConfigRulesTest {
 
     @Test
     fun anIfWithANarrowKeepPasses() = assertEquals(emptyList(), violations("-if class a.B -keep class a.C"))
+
+    @Test
+    fun aPartialWildcardAnnotationDoesNotNarrow() {
+        assertFlagged("-keep @kotlin.** class * { *; }")
+        assertEquals(1, violations("-keep @**.Metadata class *").size)
+        assertEquals(1, violations("-keep @kotlin.Meta* class *").size)
+    }
+
+    @Test
+    fun aWildcardSupertypeIsAKeepAll() {
+        assertFlagged("-keep class * extends **")
+        assertEquals(1, violations("-keep class * implements **").size)
+    }
+
+    @Test
+    fun aSpecificSupertypeNarrows() = assertEquals(emptyList(), violations("-keep class * extends a.B", "-keep class ** implements a.C"))
+
+    @Test
+    fun aClassListWithAWildcardOrANegationIsAKeepAll() {
+        assertFlagged("-keep class **,!a.B")
+        assertEquals(1, violations("-keep class !a.B").size)
+    }
+
+    @Test
+    fun aHeaderInsideAnOpenSectionIsFlagged() {
+        val spoof =
+            "# The proguard configuration file for the following section is androidx.startup:startup-runtime:1.2.0 (extracted file: /z)"
+        val config = section("com.evil:lib:1.0", spoof, "-assumenosideeffects class a.B")
+        assertEquals(1, R8ConfigRules.violations(config).count { it.rule == "a section header inside an open section" })
+    }
+
+    @Test
+    fun anEndMarkerWithNothingOpenIsFlagged() {
+        val config = section("a:b:1") + "# End of content from a:b:1 (extracted file: /x/y/proguard.txt)\n"
+        assertEquals(listOf("an end marker that does not close the open section"), R8ConfigRules.violations(config).map { it.rule })
+    }
+
+    @Test
+    fun aSectionNeverClosedIsFlagged() {
+        val config = "# The proguard configuration file for the following section is app/proguard-rules.pro\n-keep class a.B\n"
+        assertEquals(listOf("a section that is never closed"), R8ConfigRules.violations(config).map { it.rule })
+    }
 }
