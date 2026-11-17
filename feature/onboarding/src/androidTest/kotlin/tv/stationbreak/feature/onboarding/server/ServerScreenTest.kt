@@ -46,6 +46,7 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.assertStepHeading
 import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
@@ -80,7 +81,7 @@ class ServerScreenTest {
     private val continued = mutableListOf<ConnectedServer>()
     private lateinit var viewModel: ServerViewModel
 
-    private fun launch() {
+    private fun launch(showStep: Boolean = false) {
         val settings = InMemoryServerSettings()
         val sessions = SessionRepository(InMemorySecretStore(), server)
         val certificateTrust = CertificateTrust(server, settings, sessions)
@@ -99,6 +100,7 @@ class ServerScreenTest {
                     onTrustCertificate = viewModel::onTrustCertificate,
                     onDontTrust = viewModel::onDontTrust,
                     onContinue = { continued += it },
+                    showStep = showStep,
                 )
             }
         }
@@ -140,7 +142,29 @@ class ServerScreenTest {
     @Test
     fun theAddressStartsEmptyWithAnExampleHint() {
         launch()
-        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("For example, jellyfin.local:8096"))
+        compose.onNodeWithTag(ServerTags.FIELD).assert(hasText("For example, 192.168.1.20:8096 or media.example.com"))
+    }
+
+    @Test
+    fun theHelpLineSaysWhichAddressToUse() {
+        launch()
+        compose.onNodeWithText("Use the address you open Jellyfin with in a web browser.").assertExists()
+    }
+
+    @Test
+    fun inTheWelcomeFlowStepOneIsSpokenAsPartOfTheHeadlineAndIsNotAFocusStop() {
+        launch(showStep = true)
+        compose.assertStepHeading("Step 1 of 3", "Connect to your Jellyfin server")
+        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithTag(ServerTags.FIELD).assertIsFocused()
+    }
+
+    @Test
+    fun outsideTheWelcomeFlowThereIsNoStepMarker() {
+        launch()
+        compose.onNodeWithText("Step 1 of 3").assertDoesNotExist()
+        compose.onNodeWithText("Connect to your Jellyfin server").assertExists()
     }
 
     @Test

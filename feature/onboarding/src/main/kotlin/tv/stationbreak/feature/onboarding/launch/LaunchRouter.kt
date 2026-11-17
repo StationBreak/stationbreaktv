@@ -17,8 +17,11 @@ import javax.inject.Inject
 
 /** Where launch routing decided the app goes (spec 05, Unit 4). */
 internal sealed interface LaunchRoute {
-    /** Nothing is configured, or the stored server can't be used without asking the user again: the server screen. */
-    data object NoServer : LaunchRoute
+    /** Nothing is stored: the welcome screen (#94), with nothing beneath it. */
+    data object Welcome : LaunchRoute
+
+    /** A stored http address that needs the cleartext confirmation again: the server screen, as it was before. */
+    data object ConfirmAddress : LaunchRoute
 
     /** A server, no usable session: sign-in with [server] handed over, and a line why if a session was refused. */
     data class SignIn(
@@ -47,7 +50,7 @@ internal sealed interface LaunchRoute {
  * Decides where the app opens (spec 05, Unit 4). It **reads the stored settings first**, which is what puts a stored
  * certificate pin in force (`PinSyncingServerSettings.load` applies it) before the first request of the run.
  *
- * - no stored server: [LaunchRoute.NoServer];
+ * - no stored server: [LaunchRoute.Welcome];
  * - a restored session: the picker when no library choice is stored; with one, the first-sync progress screen until
  *   the account's first sync has ended (spec 06, owner answer 3), and then "Setup complete";
  * - signed out, or the session was refused: sign-in for the stored server, after a credential-free `connect` that
@@ -55,7 +58,8 @@ internal sealed interface LaunchRoute {
  * - the server can't be asked: [LaunchRoute.Unavailable], whose Retry asks again. A changed certificate is one of
  *   these; the screen turns it into the trust question.
  *
- * A stored `http` address that needs a cleartext confirmation (ADR-0014) goes to the server screen, because the
+ * A stored `http` address that needs a cleartext confirmation (ADR-0014) goes to the server screen
+ * ([LaunchRoute.ConfirmAddress]), because the
  * confirmation was never stored with it and is not assumed. A restored session's route waits for the selection's
  * resume at start ([SelectionReady], spec 26) before it reads the stored choice.
  */
@@ -69,7 +73,7 @@ internal class LaunchRouter
         private val ready: SelectionReady,
     ) {
         suspend fun route(): LaunchRoute {
-            val record = settings.load() ?: return LaunchRoute.NoServer
+            val record = settings.load() ?: return LaunchRoute.Welcome
             val address = record.address
             return when (val restored = sessions.restore(address)) {
                 is RestoreOutcome.Restored -> restoredRoute(restored.session)
@@ -94,7 +98,7 @@ internal class LaunchRouter
             address: ServerAddress,
             because: MediaServerError?,
         ): LaunchRoute {
-            if (address.cleartextNeedsConfirmation) return LaunchRoute.NoServer
+            if (address.cleartextNeedsConfirmation) return LaunchRoute.ConfirmAddress
             return when (val found = mediaServer.connect(address)) {
                 is ServerResult.Success -> LaunchRoute.SignIn(ConnectedServer(found.value, null, because))
                 is ServerResult.Failure -> LaunchRoute.Unavailable(found.error, address)

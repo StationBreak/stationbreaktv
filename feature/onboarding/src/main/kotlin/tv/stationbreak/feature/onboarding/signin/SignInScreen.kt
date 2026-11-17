@@ -42,7 +42,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -50,6 +52,7 @@ import tv.stationbreak.feature.onboarding.server.FieldError
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
+import tv.stationbreak.feature.onboarding.server.detailsText
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
 private val ContentWidth = 640.dp
@@ -69,9 +72,10 @@ fun SignInDestination(
     onEditAddress: () -> Unit,
     onMissingServer: () -> Unit,
     onSignedIn: (SignInResult) -> Unit,
+    showStep: Boolean = false,
 ) {
     val viewModel: SignInViewModel = hiltViewModel()
-    SignInRoot(viewModel, onEditAddress, onMissingServer, onSignedIn)
+    SignInRoot(viewModel, onEditAddress, onMissingServer, onSignedIn, showStep)
 }
 
 /** [SignInDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -81,6 +85,7 @@ internal fun SignInRoot(
     onEditAddress: () -> Unit,
     onMissingServer: () -> Unit,
     onSignedIn: (SignInResult) -> Unit,
+    showStep: Boolean = false,
 ) {
     if (viewModel.missingServer) {
         // Nothing to sign in to: show the dark background (no flash) and go back to where the address is typed.
@@ -107,6 +112,7 @@ internal fun SignInRoot(
         onQuickConnect = viewModel::onQuickConnect,
         onCancelQuickConnect = viewModel::onCancelQuickConnect,
         onEditAddress = onEditAddress,
+        showStep = showStep,
     )
 }
 
@@ -130,6 +136,7 @@ internal fun SignInScreen(
     onCancelQuickConnect: () -> Unit,
     onEditAddress: () -> Unit,
     modifier: Modifier = Modifier,
+    showStep: Boolean = false,
 ) {
     val focus = remember { SignInFocus() }
     val phase = state.phase
@@ -150,15 +157,15 @@ internal fun SignInScreen(
                 verticalArrangement = Arrangement.spacedBy(Gap),
             ) {
                 val quickConnecting = phase as? SignInPhase.QuickConnect
-                Text(
-                    text =
+                StepHeadline(
+                    headline =
                         if (quickConnecting == null) {
                             stringResource(R.string.signin_headline, state.serverName)
                         } else {
                             stringResource(R.string.quick_connect_headline)
                         },
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    // Quick Connect is a side trip, not a step.
+                    step = if (showStep && quickConnecting == null) 2 else null,
                 )
                 // The password is typed here, so a connection the user accepted without encryption says so here too.
                 if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
@@ -168,6 +175,11 @@ internal fun SignInScreen(
                     // Done: the form has nothing left to ask, so only the status stays.
                     SignedInStatus()
                 } else {
+                    Text(
+                        text = stringResource(R.string.signin_help),
+                        style = MaterialTheme.typography.screenBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Form(
                         state,
                         focus,
@@ -312,7 +324,7 @@ private fun Outcome(
 
         SignInPhase.QuickConnectDisabled -> {
             val copy = ErrorCopyTable.copyFor(MediaServerError.QuickConnectDisabled())
-            SignInNotice(stringResource(copy.message), stringResource(copy.details))
+            SignInNotice(stringResource(copy.message), detailsText(copy))
         }
 
         is SignInPhase.QuickConnectEnded -> {
@@ -325,7 +337,7 @@ private fun Outcome(
         }
 
         is SignInPhase.SessionEnded -> {
-            SignInNotice(stringResource(phase.copy.message), stringResource(phase.copy.details))
+            SignInNotice(stringResource(phase.copy.message), detailsText(phase.copy))
         }
 
         SignInPhase.Idle, SignInPhase.SignedIn, is SignInPhase.InvalidInput, is SignInPhase.QuickConnect -> {

@@ -148,6 +148,15 @@ internal object ErrorCopyTable {
             else -> emptyList()
         }
 
+    /** The arguments of [ErrorCopy.details]: the product name, for the one that names it. */
+    fun detailsArgs(productName: String): List<Any> = listOf(productName)
+
+    /** The arguments of [ErrorCopy.message]: the product name first, then [messageArgs]. */
+    fun messageFormatArgs(
+        error: MediaServerError,
+        productName: String,
+    ): List<Any> = listOf<Any>(productName) + messageArgs(error)
+
     private val classNameShaped = Regex("""[A-Za-z_][A-Za-z0-9_$.]*""")
 
     /**

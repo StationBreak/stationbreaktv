@@ -59,7 +59,7 @@ internal sealed interface LaunchPhase {
 }
 
 /** Where launch routing sends the app. Each is the last thing this screen does. */
-internal enum class LaunchTarget { NoServer, SignIn, Libraries, FirstSync, SetupComplete }
+internal enum class LaunchTarget { Welcome, ConfirmAddress, SignIn, Libraries, FirstSync, SetupComplete }
 
 /**
  * Launch routing (spec 05, Unit 4): runs [LaunchRouter] at startup and again on Retry, hands what the next screen
@@ -100,8 +100,12 @@ internal class LaunchViewModel
             routeJob =
                 viewModelScope.launch {
                     when (val route = router.route()) {
-                        LaunchRoute.NoServer -> {
-                            results.send(LaunchTarget.NoServer)
+                        LaunchRoute.Welcome -> {
+                            results.send(LaunchTarget.Welcome)
+                        }
+
+                        LaunchRoute.ConfirmAddress -> {
+                            results.send(LaunchTarget.ConfirmAddress)
                         }
 
                         is LaunchRoute.SignIn -> {

@@ -34,6 +34,7 @@ import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
+import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
@@ -88,7 +89,7 @@ internal fun SignInErrorPanel(
     onEditAddress: () -> Unit,
 ) {
     val cause = ErrorCopyTable.causeText(phase.error)
-    val details = stringResource(phase.copy.details)
+    val details = detailsText(phase.copy)
     Column(
         modifier = Modifier.testTag(SignInTags.ERROR_PANEL).politeLiveRegion(),
         verticalArrangement = Arrangement.spacedBy(Gap),

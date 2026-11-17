@@ -15,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.feature.onboarding.server.ServerTags
+import tv.stationbreak.feature.onboarding.welcome.WelcomeTags
 
 /** D-pad focus on the app's root, the server screen (retargeted from the hello-world screen, S0.2.2), on API 25. */
 @HiltAndroidTest
@@ -32,27 +33,33 @@ class ServerRootFocusTest {
 
     private fun pressDpad(key: Key) = compose.onRoot().performKeyInput { pressKey(key) }
 
-    // The app opens on launch routing, which finds nothing stored and replaces itself with the server screen; wait for
-    // that screen's field to have focus before any key.
     private fun awaitFocused(tag: String) {
         compose.waitUntil(FOCUS_TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess }
     }
 
-    @Test
-    fun theAddressFieldHasFocusAtLaunch() {
+    // The app opens on launch routing, which finds nothing stored and replaces itself with the welcome screen; Get
+    // started (default focus) opens the server screen, whose field then has focus.
+    private fun openServerScreen() {
+        awaitFocused(WelcomeTags.GET_STARTED)
+        pressDpad(Key.DirectionCenter)
         awaitFocused(ServerTags.FIELD)
     }
 
     @Test
+    fun theAddressFieldHasFocusAfterGetStarted() {
+        openServerScreen()
+    }
+
+    @Test
     fun dpadDownMovesFocusToTest() {
-        awaitFocused(ServerTags.FIELD)
+        openServerScreen()
         pressDpad(Key.DirectionDown)
         compose.onNodeWithTag(ServerTags.TEST).assertIsFocused()
     }
 
     @Test
     fun dpadUpMovesFocusBackToTheField() {
-        awaitFocused(ServerTags.FIELD)
+        openServerScreen()
         pressDpad(Key.DirectionDown)
         awaitFocused(ServerTags.TEST)
         pressDpad(Key.DirectionUp)

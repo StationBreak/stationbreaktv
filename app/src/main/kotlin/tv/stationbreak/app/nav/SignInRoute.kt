@@ -4,9 +4,11 @@ package tv.stationbreak.app.nav
 import kotlinx.serialization.Serializable
 
 /**
- * The sign-in screen. A route with no arguments on purpose: the server address and the cleartext acknowledgement must
- * not travel in a route, because route arguments are saved in the instance-state Bundle (Angua). The server screen
- * hands them over in memory instead (`ServerHandOff`).
+ * The sign-in screen. The only argument is [firstRun] (see [ServerRoute]): the server address and the cleartext
+ * acknowledgement must not travel in a route, because route arguments are saved in the instance-state Bundle (Angua).
+ * The server screen hands them over in memory instead (`ServerHandOff`).
  */
 @Serializable
-data object SignInRoute
+data class SignInRoute(
+    val firstRun: Boolean = false,
+)

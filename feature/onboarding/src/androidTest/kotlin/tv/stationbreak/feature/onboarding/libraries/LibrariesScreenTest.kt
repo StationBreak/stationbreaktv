@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -37,6 +38,7 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.assertStepHeading
 import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 import tv.stationbreak.feature.onboarding.signin.SignInResult
 import tv.stationbreak.feature.onboarding.signin.SignedInHandOff
@@ -70,7 +72,10 @@ class LibrariesScreenTest {
     private var lost = 0
     private var missing = 0
 
-    private fun launch(libraries: List<Library> = listOf(movies, shows, home, musicVideos)) {
+    private fun launch(
+        libraries: List<Library> = listOf(movies, shows, home, musicVideos),
+        showStep: Boolean = false,
+    ) {
         server.librariesResult = ServerResult.Success(libraries)
         handOff.put(SignInResult(session, persisted = true, username = "sam"))
         val viewModel =
@@ -89,6 +94,7 @@ class LibrariesScreenTest {
                     onDone = { finished++ },
                     onSessionLost = { lost++ },
                     onMissingSession = { missing++ },
+                    showStep = showStep,
                 )
             }
         }
@@ -117,6 +123,29 @@ class LibrariesScreenTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(shows))
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(home))
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(musicVideos))
+    }
+
+    @Test
+    fun inTheWelcomeFlowStepThreeIsSpokenAsPartOfTheHeadlineAndIsNotAFocusStop() {
+        launch(showStep = true)
+        compose.assertStepHeading("Step 3 of 3", "Choose your libraries")
+        awaitFocused(row(movies))
+        press(KeyEvent.KEYCODE_DPAD_UP, row(movies))
+        awaitFocused(row(movies))
+    }
+
+    @Test
+    fun outsideTheWelcomeFlowThereIsNoStepMarker() {
+        launch()
+        compose.onAllNodesWithText("Step 3 of 3").assertCountEquals(0)
+    }
+
+    @Test
+    fun aLineAboveContinueSaysWhatHappensNext() {
+        launch()
+        compose.onNodeWithText("Next, StationBreak builds your channels. This can take a few minutes.").assertExists()
+        compose.onNodeWithText("Continue").assertExists()
+        compose.onAllNodesWithText("Done").assertCountEquals(0)
     }
 
     @Test

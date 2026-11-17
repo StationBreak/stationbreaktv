@@ -145,7 +145,7 @@ class LaunchRouterTest {
     fun aStoredHttpServerThatNeedsConfirmationGoesToTheServerScreenWithoutAnyRequest() {
         val route = route(InMemoryServerSettings(ServerRecord(ServerAddress(Scheme.Http, "nas.example.test", 8096))))
 
-        assertEquals(LaunchRoute.NoServer, route)
+        assertEquals(LaunchRoute.ConfirmAddress, route)
         assertTrue(fake.connectCalls.isEmpty())
     }
 
@@ -190,10 +190,10 @@ class LaunchRouterTest {
     // No server
 
     @Test
-    fun nothingStoredGoesToTheServerScreenWithoutAnyRequest() {
+    fun nothingStoredGoesToWelcomeWithoutAnyRequest() {
         val route = route(InMemoryServerSettings())
 
-        assertEquals(LaunchRoute.NoServer, route)
+        assertEquals(LaunchRoute.Welcome, route)
         assertTrue(fake.connectCalls.isEmpty())
         assertTrue(fake.resumeCalls.isEmpty())
     }

@@ -40,6 +40,7 @@ import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
+import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
@@ -55,7 +56,8 @@ private const val TOP_OFFSET = 0.1f
 @Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
 fun LaunchDestination(
-    onNoServer: () -> Unit,
+    onWelcome: () -> Unit,
+    onConfirmAddress: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onFirstSync: () -> Unit,
@@ -63,7 +65,16 @@ fun LaunchDestination(
     onChangeServer: () -> Unit,
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
-    LaunchRoot(viewModel, onNoServer, onSignIn, onLibraries, onFirstSync, onSetupComplete, onChangeServer)
+    LaunchRoot(
+        viewModel,
+        onWelcome,
+        onConfirmAddress,
+        onSignIn,
+        onLibraries,
+        onFirstSync,
+        onSetupComplete,
+        onChangeServer,
+    )
 }
 
 /** [LaunchDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -71,7 +82,8 @@ fun LaunchDestination(
 @Composable
 internal fun LaunchRoot(
     viewModel: LaunchViewModel,
-    onNoServer: () -> Unit,
+    onWelcome: () -> Unit,
+    onConfirmAddress: () -> Unit,
     onSignIn: () -> Unit,
     onLibraries: () -> Unit,
     onFirstSync: () -> Unit,
@@ -82,7 +94,8 @@ internal fun LaunchRoot(
     LaunchedEffect(viewModel) {
         viewModel.targets.collect {
             when (it) {
-                LaunchTarget.NoServer -> onNoServer()
+                LaunchTarget.Welcome -> onWelcome()
+                LaunchTarget.ConfirmAddress -> onConfirmAddress()
                 LaunchTarget.SignIn -> onSignIn()
                 LaunchTarget.Libraries -> onLibraries()
                 LaunchTarget.FirstSync -> onFirstSync()
@@ -168,7 +181,7 @@ private fun Unavailable(
     val retryFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { retryFocus.requestFocus() }
     val cause = ErrorCopyTable.causeText(error)
-    val details = stringResource(copy.details)
+    val details = detailsText(copy)
     Text(
         text = stringResource(R.string.launch_unavailable_title),
         style = MaterialTheme.typography.headlineLarge,
