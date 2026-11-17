@@ -417,16 +417,11 @@ private fun NowLine(
                 IntOffset(x.roundToPx(), 0)
             }.size(NowTriangle, ClockHeight + RowHeight * rows)
             .testTag(GuideTags.NOW_LINE)
-            .drawBehind {
-                if (from() == null) return@drawBehind
+            .drawWithCache {
                 val clock = ClockHeight.toPx()
                 val triangle = NowTriangle.toPx()
                 val line = NowLineWidth.toPx()
-                drawRect(
-                    colors.nowLine.copy(alpha = colors.nowRailAlpha),
-                    Offset((size.width - line) / 2, clock),
-                    Size(line, size.height - clock),
-                )
+                // Built once per size and density, not on every draw.
                 val marker =
                     Path().apply {
                         moveTo(0f, clock - triangle)
@@ -434,7 +429,15 @@ private fun NowLine(
                         lineTo(triangle / 2, clock)
                         close()
                     }
-                drawPath(marker, colors.nowLine)
+                onDrawBehind {
+                    if (from() == null) return@onDrawBehind
+                    drawRect(
+                        colors.nowLine.copy(alpha = colors.nowRailAlpha),
+                        Offset((size.width - line) / 2, clock),
+                        Size(line, size.height - clock),
+                    )
+                    drawPath(marker, colors.nowLine)
+                }
             },
     )
 }
