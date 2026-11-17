@@ -73,7 +73,7 @@ fun ChannelReadyNotice(
             Text(
                 text = text,
                 modifier = Modifier.testTag(ChannelReadyNoticeTags.NOTICE),
-                style = guideText(16.sp, FontWeight.Medium),
+                style = guideProse(16.sp, FontWeight.Medium),
                 color = colors.textPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

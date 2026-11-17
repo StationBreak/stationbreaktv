@@ -39,6 +39,9 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.coerceAtLeast
+import androidx.compose.ui.unit.coerceAtMost
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
@@ -47,18 +50,31 @@ import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.guideProse
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.PickerRow
 import tv.stationbreak.feature.live.TrackSelection
 import tv.stationbreak.feature.live.pickerRows
 
-private val PickerWidth = 340.dp
+internal val PickerWidth = 340.dp
 private val RowHeight = 32.dp
 private val PickerMaxHeight = (RowHeight + 2.dp) * 8
 private val RowTextSize = 12.sp
 private val HintSize = 11.sp
 private val DotSize = 5.dp
+
+/**
+ * Where the picker's left edge goes: at its chip's left edge, but never so far right that the picker ends past
+ * [safeRight], nor left of [safeLeft] (all in dp from the screen's left edge). A chip near the right end of the row
+ * would otherwise push the picker off the screen.
+ */
+internal fun pickerLeft(
+    chipLeft: Dp,
+    safeLeft: Dp,
+    safeRight: Dp,
+    width: Dp = PickerWidth,
+): Dp = chipLeft.coerceAtMost(safeRight - width).coerceAtLeast(safeLeft)
 
 /**
  * The picker a chip opens (design doc B2.4): the rows of [kind] for the playing [facts], in the guide's chrome, over
@@ -182,7 +198,7 @@ private fun PickerRowButton(
             Text(
                 text = text,
                 modifier = Modifier.weight(1f),
-                style = guideText(RowTextSize, if (row.playing) FontWeight.SemiBold else FontWeight.Medium),
+                style = guideProse(RowTextSize, if (row.playing) FontWeight.SemiBold else FontWeight.Medium),
                 // Two lines, so the suffix that tells twin rows apart is never the part that is cut off.
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

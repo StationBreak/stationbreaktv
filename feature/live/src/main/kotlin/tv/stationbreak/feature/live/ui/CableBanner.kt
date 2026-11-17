@@ -9,10 +9,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -22,12 +23,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -57,7 +60,6 @@ import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TrackSelection
 import java.time.ZoneId
 import java.util.Locale
-import kotlin.math.roundToInt
 
 /** The tune banner: 2 dp progress line and a 54 dp row inside a 1 dp border. */
 private val TuneHeight = 58.dp
@@ -122,16 +124,19 @@ internal fun CableBanner(
             val facts = banner.stream
             if (open != null && facts != null) {
                 // Above its chip, left edges together, clear of the 5% safe area and the banner under it.
-                val left = (chips[open] ?: origin) - origin
+                val density = LocalDensity.current
+                val chipLeft = with(density) { ((chips[open] ?: origin) - origin).toDp() }
+                val left = with(density) { pickerLeft(chipLeft, safe.left, safe.right).roundToPx() }
                 TrackPicker(
                     open,
                     facts,
                     onChoose,
                     banner.programNames,
                     Modifier
-                        .align(Alignment.BottomStart)
+                        // Absolute, not start-relative: the x is a measured screen position, which RTL must not mirror.
+                        .align(AbsoluteAlignment.BottomLeft)
                         .padding(bottom = safe.top + SelectHeight + 4.dp)
-                        .offset { IntOffset(left.roundToInt(), 0) },
+                        .absoluteOffset { IntOffset(left, 0) },
                 )
             }
         }
@@ -162,7 +167,7 @@ internal fun ChannelBanner(
                     .align(Alignment.BottomCenter)
                     .padding(start = safe.left, end = safe.left, bottom = safe.top)
                     .fillMaxWidth()
-                    .height(TuneHeight)
+                    .heightIn(min = TuneHeight)
                     .chromeSurface(colors)
                     .padding(horizontal = SidePadding)
                     .spokenLiveRegion(spoken)
@@ -262,7 +267,7 @@ private fun BannerStrip(
     Column(
         modifier
             .fillMaxWidth()
-            .height(if (banner.actions) SelectHeight else TuneHeight)
+            .heightIn(min = if (banner.actions) SelectHeight else TuneHeight)
             .chromeSurface(colors)
             .padding(1.dp)
             .testTag(LiveTags.BANNER),
@@ -315,7 +320,7 @@ private fun BannerRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .height(RowHeight)
+            .heightIn(min = RowHeight)
             .padding(horizontal = SidePadding)
             .spokenLiveRegion(spoken),
         verticalAlignment = Alignment.CenterVertically,
