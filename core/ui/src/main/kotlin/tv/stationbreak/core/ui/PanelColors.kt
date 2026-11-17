@@ -10,13 +10,18 @@ import androidx.compose.ui.graphics.Color
  * panel follows the guide's appearance without a feature depending on the guide. Inside the guide the panel takes the
  * guide's tokens in both themes, so Dark there is the guide's own (its page, white text, orange ring). [Dark] here is
  * only the default for a panel shown with no guide around it (Ink, Cream and the theme's primary ring). Text colours
- * may carry an alpha; contrast is judged on the composite over [ground].
+ * may carry an alpha; contrast is judged on the composite over [ground]. [sheet], [sheetLine] and [tag] are the surface
+ * of a sheet over the guide, the line on its edge and its kids tag; text on a [sheet] is [text] and [secondary].
  */
+@Suppress("LongParameterList") // The panel's four, and the three of a sheet.
 class PanelColors(
     val ground: Color,
     val text: Color,
     val secondary: Color,
     val ring: Color,
+    val sheet: Color = SHEET_DARK,
+    val sheetLine: Color = SHEET_LINE_DARK,
+    val tag: Color = KIDS_TAG_DARK,
 ) {
     companion object {
         val Dark =

@@ -19,11 +19,11 @@ import androidx.tv.material3.ClickableSurfaceScale
 import androidx.tv.material3.MaterialTheme
 
 /**
- * The tv-material focus treatment still used by onboarding, the banner and the channel screen (spec 05): a scale-up
- * plus an outline. A button inverts its fill when focused, so its ring is the theme's mid-tone `border` colour; a
- * surface that keeps its fill (the address field) uses `primary`. The guide paints its own filled focus instead, and
- * these screens keep this until they move onto that treatment. `ContrastTest` pins both rings at 3:1 or better against
- * what they touch.
+ * The tv-material focus treatment still used by onboarding and the banner (spec 05): a scale-up plus an outline. A
+ * button inverts its fill when focused, so its ring is the theme's mid-tone `border` colour; a surface that keeps its
+ * fill (the address field) uses `primary`. The guide paints its own focus instead; the channel screens draw it with
+ * [drawnFocus] in the guide's ring colour and without the scale. `ContrastTest` pins both rings at 3:1 or better
+ * against what they touch.
  */
 object FocusStyle {
     internal val OutlineWidth = 3.dp
@@ -53,17 +53,20 @@ object FocusStyle {
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
  * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
  * [FocusStyle.surfaceScale], without a Compose focus target. A screen on a ground other than the theme's passes its
- * own [ring].
+ * own [ring]. Inside the guide family (the menu sheet, the channel screens) a row passes the panel's ring
+ * (`LocalPanelColors.current.ring`, the guide's focus orange) and `scaled = false`: the guide's focus does not scale,
+ * and a scale would push a row's edge into its neighbour's.
  */
 @Composable
 fun Modifier.drawnFocus(
     focused: Boolean,
     ring: Color = MaterialTheme.colorScheme.primary,
+    scaled: Boolean = true,
 ): Modifier {
+    val grown = if (focused && scaled) FocusStyle.SURFACE_SCALE else 1f
     if (!focused) return this
-    return this
-        .graphicsLayer {
-            scaleX = FocusStyle.SURFACE_SCALE
-            scaleY = FocusStyle.SURFACE_SCALE
-        }.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
+    return graphicsLayer {
+        scaleX = grown
+        scaleY = grown
+    }.border(FocusStyle.OutlineWidth, ring, RoundedCornerShape(FocusStyle.OutlineRadius))
 }

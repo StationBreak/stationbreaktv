@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
-import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.scrollIntoViewWhen
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsPanel
@@ -108,7 +107,7 @@ private fun ChoiceRow(
         Modifier
             .fillMaxWidth()
             .scrollIntoViewWhen(focused)
-            .drawnFocus(focused)
+            .channelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .testTag(tagOf(choice))
             .semantics { selected = focused },

@@ -43,7 +43,6 @@ import tv.stationbreak.core.ui.ChannelHoldingsLines
 import tv.stationbreak.core.ui.HoldingsTags
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
-import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -227,7 +226,7 @@ private fun Actions(
                 labelOf(choice, ui.panel, isLocked(choice, row, ui)),
                 Modifier
                     .fillMaxWidth()
-                    .drawnFocus(!covered && i == ui.choice)
+                    .channelFocus(!covered && i == ui.choice)
                     .padding(horizontal = 10.dp, vertical = 6.dp)
                     .testTag(tagOf(choice))
                     .semantics { selected = !covered && i == ui.choice },

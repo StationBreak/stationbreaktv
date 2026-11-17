@@ -24,7 +24,6 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.ShelfReason
-import tv.stationbreak.core.ui.drawnFocus
 import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
@@ -150,7 +149,7 @@ private fun RowLine(
     Column(
         Modifier
             .fillMaxWidth()
-            .drawnFocus(focused)
+            .channelFocus(focused)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(ChannelsTags.row(row.id))
             // One announcement for the whole row, reasons included; the state stays the row's own.

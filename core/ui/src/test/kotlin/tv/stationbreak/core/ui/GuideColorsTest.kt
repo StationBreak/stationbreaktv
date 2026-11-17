@@ -205,6 +205,30 @@ class GuideColorsTest {
         assertEquals(listOf("GuideCells.kt"), readers)
     }
 
+    @Test
+    fun theSheetColoursAreOnePerThemeAndReachThePanel() {
+        assertEquals(Color(0xFF141518), GuideColors.Dark.sheet)
+        assertEquals(Color(0xFF3A3B40), GuideColors.Dark.sheetLine)
+        assertEquals(Color(0xFFFFD166), GuideColors.Dark.kidsTag)
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertEquals(c.sheet, c.panel.sheet)
+            assertEquals(c.sheetLine, c.panel.sheetLine)
+            assertEquals(c.kidsTag, c.panel.tag)
+            assertTrue("$name sheet is not the page", c.sheet != c.page)
+        }
+    }
+
+    @Test
+    fun textAndTheFocusRingReadOnTheSheetInBothThemes() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            assertContrast(4.5, c.textPrimary, c.sheet, "$name text on the sheet", c.page)
+            assertContrast(4.5, c.textSecondary, c.sheet, "$name secondary text on the sheet", c.page)
+            assertContrast(4.5, c.kidsTag, c.sheet, "$name kids tag on the sheet", c.page)
+            assertContrast(3.0, c.focusFill, c.sheet, "$name focus ring on the sheet", c.page)
+            assertContrast(4.5, c.focusText, c.focusFill, "$name focused menu row text on the fill", c.page)
+        }
+    }
+
     private fun assertContrast(
         minimum: Double,
         a: Color,

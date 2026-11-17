@@ -26,6 +26,7 @@ internal object BuilderTags {
     const val SEARCH_INPUT = "builder:search:input"
     const val NARROW = "builder:narrow"
     const val NEXT = "builder:next"
+    const val NEXT_REASON = "builder:next:reason"
     const val NOTE = "builder:note"
 
     /** The count of titles that fit, under the list. */

@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -45,7 +44,7 @@ import kotlin.math.min
 // padding), the box including the plate, since logos are usually light and would be lost on the grey page.
 private val LogoMaxHeight = 46.dp
 private const val LOGO_MAX_WIDTH_FRACTION = 0.7f
-private val LogoPlate = Color(0xFF0E0F11).copy(alpha = 0.92f)
+private val LogoPlate = GuideColors.Dark.page.copy(alpha = 0.92f)
 private val LogoPlateRadius = 2.dp
 private val LogoPlatePadding = 6.dp
 
