@@ -4,7 +4,7 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -28,8 +28,10 @@ import tv.stationbreak.feature.guide.PanelTag
 import tv.stationbreak.feature.guide.PanelTagCopy
 import tv.stationbreak.feature.guide.R
 
-// A tag: 9 sp SemiBold text in a 1 dp outline with 2 dp corners and 4 dp either side, 13 dp tall, 5 dp apart.
-private val TagHeight = 13.dp
+// A tag: 10 sp SemiBold text in a 1 dp outline with 2 dp corners and 4 dp either side, at least 14 dp tall (it grows
+// with the font size), 5 dp apart.
+private val TagMinHeight = 14.dp
+private val TagVerticalPadding = 2.dp
 private val TagRadius = 2.dp
 private val TagPadding = 4.dp
 private val TagGap = 5.dp
@@ -103,9 +105,9 @@ private fun Tag(
         }
     Box(
         Modifier
-            .height(TagHeight)
+            .heightIn(min = TagMinHeight)
             .border(TagStroke, colors.keyCapStroke, RoundedCornerShape(TagRadius))
-            .padding(horizontal = TagPadding),
+            .padding(horizontal = TagPadding, vertical = TagVerticalPadding),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -118,4 +120,4 @@ private fun Tag(
     }
 }
 
-private const val TAG_SP = 9
+private const val TAG_SP = 10

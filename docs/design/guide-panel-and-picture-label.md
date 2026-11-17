@@ -42,7 +42,7 @@ The panel's content runs to the panel's right edge, and that edge is **24 dp** s
 | **Description** | no fixed line limit: as many 15 dp lines as the remaining height holds (four to six), ellipsis on the last |
 | Menu tabs | unchanged, at the bottom of the column |
 
-Tag style: 9 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius, 4 dp horizontal padding; the label part of a score (`Critics`, `Audience`) in 9 sp Regular `textSecondary`. Flat: no fills, no icons, no emoji. The existing drop-order rule for a short panel keeps working: the description gives way first, then the tags.
+Tag style: 10 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius, 4 dp horizontal and 2 dp vertical padding, at least 14 dp tall (never a fixed height, so it grows with the font scale); the label part of a score (`Critics`, `Audience`) in 10 sp Regular `textSecondary`. Flat: no fills, no icons, no emoji. The existing drop-order rule for a short panel keeps working: the description gives way first, then the tags.
 
 ### Logo rules
 
@@ -81,7 +81,7 @@ Tag style: 9 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radius
 - [ ] Tags show only known facts; an item with no scores shows none.
 - [ ] OK on a later programme tunes to its channel; the info overlay no longer opens from the guide.
 - [ ] The grid spans two hours; focus, paging and the now-line are correct.
-- [ ] All text ≥ 10 sp except tags at 9 sp SemiBold, which must pass 4.5:1; frames before and after, dark and light, on `pr-assets-archive`.
+- [ ] All text ≥ 10 sp (tags are 10 sp SemiBold and must pass 4.5:1); frames before and after, dark and light, on `pr-assets-archive`.
 
 ## Work plan
 

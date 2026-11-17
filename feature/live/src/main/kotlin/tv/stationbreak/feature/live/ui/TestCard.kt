@@ -80,6 +80,8 @@ private const val RING_FRAME_Y = 32f
 private const val RING_LABEL_SIZE = 13f
 private const val DISC_RADIUS = 150f
 
+private const val MAX_FONT_SCALE = 1.2f
+
 /** How big one card unit is on this screen, for the text laid over the drawing. */
 internal class CardScale(
     private val unit: Dp,
@@ -87,7 +89,11 @@ internal class CardScale(
 ) {
     fun dp(units: Float): Dp = unit * units
 
-    fun sp(units: Float): TextUnit = with(density) { (unit * units).toSp() }
+    /**
+     * Card units as sp. [toSp] divides the viewer's font scale out, so it is put back, held between 1 and
+     * [MAX_FONT_SCALE]: card text follows the setting but the card's fixed boxes still hold.
+     */
+    fun sp(units: Float): TextUnit = with(density) { (unit * units).toSp() * fontScale.coerceIn(1f, MAX_FONT_SCALE) }
 }
 
 /**

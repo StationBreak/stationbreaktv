@@ -25,7 +25,7 @@ The banner always uses the **Dark** token set, whatever the guide theme: it sits
 | Accent rule 4 dp + progress bar 6 dp | two elements | **one** 2 dp progress line along the top edge (`progressTrack` / `accent`) |
 | Channel | number block 150–280 dp, 36 sp number, 14 sp caps name | **mark** 50×28 dp + number 13 sp Medium tabular `textSecondary`; no name. A channel with no mark (initials only) adds its **name** after the number: 13 sp Medium `textSecondary`, one line, ellipsis, at most 140 dp |
 | Title | Display 26 sp | Manrope 18 sp Bold `textPrimary`, one line, ellipsis (the bar stays 58 dp and the meta line 11 sp) |
-| Line 2 | episode line, slot, joined, each on its own line | one 11 sp `textSecondary` line: **NOW** (8.5 sp Bold accent; or TUNING IN / UP NEXT / FILLING IN) · episode line, or the production year for a film · slot · "N min in" (tune banner only; "Just started" under a minute; not on UP NEXT) · "N min left" |
+| Line 2 | episode line, slot, joined, each on its own line | one 11 sp `textSecondary` line: **NOW** (10 sp Bold accent; or TUNING IN / UP NEXT / FILLING IN) · episode line, or the production year for a film · slot · "N min in" (tune banner only; "Just started" under a minute; not on UP NEXT) · "N min left" |
 | Right column | — | one right-aligned 11 sp `textSecondary` line, **"Next: … at …" only**. No stream line: what plays is on the Select banner's chips (Part B1; owner decision after TV testing) |
 | Signal bars | present | removed |
 | "joining N min in" | own line | the short form "N min in", before "N min left", on the tune banner only (the Select banner's second row is its buttons) |

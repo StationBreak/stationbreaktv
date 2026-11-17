@@ -101,7 +101,7 @@ Light theme (retuned after the TV review: the near-white page was glaring and lo
 
 - Channel line 17sp → 11sp Regular `textSecondary` (number in `textTertiary`).
 - Title 40sp → 24sp SemiBold, letter-spacing −0.015em.
-- Meta row: `ON NOW` 8.5sp Bold tracking +6% in `accent` (this replaces the chip; no fill), then `1954 · NR · 1h 32m · Musical` 11sp `textSecondary` separated by 1.5dp dots.
+- Meta row: `ON NOW` 10sp Bold tracking +6% in `accent` (this replaces the chip; no fill), then `1954 · NR · 1h 32m · Musical` 11sp `textSecondary` separated by 1.5dp dots.
 - Progress: 2dp track white @ 10%, fill `accent`, width = panel width. Below it `8:00 PM … 55 min left … 9:00 PM` 11sp tabular `textSecondary`.
 - Overview: 11sp Regular, line height 15sp, 2 lines max, `textSecondary`.
 

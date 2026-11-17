@@ -67,7 +67,7 @@ private val SelectHeight = 102.dp
 private val ProgressHeight = 2.dp
 private val RowHeight = 54.dp
 private val SidePadding = 16.dp
-private val LabelSize = 8.5.sp
+private val LabelSize = 10.sp
 private val NumberSize = 13.sp
 private val TitleSize = 18.sp
 private val MetaSize = 11.sp
@@ -391,7 +391,7 @@ private fun MetaLine(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(labelText(banner.label)).uppercase(LocalConfiguration.current.locales[0]),
-            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.6.sp),
+            style = guideText(LabelSize, FontWeight.Bold).copy(letterSpacing = 0.4.sp),
             color = colors.accent,
             maxLines = 1,
         )
