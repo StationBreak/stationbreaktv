@@ -35,6 +35,7 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ServerButton
@@ -46,7 +47,6 @@ import java.util.Date
 private val TitleSize = 36.sp
 private val FingerprintSize = 28.sp
 private val ContentWidth = 760.dp
-private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.04f
 
 /**
@@ -85,12 +85,7 @@ internal fun TrustScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(
-                            start = maxWidth * OVERSCAN,
-                            end = maxWidth * OVERSCAN,
-                            top = maxHeight * TOP_OFFSET,
-                            bottom = maxHeight * OVERSCAN,
-                        ),
+                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(

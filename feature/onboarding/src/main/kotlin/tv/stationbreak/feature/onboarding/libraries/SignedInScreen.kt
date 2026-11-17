@@ -31,6 +31,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
@@ -38,7 +39,6 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 
 private val ContentWidth = 640.dp
-private const val OVERSCAN = 0.05f
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -95,12 +95,7 @@ internal fun SignedInScreen(
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(
-                        start = maxWidth * OVERSCAN,
-                        end = maxWidth * OVERSCAN,
-                        top = maxHeight * TOP_OFFSET,
-                        bottom = maxHeight * OVERSCAN,
-                    ),
+                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(

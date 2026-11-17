@@ -47,6 +47,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -59,7 +60,6 @@ import java.text.NumberFormat
 
 private val ContentWidth = 640.dp
 private val BarHeight = 12.dp
-private const val OVERSCAN = 0.05f
 private const val QUARTERS = 4
 private const val PERCENT_PER_QUARTER = 25
 private const val TOP_OFFSET = 0.1f
@@ -119,12 +119,7 @@ internal fun FirstSyncScreen(
                     .fillMaxSize()
                     // Only the failure panel can outgrow the screen (large text); the progress screen never scrolls.
                     .then(scrolling)
-                    .padding(
-                        start = maxWidth * OVERSCAN,
-                        end = maxWidth * OVERSCAN,
-                        top = maxHeight * TOP_OFFSET,
-                        bottom = maxHeight * OVERSCAN,
-                    ),
+                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
