@@ -49,13 +49,28 @@ internal enum class RowStatus { Saving, Removing, Adding }
 /** The line under the title after a change, or after an add was given up. */
 internal enum class Notice { LastLibrary, Saved, Failed, NotListed }
 
-/** What the Libraries screen shows; [focus] is the index of the focused row. */
+/**
+ * The sign-out row under the libraries (#336): [Ready], [Armed] by a first Select (a second signs out; a move or Back
+ * disarms it), [Busy] while the sign-out runs, or [NotRevoked] once it ran but the server could not be told (Select or
+ * Back then leaves).
+ */
+internal enum class SignOutStep { Ready, Armed, Busy, NotRevoked }
+
+/**
+ * What the Libraries screen shows; [focus] is the index of the focused row, and [rows]'s size when the sign-out row
+ * is focused. [serverName] and [signOut] are null when nobody is signed in.
+ */
 internal data class LibrariesSettingsState(
     val phase: LibrariesPhase,
     val rows: List<LibraryRow>,
     val focus: Int,
     val notice: Notice?,
+    val serverName: String? = null,
+    val signOut: SignOutStep? = null,
 ) {
+    /** The sign-out row has the focus. */
+    val signOutFocused: Boolean get() = signOut != null && focus == rows.size
+
     companion object {
         val Empty = LibrariesSettingsState(LibrariesPhase.Loading, emptyList(), focus = 0, notice = null)
     }

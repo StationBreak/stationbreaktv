@@ -19,6 +19,12 @@ object SettingsTags {
     /** The line under the title after a change, or after an add was given up. */
     const val NOTICE = "settings:libraries:notice"
 
+    /** "Signed in to …", under the title (#336). */
+    const val SIGNED_IN = "settings:libraries:signedIn"
+
+    /** The sign-out row, the last one (#336). */
+    const val SIGN_OUT = "settings:libraries:signOut"
+
     fun row(id: ItemId) = "settings:libraries:row:${id.value}"
 
     /** The "Adding…" line under a row being added. */

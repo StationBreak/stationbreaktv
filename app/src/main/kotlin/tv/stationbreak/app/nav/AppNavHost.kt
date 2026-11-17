@@ -112,7 +112,8 @@ internal fun AppNavGraph(
                     // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so
                     // the graph hands it over. Live says where its picture is; the guide leaves that hole clear.
                     guide = { opening, pictureHole, onTune ->
-                        GuideWithChannels(opening, pictureHole, onTune)
+                        // A sign-out from Settings, Libraries (#336): launch routing asks for a new sign-in.
+                        GuideWithChannels(opening, pictureHole, onTune) { navController.replaceAll(LaunchRoute) }
                     },
                 )
             }
@@ -129,6 +130,7 @@ private fun GuideWithChannels(
     opening: GuideOpening,
     pictureHole: DpRect,
     onTune: (ChannelId) -> Unit,
+    onSignedOut: () -> Unit,
 ) {
     GuideDestination(
         opening,
@@ -138,7 +140,7 @@ private fun GuideWithChannels(
         properties = { channel, current, opened, hole, onDone ->
             ChannelPropertiesDestination(channel, current, opened, hole, onDone)
         },
-        libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone) },
+        libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone, onSignedOut) },
     )
 }
 

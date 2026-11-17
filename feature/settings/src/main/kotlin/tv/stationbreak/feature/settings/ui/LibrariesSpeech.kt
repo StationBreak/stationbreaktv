@@ -13,6 +13,7 @@ import tv.stationbreak.feature.settings.LibrariesSettingsState
 import tv.stationbreak.feature.settings.LibraryRow
 import tv.stationbreak.feature.settings.R
 import tv.stationbreak.feature.settings.RowStatus
+import tv.stationbreak.feature.settings.SignOutStep
 
 @Composable
 internal fun libraryName(row: LibraryRow): String = row.name ?: stringResource(R.string.settings_libraries_unnamed)
@@ -44,7 +45,21 @@ internal fun spokenOf(row: LibraryRow): String {
  * Compose focus stop and moves its own focus (model-driven), so a screen reader would never follow it otherwise.
  */
 @Composable
-internal fun Modifier.announcingFocus(state: LibrariesSettingsState): Modifier {
+internal fun Modifier.announcingFocus(state: LibrariesSettingsState): Modifier =
+    if (state.signOutFocused) announcingSignOut(state) else announcingRow(state)
+
+// The sign-out row (#336): its words ("Sign out", or "Select again to sign out" once armed).
+@Composable
+private fun Modifier.announcingSignOut(state: LibrariesSettingsState): Modifier {
+    val spoken = signOutLabel(state.signOut)
+    return semantics {
+        contentDescription = spoken
+        liveRegion = LiveRegionMode.Polite
+    }
+}
+
+@Composable
+private fun Modifier.announcingRow(state: LibrariesSettingsState): Modifier {
     val row = state.rows.getOrNull(state.focus) ?: return this
     val spoken = spokenOf(row)
     val tick = tickStateOf(row)
@@ -54,3 +69,15 @@ internal fun Modifier.announcingFocus(state: LibrariesSettingsState): Modifier {
         liveRegion = LiveRegionMode.Polite
     }
 }
+
+/** The sign-out row's words for its [step] (#336). */
+@Composable
+internal fun signOutLabel(step: SignOutStep?): String =
+    stringResource(
+        when (step) {
+            SignOutStep.Armed -> R.string.settings_sign_out_armed
+            SignOutStep.Busy -> R.string.settings_signing_out
+            SignOutStep.NotRevoked -> R.string.settings_signed_out_not_revoked
+            SignOutStep.Ready, null -> R.string.settings_sign_out
+        },
+    )
