@@ -17,7 +17,8 @@ class ChannelsLayoutTest {
     fun `the actions panel stops at the bottom of the safe area`() {
         val hole = ScreenLayout.pictureRect(safe)
         val top = hole.bottom + 16.dp
-        // Hole: 864 dp wide safe area * 0.48 = 414.72 wide, 233.28 tall, from 27 dp down: bottom 260.28, panel at 276.28.
+        // Hole: 864 dp wide safe area * 0.48 = 414.72 wide, 233.28 tall, from 27 dp down: bottom 260.28,
+        // so the panel starts at 276.28.
         assertEquals(276.28f, top.value, 0.01f)
         assertEquals(236.72f, panelMaxHeight(top, safe.bottom).value, 0.01f)
     }

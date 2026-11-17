@@ -44,6 +44,9 @@ private const val NOTE_SIZE = 10.5f
 private const val NOTE_SPACING_EM = 0.03f
 private const val NOTE_LINES = 3
 
+// Space Mono's default line is about 1.5 em; three lines at that height end below the disc (y ~424 of 419).
+private const val NOTE_LINE_HEIGHT = 1.2f
+
 /** The project's text floor: the note is the only instruction on the no-libraries slate, so it never goes below it. */
 private val NOTE_FLOOR = 10.sp
 
@@ -149,7 +152,7 @@ internal fun NoLibrariesSlate() {
 /**
  * The reason on an ident card: three lines at most, set tight so all sit inside the centre disc (radius 150 about
  * y 288) below the wordmark, which ends at y 378. The text is never under 10 sp ([NOTE_FLOOR]); at that size the
- * copy needs a third line, so the box is 146 wide from y 376 to about y 419, where the disc is 146 across.
+ * copy needs a third line, set at 1.2x line height so the box (146 wide from y 376) ends by about y 415.
  */
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
@@ -166,7 +169,11 @@ private fun androidx.compose.foundation.layout.BoxScope.NoteLine(
                 .offset(y = card.dp(NOTE_TOP))
                 .width(card.dp(NOTE_WIDTH))
                 .testTag(tag),
-        style = mono(noteSize).copy(letterSpacing = noteSize * NOTE_SPACING_EM),
+        style =
+            mono(noteSize).copy(
+                letterSpacing = noteSize * NOTE_SPACING_EM,
+                lineHeight = noteSize * NOTE_LINE_HEIGHT,
+            ),
         color = BroadcastColors.Ink,
         textAlign = TextAlign.Center,
         maxLines = NOTE_LINES,

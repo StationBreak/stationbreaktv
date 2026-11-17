@@ -40,8 +40,9 @@ class HintFlowTest {
 
     @Test
     fun `a row with no OK or Left keeps Back and Menu`() {
-        assertEquals(listOf(true, true), visibleHints(listOf(100, 100), listOf(HINT_RANK_BACK, HINT_RANK_MENU), 20, 220))
-        assertEquals(listOf(true, false), visibleHints(listOf(100, 100), listOf(HINT_RANK_BACK, HINT_RANK_MENU), 20, 219))
+        val ranks = listOf(HINT_RANK_BACK, HINT_RANK_MENU)
+        assertEquals(listOf(true, true), visibleHints(listOf(100, 100), ranks, 20, 220))
+        assertEquals(listOf(true, false), visibleHints(listOf(100, 100), ranks, 20, 219))
     }
 
     @Test
