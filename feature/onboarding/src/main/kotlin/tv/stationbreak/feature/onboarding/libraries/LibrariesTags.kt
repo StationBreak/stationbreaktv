@@ -9,6 +9,8 @@ object LibrariesTags {
     const val LOADING = "libraries:loading"
     const val LIST = "libraries:list"
     const val DONE = "libraries:done"
+    const val COLLECTIONS = "libraries:collections"
+    const val COLLECTIONS_TOMORROW = "libraries:collectionsTomorrow"
     const val REASON = "libraries:reason"
     const val ERROR_PANEL = "libraries:errorPanel"
     const val RETRY = "libraries:retry"

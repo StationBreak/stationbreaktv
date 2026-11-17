@@ -120,6 +120,7 @@ internal fun LibrariesRoot(
     LibrariesScreen(
         state = state,
         onToggle = viewModel::onToggle,
+        onToggleCollections = viewModel::onToggleCollections,
         onDone = viewModel::onDone,
         onRetry = viewModel::onRetry,
         showStep = showStep,
@@ -132,6 +133,7 @@ internal fun LibrariesRoot(
 internal fun LibrariesScreen(
     state: LibrariesUiState,
     onToggle: (ItemId) -> Unit,
+    onToggleCollections: () -> Unit,
     onDone: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -164,17 +166,19 @@ internal fun LibrariesScreen(
                     style = MaterialTheme.typography.screenBody,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Content(state, focus, onToggle, onDone, onRetry)
+                Content(state, focus, onToggle, onToggleCollections, onDone, onRetry)
             }
         }
     }
 }
 
+@Suppress("LongParameterList") // The state, the focus targets and one callback for each action.
 @Composable
 private fun Content(
     state: LibrariesUiState,
     focus: LibrariesFocus,
     onToggle: (ItemId) -> Unit,
+    onToggleCollections: () -> Unit,
     onDone: () -> Unit,
     onRetry: () -> Unit,
 ) {
@@ -204,7 +208,7 @@ private fun Content(
         }
 
         LibrariesPhase.Choosing, LibrariesPhase.Saving, LibrariesPhase.SaveFailed -> {
-            Checklist(state, focus, onToggle, onDone)
+            Checklist(state, focus, onToggle, onToggleCollections, onDone)
         }
     }
 }
@@ -269,6 +273,7 @@ private fun Checklist(
     state: LibrariesUiState,
     focus: LibrariesFocus,
     onToggle: (ItemId) -> Unit,
+    onToggleCollections: () -> Unit,
     onDone: () -> Unit,
 ) {
     Column(
@@ -284,6 +289,7 @@ private fun Checklist(
             )
         }
     }
+    CollectionsRow(on = state.collections, tomorrow = state.collectionsTomorrow, onToggle = onToggleCollections)
     if (state.phase == LibrariesPhase.SaveFailed) {
         // Directly above Done, so the message and the action it points to are on screen together.
         Problem(

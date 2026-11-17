@@ -3,11 +3,15 @@ package tv.stationbreak.feature.onboarding.libraries
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -26,6 +30,7 @@ import tv.stationbreak.core.domain.InMemoryServerSettings
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.FakeHouseholdSetting
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
@@ -59,6 +64,7 @@ class LibrariesScreenTest {
     private val handOff = SignedInHandOff()
     private val https = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val settings = InMemoryServerSettings(ServerRecord(https))
+    private val household = FakeHouseholdSetting()
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
     private val session = Session(UserId("user1"), AccessToken("dummy-token-0001"), info, https, null, false)
 
@@ -84,6 +90,7 @@ class LibrariesScreenTest {
                 SessionRepository(InMemorySecretStore(), server),
                 settings,
                 InMemoryLibrarySetup(settings),
+                household,
                 handOff,
             )
         compose.setContent {
@@ -117,12 +124,18 @@ class LibrariesScreenTest {
 
     private fun row(library: Library) = LibrariesTags.row(library.id.value)
 
-    /** Down from the first row to Done. */
-    private fun goToDone() {
+    /** Down from the first row to the collections switch. */
+    private fun goToCollections() {
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(movies))
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(shows))
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(home))
         press(KeyEvent.KEYCODE_DPAD_DOWN, row(musicVideos))
+    }
+
+    /** Down from the first row to Done, through the switch. */
+    private fun goToDone() {
+        goToCollections()
+        press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.COLLECTIONS)
     }
 
     @Test
@@ -181,7 +194,63 @@ class LibrariesScreenTest {
         awaitFocused(LibrariesTags.DONE)
         compose.onNodeWithTag(LibrariesTags.DONE).assertIsEnabled()
         press(KeyEvent.KEYCODE_DPAD_UP, LibrariesTags.DONE)
+        press(KeyEvent.KEYCODE_DPAD_UP, LibrariesTags.COLLECTIONS)
         awaitFocused(row(musicVideos))
+    }
+
+    @Test
+    fun theCollectionsSwitchIsOneNodeWithItsStateAndItsTextMerged() {
+        launch()
+        awaitFocused(row(movies))
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertIsOn()
+        val config = compose.onNodeWithTag(LibrariesTags.COLLECTIONS).fetchSemanticsNode().config
+        assertEquals(Role.Switch, config[SemanticsProperties.Role])
+        compose.onAllNodesWithText("Use my collections", useUnmergedTree = false).assertCountEquals(1)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertTextContains("Use my collections", substring = true)
+        compose
+            .onNodeWithTag(LibrariesTags.COLLECTIONS)
+            .assertTextContains("Not sure? Leave this on.", substring = true)
+    }
+
+    @Test
+    fun selectTogglesTheCollectionsSwitchAndFocusOrderIsRowsSwitchContinue() {
+        launch()
+        goToDone()
+        press(KeyEvent.KEYCODE_DPAD_UP, LibrariesTags.DONE)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.COLLECTIONS)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertIsOff()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.COLLECTIONS)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertIsOn()
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertIsFocused()
+    }
+
+    @Test
+    fun aReturningAccountWithTheSettingOffStartsOff() {
+        household.flag.value = false
+        launch()
+        awaitFocused(row(movies))
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS).assertIsOff()
+    }
+
+    @Test
+    fun tomorrowShowsOnlyWhenTheLineupIsFinalisedAndTheSwitchChanged() {
+        household.finalised.value = true
+        launch()
+        goToCollections()
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS_TOMORROW).assertDoesNotExist()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.COLLECTIONS)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS_TOMORROW).assertExists()
+        compose.onNodeWithText("Takes effect tomorrow.").assertExists()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.COLLECTIONS)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS_TOMORROW).assertDoesNotExist()
+    }
+
+    @Test
+    fun tomorrowNeverShowsForANewAccount() {
+        launch()
+        goToCollections()
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.COLLECTIONS)
+        compose.onNodeWithTag(LibrariesTags.COLLECTIONS_TOMORROW).assertDoesNotExist()
     }
 
     @Test
@@ -282,6 +351,7 @@ class LibrariesScreenTest {
                 SessionRepository(InMemorySecretStore(), server),
                 settings,
                 InMemoryLibrarySetup(settings),
+                household,
                 handOff,
             )
         compose.setContent {

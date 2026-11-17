@@ -10,9 +10,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryDefaults
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -20,6 +22,8 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.HouseholdSetting
+import tv.stationbreak.core.domain.lineup.SetupChoice
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.core.domain.selection.SetupResult
@@ -63,7 +67,16 @@ internal data class LibrariesUiState(
     val phase: LibrariesPhase = LibrariesPhase.Loading,
     val libraries: List<Library> = emptyList(),
     val selected: Set<ItemId> = emptySet(),
+    /** The "Use my collections" switch, and the value it started from (the account's stored setting; on if none). */
+    val collections: Boolean = true,
+    val collectionsAtStart: Boolean = true,
+    /** The account already has a finalised lineup (a re-onboarding), so a change to the switch waits for tomorrow. */
+    val lineupFinalised: Boolean = false,
 ) {
+    /** "Takes effect tomorrow." shows: the viewer changed the switch and the change waits for the next boundary. */
+    val collectionsTomorrow: Boolean
+        get() = lineupFinalised && collections != collectionsAtStart
+
     /** Done is available: the checklist is showing and something is ticked. After a failed Done it is the retry. */
     val canFinish: Boolean
         get() = (phase == LibrariesPhase.Choosing || phase == LibrariesPhase.SaveFailed) && selected.isNotEmpty()
@@ -89,9 +102,13 @@ internal class LibrariesViewModel
         private val sessions: SessionRepository,
         private val settings: ServerSettings,
         private val setup: LibrarySetup,
+        private val household: HouseholdSetting,
         private val signedIn: SignedInHandOff,
     ) : ViewModel() {
         private val session: Session? = signedIn.peek()?.session
+
+        // The hand-off session's account, as the lineup keys it; no useAccount has run for it yet.
+        private val account: LibraryAccount? = session?.let { LibraryAccount(it.server.id, it.userId) }
 
         /** True when there is no session to ask with. */
         val missingSession: Boolean get() = session == null
@@ -126,14 +143,17 @@ internal class LibrariesViewModel
                 }
         }
 
-        private fun listed(libraries: List<Library>) {
+        private suspend fun listed(libraries: List<Library>) {
+            val who = account
             mutableState.value =
                 if (libraries.isEmpty()) {
                     LibrariesUiState(phase = LibrariesPhase.NoLibraries)
                 } else {
                     // Everything is ticked except home videos (decision 7).
                     val ticked = LibraryDefaults.ticked(libraries)
-                    LibrariesUiState(LibrariesPhase.Choosing, libraries, ticked)
+                    val start = who?.let { household.useMyCollections(it).first() } ?: true
+                    val finalised = who?.let { household.lineupFinalised(it).first() } ?: false
+                    LibrariesUiState(LibrariesPhase.Choosing, libraries, ticked, start, start, finalised)
                 }
         }
 
@@ -161,13 +181,25 @@ internal class LibrariesViewModel
             }
         }
 
+        /** Select on the "Use my collections" switch: written on Continue, and only if it differs from its start. */
+        fun onToggleCollections() {
+            mutableState.update { current ->
+                val editable = current.phase == LibrariesPhase.Choosing || current.phase == LibrariesPhase.SaveFailed
+                if (editable) {
+                    current.copy(phase = LibrariesPhase.Choosing, collections = !current.collections)
+                } else {
+                    current
+                }
+            }
+        }
+
         /** Done: stores the choice. Does nothing while nothing is ticked, so an empty choice is never stored. */
         fun onDone() {
             val current = mutableState.value
             if (!current.canFinish) return
             mutableState.update { it.copy(phase = LibrariesPhase.Saving) }
             viewModelScope.launch {
-                if (store(current.selected)) {
+                if (store(current)) {
                     // Setup is saved: nothing needs the signed-in session held in memory any more.
                     signedIn.clear()
                     results.send(LibrariesEvent.Finished)
@@ -183,9 +215,15 @@ internal class LibrariesViewModel
          * write it), the record is stored first, from the address the session was issued for; a record that is there,
          * with its pin, is never replaced.
          */
-        private suspend fun store(ids: Set<ItemId>): Boolean {
+        private suspend fun store(current: LibrariesUiState): Boolean {
+            val ids = current.selected
             val held = session
             if (held != null && settings.load() == null) settings.save(ServerRecord(held.address))
+            // Before the choice: the first lineup is planned once the choice is stored, and reads the flag then.
+            val who = account
+            val changed = current.collections != current.collectionsAtStart
+            val choice = if (who != null && changed) household.chooseAtSetup(who, ids, current.collections) else null
+            if (choice == SetupChoice.Failed) return false
             return when (setup.choose(ids)) {
                 SetupResult.Saved -> {
                     true

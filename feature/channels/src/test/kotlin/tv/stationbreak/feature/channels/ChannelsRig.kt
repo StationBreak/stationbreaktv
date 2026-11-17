@@ -7,6 +7,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -30,9 +31,11 @@ import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.SetupChoice
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.domain.lineup.builder.FakeChannelBuilder
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
 import kotlin.time.Clock
@@ -98,6 +101,14 @@ internal class FakeHousehold : HouseholdSetting {
     val flag = MutableStateFlow(true)
 
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = flag
+
+    override fun lineupFinalised(account: LibraryAccount): Flow<Boolean> = flowOf(true)
+
+    override suspend fun chooseAtSetup(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+    ): SetupChoice = SetupChoice.Applied
 }
 
 /** The fake editor, which waits for a gate a test sets before it answers (a slow save or reset). */

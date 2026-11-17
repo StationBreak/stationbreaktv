@@ -81,6 +81,7 @@ import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
+import tv.stationbreak.core.domain.lineup.SetupChoice
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.domain.lineup.ThemeAnchor
 import tv.stationbreak.core.domain.lineup.ThemeAnchorKind
@@ -99,6 +100,7 @@ import tv.stationbreak.core.domain.lineup.builder.RulesDescription
 import tv.stationbreak.core.domain.lineup.builder.ShownOrder
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -223,6 +225,14 @@ private class Lineup(
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
 
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
+
+    override fun lineupFinalised(account: LibraryAccount): Flow<Boolean> = flowOf(true)
+
+    override suspend fun chooseAtSetup(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+    ): SetupChoice = SetupChoice.Applied
 
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 

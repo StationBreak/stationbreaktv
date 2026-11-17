@@ -397,6 +397,7 @@ class LineupService internal constructor(
         offsetFrom: Lineup? = current,
         newAccount: Boolean = false,
         sinceDayStart: Boolean = false,
+        household: Boolean? = null,
     ): Pair<Lineup, RefreshMeta> {
         // A lineup not yet finalised is chosen afresh, so the viewer's channels in it are kept like a reset's.
         val own =
@@ -444,7 +445,7 @@ class LineupService internal constructor(
                 kept = (kept + own).distinctBy { it.id },
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
-                useMyCollections = offsetFrom?.useMyCollections ?: true,
+                useMyCollections = household ?: offsetFrom?.useMyCollections ?: true,
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )
@@ -1368,6 +1369,102 @@ class LineupService internal constructor(
                 .map { it.summary(catalog, keys.getValue(it.id), nowMs) }
         }.distinctUntilChanged()
     }
+
+    override fun lineupFinalised(account: LibraryAccount): Flow<Boolean> {
+        val owner = ownerOf(account) ?: return flowOf(false)
+        return flow {
+            loaded(account)
+            emitAll(entryOf(owner).state)
+        }.map { held -> held?.lineup?.finalised ?: false }.distinctUntilChanged()
+    }
+
+    /**
+     * [HouseholdSetting.chooseAtSetup], under the account's lock. No lineup: the first one is planned with the flag
+     * (so the new-account extras boundary is as for any first plan) and saved. A lineup not finalised: the flag is set
+     * on it. A finalised one: the `UseMyCollections` edit, which starts at the next day boundary (ADR-0023 D1).
+     */
+    override suspend fun chooseAtSetup(
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+    ): SetupChoice {
+        val owner = ownerOf(account) ?: return SetupChoice.Failed
+        val savedSeq = savedSeqNow()
+        val now = entryOf(owner).mutex.withLock { choosingAtSetup(owner, account, libraries, on, savedSeq) }
+        // Null is a finalised lineup: `edit` takes the lock itself, so it runs once this one is released.
+        return now
+            ?: when (edit(account, LineupEdit.UseMyCollections(on), libraries)) {
+                is Saved.Ok -> SetupChoice.Tomorrow
+                else -> SetupChoice.Failed
+            }
+    }
+
+    // Under the account's lock. Null: the lineup is finalised, so the edit path applies.
+    @Suppress("LongParameterList") // What the setup choice reads and carries, one for one.
+    private suspend fun choosingAtSetup(
+        owner: Owner,
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+        savedSeq: SavedSeqs?,
+    ): SetupChoice? {
+        val entry = entryOf(owner)
+        val start = startOf(owner, entry)
+        entry.writable = start.save
+        val held = reconciled(entry, start)
+        val lineup = held?.lineup ?: start.current
+        val before = held?.meta ?: start.meta
+        val planned =
+            when {
+                !entry.writable -> null
+                lineup == null -> firstPlanAtSetup(owner, account, libraries, on, before, start.isNew)
+                lineup.finalised -> return null
+                else -> lineup.copy(useMyCollections = on) to before
+            }
+        if (planned == null) noteWritable(entry)
+        val repairs = held?.repairs ?: start.repairs
+        return planned?.let { (next, meta) -> savedAtSetup(owner, entry, next, meta, repairs, savedSeq) }
+            ?: SetupChoice.Failed
+    }
+
+    @Suppress("LongParameterList") // The save's own six.
+    private suspend fun savedAtSetup(
+        owner: Owner,
+        entry: Entry,
+        lineup: Lineup,
+        meta: RefreshMeta,
+        repairs: TodayRepairs,
+        savedSeq: SavedSeqs?,
+    ): SetupChoice {
+        val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
+        val saved = saveVerified(owner, lineup, meta, trimmed.record)
+        if (saved) {
+            told(trimmed)
+            publish(entry, lineup, meta, trimmed.record)
+            entry.loaded = true
+        }
+        return if (saved) SetupChoice.Applied else SetupChoice.Failed
+    }
+
+    // The first lineup of an account, planned with the switch; null (reported) when the library cannot be read.
+    @Suppress("TooGenericExceptionCaught", "LongParameterList") // Any failure to read or plan: nothing is written.
+    private suspend fun firstPlanAtSetup(
+        owner: Owner,
+        account: LibraryAccount,
+        libraries: Set<ItemId>,
+        on: Boolean,
+        before: RefreshMeta,
+        isNew: Boolean,
+    ): Pair<Lineup, RefreshMeta>? =
+        try {
+            val read = readForPlan(account, libraries)
+            plannedFrom(owner, read, libraries, null, before, newAccount = isNew, household = on)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            report(LineupEvent.RefreshFailed)
+            null
+        }
 
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> {
         val owner = ownerOf(account) ?: return flowOf(true)
