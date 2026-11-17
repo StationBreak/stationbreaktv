@@ -34,9 +34,7 @@ The TV banner, the launcher icons and the banner at the top of this README are *
 They come from the "StationBreak Logo" design canvas: the sign-off test card is the app icon and, widened to 16:9, the
 TV banner; the TV mark and wordmark are the README banner. The SVG sources are in `art/placeholder/`, and
 `scripts/render-placeholder-art.sh <font-dir>` renders every PNG at its exact size. The text is set in Archivo Black
-and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`). Both fonts are bundled in `core:ui` for the live channel's
-on-air look; their licences are in `core/ui/src/main/assets/licenses/` and their provenance is in
-`core/ui/FONTS.md`.
+and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`). The fonts bundled in the app, with their licences and provenance, are listed in `core/ui/FONTS.md`.
 
 ## Third-party software
 

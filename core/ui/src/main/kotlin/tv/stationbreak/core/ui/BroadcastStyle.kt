@@ -19,10 +19,16 @@ object BroadcastColors {
     val Cream = BrandColors.Cream
 }
 
-/** Archivo Black for display lines and Space Mono Bold for channel numbers and times (both SIL OFL 1.1). */
+/**
+ * Archivo Black for display lines, Space Mono Bold for channel numbers and times, and Ranchers for the brand name
+ * ([Voice]); all SIL OFL 1.1.
+ */
 object BroadcastType {
     val Display = FontFamily(Font(R.font.archivo_black))
     val Mono = FontFamily(Font(R.font.space_mono_bold, FontWeight.Bold))
+
+    /** Ranchers, the brand face: the name "Station Break" in the marks (DESIGN.md, Marks). */
+    val Voice = FontFamily(Font(R.font.ranchers_regular, FontWeight.Normal))
 }
 
 /**

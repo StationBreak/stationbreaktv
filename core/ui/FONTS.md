@@ -42,6 +42,23 @@ and is stored with LF line endings by `.gitattributes` (sha256
 `4eb085b4f06e3c1625d8b577902bf639d480633635837bf2ed94d1a7b1b842f5`, the value in `fonts.sha256`). The text is
 otherwise byte-identical to upstream.
 
+## Ranchers
+
+Ranchers is the brand face (DESIGN.md, Marks), used for the "Station Break" bug in the guide's details panel. Upstream
+repository: `github.com/google/fonts`, pinned commit `90abd17b4f97671435798b6147b698aa9087612f` (not the commit pinned
+above for the other fonts). Unmodified. Copyright 2012 Pablo Impallari and Brenda Gallo, Reserved Font Name "Ranchers",
+SIL Open Font License 1.1.
+
+| Bundled file | Upstream path (google/fonts at the commit above) |
+|---|---|
+| `src/main/res/font/ranchers_regular.ttf` | `ofl/ranchers/Ranchers-Regular.ttf` |
+| `src/main/assets/licenses/OFL-Ranchers.txt` | `ofl/ranchers/OFL.txt` |
+
+The font file is byte-identical to upstream (sha256 `19568aba8965664d1bc6f5a48c24d269c97501eed87af26b912f42b6e6f22adc`).
+`OFL-Ranchers.txt` is CRLF upstream (sha256 `0fc8e6675568c02aac6b41dd3cccaf2264fc5969601effe68e09b26635879b2c`) and is
+stored with LF line endings by `.gitattributes` (sha256 `53612c24b8b4652a2a71191e89a0e32e85b8c062ad9acb80cc46a6fd4f55a9c9`,
+the value in `fonts.sha256`). The text is otherwise byte-identical to upstream.
+
 ## Rule
 
 Fonts load only from the APK. Never from the server, the network or user content.
@@ -58,3 +75,8 @@ Fonts load only from the APK. Never from the server, the network or user content
    must print `True`.
 3. Compare the hashes with the old ones and review what changed; replace the OFL texts too.
 4. Update `fonts.sha256` and the commits above in this file, and record the commits and hashes in the commit message.
+5. Ranchers is pinned to its own `google/fonts` commit (see its section above) and does not move with the pin used
+   for Archivo Black and Space Mono: bump it on its own, only when the brand face itself changes. Fetch
+   `ofl/ranchers/Ranchers-Regular.ttf` and `ofl/ranchers/OFL.txt` from `raw.githubusercontent.com` at that commit only.
+   The OFL text is CRLF upstream and stored as LF, so re-hash the stored file (as for Archivo Black) and record both
+   hashes in its section.
