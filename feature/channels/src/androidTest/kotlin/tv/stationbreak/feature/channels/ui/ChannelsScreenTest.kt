@@ -625,7 +625,10 @@ class ChannelsScreenTest {
         screen
             .assertContentDescriptionContains("Bravo", substring = true)
             .assertContentDescriptionContains("Nothing in your libraries fits this channel", substring = true)
+        // Up from Bravo: Alpha, then New, then the "Use my collections" switch above it.
         press(Pad.Up, Pad.Up)
+        screen.assertContentDescriptionContains("New channel", substring = true)
+        press(Pad.Up)
         screen.assertContentDescriptionContains("Use my collections", substring = true)
         screen.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "On"))
     }
