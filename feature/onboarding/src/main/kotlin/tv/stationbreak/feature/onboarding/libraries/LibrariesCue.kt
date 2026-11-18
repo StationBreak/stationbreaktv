@@ -4,13 +4,16 @@ package tv.stationbreak.feature.onboarding.libraries
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.ui.stan.StanMood
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.StanCue
@@ -59,20 +62,45 @@ internal fun cheeringAt(
 ): Boolean = choosingSince != null && now - choosingSince < LIBRARIES_CHEER_MS
 
 /**
- * True for the first [LIBRARIES_CHEER_MS] after [phase] is first [LibrariesPhase.Choosing], then false. That start is
- * saved with the screen, so coming back to the picker (Continue on "Signed in as") or a restore does not cheer again.
+ * When the cheer's clock starts: once the screen is [shown] (its navigation entry resumed, so the fade-in is over),
+ * at the next frame, read from [now]. Needs a frame clock in the context, as a composition's effects have.
+ */
+internal suspend fun cheerStart(
+    shown: suspend () -> Unit,
+    now: () -> Long,
+): Long {
+    shown()
+    return withFrameNanos { now() }
+}
+
+/**
+ * True for the first [LIBRARIES_CHEER_MS] the list is on screen, then false. The clock starts at the first frame
+ * after the list first shows and the screen is resumed ([cheerStart]), not at its first composition: on a slow TV that
+ * composition, Stan's first paint and the 700 ms fade-in used up the whole cheer unseen. Until then it is true (only
+ * Choosing reads it), so the list opens on the cheer. The start is saved with the screen, so coming back to the picker
+ * (Continue on "Signed in as") or a restore does not cheer again.
  */
 @Composable
 internal fun rememberJustArrived(phase: LibrariesPhase): Boolean {
-    var saved by rememberSaveable { mutableStateOf<Long?>(null) }
-    // The first frame of the list already counts, so it never shows the plain line for a frame before the cheer.
-    val since = saved ?: SystemClock.elapsedRealtime().takeIf { phase == LibrariesPhase.Choosing }
-    // The first SideEffect after the list shows saves that frame's `since`; every later frame reads it, so it is fixed.
-    SideEffect { if (saved == null) saved = since }
-    var cheering by remember(since) { mutableStateOf(cheeringAt(since, SystemClock.elapsedRealtime())) }
-    LaunchedEffect(since) {
-        if (since == null) return@LaunchedEffect
-        delay(LIBRARIES_CHEER_MS - (SystemClock.elapsedRealtime() - since))
+    var since by rememberSaveable { mutableStateOf<Long?>(null) }
+    val choosing = phase == LibrariesPhase.Choosing
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(choosing) {
+        if (choosing && since == null) {
+            since =
+                cheerStart(
+                    shown = { lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) } },
+                    now = SystemClock::elapsedRealtime,
+                )
+        }
+    }
+    val started = since
+    var cheering by remember(started) {
+        mutableStateOf(started == null || cheeringAt(started, SystemClock.elapsedRealtime()))
+    }
+    LaunchedEffect(started) {
+        if (started == null) return@LaunchedEffect
+        delay(LIBRARIES_CHEER_MS - (SystemClock.elapsedRealtime() - started))
         cheering = false
     }
     return cheering
