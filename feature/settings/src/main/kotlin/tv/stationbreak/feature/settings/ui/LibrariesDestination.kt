@@ -30,7 +30,7 @@ import tv.stationbreak.feature.settings.LibrariesSettingsViewModel
  * Keys: Up and Down move between the rows, Select ticks or unticks the focused one (applied at once), Back finishes
  * the screen: [onDone] is called once, and the host closes it. The last row signs out (#336): a first Select arms it,
  * a second signs out, and a move or Back disarms it; once the sign-out has run, [onSignedOut] is called and the host
- * leaves for launch routing, which asks for a new sign-in on the same server.
+ * leaves for the server screen, where a server can be chosen again.
  */
 @Composable
 fun LibrariesDestination(
