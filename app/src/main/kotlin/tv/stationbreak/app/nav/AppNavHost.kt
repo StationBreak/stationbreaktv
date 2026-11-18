@@ -3,14 +3,30 @@ package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpRect
 import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,6 +35,8 @@ import androidx.navigation.toRoute
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.stan.StanOpening
+import tv.stationbreak.core.ui.stan.StanOpeningKey
+import tv.stationbreak.core.ui.stan.stanOpeningKey
 import tv.stationbreak.feature.channels.ui.ChannelPropertiesDestination
 import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
@@ -38,16 +56,21 @@ import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibra
  * replaces itself with the screen the setup calls for, so onboarding never flashes and Back never returns to launch.
  */
 @Composable
-fun AppNavHost(opening: Boolean = false) = AppNavGraph(LaunchRoute, coldLaunch = opening)
+fun AppNavHost(coldLaunch: Boolean = false) = AppNavGraph(LaunchRoute, coldLaunch = coldLaunch)
 
 /**
  * The graph, with a start destination and a [navController] a test can choose: starting on [SignInRoute] is what a
  * restored back stack looks like after process death, when the in-memory server hand-off is gone.
  *
- * [coldLaunch] is true on a cold launch only (the first start of the activity, not a restore): Stan's opening is
- * drawn once over the whole graph, hands over to the first real destination (which gets input at once) and dissolves
- * away over it. It lives here, above the host, so it outlasts the launch screen's replacement; no later visit to
- * launch (a lost session) shows it again.
+ * [coldLaunch] is true for a new activity (the first start of an activity, not a restore of a saved one): Stan's
+ * opening is then drawn once over the whole graph. It is opaque while launch routing works, so the first destination
+ * is already composed and running beneath it, then hands over to that destination and dissolves away over it. It lives
+ * here, above the host, so it outlasts the launch screen's replacement; no later visit to launch (a lost session)
+ * shows it again.
+ *
+ * Until it hands over, the opening owns the keys: D-pad, Select/Enter and Back are consumed here, on the host (the
+ * volume and media keys pass through). A key skips once routing has a destination; Back before that leaves the app,
+ * as the progress screen did.
  */
 @Composable
 internal fun AppNavGraph(
@@ -55,15 +78,44 @@ internal fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
     coldLaunch: Boolean = false,
 ) {
-    var opening by remember { mutableStateOf(if (coldLaunch) OpeningPhase.Playing else OpeningPhase.Gone) }
+    var phase by remember { mutableStateOf(if (coldLaunch) OpeningPhase.Playing else OpeningPhase.Gone) }
     var launchReady by remember { mutableStateOf(false) }
-    Box {
-        AppNavHostContent(navController, startDestination, opening == OpeningPhase.Playing) { launchReady = true }
-        if (opening != OpeningPhase.Gone) {
+    var skip by remember { mutableStateOf(false) }
+    val activity = LocalActivity.current
+    val playing = phase == OpeningPhase.Playing
+    val onBack: () -> Unit = {
+        if (launchReady) skip = true else activity?.finish()
+    }
+    val focus = remember { FocusRequester() }
+    // Keys are the host's while the opening plays, wherever focus is: the destination beneath may take focus itself.
+    BackHandler(enabled = playing, onBack)
+    LaunchedEffect(playing) { if (playing) runCatching { focus.requestFocus() } }
+    val keys =
+        if (playing) {
+            Modifier
+                .focusRequester(focus)
+                .onPreviewKeyEvent { handleOpeningKey(it, { skip = true }, onBack) }
+                .focusable()
+        } else {
+            Modifier
+        }
+    Box(Modifier.fillMaxSize().then(keys)) {
+        AppNavHostContent(
+            navController,
+            startDestination,
+            holdRouting = playing,
+            onLaunchReady = { launchReady = true },
+            onLaunchNeedsScreen = {
+                launchReady = true
+                skip = true
+            },
+        )
+        if (phase != OpeningPhase.Gone) {
             StanOpening(
                 appReady = launchReady,
-                onHandOver = { opening = OpeningPhase.Dissolving },
-                onDissolved = { opening = OpeningPhase.Gone },
+                skip = skip,
+                onHandOver = { phase = OpeningPhase.Dissolving },
+                onDissolved = { phase = OpeningPhase.Gone },
             )
         }
     }
@@ -71,19 +123,53 @@ internal fun AppNavGraph(
 
 private enum class OpeningPhase { Playing, Dissolving, Gone }
 
+private fun handleOpeningKey(
+    event: KeyEvent,
+    skip: () -> Unit,
+    back: () -> Unit,
+): Boolean =
+    when (stanOpeningKey(event.key)) {
+        StanOpeningKey.Skip -> {
+            if (event.type == KeyEventType.KeyDown) skip()
+            true
+        }
+
+        StanOpeningKey.Back -> {
+            if (event.type == KeyEventType.KeyDown) back()
+            true
+        }
+
+        StanOpeningKey.Other -> {
+            false
+        }
+    }
+
+// The navigation library's default transition between screens, so nothing else changes.
+private const val DEFAULT_FADE_MILLIS = 700
+
 @Suppress("LongMethod") // The graph: one block for each route.
 @Composable
 private fun AppNavHostContent(
     navController: NavHostController,
     startDestination: Any,
-    openingPlaying: Boolean,
+    holdRouting: Boolean,
     onLaunchReady: () -> Unit,
+    onLaunchNeedsScreen: () -> Unit,
 ) {
-    NavHost(navController = navController, startDestination = startDestination) {
-        composable<LaunchRoute> {
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        // Nothing crossfades from launch: the opening is over it, and the progress screen is never to show through.
+        enterTransition = {
+            val fromLaunch = initialState.destination.hasRoute<LaunchRoute>()
+            if (fromLaunch) EnterTransition.None else fadeIn(tween(DEFAULT_FADE_MILLIS))
+        },
+    ) {
+        composable<LaunchRoute>(exitTransition = { ExitTransition.None }) {
             LaunchDestination(
-                openingPlaying = openingPlaying,
+                holdRouting = holdRouting,
                 onReady = onLaunchReady,
+                onNeedsScreen = onLaunchNeedsScreen,
                 // Nothing stored: Welcome, with nothing beneath it, so Back exits.
                 onWelcome = { navController.replaceAll(WelcomeRoute) },
                 // A stored http address to confirm again: the server screen, outside the first-run flow (no markers).

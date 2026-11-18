@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
+import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -22,15 +23,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleLine("onCreate restored=${savedInstanceState != null}")
-        // A cold launch only: not a restore after process death. A rotation or other configuration change never
-        // recreates the activity (the manifest handles it), and coming back from the background keeps it.
-        val opening = savedInstanceState == null
+        // Stan's opening shows for a new activity, not a restored one (see showsOpening).
+        val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        val coldLaunch =
+            showsOpening(
+                restored = savedInstanceState != null,
+                debuggable = debuggable,
+                skipExtra = intent?.getBooleanExtra(EXTRA_SKIP_OPENING, false) == true,
+            )
         setContent {
             // The viewer's screen fit (Settings, Appearance): live TV's picture and every screen lay out with it.
             val fit by ScreenFits.get(this).fit.collectAsState()
             CompositionLocalProvider(LocalScreenFit provides fit) {
                 StationBreakTheme {
-                    AppNavHost(opening)
+                    AppNavHost(coldLaunch)
                 }
             }
         }

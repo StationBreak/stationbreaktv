@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui.stan
 
+import androidx.compose.ui.input.key.Key
 import kotlin.math.max
 import kotlin.math.min
 
@@ -42,4 +43,28 @@ internal fun openingRemainingSeconds(
         !appReady -> null
         skipped -> 0.0
         else -> max(0.0, openingDwellSeconds(reducedMotion) - elapsedSeconds)
+    }
+
+/** What a key does while the opening is up. */
+enum class StanOpeningKey {
+    /** D-pad and Select/Enter: skip to the destination. */
+    Skip,
+
+    /** Back: leaves the app until the app is ready to show something, then skips. */
+    Back,
+
+    /** Anything else (volume, mute, media keys): not the opening's, passed through untouched. */
+    Other,
+}
+
+/** Which of the opening's keys [key] is. The host consumes [StanOpeningKey.Skip] and [StanOpeningKey.Back] only. */
+fun stanOpeningKey(key: Key): StanOpeningKey =
+    when (key) {
+        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter,
+        Key.Enter, Key.NumPadEnter,
+        -> StanOpeningKey.Skip
+
+        Key.Back -> StanOpeningKey.Back
+
+        else -> StanOpeningKey.Other
     }

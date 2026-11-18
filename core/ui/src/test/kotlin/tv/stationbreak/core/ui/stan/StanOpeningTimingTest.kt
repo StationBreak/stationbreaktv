@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui.stan
 
+import androidx.compose.ui.input.key.Key
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -81,5 +82,16 @@ class StanOpeningTimingTest {
         assertEquals(0, openingDissolveMillis(reducedMotion = true))
         // It adds nothing to the wait for the name: the dissolve starts as the destination is handed the app.
         assertEquals(0.0, openingRemainingSeconds(openingDwellSeconds(false), true, false, false)!!, 0.0)
+    }
+
+    @Test
+    fun onlyDpadSelectEnterAndBackAreTheOpeningsKeys() {
+        listOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)
+            .plus(listOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter))
+            .forEach { assertEquals(StanOpeningKey.Skip, stanOpeningKey(it)) }
+        assertEquals(StanOpeningKey.Back, stanOpeningKey(Key.Back))
+        listOf(Key.VolumeUp, Key.VolumeDown, Key.VolumeMute, Key.MediaPlayPause, Key.MediaPlay)
+            .plus(listOf(Key.MediaPause, Key.Menu, Key.A))
+            .forEach { assertEquals(StanOpeningKey.Other, stanOpeningKey(it)) }
     }
 }

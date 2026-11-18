@@ -208,10 +208,10 @@ class LaunchNavigationTest {
         runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
     }
 
-    // [opening] is a cold launch's: the other tests start on launch routing itself, with no opening over it.
-    private fun launchApp(opening: Boolean = false) {
+    // [coldLaunch] is a new activity's opening; the other tests start on launch routing itself, with none over it.
+    private fun launchApp(coldLaunch: Boolean = false) {
         selection.resume()
-        compose.setContent { StationBreakTheme { AppNavHost(opening) } }
+        compose.setContent { StationBreakTheme { AppNavHost(coldLaunch) } }
         compose.waitForIdle()
     }
 
@@ -380,7 +380,7 @@ class LaunchNavigationTest {
 
     @Test
     fun aColdLaunchShowsTheOpeningUntilAKeyThenOpensWelcomeAndBackLeavesTheApp() {
-        launchApp(opening = true)
+        launchApp(coldLaunch = true)
         // The opening is over everything, and says the name once. The progress screen is not drawn beneath it.
         compose.onNode(hasContentDescription("Station Break")).assertExists()
         compose.onNodeWithTag(LaunchTags.SCREEN).assertDoesNotExist()
