@@ -7,9 +7,9 @@ import androidx.compose.ui.graphics.Color
 /**
  * Guide tokens, dark or light (the broadcast-EPG overhaul, #657). Dark is the default. The choice is the guide's own
  * and is never taken from the TV's system theme. Dark is the brand's warm-ink palette in solid tokens (ink, panel,
- * line, cream, muted, orange; see DESIGN.md). Light's neutral surfaces and text are one ink at a fixed alpha, drawn
- * over [page]. Contrast is judged on the composite. Roles the overhaul removes keep their field until the code that
- * reads them goes: they are [Color.Transparent] meanwhile.
+ * line, cream, muted, orange; see DESIGN.md). Light is the brand's paper mode, also solid tokens (paper, paper edge,
+ * deep orange, dark grey, ink; see DESIGN.md). Contrast is judged on the composite. Roles the overhaul removes keep
+ * their field until the code that reads them goes: they are [Color.Transparent] meanwhile.
  *
  * The guide and live TV's banner draw these themselves (the banner always uses [Dark]). The cream-ring treatment in
  * core:ui stays for screens that have not moved yet.
@@ -22,8 +22,8 @@ class GuideColors(
     val textPrimary: Color,
     val textSecondary: Color,
     /**
-     * The brand muted in Dark, 52% ink in Light: it holds 3:1 on the page and a card, so for strokes only (chevrons,
-     * ticks, rules), never for text, which uses [textSecondary] (Light's does not reach 4.5:1).
+     * The brand muted in Dark, dark grey in Light: it holds 3:1 on the page and a card, so for strokes only (chevrons,
+     * ticks, rules), never for text, which uses [textSecondary].
      * [GuidePaletteTest] fails if any file but the cells reads it.
      */
     val textSupporting: Color,
@@ -31,16 +31,16 @@ class GuideColors(
     val accent: Color,
     val focusFill: Color,
     val focusText: Color,
-    /** Secondary text on the focus fill: the ink at 90%, the least that keeps 11 sp text at 4.5:1 in both themes. */
+    /** Secondary text on the focus fill: ink at 90% in Dark, cream at 95% in Light, the least that holds 4.5:1. */
     val focusTextSecondary: Color,
     val nowLine: Color,
-    /** The now-line through the grid: 35% (60% in Light, where 35% is lost on the grey), so it may cross cells. */
+    /** The now-line through the grid: 35% (60% in Light, where 35% is lost on the paper), so it may cross cells. */
     val nowRailAlpha: Float,
     val progressFill: Color,
     val progressTrack: Color,
     /** The 1 dp rules and ticks of the timeline. */
     val line: Color,
-    /** The 1 dp outline of a hint key cap: the brand grey in Dark, or ink in Light. */
+    /** The 1 dp outline of a hint key cap: the brand grey in Dark, or the paper line in Light. */
     val keyCapStroke: Color,
     /**
      * The ink the channel marks are tinted with: their mono render drawn in this colour (Light), or null to draw the
@@ -49,7 +49,7 @@ class GuideColors(
     val markTint: Color? = null,
     /**
      * A sheet drawn over the guide (the menu sheet, a channel's properties): its surface is the brand panel
-     * (#262320) in Dark, a step lighter than the page in Light, so a sheet stands off the dimmed guide behind it in
+     * (#262320) in Dark, a step lighter than the paper in Light, so a sheet stands off the dimmed guide behind it in
      * both.
      */
     val sheet: SheetColors,
@@ -88,35 +88,36 @@ class GuideColors(
             )
 
         /**
-         * The same structure on a mid-light grey (about 83% lightness, no gradient: a white page is glaring on a TV),
-         * with ink at alphas where Dark has solid warm tokens. The focus fill and the accent are darker oranges than
-         * Dark's, the least that hold the floors on this page: the fill 3:1 over a card, the accent ([LIGHT_ACCENT],
-         * used as text, as a line and for progress) 4.5:1 for ON NOW and 3:1 for the cell progress line over a card.
+         * The brand's paper mode on the same structure: a flat paper page (no gradient), a paper-edge card a step down,
+         * ink text, dark grey for secondary text and strokes, and deep orange for words, the now-line, progress and
+         * the focus fill (with cream on it). Ink and cream trade places from Dark. Light is the viewer's choice for
+         * bright rooms. The hairlines and the track are derived solids ([BrandColors.PaperLine],
+         * [BrandColors.PaperTrack]).
          */
         val Light =
             GuideColors(
-                page = LIGHT_PAGE,
-                pageGradientStart = LIGHT_PAGE,
-                card = INK.copy(alpha = CARD_ALPHA_LIGHT),
-                textPrimary = INK.copy(alpha = PRIMARY_ALPHA_LIGHT),
-                textSecondary = INK.copy(alpha = SECONDARY_ALPHA_LIGHT),
-                textSupporting = INK.copy(alpha = TERTIARY_ALPHA_LIGHT),
-                programmeText = INK.copy(alpha = PRIMARY_ALPHA_LIGHT),
-                accent = LIGHT_ACCENT,
-                focusFill = LIGHT_FOCUS_FILL,
-                focusText = Color(0xFFFFFFFF),
-                focusTextSecondary = Color(0xFFFFFFFF).copy(alpha = FOCUS_SECONDARY_ALPHA),
-                nowLine = LIGHT_ACCENT,
+                page = BrandColors.Paper,
+                pageGradientStart = BrandColors.Paper,
+                card = BrandColors.PaperEdge,
+                textPrimary = BrandColors.Ink,
+                textSecondary = BrandColors.DarkGrey,
+                textSupporting = BrandColors.DarkGrey,
+                programmeText = BrandColors.Ink,
+                accent = BrandColors.DeepOrange,
+                focusFill = BrandColors.DeepOrange,
+                focusText = BrandColors.Cream,
+                focusTextSecondary = BrandColors.Cream.copy(alpha = FOCUS_SECONDARY_ALPHA_LIGHT),
+                nowLine = BrandColors.DeepOrange,
                 nowRailAlpha = NOW_LINE_ALPHA_LIGHT,
-                progressFill = LIGHT_ACCENT,
-                progressTrack = INK.copy(alpha = TRACK_ALPHA_LIGHT),
-                line = INK.copy(alpha = LINE_ALPHA_LIGHT),
-                keyCapStroke = INK.copy(alpha = LINE_ALPHA_LIGHT),
-                markTint = INK,
+                progressFill = BrandColors.DeepOrange,
+                progressTrack = BrandColors.PaperTrack,
+                line = BrandColors.PaperLine,
+                keyCapStroke = BrandColors.PaperLine,
+                markTint = BrandColors.Ink,
                 sheet =
                     SheetColors(
-                        surface = LIGHT_SHEET,
-                        line = INK.copy(alpha = SHEET_LINE_ALPHA_LIGHT),
+                        surface = BrandColors.PaperLift,
+                        line = BrandColors.Ink.copy(alpha = SHEET_LINE_ALPHA_LIGHT),
                         ratingBadge = LIGHT_RATING_BADGE,
                     ),
             )
@@ -130,22 +131,9 @@ val LocalGuideColors = staticCompositionLocalOf { GuideColors.Dark }
 internal val DarkSheet =
     SheetColors(surface = BrandColors.Panel, line = BrandColors.Line, ratingBadge = Color(0xFFFFD166))
 
-// Light's text and surfaces are one ink at fixed alphas. Light has its own alphas: its page is darker than a
-// near-white one, so the card, the rules and the track are stronger and its text is held at 4.5:1 on both the page and
-// the card.
-private val LIGHT_SHEET = Color(0xFFE4E6EA)
 private val LIGHT_RATING_BADGE = Color(0xFF7A4B00)
 private const val SHEET_LINE_ALPHA_LIGHT = 0.20f
-private val INK = Color(0xFF111214)
-private val LIGHT_PAGE = Color(0xFFD2D5DA)
-private val LIGHT_ACCENT = Color(0xFF8F3811)
-private val LIGHT_FOCUS_FILL = Color(0xFFAD4216)
-private const val PRIMARY_ALPHA_LIGHT = 0.92f
-private const val SECONDARY_ALPHA_LIGHT = 0.66f
-private const val TERTIARY_ALPHA_LIGHT = 0.52f
-private const val CARD_ALPHA_LIGHT = 0.12f
 private const val FOCUS_SECONDARY_ALPHA = 0.90f
-private const val TRACK_ALPHA_LIGHT = 0.14f
-private const val LINE_ALPHA_LIGHT = 0.16f
+private const val FOCUS_SECONDARY_ALPHA_LIGHT = 0.95f
 private const val NOW_LINE_ALPHA = 0.35f
 private const val NOW_LINE_ALPHA_LIGHT = 0.60f

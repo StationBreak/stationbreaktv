@@ -64,25 +64,33 @@
         "role": "secondary",
         "displayName": "Rating Amber"
       },
-      "daylight-page": {
+      "paper": {
         "role": "neutral",
-        "displayName": "Daylight Page (provisional)"
+        "displayName": "Paper"
       },
-      "daylight-sheet": {
+      "paper-edge": {
         "role": "neutral",
-        "displayName": "Daylight Sheet (provisional)"
+        "displayName": "Paper Edge"
       },
-      "daylight-ink": {
-        "role": "neutral",
-        "displayName": "Daylight Ink (provisional)"
-      },
-      "daylight-orange-fill": {
+      "deep-orange": {
         "role": "primary",
-        "displayName": "Daylight Orange fill (provisional)"
+        "displayName": "Deep Orange (words on paper)"
       },
-      "daylight-orange-text": {
-        "role": "primary",
-        "displayName": "Daylight Orange text (provisional)"
+      "dark-grey": {
+        "role": "neutral",
+        "displayName": "Dark Grey (supporting text on paper)"
+      },
+      "paper-lift": {
+        "role": "neutral",
+        "displayName": "Paper Lift (derived)"
+      },
+      "paper-line": {
+        "role": "neutral",
+        "displayName": "Paper Line (derived)"
+      },
+      "paper-track": {
+        "role": "neutral",
+        "displayName": "Paper Track (derived)"
       }
     },
     "typographyMeta": {

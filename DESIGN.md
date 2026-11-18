@@ -12,11 +12,13 @@ colors:
   screen-lift-top: "#2E2A25"
   screen-lift-bottom: "#151412"
   rating-amber: "#FFD166"
-  daylight-page: "#D2D5DA"
-  daylight-sheet: "#E4E6EA"
-  daylight-ink: "#111214"
-  daylight-orange-fill: "#AD4216"
-  daylight-orange-text: "#8F3811"
+  paper: "#F5F1E7"
+  paper-edge: "#E6DFD0"
+  deep-orange: "#AE400C"
+  dark-grey: "#5E5850"
+  paper-lift: "#FBF8F1"
+  paper-line: "#D2CFC6"
+  paper-track: "#D7D3CA"
 typography:
   name:
     fontFamily: "Ranchers"
@@ -157,8 +159,13 @@ Warm ink carries everything, cream does the talking, and orange is the spark.
 - **Muted** (#B3AB9D): the quietest text step, for metadata under a title (7.6:1 on ink, 6.3:1 on the lift's brightest point).
 - **Rating amber** (#FFD166): the content-rating and KIDS badge. It's the only hue outside the four, kept because a rating must not read as focus.
 
-### Daylight (PROVISIONAL)
-The guide's viewer-chosen Light theme predates the brand sheet, which is dark-only. It stays as it ships (a #D2D5DA page, #E4E6EA sheets, #111214 ink at fixed alphas, a #AD4216 fill and #8F3811 text orange) until the brand decides whether a light variant exists and what its ground is.
+### Light mode (paper)
+The brand defines a light mode: ink and cream trade places, so Stan's cabinet turns ink and his screen cream. The ground is paper, not white. Light is the viewer's choice for bright rooms; Dark stays the default on TV, as the brand sheet notes.
+- **Paper** (#F5F1E7) to **Paper edge** (#E6DFD0): the light ground, slightly darker toward the edges. The guide's page is flat paper (no lift); a programme card is paper edge, the step down.
+- **Deep orange** (#AE400C): orange for words on paper (5.1:1 against cream, 5.3:1 on paper, 4.5:1 on a card). It carries ON NOW, the now line, progress, and the focus fill with cream text (5.1:1). Brand orange (#E8642C) is 2.9:1 on paper, so it stays for shapes (ears, shoes, cheeks).
+- **Dark grey** (#5E5850): small supporting text on paper (6.2:1 on paper, 5.3:1 on a card); also the strokes (chevrons, ticks).
+- **Ink** (#1C1B19): primary text and the tinted channel marks (15.3:1 on paper, 13.0:1 on a card).
+- Derived for the guide, not from the brand sheet: **Paper lift** (#FBF8F1, a sheet that stands off the dimmed guide), **Paper line** (#D2CFC6, ink at 16% over paper: rules and key cap outlines) and **Paper track** (#D7D3CA, ink at 14% over paper: the progress track). The rating badge on a sheet is #7A4B00 (7.0:1).
 
 ### Named Rules
 **The Spark Rule.** Orange is the spark, never the fill of a screen. In the guide family it means exactly "this one" (focus) or "now" (the now line, NOW, progress). Never use it for decoration or headings, and never for two unrelated things on one screen.
@@ -167,8 +174,9 @@ The guide's viewer-chosen Light theme predates the brand sheet, which is dark-on
 - cream on ink, for anything;
 - grey or muted on ink, for small text;
 - orange on ink, and ink on orange, for labels, flags and headlines.
+- on paper, words use deep orange and supporting text uses dark grey; ink for anything, cream on deep orange for the focus fill.
 
-Cream on orange and orange on cream (2.9:1) are for shapes only, never text. Orange text keeps to ink or panel; on the lift's brightest point it drops to 4.3:1, so it isn't used for small text there.
+Cream on orange and orange on cream (2.9:1) are for shapes only, never text; on paper, brand orange is the same: shapes only. Orange text keeps to ink or panel; on the lift's brightest point it drops to 4.3:1, so it isn't used for small text there.
 
 **The Viewer's Choice Rule.** The guide family follows the viewer's own Dark/Light choice, never the TV's system theme. Dark (warm ink) is the default.
 
@@ -275,6 +283,7 @@ Setup is a station screen too: Stan in Awake or Tuning, the reading face at 20sp
 ## Migration (the design target is ahead of the code)
 
 These tokens and components are the brand's target. The app reaches them in steps; until then the code is the record of what ships.
+- **Light:** no longer behind. The guide's Light theme is the brand's paper mode (see Light mode above).
 - **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
 - **Faces:** the test card uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
 - **Station screens:** the test-card slates (ident, difficulties, no channels, no libraries) and the snow are to be replaced by Stan station screens.
