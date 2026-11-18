@@ -35,6 +35,7 @@ internal fun channelRows(
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
                 gettingReady = waiting,
                 markKey = c.recipeKey,
+                viewerMade = c.viewerMade,
             )
         }
 

@@ -7,6 +7,7 @@ import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
+import tv.stationbreak.core.engine.lineup.isViewerCustom
 import kotlin.time.Instant
 import tv.stationbreak.core.engine.lineup.ShelfReason as EngineReason
 
@@ -41,6 +42,7 @@ internal fun LineupChannel.summary(
     playKey = playKey,
     shelfReason = shownShelfReason(nowMs),
     recipeKey = source.recipeKey(),
+    viewerMade = isViewerCustom(),
 )
 
 // The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source

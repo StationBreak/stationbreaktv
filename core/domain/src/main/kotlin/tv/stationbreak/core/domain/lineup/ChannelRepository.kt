@@ -87,6 +87,11 @@ data class ChannelSummary(
     val playKey: PlayKey,
     val shelfReason: ShelfReason? = null,
     val recipeKey: String? = null,
+    /**
+     * The viewer made this channel (and this app can read it): the free tier lets them change it. [kind] alone is not
+     * that: a starter whose recipe left the catalog is [ChannelKind.Custom] but still the planner's (#805).
+     */
+    val viewerMade: Boolean = kind == ChannelKind.Custom,
 )
 
 /**
