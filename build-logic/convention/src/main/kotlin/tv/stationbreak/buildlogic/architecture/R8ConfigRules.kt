@@ -26,7 +26,37 @@ object R8ConfigRules {
     private const val EVERY_CLASS = "java.lang.Object"
     private val sectionEnd = Regex("^# End of content from (.*)$")
     private val coordinateHeader = Regex("[^\\s/]+:[^\\s/]+:\\S+")
-    private val ifKeep = Regex("\\s(-keep\\w*\\s.*)", RegexOption.DOT_MATCHES_ALL)
+
+    // The keep an `-if` applies, written with whitespace or a comma after the option (`-keep,allowobfuscation`).
+    private val ifKeep = Regex("\\s(-keep\\w*[\\s,].*)", RegexOption.DOT_MATCHES_ALL)
+    private val backreference = Regex("<(\\d+)>")
+    private val leadingWildcards = Regex("^[*?.]+")
+    private val placeholders = Regex("<init>|<fields>|<methods>|\\(\\.\\.\\.\\)")
+    private val memberSeparators = Regex("[\\s;()\\[\\],]+")
+    private val memberKeywords =
+        setOf(
+            "public",
+            "private",
+            "protected",
+            "static",
+            "final",
+            "abstract",
+            "native",
+            "synchronized",
+            "volatile",
+            "transient",
+            "strictfp",
+            "void",
+            "boolean",
+            "byte",
+            "char",
+            "short",
+            "int",
+            "long",
+            "float",
+            "double",
+        )
+    private val wildcard = Regex("\\*\\*\\*|\\*\\*|\\*|\\?")
     private val keepFamily =
         setOf(
             "-keep",
@@ -79,10 +109,22 @@ object R8ConfigRules {
         var open: String? = null
         var directive = StringBuilder()
 
+        // An `-if` whose keep is on a later line (the usual layout) applies to the next directive if it is a keep (#909).
+        var pendingIf: String? = null
+
         fun flush() {
-            val text = directive.toString().trim()
+            var text = directive.toString().trim()
             directive = StringBuilder()
-            if (text.isEmpty() || !forbidden(text)) return
+            if (text.isEmpty()) return
+            val condition = pendingIf
+            pendingIf = null
+            if (condition != null && text.split(separators).first() in keepFamily) {
+                text = "$condition\n$text"
+            } else if (text.split(separators).first() == "-if" && ifKeep.find(text) == null) {
+                pendingIf = text
+                return
+            }
+            if (!forbidden(text)) return
             val option = text.split(separators).first()
             if (allowed[option]?.any { source.startsWith(it) } != true) {
                 found += R8Violation(text.lines().first().trim(), source)
@@ -98,6 +140,7 @@ object R8ConfigRules {
             when {
                 end != null -> {
                     flush()
+                    pendingIf = null
                     // AGP closes every section with its own end marker, so a copy of the header in a rule file
                     // (a spoof) shows up as a header inside an open section, or an end with nothing open.
                     if (end.groupValues[1] != open) {
@@ -109,6 +152,7 @@ object R8ConfigRules {
 
                 header != null -> {
                     flush()
+                    pendingIf = null
                     val text = header.groupValues[1]
                     if (open != null) found += R8Violation("a section header inside an open section", normalise(text))
                     open = text
@@ -145,16 +189,29 @@ object R8ConfigRules {
         val option = tokens.first()
         val args = tokens.drop(1)
         return when {
-            option in alwaysForbidden -> true
+            option in alwaysForbidden -> {
+                true
+            }
 
-            option == "-dontwarn" || option == "-keeppackagenames" -> broad(args)
+            option == "-dontwarn" || option == "-keeppackagenames" -> {
+                broad(args)
+            }
 
-            // `-if class A -keep class ** { *; }` on one line: the embedded keep is the rule.
-            option == "-if" -> ifKeep.find(directive)?.let { forbidden(it.groupValues[1]) } == true
+            // `-if class A -keep class ** { *; }`: the embedded keep is the rule, with its `<n>` read through the
+            // condition (#909).
+            option == "-if" -> {
+                ifKeep.find(directive)?.let {
+                    forbidden(resolved(directive.substring(0, it.range.first), it.groupValues[1]))
+                } == true
+            }
 
-            option in keepFamily -> keepsEverything(option, args, directive.substringAfter('{', ""))
+            option in keepFamily -> {
+                keepsEverything(option, args, directive.substringAfter('{', ""))
+            }
 
-            else -> false
+            else -> {
+                false
+            }
         }
     }
 
@@ -179,7 +236,10 @@ object R8ConfigRules {
         // Both limit the rule: it is broad only when the class names and, if there is one, the supertype are (#851).
         val supertypes = if (superAt >= 0) args.drop(superAt + 1) else null
         val anySupertype = supertypes == null || broad(supertypes) || supertypes.any { matchesEveryClass(it) }
-        if (!broad(names) || !anySupertype) return false
+        // The class itself is kept, so `**$*` or `**Foo` (every package) is broad here; on a member rule it isn't, as
+        // the members decide (kotlinx's `**$$serializer { private ** descriptor; }`) (#909).
+        val classKept = option == "-keep" || option == "-keepnames"
+        if (!(broad(names) || (classKept && names.any { anyPackageSuffix(it) })) || !anySupertype) return false
         if (option == "-keep" || option == "-keepnames") return true
         val members =
             body
@@ -188,6 +248,49 @@ object R8ConfigRules {
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
         return members.isEmpty() || "*;" in members || ("<fields>;" in members && "<methods>;" in members)
+    }
+
+    // A name whose leading wildcards reach every package and don't stop at a package boundary names classes in every
+    // package: `**$*`, `**Foo`, `*.**$*`, `?**$*`, `**.*Foo`. `**.R$*` (androidx) and `**.BuildConfig` end the run at a
+    // dot, so they name one class per package and are left alone (#909).
+    private fun anyPackageSuffix(name: String): Boolean {
+        val run = leadingWildcards.find(name)?.value ?: return false
+        return "**" in run && !run.endsWith('.') && !wildcardOnly.matches(name)
+    }
+
+    // A member line that names nothing: only modifiers, primitive types, wildcards and `<init>`/`<fields>`/`<methods>`.
+    // Nearly every class has such a member (`*;`, `<init>(...);`), so it doesn't narrow an `-if` condition (#909).
+    private fun namesNothing(member: String): Boolean =
+        member
+            .replace(placeholders, " ")
+            .split(memberSeparators)
+            .filter { it.isNotEmpty() }
+            .all { it in memberKeywords || wildcardOnly.matches(it) }
+
+    // The keep of an `-if`, with each `<n>` replaced by the condition's n-th wildcard when the condition matches every
+    // class: then `<n>` can be any class name. A condition narrowed by an annotation, a supertype, a named class or a
+    // member that names something (`CREATOR`, `@retrofit2.http.*`) only ever matches that set, so its `<n>` stay as they
+    // are and are not broad (#909). A `<n>` with no wildcard behind it is read as `**`.
+    private fun resolved(
+        condition: String,
+        keep: String,
+    ): String {
+        val args =
+            condition
+                .substringBefore('{')
+                .split(separators)
+                .filter { it.isNotEmpty() }
+                .drop(1)
+        if (!keepsEverything("-keep", args, "")) return keep
+        if ('{' in condition) {
+            val members = condition.substringAfter('{').substringBeforeLast('}').split(';', '\n')
+            if (!members.all { namesNothing(it) }) return keep
+            // Members that every class has don't narrow it; R8 also numbers their wildcards, so read every <n> as any
+            // class rather than count them.
+            return backreference.replace(keep, "**")
+        }
+        val wildcards = args.flatMap { arg -> wildcard.findAll(arg).map { it.value }.toList() }
+        return backreference.replace(keep) { wildcards.getOrNull(it.groupValues[1].toInt() - 1) ?: "**" }
     }
 
     // A class list matches broadly when a positive name is wildcards only, or when its last name is a negation: R8 takes
