@@ -56,3 +56,19 @@ dependencies {
     implementation(libs.androidx.test.ext.junit)
     implementation(libs.androidx.benchmark.macro.junit4)
 }
+
+// OSV-Scanner flags wire-runtime 6.4.0 (GHSA-9rm7-3qhh-h2mc), which benchmark-macro 1.5.0 asks for, and okio 2.10.0
+// (GHSA-w33c-445m-f8w7), which wire 6.4.0 asks for. This test module's classpath is the only place either appears; the
+// app's release classpaths have neither. Ask for the fixed patch release instead, so the old one is never fetched.
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "com.squareup.wire" && requested.name == "wire-runtime" && requested.version == "6.4.0") {
+            useVersion("6.4.5")
+            because("GHSA-9rm7-3qhh-h2mc, fixed in 6.4.5")
+        }
+        if (requested.group == "com.squareup.okio" && requested.name == "okio" && requested.version == "2.10.0") {
+            useVersion("3.4.0")
+            because("GHSA-w33c-445m-f8w7, fixed in 3.4.0")
+        }
+    }
+}
