@@ -15,7 +15,7 @@ outside testers). Decisions only the owner can make are marked **Owner**.
 | Testers on | Channel | Why |
 | --- | --- | --- |
 | Fire TV | Amazon **Live App Testing** (LAT) | The tester installs from the Appstore on their own TV, with no ADB, developer options or sideloading. That is the same path a real customer takes, so "unassisted" means the same thing. Free, up to 1,500 testers, invited by the email of their Amazon account. A LAT build can later be promoted to the live listing ([LAT FAQ](https://developer.amazon.com/docs/app-testing/live-app-testing-faq.html)) |
-| A non-Amazon Android TV | **Owner** | LAT serves Amazon devices only. The options are a GitHub pre-release of the `github` flavor (the release workflow already builds and signs it, but GitHub Releases, #35, is planned after the listing), or the CI APK guide ([install-ci-apk.md](../testing/install-ci-apk.md)), which needs ADB and is not "unassisted". Recommended: a GitHub pre-release, so the gate's Android TV tester installs a normal APK |
+| A non-Amazon Android TV | **Sideload APK** from a GitHub pre-release (owner decision, 2026-11-18) | LAT serves Amazon devices only. The tester downloads the `github` flavor's APK on the TV and installs it, with no ADB or computer. See [Sideload path](#sideload-path) |
 
 LAT needs the app created in the Developer Console, with the fields drafted in
 [the listing draft](../store/amazon-appstore-listing.md). On Fire OS 7 and later, testers can also manage the test in
@@ -23,6 +23,40 @@ Amazon's **Appstore Beta Hub** app. On Fire OS 6 they use the invitation email.
 
 The beta build is a release build (the `amazon` flavor from a tag), not a CI debug build: release builds have the free
 tier's gates closed (#808), as customers will see them.
+
+## Sideload path
+
+For outside testers on a non-Amazon Android TV (and, as a fallback, a Fire TV tester who can't take the Amazon
+invitation).
+
+**Where the APK comes from.** The same tagged release that feeds LAT. The release workflow builds both flavors from a
+`v*` tag and creates a draft release with the APKs, `SHA256SUMS` and the signing certificate's fingerprint
+(CONTRIBUTING.md, Cutting a release). The owner publishes that draft marked **pre-release**, so GitHub doesn't show it
+as the latest release. Testers get the `github` flavor's APK from it. It is a release build: the free tier's gates are
+closed, as for every other tester.
+
+**What testers do.** Steps for the invitation. Menu names differ between TV makers, so they stay general:
+
+```text
+Android TV (or a Fire TV, if the Amazon invitation doesn't work for you):
+1. On the TV, install an app that can download files, for example "Downloader" from the Play Store (on Fire TV, from the Appstore).
+2. In it, open this address: <LINK TO THE APK ON THE PRE-RELEASE>
+3. When the download finishes, choose Install. The TV asks whether that app may install apps: allow it, then choose Install again.
+   On a Fire TV, if it doesn't ask, turn it on first: Settings > My Fire TV > Developer options > Install unknown apps (on older models, Apps from Unknown Sources).
+4. When it's installed, you can turn that permission off again in the same place (on Android TV: Settings > Apps, or Device Preferences > Security & restrictions > Unknown sources).
+```
+
+Things to know:
+
+- **One copy at a time.** The Appstore copy and the GitHub copy have the same app ID but different signing keys
+  (ADR-0010). To switch between them, a tester uninstalls first, which removes the sign-in and settings. Tell
+  sideload testers to keep the GitHub copy for the whole beta.
+- **Updates are by hand.** A sideloaded copy doesn't update itself. Each fix build is a new pre-release, and testers
+  install it over the old one the same way (same key, so their settings stay).
+- **Checking the file** is optional for testers: the pre-release lists each APK's SHA-256 in `SHA256SUMS`.
+- **Tag numbering.** The release workflow accepts only `vMAJOR.MINOR.PATCH` with MAJOR 1 or more, so beta builds are
+  ordinary version numbers published as pre-releases (for example `v1.0.0`, then `v1.0.1` for the first fixes).
+  **Owner** to confirm the numbering before the first tag.
 
 ## Recruiting
 
@@ -65,7 +99,7 @@ whether the app explains itself. Draft for the invitation message:
 Thanks for testing.
 
 1. Install: open the invitation email from Amazon on your phone or computer and accept it with the Amazon account your Fire TV uses. The app then appears on the TV under Your Apps & Channels, or in the Appstore Beta Hub app on newer Fire TVs. If it doesn't show up, go to Settings > My Account > Sync Amazon Content on the TV.
-   Android TV: install the APK from the link I sent you.
+   Android TV: follow the sideload steps I sent you (download the APK on the TV and install it).
 2. Open the app and get a channel playing. Please try it without asking me first: if you get stuck, write down where and what you expected, then ask.
 3. Report: open a "Beta report" issue at https://github.com/StationBreak/stationbreaktv/issues/new/choose, or email me if you'd rather not use GitHub. Please report even if everything went fine.
 
@@ -74,9 +108,9 @@ Please don't post your server address, username, password or screenshots that sh
 
 ## Feedback form
 
-A GitHub issue form, so reports are public, searchable and labelled. It lives in `.github/ISSUE_TEMPLATE/`, which is
-held for the owner (ADR-0012), so this PR only drafts it. **Owner**: add it as
-`.github/ISSUE_TEMPLATE/beta-report.yml` and create the `beta` label.
+A GitHub issue form, so reports are public, searchable and labelled. It is
+`.github/ISSUE_TEMPLATE/beta-report.yml` (added in #897, approved by the owner 2026-11-18), and reports file under the
+`beta` label, which exists. The copy below is the same file; change both together.
 
 ```yaml
 name: Beta report
@@ -173,8 +207,8 @@ it holds the tester's contact and invitation email. Columns:
 ## Order of work
 
 1. Phase 2 dogfood passes (earliest 2026-11-25).
-2. **Owner:** create the app in the Developer Console and a live app test with a tagged release build; decide the
-   Android TV channel; add the issue form and label.
+2. **Owner:** tag a release build; create the app in the Developer Console and a live app test with it; publish the
+   same release's draft as a GitHub pre-release for sideload testers.
 3. **Owner:** post the recruitment message; pick testers for the device spread; send invitations.
 4. Testers report; friction becomes issues; fixes ship as new LAT builds.
 5. **Owner:** record the gate result.
