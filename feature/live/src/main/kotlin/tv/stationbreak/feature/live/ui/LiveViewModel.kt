@@ -43,6 +43,7 @@ import tv.stationbreak.core.playback.VideoPlayer
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
 import tv.stationbreak.core.playback.WarmSwitches
+import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.Kept
 import tv.stationbreak.feature.live.LiveChannel
 import tv.stationbreak.feature.live.LiveCommand
@@ -160,6 +161,8 @@ internal class LiveViewModel
         private val timings: LiveTimings,
         // The stored library selection: while it is gone, nothing plays (spec 26).
         private val choices: LibrarySelectionView,
+        // Whether the TV's output is there: while it is not, nothing is tuned or reported (#423).
+        private val display: DisplayOutput,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -393,6 +396,7 @@ internal class LiveViewModel
                         server = server,
                         details = details,
                         selection = choices.selection,
+                        output = display.present,
                         onFirstVisit = ::openFirstVisitGuide,
                     ).also {
                         live = it

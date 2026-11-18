@@ -61,6 +61,7 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
 import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveTimings
@@ -169,6 +170,7 @@ class LiveKeysTest {
             ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob())),
             LiveTimings(),
             FakeLibraryChoices(null),
+            DisplayOutput.Present,
         )
     }
 

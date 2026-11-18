@@ -23,6 +23,7 @@ import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
 import tv.stationbreak.core.playback.WarmSwitches
+import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
@@ -72,6 +73,7 @@ class LiveViewModelLeaveTest {
                 r.details,
                 LiveTimings(),
                 FakeLibraryChoices(null),
+                DisplayOutput.Present,
             )
         return Setup(r, server, vm)
     }

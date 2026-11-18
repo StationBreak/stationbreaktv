@@ -8,10 +8,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import tv.stationbreak.app.HdmiOutput
 import tv.stationbreak.core.domain.LastChannelStore
 import tv.stationbreak.core.domain.tracks.TrackChoiceStore
 import tv.stationbreak.data.settings.lastchannel.FileLastChannelStore
 import tv.stationbreak.data.settings.tracks.FileTrackChoiceStore
+import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.LiveTimings
 import javax.inject.Singleton
 import kotlin.time.Duration.Companion.milliseconds
@@ -29,6 +31,13 @@ internal object LiveModule {
     fun lastChannelStore(
         @ApplicationContext context: Context,
     ): LastChannelStore = FileLastChannelStore(context)
+
+    /** Whether the TV's HDMI sink is there (#423): the live screen holds still while it is not. */
+    @Provides
+    @Singleton
+    fun displayOutput(
+        @ApplicationContext context: Context,
+    ): DisplayOutput = HdmiOutput(context)
 
     /** What the viewer chose for audio, subtitles and version, kept on the device only (never sent to the server). */
     @Provides
