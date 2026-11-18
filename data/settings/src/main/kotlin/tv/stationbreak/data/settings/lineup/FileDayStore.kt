@@ -12,10 +12,9 @@ import tv.stationbreak.core.domain.DayStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.model.CanonicalId
-import java.io.ByteArrayOutputStream
+import tv.stationbreak.data.settings.readAtMost
+import tv.stationbreak.data.settings.writeStaged
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.IOException
 
 /**
@@ -58,12 +57,20 @@ class FileDayStore internal constructor(
         return locked {
             try {
                 when {
-                    !file.exists() -> StoredBytes.Absent
+                    !file.exists() -> {
+                        StoredBytes.Absent
+                    }
 
                     // Anything else that can't be read (a directory, say) is a fault, never "no file".
-                    !file.isFile -> StoredBytes.Failed
+                    !file.isFile -> {
+                        StoredBytes.Failed
+                    }
 
-                    else -> StoredBytes.Present(readAtMost(file))
+                    else -> {
+                        val bytes = readAtMost(file, maxBytes)
+                        if (bytes.size > maxBytes) throw IOException("the day is too large")
+                        StoredBytes.Present(bytes)
+                    }
                 }
             } catch (_: IOException) {
                 StoredBytes.Failed
@@ -84,27 +91,17 @@ class FileDayStore internal constructor(
         return locked {
             val current = active
             if (directory in forgotten || (current != null && current != directory)) return@locked false
-            val staged = File(file.path + NEW)
             try {
-                file.parentFile?.let(::ensureDirectory)
                 // A staged copy left by a write the process died in is never read: it goes before the next write.
                 file.parentFile
                     ?.listFiles()
                     ?.filter { it.name.endsWith(NEW) }
                     ?.forEach { it.delete() }
-                FileOutputStream(staged).use { out ->
-                    out.write(bytes)
-                    out.flush()
-                    out.fd.sync()
-                }
-                if (!staged.renameTo(file)) throw IOException("cannot replace the day")
-                file.parentFile?.let(syncDirectory)
+                writeStaged(file, bytes, syncDirectory)
                 true
             } catch (cancelled: CancellationException) {
-                staged.delete()
                 throw cancelled
             } catch (_: Exception) {
-                staged.delete()
                 false
             }
         }
@@ -183,36 +180,9 @@ class FileDayStore internal constructor(
         name: String,
     ): File? = if (NAME.matches(name)) directoryOf(account)?.resolve(name) else null
 
-    // Reads through a stream that stops at maxBytes + 1, so a file that grows or lies about its length can't be pulled
-    // whole into memory.
-    private fun readAtMost(file: File): ByteArray {
-        val out = ByteArrayOutputStream(minOf(file.length(), maxBytes.toLong()).toInt())
-        val buffer = ByteArray(BUFFER)
-        var total = 0
-        FileInputStream(file).use { input ->
-            while (true) {
-                val read = input.read(buffer, 0, minOf(buffer.size, maxBytes + 1 - total))
-                if (read < 0) break
-                out.write(buffer, 0, read)
-                total += read
-                if (total > maxBytes) throw IOException("the day is too large")
-            }
-        }
-        return out.toByteArray()
-    }
-
-    // Creates the directory; each directory that was made is recorded in its parent by syncing that parent.
-    private fun ensureDirectory(directory: File) {
-        val missing = generateSequence(directory) { it.parentFile }.takeWhile { !it.isDirectory }.toList()
-        if (missing.isEmpty()) return
-        if (!directory.mkdirs() && !directory.isDirectory) throw IOException("cannot create the days directory")
-        missing.mapNotNull { it.parentFile }.forEach(syncDirectory)
-    }
-
     internal companion object {
         const val DIR_NAME = "days"
         const val NEW = ".new"
-        const val BUFFER = 64 * 1024
 
         /**
          * The largest file of days written or read: a realistic day of about 50 channels (the planner's 48 picks and
