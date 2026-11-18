@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui.stan
 
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
@@ -11,7 +12,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.platform.LocalDensity
@@ -32,9 +32,9 @@ import kotlin.math.roundToInt
  * Read the returned state in the draw phase (a `drawWithContent`, a `graphicsLayer {}` block or another lambda
  * modifier) so a tick redraws without recomposing. Reading `.value` in composition recomposes the reader on every tick.
  *
- * - **Time:** with [timeSeconds] null, the frame clock (`withFrameNanos`) drives it, from 0. The clock restarts,
- *   with no frame of the old scene in between, whenever [scene] changes. With [timeSeconds] set, that time is used
- *   instead.
+ * - **Time:** with [timeSeconds] null, the frame clock (`withInfiniteAnimationFrameNanos`) drives it, from 0.
+ *   The clock restarts, with no frame of the old scene in between, whenever [scene] changes. With [timeSeconds]
+ *   set, that time is used instead.
  * - **Reduced motion:** when the TV's "Remove animations" is on ([LocalMotionReduced]), nothing runs: the frame at
  *   t = 3 s (the study does the same), whatever [timeSeconds] says.
  * - **Cost:** the frame is built once per tick, however many places read it.
@@ -51,8 +51,9 @@ fun rememberStanFrame(
     LaunchedEffect(clock, animate) {
         if (animate) {
             clock.longValue = 0L
-            val start = withFrameNanos { it }
-            while (isActive) withFrameNanos { clock.longValue = it - start }
+            // The infinite-animation clock, as Snow uses: a Compose test can still go idle while Stan moves.
+            val start = withInfiniteAnimationFrameNanos { it }
+            while (isActive) withInfiniteAnimationFrameNanos { clock.longValue = it - start }
         }
     }
     return remember(scene, reduced) {
