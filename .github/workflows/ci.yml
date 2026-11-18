@@ -132,6 +132,10 @@ jobs:
       - name: Test the release notes generator
         run: bash scripts/release-notes.test.sh
 
+      # The packaged channel marks check that `assemble` runs on every APK it inspects (#748).
+      - name: Test the APK channel marks check
+        run: bash .github/scripts/apk-channelmarks.test.sh
+
       # ADR-0013: fails if the dependency verification file or its settings are loosened, or a workflow turns
       # verification off or rewrites the file. The tests run first, so a broken guard can't pass the real check.
       - name: Test the dependency verification guard
@@ -555,6 +559,10 @@ jobs:
             fi
             echo "release APK not debuggable: $apk"
           done
+          # #748: every APK built here carries every bundled channel mark, byte for byte (core/ui/channelmarks.sha256),
+          # so a packaging or shrinker change can't drop them without CI noticing.
+          bash .github/scripts/apk-channelmarks.sh core/ui/channelmarks.sha256 \
+            "$DEBUG_APK" ${BENCHMARK_APK:+"$BENCHMARK_APK"} "${release_apks[@]}"
 
       # Handed to `sign-debug`, which re-signs it with the CI debug key. Kept a day: only that job reads it. Main and
       # same-repo PRs only: fork PRs and Renovate's PRs build and test but never get an APK (ADR-0011).
