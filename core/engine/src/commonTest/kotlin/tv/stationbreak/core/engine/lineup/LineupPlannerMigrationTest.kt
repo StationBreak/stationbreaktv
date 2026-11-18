@@ -318,7 +318,10 @@ class LineupPlannerMigrationTest {
         for (channel in kids) {
             val source = channel.starter
             val recipe = checkNotNull(StarterCatalog.recipe(source.recipeKey))
-            assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(channel, next), channel.id.value)
+
+            @Suppress("DEPRECATION") // A kid channel is kids-only whatever the day (#629).
+            val own = KidStatus.policyOf(channel, next)
+            assertEquals(PoolPolicy.KidsOnly, own, channel.id.value)
             assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(recipe), channel.id.value)
             for (rules in listOf(source.rulesFor(noon), source.rules)) {
                 val pool = PoolEvaluator.evaluate(rules, realLibrary, PoolPolicy.KidsOnly)

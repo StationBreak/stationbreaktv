@@ -8,6 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /** Which pool policy a recipe or channel gets (ADR-0019, ADR-0020). */
+@Suppress("DEPRECATION") // These pin the day-less policy, which stays for what spans every day (#629).
 class KidStatusTest {
     private val kidKey = StarterCatalog.EVER_KID_SAFE_KEYS.first()
 

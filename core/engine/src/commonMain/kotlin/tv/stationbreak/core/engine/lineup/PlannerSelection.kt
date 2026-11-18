@@ -329,6 +329,7 @@ internal object PlannerSelection {
 }
 
 // What [curationOf] reads of a starter, before any pool is evaluated: what the kept starters' reasons depend on.
+@Suppress("DEPRECATION") // The reasons are read as the lineup is, across every day: the day-less policy (#629).
 internal fun reasonInputOf(
     channel: LineupChannel,
     lineup: Lineup,
