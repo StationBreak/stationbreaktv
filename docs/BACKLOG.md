@@ -453,7 +453,7 @@ Phase A (the kid hold) is [ADR-0019](adr/0019-kid-hold.md). These items are the 
 
 # E4 — Public release
 
-**Scope (owner decisions 2026-11-04 and 2026-11-06):** V1 is a free Fire App Store listing, tracked in [#752](https://github.com/StationBreak/stationbreaktv/issues/752) and the `release:fire-v1` label: F4.1 (#32), F4.2 (#33), the GPL exception ([#745](https://github.com/StationBreak/stationbreaktv/issues/745)) and F4.6 (#37). F4.3 Google Play (#34), F4.4 GitHub Releases (#35) and F4.5 Pro (#36) follow the listing as the first updates; Pro is not V1.
+**Scope (owner decisions 2026-11-04 and 2026-11-06):** V1 is a free Fire App Store listing, tracked in [#752](https://github.com/StationBreak/stationbreaktv/issues/752) and the `release:fire-v1` label: F4.1 (#32), F4.2 (#33), the GPL exception ([#745](https://github.com/StationBreak/stationbreaktv/issues/745)), the reviewers' demo server ([#907](https://github.com/StationBreak/stationbreaktv/issues/907)) and the branded site F4.6a ([#935](https://github.com/StationBreak/stationbreaktv/issues/935)). The docs site F4.6 (#37) moved after the listing (2026-11-18). F4.3 Google Play (#34), F4.4 GitHub Releases (#35) and F4.5 Pro (#36) follow the listing as the first updates; Pro is not V1.
 
 ## F4.1 Release pipeline & signing (M)
 **S4.1.1** As the owner, I want tagged releases built and signed by CI so that releases are reproducible.

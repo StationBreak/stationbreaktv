@@ -145,13 +145,18 @@ F3.7 Beta program (last; it needs everything else).
 
 **Status: re-scoped (owner decisions 2026-11-04 and 2026-11-06).** V1 is a **free listing on the Amazon (Fire)
 App Store**. Work is tracked in [#752](https://github.com/StationBreak/stationbreaktv/issues/752) and the
-`release:fire-v1` label: release pipeline (#32), listing (#33), the GPL exception text (#745), docs site (#37),
-art (#572) and brand (#118). Pro (F4.5, #36) is the first update after the listing, not part of V1. Google Play
-(F4.3, #34) and GitHub Releases (F4.4, #35) follow the listing and are not needed for it.
+`release:fire-v1` label. First in the queue (owner, 2026-11-18) is the public demo server for Amazon's reviewers
+([#907](https://github.com/StationBreak/stationbreaktv/issues/907)), which blocks the listing (#33). It carries only
+public-domain or Creative Commons content, with each item's source logged; it has at least 6 channels; and it is the
+source of every listing, site and social screenshot. Next is the branded site at stationbreak.tv
+([#935](https://github.com/StationBreak/stationbreaktv/issues/935), F4.6a; its Look web pack is approved). Then the
+release pipeline (#32), listing (#33), the GPL exception text (#745), art (#572) and brand (#118). Pro (F4.5, #36) is
+the first update after the listing, not part of V1. Google Play (F4.3, #34), GitHub Releases (F4.4, #35) and the docs
+site (F4.6, #37, priority Should) follow the listing and are not needed for it.
 
 F4.1 Release pipeline → F4.2 Amazon listing (V1) → (F4.3, F4.4 in parallel, after the listing) · F4.5 Pro unlock
 (first update after the listing; needs Q-BIZ answers early; store billing integration and review take time) ·
-F4.6 Docs site (can start any time after Phase 2; part of V1).
+F4.6a Branded site (V1) · F4.6 Docs site (after the listing).
 
 ## Phase 5 — Expansion
 
