@@ -39,6 +39,17 @@ class ArchitecturePlugin : Plugin<Project> {
                     report.set(layout.buildDirectory.file("reports/architecture/trust-surface.txt"))
                 }
             tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkTrustSurface) }
+
+            val checkAtomicFile =
+                tasks.register<AtomicFileCheck>("checkAtomicFile") {
+                    group = LifecycleBasePlugin.VERIFICATION_GROUP
+                    description = "Fails if :data:settings shipped sources use android.util.AtomicFile."
+                    modulePath.set(projectPath)
+                    moduleDir.set(layout.projectDirectory)
+                    sources.from(fileTree("src") { include("**/*.kt", "**/*.java") })
+                    report.set(layout.buildDirectory.file("reports/architecture/atomic-file.txt"))
+                }
+            tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkAtomicFile) }
         }
 
     /**
