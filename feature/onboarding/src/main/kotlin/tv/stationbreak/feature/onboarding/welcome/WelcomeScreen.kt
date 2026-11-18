@@ -36,15 +36,18 @@ private const val TOP_OFFSET = 0.1f
 /**
  * The welcome screen (#94): what StationBreak needs from the viewer, and one button, "Get started", which has default
  * focus. Launch opens it when nothing is stored, with nothing beneath it, so Back leaves the app.
+ *
+ * [covered] is true while the opening is drawn over it: Stan waits, and greets as it hands over.
  */
 @Composable
 fun WelcomeDestination(
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier,
+    covered: Boolean = false,
 ) {
     val getStarted = remember { FocusRequester() }
     LaunchedEffect(Unit) { getStarted.requestFocus() }
-    SetupScaffold(welcomeCue, modifier) { contentPadding ->
+    SetupScaffold(welcomeCue, modifier, covered = covered) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(WelcomeTags.SCREEN)) {
             Column(
                 modifier =

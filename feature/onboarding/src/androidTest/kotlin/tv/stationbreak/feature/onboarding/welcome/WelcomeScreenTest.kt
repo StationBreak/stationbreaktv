@@ -3,6 +3,7 @@ package tv.stationbreak.feature.onboarding.welcome
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
@@ -17,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.SetupScaffoldTags
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 
 /** The welcome screen's content and default focus. Where Get started goes is covered in `:app`'s navigation tests. */
@@ -30,6 +32,20 @@ class WelcomeScreenTest {
     private fun launch() {
         compose.setContent { StationBreakTheme { WelcomeDestination(onGetStarted = { started++ }) } }
         compose.waitForIdle()
+    }
+
+    @Test
+    fun stanWaitsUnderTheOpeningAndGreetsWhenItHandsOver() {
+        val covered = mutableStateOf(true)
+        compose.setContent {
+            StationBreakTheme { WelcomeDestination(onGetStarted = {}, covered = covered.value) }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag(SetupScaffoldTags.HOST).assertDoesNotExist()
+        compose.onNodeWithTag(WelcomeTags.GET_STARTED).assertExists()
+        covered.value = false
+        compose.waitForIdle()
+        compose.onNodeWithTag(SetupScaffoldTags.HOST).assertExists()
     }
 
     @Test

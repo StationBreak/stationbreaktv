@@ -237,6 +237,8 @@ private fun AppNavHostContent(
             // Single top: a second Select can't stack a second server screen.
             WelcomeDestination(
                 onGetStarted = { navController.navigate(ServerRoute(firstRun = true)) { launchSingleTop = true } },
+                // Under the opening, Stan waits: he greets as it hands over, not unseen beneath it.
+                covered = covered,
             )
         }
         composable<ServerRoute> { entry ->

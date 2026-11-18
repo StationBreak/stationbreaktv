@@ -67,7 +67,7 @@ class StanCuesTest {
                     StanCue(StanMood.Pleased, R.string.stan_server_found),
                 ServerPhase.Failed(error, copy) to StanCue(StanMood.Shrug, R.string.stan_server_failed),
                 ServerPhase.InvalidInput(copy) to StanCue(StanMood.Shrug, R.string.stan_server_failed),
-                ServerPhase.NotTrusted to trust,
+                ServerPhase.NotTrusted to StanCue(StanMood.Shrug, R.string.stan_server_failed),
                 ServerPhase.ConfirmCleartext(resolved) to trust,
                 ServerPhase.TrustRequired(input, prompt) to trust,
             )

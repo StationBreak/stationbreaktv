@@ -8,7 +8,8 @@ import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Brush
 import tv.stationbreak.core.ui.stan.StanPalette
 
-private const val LIFT_RADIUS = .8f
+/** A lift's radius as a share of its ground's width (the motion study's 0.8). */
+internal const val LIFT_RADIUS = .8f
 
 /**
  * A ground's radial lift: [palette]'s lift colour at [center], falling off to its edge colour at [radius]. The one
