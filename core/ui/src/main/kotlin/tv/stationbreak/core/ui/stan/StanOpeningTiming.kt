@@ -47,24 +47,25 @@ internal fun openingRemainingSeconds(
 
 /** What a key does while the opening is up. */
 enum class StanOpeningKey {
-    /** D-pad and Select/Enter: skip to the destination. */
+    /** Every key but the three below: the opening consumes it, and it counts as a skip. */
     Skip,
 
     /** Back: leaves the app until the app is ready to show something, then skips. */
     Back,
 
-    /** Anything else (volume, mute, media keys): not the opening's, passed through untouched. */
-    Other,
+    /** Volume up, volume down and mute: the system's, passed through untouched. */
+    PassThrough,
 }
 
-/** Which of the opening's keys [key] is. The host consumes [StanOpeningKey.Skip] and [StanOpeningKey.Back] only. */
+/**
+ * Which of the opening's keys [key] is. While the opening is up the screen beneath is hidden, and a hidden screen
+ * never receives input: the host consumes everything except [StanOpeningKey.PassThrough], so D-pad, Select, Enter,
+ * Menu, Guide, Channel up and down, media, Info and Captions all count as a skip, and none of them (nor the repeats
+ * and the key-up of one it consumed) reaches the destination.
+ */
 fun stanOpeningKey(key: Key): StanOpeningKey =
     when (key) {
-        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter,
-        Key.Enter, Key.NumPadEnter,
-        -> StanOpeningKey.Skip
-
+        Key.VolumeUp, Key.VolumeDown, Key.VolumeMute -> StanOpeningKey.PassThrough
         Key.Back -> StanOpeningKey.Back
-
-        else -> StanOpeningKey.Other
+        else -> StanOpeningKey.Skip
     }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
-import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -24,11 +23,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         lifecycleLine("onCreate restored=${savedInstanceState != null}")
         // Stan's opening shows for a new activity, not a restored one (see showsOpening).
-        val debuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         val coldLaunch =
             showsOpening(
                 restored = savedInstanceState != null,
-                debuggable = debuggable,
+                skippable = BuildConfig.OPENING_SKIPPABLE,
                 skipExtra = intent?.getBooleanExtra(EXTRA_SKIP_OPENING, false) == true,
             )
         setContent {

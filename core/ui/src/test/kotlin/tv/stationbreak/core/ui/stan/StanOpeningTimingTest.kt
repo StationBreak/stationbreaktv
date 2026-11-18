@@ -85,13 +85,14 @@ class StanOpeningTimingTest {
     }
 
     @Test
-    fun onlyDpadSelectEnterAndBackAreTheOpeningsKeys() {
-        listOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)
-            .plus(listOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter))
+    fun everyKeyButVolumeIsConsumedAsASkipAndBackIsItsOwn() {
+        listOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter)
+            .plus(listOf(Key.Enter, Key.NumPadEnter, Key.Menu, Key.Guide, Key.ChannelUp, Key.ChannelDown))
+            .plus(listOf(Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause, Key.MediaFastForward, Key.Info))
+            .plus(listOf(Key.Captions, Key.A))
             .forEach { assertEquals(StanOpeningKey.Skip, stanOpeningKey(it)) }
         assertEquals(StanOpeningKey.Back, stanOpeningKey(Key.Back))
-        listOf(Key.VolumeUp, Key.VolumeDown, Key.VolumeMute, Key.MediaPlayPause, Key.MediaPlay)
-            .plus(listOf(Key.MediaPause, Key.Menu, Key.A))
-            .forEach { assertEquals(StanOpeningKey.Other, stanOpeningKey(it)) }
+        listOf(Key.VolumeUp, Key.VolumeDown, Key.VolumeMute)
+            .forEach { assertEquals(StanOpeningKey.PassThrough, stanOpeningKey(it)) }
     }
 }

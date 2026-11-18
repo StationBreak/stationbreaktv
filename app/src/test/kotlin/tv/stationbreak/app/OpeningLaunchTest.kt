@@ -9,20 +9,20 @@ import org.junit.Test
 class OpeningLaunchTest {
     @Test
     fun aNewActivityShowsTheOpening() {
-        assertTrue(showsOpening(restored = false, debuggable = true, skipExtra = false))
-        assertTrue(showsOpening(restored = false, debuggable = false, skipExtra = false))
+        assertTrue(showsOpening(restored = false, skippable = true, skipExtra = false))
+        assertTrue(showsOpening(restored = false, skippable = false, skipExtra = false))
     }
 
     @Test
     fun aRestoreDoesNot() {
-        assertFalse(showsOpening(restored = true, debuggable = true, skipExtra = false))
-        assertFalse(showsOpening(restored = true, debuggable = false, skipExtra = false))
+        assertFalse(showsOpening(restored = true, skippable = true, skipExtra = false))
+        assertFalse(showsOpening(restored = true, skippable = false, skipExtra = false))
     }
 
     @Test
-    fun theSkipExtraWorksOnlyOnADebuggableBuild() {
-        assertFalse(showsOpening(restored = false, debuggable = true, skipExtra = true))
-        assertTrue(showsOpening(restored = false, debuggable = false, skipExtra = true))
+    fun theSkipExtraWorksOnlyOnASkippableBuild() {
+        assertFalse(showsOpening(restored = false, skippable = true, skipExtra = true))
+        assertTrue(showsOpening(restored = false, skippable = false, skipExtra = true))
     }
 
     @Test

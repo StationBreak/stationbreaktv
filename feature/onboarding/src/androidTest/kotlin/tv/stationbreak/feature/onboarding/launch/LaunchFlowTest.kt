@@ -18,7 +18,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 
 /**
- * Launch routing while the host holds it behind the opening: it navigates as soon as it has a target, never waits for
+ * Launch routing while the host covers it behind the opening: it navigates as soon as it has a target, never waits for
  * the hold to end, says it is ready, and never draws the progress screen while held or once routed.
  */
 @RunWith(AndroidJUnit4::class)
@@ -49,7 +49,7 @@ class LaunchFlowTest {
                     onFirstSync = {},
                     onSetupComplete = {},
                     onChangeServer = {},
-                    holdRouting = hold.value,
+                    covered = hold.value,
                     onReady = { ready++ },
                     onNeedsScreen = { needsScreen++ },
                 )

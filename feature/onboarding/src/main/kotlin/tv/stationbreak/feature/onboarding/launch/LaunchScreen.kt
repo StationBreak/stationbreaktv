@@ -58,7 +58,7 @@ private const val TOP_OFFSET = 0.1f
  * never flashes, then on to wherever [LaunchRouter] decided. A server that can't be reached stays here, with the error
  * and Retry; a changed certificate shows the trust screen of Unit 3 over it.
  *
- * [holdRouting] is true while something the host draws over everything (the opening) is up: routing carries on and
+ * [covered] is true while something the host draws over everything (the opening) is up: routing carries on and
  * navigates as soon as it has a target, so the destination is already working beneath, but this screen is not drawn,
  * so the progress never shows through. [onReady] is called once a destination has been chosen; [onNeedsScreen] when
  * routing has a problem to show here (an error with Retry, or the trust question), so the host lets this screen
@@ -74,7 +74,7 @@ fun LaunchDestination(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
-    holdRouting: Boolean = false,
+    covered: Boolean = false,
     onReady: () -> Unit = {},
     onNeedsScreen: () -> Unit = {},
 ) {
@@ -88,7 +88,7 @@ fun LaunchDestination(
         onFirstSync,
         onSetupComplete,
         onChangeServer,
-        holdRouting,
+        covered,
         onReady,
         onNeedsScreen,
     )
@@ -106,7 +106,7 @@ internal fun LaunchRoot(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
-    holdRouting: Boolean = false,
+    covered: Boolean = false,
     onReady: () -> Unit = {},
     onNeedsScreen: () -> Unit = {},
 ) {
@@ -123,7 +123,7 @@ internal fun LaunchRoot(
         onFirstSync = onFirstSync,
         onSetupComplete = onSetupComplete,
         onChangeServer = onChangeServer,
-        holdRouting = holdRouting,
+        covered = covered,
         onReady = onReady,
         onNeedsScreen = onNeedsScreen,
     )
@@ -145,7 +145,7 @@ internal fun LaunchFlow(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
-    holdRouting: Boolean,
+    covered: Boolean,
     onReady: () -> Unit,
     onNeedsScreen: () -> Unit,
 ) {
@@ -154,13 +154,14 @@ internal fun LaunchFlow(
     var routed by remember { mutableStateOf(false) }
     val readyNow = rememberUpdatedState(onReady)
     val needsScreenNow = rememberUpdatedState(onNeedsScreen)
-    LaunchedEffect(routed) { if (routed) readyNow.value() }
     val problem = state is LaunchPhase.Unavailable || state is LaunchPhase.Trust
     LaunchedEffect(problem) { if (problem) needsScreenNow.value() }
     LaunchedEffect(targets) {
         targets.collect {
-            // Routing never waits for [holdRouting]: the destination is ready beneath whatever is drawn over it.
+            // Routing never waits for [covered]: the destination is ready beneath whatever is drawn over it. The host
+            // is told first, directly, so it knows before the navigation below has changed anything.
             routed = true
+            readyNow.value()
             when (it) {
                 LaunchTarget.Welcome -> onWelcome()
                 LaunchTarget.ConfirmAddress -> onConfirmAddress()
@@ -171,7 +172,7 @@ internal fun LaunchFlow(
             }
         }
     }
-    if (!holdRouting && !routed) {
+    if (!covered && !routed) {
         LaunchScreen(
             state,
             onRetry = onRetry,

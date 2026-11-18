@@ -112,12 +112,15 @@ android {
             isDebuggable = true
             // The warm standby's log.tag.SBWARM switches are read (di/WarmModule); never in release.
             buildConfigField("boolean", "WARM_SWITCHES", "true")
+            // The gate harness skips Stan's opening with an intent extra (OpeningLaunch): debug and benchmark only.
+            buildConfigField("boolean", "OPENING_SKIPPABLE", "true")
         }
         release {
             // No signing config, ever: Gradle never sees the release key. The release workflow signs the unsigned APK
             // in a separate job with no checkout (ADR-0011, S4.1.1).
             isDebuggable = false
             buildConfigField("boolean", "WARM_SWITCHES", "false")
+            buildConfigField("boolean", "OPENING_SKIPPABLE", "false")
             // R8 shrinks and optimises what ships; ADR-0008's SP-2 frame numbers were measured with it on. Class and
             // method names stay readable (-dontobfuscate in proguard-rules.pro), so logs that print class simple names
             // need nothing more (#331). A stack trace's line numbers and inlined frames need the build's mapping.txt.
@@ -139,6 +142,7 @@ android {
             isDebuggable = false
             // Release code, but measured on a device: the warm switches are read here (like debug).
             buildConfigField("boolean", "WARM_SWITCHES", "true")
+            buildConfigField("boolean", "OPENING_SKIPPABLE", "true")
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += "release"
             applicationIdSuffix = ".benchmark"

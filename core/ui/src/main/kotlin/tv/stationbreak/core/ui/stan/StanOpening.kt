@@ -70,7 +70,8 @@ private val MinTextSize = 10.sp
  * it from composition.
  * - **Timing:** hand-over happens when [appReady] and the name is fully in ([OPENING_TITLE_IN] seconds into the
  *   scene, read off the same frame clock the scene is drawn from), never later, so a ready app is never held longer;
- *   an app that is late is handed over the moment it is ready, and until then the scene keeps looping.
+ *   an app that is late is handed over the moment it is ready, and until then the scene keeps looping. That can be at
+ *   any point of the loop (Stan mid-wave, or mid-fade, or just woken); nothing waits for a tidier moment.
  * - **[skip]** (a key, or a screen that has something to say): hands over at once when [appReady]. Before that there
  *   is nowhere to go, so it waits for it.
  * - **Reduced motion** ("Remove animations"): the still frame, [OPENING_REDUCED_DWELL_SECONDS] after it appeared, or
