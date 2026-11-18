@@ -98,6 +98,7 @@ internal class DozeTimer(
  * when it narrows again. [renderer] defaults to one per screen; the app may hoist one across the setup destinations
  * later.
  */
+@Suppress("LongParameterList") // A scaffold's slots and switches, each defaulted, as Material's Scaffold has.
 @Composable
 internal fun SetupScaffold(
     cue: StanCue?,
