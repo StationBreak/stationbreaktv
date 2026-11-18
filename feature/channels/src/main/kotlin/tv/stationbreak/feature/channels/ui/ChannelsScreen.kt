@@ -77,7 +77,7 @@ internal fun ChannelsScreen(
                     ) {
                         Header(ui)
                         ChannelList(ui, Modifier.weight(1f))
-                        HeadsUp()
+                        if (ui.isPro) HeadsUp()
                     }
                 }
             }
@@ -128,9 +128,9 @@ private fun Header(ui: ChannelsUi) {
 }
 
 /**
- * The permanent heads-up under the list: always there, plain text, no focus stop and no live region (it never changes,
- * so it is not announced). Outside the list, so it is neither on every row nor scrolled away; the list, which has the
- * weight, gives it its line.
+ * The heads-up under the list, for a viewer who can switch channels on (#799: `ui.isPro`, so it follows the entitlement
+ * live): plain text, no focus stop and no live region (it is not announced). Outside the list, so it is neither on
+ * every row nor scrolled away; the list, which has the weight, gives it its line.
  */
 @Composable
 private fun HeadsUp() {

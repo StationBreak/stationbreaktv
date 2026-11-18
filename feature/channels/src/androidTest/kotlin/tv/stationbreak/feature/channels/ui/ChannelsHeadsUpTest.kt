@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -36,8 +37,9 @@ import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
 /**
- * The permanent heads-up under the list (#785): more channels on make the guide slower to get ready. It is plain text,
- * always there whatever the number of channels on, and never a focus stop: the screen draws its focus from the state,
+ * The heads-up under the list (#785): more channels on make the guide slower to get ready. Only a viewer who can switch
+ * channels on sees it (#799: Pro, the same `isPro` as the free-tier gates). It is plain text, there whatever the number
+ * of channels on, and never a focus stop: the screen draws its focus from the state,
  * so the line is not a focusable or clickable node, and not a live region (it is not announced as it changes).
  */
 @RunWith(AndroidJUnit4::class)
@@ -60,15 +62,24 @@ class ChannelsHeadsUpTest {
             )
         }
 
-    private fun show(on: Int) {
-        val ui =
-            ChannelsUi.Empty.copy(
-                rows = rows(on),
-                focus = if (on > 0) ChannelsFocus.Row(ChannelId("c1")) else ChannelsFocus.New,
-                access = LineupAccess.Editable,
-                listed = true,
-                reasonsRead = true,
-            )
+    private fun show(
+        on: Int,
+        isPro: Boolean = true,
+    ) = showUi(uiOf(on, isPro))
+
+    private fun uiOf(
+        on: Int,
+        isPro: Boolean = true,
+    ) = ChannelsUi.Empty.copy(
+        rows = rows(on),
+        focus = if (on > 0) ChannelsFocus.Row(ChannelId("c1")) else ChannelsFocus.New,
+        access = LineupAccess.Editable,
+        listed = true,
+        reasonsRead = true,
+        isPro = isPro,
+    )
+
+    private fun showUi(ui: ChannelsUi) {
         val hole = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
         compose.setContent {
             StationBreakTheme {
@@ -107,6 +118,32 @@ class ChannelsHeadsUpTest {
     fun theHeadsUpShowsWithAHundredChannelsOn() {
         show(100)
         assertHeadsUp()
+    }
+
+    @Test
+    fun aFreeViewerDoesNotSeeTheHeadsUp() {
+        show(50, isPro = false)
+        headsUp().assertDoesNotExist()
+    }
+
+    @Test
+    fun theHeadsUpFollowsTheEntitlementLive() {
+        val ui = mutableStateOf(uiOf(50, isPro = false))
+        val hole = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
+        compose.setContent {
+            StationBreakTheme {
+                Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).background(GuideColors.Dark.page)) {
+                    ChannelsScreen(ui.value, hole)
+                }
+            }
+        }
+        headsUp().assertDoesNotExist()
+        ui.value = ui.value.copy(isPro = true)
+        compose.waitForIdle()
+        assertHeadsUp()
+        ui.value = ui.value.copy(isPro = false)
+        compose.waitForIdle()
+        headsUp().assertDoesNotExist()
     }
 
     @Test
