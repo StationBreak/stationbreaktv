@@ -18,6 +18,7 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.HouseholdSources
 import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
+import tv.stationbreak.core.engine.lineup.KidStatus.policyAcrossDaysOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -489,14 +490,13 @@ internal class LineupDays(
     ): String = sha256Hex(inputsJsonOf(lineup, extrasFromMs).toString().encodeToByteArray())
 
     /** What [inputsOf] hashes. */
-    @Suppress("DEPRECATION") // The inputs key spans every day, so it uses the day-less policy (#629).
     fun inputsJsonOf(
         lineup: Lineup,
         extrasFromMs: Long?,
     ): JsonObject {
         val channels =
             lineup.channels.sortedBy { it.id.value }.map {
-                channelInputs(it, policyOf(it, lineup), householdInputs(it, lineup))
+                channelInputs(it, policyAcrossDaysOf(it, lineup), householdInputs(it, lineup))
             }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         return JsonObject(
@@ -619,7 +619,6 @@ internal class LineupDays(
         private val scheduled by lazy { scheduled(lineup, atMs, null) }
         private val curations = HashMap<Long, String>()
 
-        @Suppress("DEPRECATION") // The day-less policy is the fallback for a refused channel, below.
         fun of(channel: LineupChannel): PlayKey {
             val day = dayOf(channel)
             val start = day?.first?.takeIf { channel.isUneditedStarter() }
@@ -636,7 +635,8 @@ internal class LineupDays(
                 }
             // The policy of the day played: a kids leftovers channel that starts later or has left is off for it
             // (#623). The day-less fallback is only for a refused channel and is the stricter (kid-safe) direction.
-            val policy = lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyOf(channel, lineup)
+            val policy =
+                lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyAcrossDaysOf(channel, lineup)
             val inputs = channelInputs(forDay, policy, household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
@@ -658,7 +658,6 @@ internal class LineupDays(
 
         // A member of the day's on-set in the curation part: its ID, its rules for the day, and (as [channelInputs])
         // the ceiling and pool policy it is curated under; a member no longer in the lineup by its ID alone.
-        @Suppress("DEPRECATION") // A claim-order member is read as the lineup is, across every day (#629).
         private fun memberPart(
             id: ChannelId,
             channel: LineupChannel?,
@@ -669,7 +668,7 @@ internal class LineupDays(
             if (channel != null && source != null) {
                 fields["rules"] = LineupCodec.sourceOf(unnamed(source.withRulesNow(source.rulesFor(start))))
                 fields["ceiling"] = JsonPrimitive(ceilings.of(channel))
-                fields["policy"] = JsonPrimitive(nameOf(policyOf(channel, lineup)))
+                fields["policy"] = JsonPrimitive(nameOf(basePolicyOf(channel)))
             }
             return JsonObject(fields)
         }

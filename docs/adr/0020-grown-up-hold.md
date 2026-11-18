@@ -89,7 +89,7 @@ channel airs) also stays, and the grown-up channel's usual ladder ceiling applie
   only that. `HiddenReason.ChildrensRatingsOnly` keeps its name and its string.
 - **The grown-up leftovers is `GrownUp`**, no longer `Open` (this replaces the table row and the reasoning in
   decision 4), with one fallback: while the lineup has no kid leftovers channel (Kids' Odds & Ends) switched on, the
-  grown-up leftovers is `Open` (`KidStatus.policyOf(channel, lineup)`). It claims what no other channel takes. With
+  grown-up leftovers is `Open` (`KidStatus.policyAcrossDaysOf(channel, lineup)`). It claims what no other channel takes. With
   Kids' Odds & Ends On it drops what a kid channel could take (that channel airs it); with Kids' Odds & Ends not On
   it drops nothing for the hold, and its own ceiling still applies, so a made-for-kids title no kid starter matches
   does not air nowhere. Grown-up starters keep the hold either way. The policy (with the lineup applied) is part of

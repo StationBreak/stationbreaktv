@@ -105,14 +105,13 @@ internal object PlannerSelection {
         channels: List<LineupChannel>,
         p: Planning,
     ): List<LineupChannel> {
-        val lineup = current.copy(channels = channels)
         val roles = HashMap<ChannelId, Role>()
         // The planner infers the viewer's choices of an older file before any selection (`withInferredChoices`).
         check(current.viewerChoicesKnown) { "The viewer's choices are inferred before a selection" }
         for (channel in channels) roleOf(channel, p)?.let { roles[channel.id] = it }
         // Selected under the boundary's flag: a starter the selection switches on starts at the boundary.
-        val atBoundary = select(lineup, channels, roles, p, p.household)
-        val kept = keptReasons(lineup, channels, roles, p, atBoundary)
+        val atBoundary = select(channels, roles, p, p.household)
+        val kept = keptReasons(channels, roles, p, atBoundary)
         return channels.map { channel ->
             when (roles[channel.id]) {
                 null -> channel
@@ -190,7 +189,6 @@ internal object PlannerSelection {
     // starter (the planner never picks one), take part in the homing only and always sit on top (`Selection.select`).
     @Suppress("LongParameterList") // What one selection reads.
     private fun select(
-        lineup: Lineup,
         channels: List<LineupChannel>,
         roles: Map<ChannelId, Role>,
         p: Planning,
@@ -206,7 +204,7 @@ internal object PlannerSelection {
             if (role == Role.Pinned || role == Role.Added) pinned += channel.id
             if (role == Role.Added) unranked += channel.id
             if (p.recipe((channel.source as ChannelSource.Starter).recipeKey)?.optIn == true) optIn += channel.id
-            candidates += curationOf(channel, lineup, p, household)
+            candidates += curationOf(channel, p, household)
         }
         val picked = Selection.select(p.snapshot, candidates, pinned, optIn, LineupDefaults.PLANNER_PICKS, unranked)
         return Run(candidates, picked)
@@ -216,11 +214,10 @@ internal object PlannerSelection {
     // unedited one); an edited one airs its own rules, with no household change (`HouseholdSources`, F4).
     internal fun curationOf(
         channel: LineupChannel,
-        lineup: Lineup,
         p: Planning,
         household: Boolean,
     ): CurationChannel {
-        val input = reasonInputOf(channel, lineup, p, household)
+        val input = reasonInputOf(channel, p, household)
         val recipe = checkNotNull(p.recipe((channel.source as ChannelSource.Starter).recipeKey))
         // Ties order by the recipe's number, as in the day build, so a renumber never moves a home.
         return p.curationChannel(channel.id, recipe.number, recipe, input.policy, input.rules, input.household)
@@ -233,7 +230,6 @@ internal object PlannerSelection {
     // inputs give the same reasons. No kept starter: no homing either.
     @Suppress("LongParameterList") // What the homing reads.
     private fun keptReasons(
-        lineup: Lineup,
         channels: List<LineupChannel>,
         roles: Map<ChannelId, Role>,
         p: Planning,
@@ -251,8 +247,8 @@ internal object PlannerSelection {
                         .sorted(),
                     p.snapshot.collectionsSynced,
                     p.catalog.version,
-                    keptChannels.map { reasonInputOf(it, lineup, p, p.household) },
-                    channels.filter { it.id in run.selected.on }.map { reasonInputOf(it, lineup, p, p.household) },
+                    keptChannels.map { reasonInputOf(it, p, p.household) },
+                    channels.filter { it.id in run.selected.on }.map { reasonInputOf(it, p, p.household) },
                 )
             } else {
                 null
@@ -260,19 +256,18 @@ internal object PlannerSelection {
         return when {
             keptChannels.isEmpty() -> emptyMap()
             memo != null && key != null && key == memo.inputs -> memo.reasons
-            else -> homedReasons(lineup, keptChannels, p, run).also { if (key != null) memo?.keep(key, it) }
+            else -> homedReasons(keptChannels, p, run).also { if (key != null) memo?.keep(key, it) }
         }
     }
 
     // The kept starters' reasons from a homing alongside the channels the selection put on.
     private fun homedReasons(
-        lineup: Lineup,
         keptChannels: List<LineupChannel>,
         p: Planning,
         run: Run,
     ): Map<ChannelId, ShelfReason> {
         val memo = p.keptReasons
-        val kept = keptChannels.map { curationOf(it, lineup, p, p.household) }
+        val kept = keptChannels.map { curationOf(it, p, p.household) }
         val on = run.candidates.filter { it.id in run.selected.on }
         memo?.let { it.homings++ }
         val homes = Curation.homes(p.snapshot, on + kept)
@@ -329,10 +324,8 @@ internal object PlannerSelection {
 }
 
 // What [curationOf] reads of a starter, before any pool is evaluated: what the kept starters' reasons depend on.
-@Suppress("DEPRECATION") // The reasons are read as the lineup is, across every day: the day-less policy (#629).
 internal fun reasonInputOf(
     channel: LineupChannel,
-    lineup: Lineup,
     p: Planning,
     household: Boolean,
 ): ReasonInput {
@@ -340,7 +333,7 @@ internal fun reasonInputOf(
     val recipe = checkNotNull(p.recipe(source.recipeKey))
     val own = channel.state == ChannelState.On || source.edited
     val rules = if (own) source.rules else p.reResolved(recipe, source)
-    return ReasonInput(channel.id, rules, KidStatus.policyOf(channel, lineup), household || source.edited)
+    return ReasonInput(channel.id, rules, KidStatus.basePolicyOf(channel), household || source.edited)
 }
 
 // One starter's part of [ReasonsKey]: what its curation channel is made from (its recipe follows from its ID and
