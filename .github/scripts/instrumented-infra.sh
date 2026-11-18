@@ -30,6 +30,11 @@
 #       Exit 0: infrastructure failure, retry. Exit 1: not one, fail the job. Prints the reason either way.
 #       results-root (default .) is searched for the JUnit XML, **/build/outputs/androidTest-results/connected/**/TEST-*.xml.
 #       Only the first rule that matches applies:
+#         0. A result file that shows the instrumentation run itself died: AGP's `testRunFailed` test case (classname
+#            android-test), or a failure that BEGINS "Test failed with status -1", or "Test run failed to complete."
+#            with "System has crashed" or "Instrumentation run failed due to Process crashed". Every failure in that file is part of the crash (the test that was running gets "status -1" or
+#            the stack that killed the process), so none of them counts as genuine. Retried once, after rule 1 has
+#            found no genuine failure in another file: a real failure that repeats fails the retry, which is final.
 #         1. A <failure> or <error> with a message or a body is a genuine test failure: never retried, even if the
 #            logcat also looks bad, because a failed assertion is the result to report. Two known emulator
 #            signatures are the exception and count as infrastructure:
@@ -50,7 +55,8 @@
 #         4. The emulator process is gone, or adb no longer sees a device (the files `run` saved). Retry.
 #         5. The step was cut off (its timeout) with a module still to report: `run` left its `started`
 #            marker but was killed before it saved emulator-state.txt, no result file has a failure, and a module in
-#            $CONNECTED_TASKS wrote no results (module :a:b writes under a/b/, the app under app/). Retry.
+#            $CONNECTED_TASKS wrote no results (module :a:b writes under a/b/, the app under app/). Retry. If every
+#            module reported and nothing failed, only the clock did (a slow runner, or a hang after the tests): Retry.
 #         5b. <dir>/missing-results.txt exists (written by `verify`: Gradle passed but a module wrote no results, a
 #            lost APK install). Retry. After the rules above, so a real failure is never reclassified by it.
 #         6. No result file at all: the emulator never booted, or the step was cut off (a step timeout kills `run`
@@ -161,6 +167,11 @@ case "$mode" in
     empty=0
     sig_inject=0
     sig_nohier=0
+    crashed=0
+    crashed_in=()
+    # Rule 0: the run itself died. AGP's own records in its connected-test XML: its testRunFailed test case, or a
+    # failure that BEGINS with its wording (a test's own message that quotes the words stays genuine).
+    crash_marks='<testcase name="testRunFailed" classname="android-test"|<failure[^>]*>[[:space:]]*(Test failed with status -1|Test run failed to complete\.[^<]*(System has crashed|Instrumentation run failed due to Process crashed))'
     sig_inject_class="java.lang.SecurityException"
     sig_inject_text="$sig_inject_class: Injecting to another application requires INJECT_EVENTS"
     sig_nohier_class="java.lang.IllegalStateException"
@@ -171,6 +182,12 @@ case "$mode" in
     for f in "${files[@]}"; do
       # One line, so a tag and its body can be read together.
       rest="$(tr '\r\n' '  ' <"$f")"
+      if grep -qE "$crash_marks" <<<"$rest"; then
+        n="$(grep -oE '<(failure|error)[ />]' <<<"$rest" | wc -l)"
+        crashed=$((crashed + n))
+        crashed_in+=("${f#"$root"/}")
+        continue
+      fi
       while [[ "$rest" =~ \<(failure|error)([^\>]*)\> ]]; do
         tag="${BASH_REMATCH[1]}"
         attrs="${BASH_REMATCH[2]}"
@@ -210,6 +227,10 @@ case "$mode" in
     if [ "$genuine" -gt 0 ]; then
       echo "genuine: $genuine test failure(s) with a message; not retrying"
       exit 1
+    fi
+    if [ "$crashed" -gt 0 ]; then
+      echo "infra: the instrumentation run crashed (testRunFailed / status -1 / process or system crash; $crashed failure(s)) in: ${crashed_in[*]}"
+      exit 0
     fi
     if [ "$sig_inject" -gt 0 ]; then
       echo "infra: $sig_inject test failure(s) refused input injection (INJECT_EVENTS): a system dialog took focus"
@@ -260,6 +281,9 @@ case "$mode" in
         echo "infra: the step was cut off (timeout) with no results from: ${missing[*]}"
         exit 0
       fi
+      # Every module reported and no failure was found above: nothing failed but the clock.
+      echo "infra: the step was cut off (timeout) after every module reported, with no test failure"
+      exit 0
     fi
     if [ "${#files[@]}" -eq 0 ]; then
       echo "infra: no test results at all (the emulator did not boot, or the step timed out)"

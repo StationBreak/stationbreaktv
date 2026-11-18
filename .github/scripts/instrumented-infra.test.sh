@@ -170,6 +170,51 @@ new_case
 xml '<failure message="java.lang.AssertionError: boom">java.lang.SecurityException: Injecting to another application requires INJECT_EVENTS permission</failure>'
 expect "INJECT_EVENTS only deep in an assertion's body" 1 "genuine"
 
+# Rule 0: the instrumentation run died (AGP's testRunFailed case), from real CI results (2026-11-18).
+fx_crash() {
+  local victim="$1" run_failed="$2"
+  printf '<?xml version="1.0"?>\n<testsuites>\n<testsuite name="c" tests="3" failures="1" errors="0">\n<testcase name="ok" classname="c"/>\n<testcase name="running" classname="c">\n%s\n</testcase>\n</testsuite>\n<testsuite name="android-test" tests="1" failures="1" errors="0">\n<testcase name="testRunFailed" classname="android-test" time="0.000">\n<failure>%s</failure>\n</testcase>\n</testsuite>\n</testsuites>\n' "$victim" "$run_failed" >"$results"
+}
+
+new_case
+fx_crash '<failure>Test failed with status -1</failure>' 'Test run failed to complete. Expected 146 tests, received 90. System has crashed.'
+expect "status -1 and a system crash" 0 "instrumentation run crashed"
+
+new_case
+fx_crash '<failure>java.lang.IllegalStateException: Must run runDetachLifecycle() once after runAttachLifecycle()
+	at androidx.compose.ui.Modifier$Node.runDetachLifecycle$ui(Modifier.kt:447)</failure>' 'Test run failed to complete. Instrumentation run failed due to Process crashed.'
+expect "the stack that killed the process, then Process crashed" 0 "instrumentation run crashed"
+
+new_case
+fx_crash '<failure>Test failed with status -1</failure>' 'Test run failed to complete. Expected 120 tests, received 115'
+expect "status -1 and a short count" 0 "instrumentation run crashed"
+
+# A real failure in another module's results still wins over a crash in this one.
+new_case
+fx_crash '<failure>Test failed with status -1</failure>' 'Test run failed to complete. Expected 120 tests, received 115'
+mkdir -p "$case_dir/root/feature/live/build/outputs/androidTest-results/connected/debug"
+results="$case_dir/root/feature/live/build/outputs/androidTest-results/connected/debug/TEST-device.xml"
+xml '<failure>java.lang.AssertionError: Failed to assert the following: (Focused = '"'"'true'"'"')</failure>'
+expect "a crash in one module, an assertion in another" 1 "genuine"
+
+# The words quoted in a test's own failure are not AGP's crash record.
+new_case
+xml '<failure>java.lang.AssertionError: expected a status but Test failed with status -1</failure>'
+expect "an assertion that quotes status -1" 1 "genuine"
+
+new_case
+xml '<failure message="boom">java.lang.AssertionError: System has crashed? Instrumentation run failed due to Process crashed</failure>'
+expect "an assertion that quotes the crash words" 1 "genuine"
+
+# Each marker alone is enough.
+new_case
+xml '<failure>Test failed with status -1</failure>'
+expect "status -1 alone" 0 "instrumentation run crashed"
+
+new_case
+xml '<failure>Test run failed to complete. Instrumentation run failed due to Process crashed.</failure>'
+expect "Process crashed alone" 0 "instrumentation run crashed"
+
 # Logcat: the system crashed.
 new_case
 xml '<testcase name="x"/>'
@@ -261,7 +306,7 @@ cut_off_case
 xml '<testcase name="x"/>'
 mkdir -p "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug"
 cp "$results" "$case_dir/root/feature/onboarding/build/outputs/androidTest-results/connected/debug/TEST-device.xml"
-expect "timeout but every module has results" 1 "genuine"
+expect "timeout but every module has results and nothing failed" 0 "after every module reported"
 
 # Complete results and a failure: the run finished, saved its state, and a test failed.
 cut_off_case
