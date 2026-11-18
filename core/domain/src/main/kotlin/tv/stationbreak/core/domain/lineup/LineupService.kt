@@ -141,7 +141,8 @@ class LineupService internal constructor(
      * [unknownSeries] is told, at each planning read, how many live episodes name a series the saved library does not
      * hold (a count, nothing else): a gap there is a show whose episodes cannot be named or homed (issue 604).
      * [derived] is told when a lineup is forgotten ([forget]): what was built from it (the days on disk, #480) goes
-     * too. [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
+     * too, by the store's `forget`; a rebuild or reset only deletes those day files and never forgets the account.
+     * [trimmed] is told what a lineup save trimmed from the repair record to fit (three counts: fixes, fixes
      * covering now, selection repairs; nothing else). [rulesFormats] is told, once, at the first read of the stored
      * lineup on any path, how many rules files it holds at each rules format version and how many the read upgraded
      * (counts only, ADR-0026).
@@ -334,11 +335,11 @@ class LineupService internal constructor(
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start, sinceDayStart = rebuildDays)
             val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
-            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
+            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key, signOut = false) }
             publish(entry, planned, meta, repairs)
             // Again after the publish: a build that began between the first drop and the publish read the old lineup
             // and must keep nothing of it either (the epoch it holds is the one before this).
-            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key) }
+            if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key, signOut = false) }
             // Only now: a refresh that fails before publishing (the planner throws) leaves the stored lineup to load().
             entry.loaded = true
         }
@@ -748,7 +749,7 @@ class LineupService internal constructor(
             withContext(NonCancellable) {
                 // A reset forgets the days built from the old lineup, and with them what was repaired of them.
                 if (saveVerified(owner, fresh, meta, TodayRepairs.NONE)) {
-                    forgetDerived(owner.key)
+                    forgetDerived(owner.key, signOut = false)
                     publish(entry, fresh, meta, TodayRepairs.NONE)
                     entry.loaded = true
                     Saved.Ok(fresh)
@@ -851,12 +852,22 @@ class LineupService internal constructor(
 
     // The days built from the lineup go after it: the days' own store and what was registered with [alsoForget],
     // never an AccountCache that could reach the library, and a fault there (none throws, but) cannot undo the
-    // lineup's delete or reset. Cancellation goes through.
+    // lineup's delete or reset. Cancellation goes through. [signOut] is true only when the lineup itself is deleted
+    // ([forget]): the store's `forget` then also refuses the account's later writes. A rebuild or reset deletes the
+    // day files one by one instead, so the days built next are still saved (#815).
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun forgetDerived(account: LibraryAccount) {
+    private suspend fun forgetDerived(
+        account: LibraryAccount,
+        signOut: Boolean = true,
+    ) {
         try {
             forgetters.forEach { it(account) }
-            seams.derived?.forget(account)
+            val days = seams.derived
+            if (signOut) {
+                days?.forget(account)
+            } else {
+                days?.names(account)?.forEach { days.delete(account, it) }
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {

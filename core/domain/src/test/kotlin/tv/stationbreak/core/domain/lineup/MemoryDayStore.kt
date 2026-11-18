@@ -12,6 +12,12 @@ internal class MemoryDayStore : DayStore {
 
     @Volatile var failWrites = false
 
+    /** As the real store: a forgotten (signed-out) account refuses writes until [useAccount]. */
+    private val forgotten = ConcurrentHashMap.newKeySet<LibraryAccount>()
+    val forgets =
+        java.util.concurrent.atomic
+            .AtomicInteger()
+
     /** How many writes landed. */
     private val written =
         java.util.concurrent.atomic
@@ -34,7 +40,7 @@ internal class MemoryDayStore : DayStore {
         name: String,
         bytes: ByteArray,
     ): Boolean {
-        if (failWrites) return false
+        if (failWrites || account in forgotten) return false
         written.incrementAndGet()
         files[account to name] = bytes
         return true
@@ -57,10 +63,13 @@ internal class MemoryDayStore : DayStore {
     @Volatile var reads = 0
 
     override suspend fun useAccount(account: LibraryAccount) {
+        forgotten.remove(account)
         files.keys.removeAll { it.first != account }
     }
 
     override suspend fun forget(account: LibraryAccount) {
+        forgets.incrementAndGet()
+        forgotten += account
         files.keys.removeAll { it.first == account }
     }
 
