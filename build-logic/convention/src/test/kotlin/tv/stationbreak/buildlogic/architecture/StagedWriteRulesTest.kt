@@ -64,4 +64,22 @@ class StagedWriteRulesTest {
         assertEquals(emptyList(), violations("temporary.renameTo(file)"))
         assertEquals(emptyList(), violations("out.fd.sync()"))
     }
+
+    @Test
+    fun aSyncAfterAMultiLineBlockCommentKeepsItsLine() {
+        val found = violations("/*\n\n*/\nout.fd.sync()\na.renameTo(b)")
+        assertTrue(found.single().startsWith("$mainFile:4 "), found.toString())
+    }
+
+    @Test
+    fun aVariantSourceSetIsScannedAndFlagged() {
+        val path = "src/debug/kotlin/tv/stationbreak/data/settings/Other.kt"
+        assertEquals(1, violations("out.fd.sync()\na.renameTo(b)", path = path).size)
+    }
+
+    @Test
+    fun aFileMerelyEndingInStagedFilesIsFlagged() {
+        val path = "src/main/kotlin/tv/stationbreak/data/settings/MyStagedFiles.kt"
+        assertEquals(1, violations("out.fd.sync()\na.renameTo(b)", path = path).size)
+    }
 }

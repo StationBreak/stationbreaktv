@@ -5,11 +5,11 @@ package tv.stationbreak.buildlogic.architecture
  * The durable write (stage, sync, rename) lives once, in `:data:settings` `StagedFiles.kt`. A second copy is a second
  * place to get the fsync order wrong, so any shipped source that holds both a sync primitive and a rename primitive is
  * refused elsewhere. A rename alone (a cache, or setting a file aside) or a sync alone is fine. A source-text tripwire
- * with comments removed.
+ * with comments removed. The primitive lists are a tripwire, not a proof: `descriptor.sync()` or `Path.moveTo` evade it.
  */
 object StagedWriteRules {
     private const val ALLOWED_MODULE = ":data:settings"
-    private const val ALLOWED_FILE = "StagedFiles.kt"
+    private const val ALLOWED_FILE = "src/main/kotlin/tv/stationbreak/data/settings/StagedFiles.kt"
 
     // Every source set that ships (main, debug, release, flavours), not the tests.
     private val shippedSource = Regex("""^src/(?!test|androidTest|testFixtures)""")
@@ -25,7 +25,9 @@ object StagedWriteRules {
         text: String,
     ): List<String> {
         if (!shippedSource.containsMatchIn(relativePath)) return emptyList()
-        if (modulePath == ALLOWED_MODULE && relativePath.endsWith(ALLOWED_FILE)) return emptyList()
+        if (modulePath == ALLOWED_MODULE && relativePath == ALLOWED_FILE) return emptyList()
+        // shortcut: the comment stripper is not string-aware, so "http://x" hides the rest of its line; upgrade to a
+        // lexer if it ever misses a real case.
         // Comments become the same number of line breaks, so a match keeps its line number.
         val code =
             text
