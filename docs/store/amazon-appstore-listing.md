@@ -1,0 +1,183 @@
+# Amazon Appstore listing (draft)
+
+Status: **Draft for the owner (#33).** Nothing here has been entered in the Developer Console or submitted. Store art,
+the display title and any tagline are branding decisions and are not in this file ([#118](https://github.com/StationBreak/stationbreaktv/issues/118),
+[#572](https://github.com/StationBreak/stationbreaktv/issues/572)). Answers marked **Owner** are recommendations
+only.
+
+Field names, limits and questionnaire categories are from Amazon's submission docs, read 2026-11-17:
+[Step 2: store listing](https://developer.amazon.com/docs/app-submission/add-store-listing-information.html),
+[Step 4: policy and compliance](https://developer.amazon.com/docs/app-submission/add-policy-and-compliance-details.html),
+[privacy labels](https://developer.amazon.com/docs/app-submission/appstore-privacy-labels.html),
+[categories](https://developer.amazon.com/docs/app-submission/categories.html). All fields are plain text: no HTML,
+no emoji, no all caps.
+
+What the copy describes is the free V1: the planner's lineup and up to 5 custom channels. Pro isn't for sale yet
+([#36](https://github.com/StationBreak/stationbreaktv/issues/36)), so the listing doesn't mention it or any price.
+
+## General information (Step 1)
+
+| Field | Draft | Notes |
+| --- | --- | --- |
+| App title | StationBreak | The app's current label (`app_name`). **Owner** if it should differ |
+| Category | Photos & Video → Video Player | **Owner.** The alternative is Movies & TV → TV Guides. Amazon has asked at least one similar app to move from TV Guides to Video Player ([community thread](https://community.amazondeveloper.com/t/fire-tv-app-disappeared-from-search-results-after-required-category-change/29935)), and the app ships no content of its own |
+| Customer support contact | **Owner** | An email or website Amazon shows on the listing. The issue tracker is the obvious website |
+
+## Store listing (Step 2)
+
+### Short description
+
+Limit 1,200 characters. Fire TV shows only the first 200, so the point comes first. This draft is 357 characters; the first 200 end at "browse a program guide. B", so they carry the whole idea.
+
+```text
+Turn your own Jellyfin library into live TV. Your shows and films play on a schedule across themed channels, the way cable does: tune in to whatever is on, flip channels, and browse a program guide. Build up to 5 channels of your own. Kids channels show only titles rated for kids. Needs your own Jellyfin server, version 12.0 or later. No ads, no tracking.
+```
+
+### Long description
+
+Limit 4,000 characters. Shown on the Appstore website and on Fire tablets, not on Fire TV. This draft is about 1,830
+characters.
+
+```text
+StationBreak plays your own media library as live TV.
+
+Instead of picking something to watch, you turn on the TV and something is already on. Your shows and films play on a schedule, across themed channels built from your library, chosen from the genres, ratings and other details your server already keeps. Tune in part-way through, flip to the next channel, or open the program guide to see what is on now and next.
+
+What you can do:
+- Watch built-in channels made from your own library, with a new schedule every day.
+- Browse a program guide with what is on now and what is coming up.
+- Pause, go back to the start of the show that is on, and skip ahead again.
+- Choose audio tracks, subtitles and the version of a title while you watch.
+- Even out loud and quiet programs with volume levelling.
+- Build up to 5 channels of your own from libraries, collections, tags, genres, or shows and films you pick, played in shuffle, rotation or in order.
+- Give kids their own channels. Kids channels show only titles made for kids and rated within the kids limit; unrated titles are left out.
+
+What you need:
+- A Jellyfin media server, version 12.0 or later, with your own media on it. StationBreak has no content of its own.
+- A Fire TV device running Fire OS 6 or later on the same network as your server, or able to reach it.
+
+Private by design:
+StationBreak talks only to your Jellyfin server. It has no ads, no analytics and no account with us. Your sign-in stays on the TV, encrypted.
+
+Works with your setup:
+Connect by address, with or without https. Servers behind a reverse proxy at a path such as /jellyfin work. Self-signed certificates are supported: the app shows the certificate's fingerprint and asks before trusting it.
+
+StationBreak is free and open source software under the GNU GPL. The source code is on GitHub.
+```
+
+### Product feature bullets
+
+Amazon asks for three to five, one per line.
+
+```text
+Your own Jellyfin library, played as live TV channels with a program guide
+Pause, go back to the start of the show, and skip ahead
+Build up to 5 channels of your own; kids channels show only titles rated for kids
+Audio, subtitle and version choice, and volume levelling
+No ads, no tracking: the app talks only to your server
+```
+
+### Keywords
+
+Optional, comma separated. Amazon rejects profanity and keywords that misuse other trademarks.
+
+```text
+live tv, channels, tv guide, program guide, jellyfin, media server, home media, cable, channel surfing, retro tv, schedule, kids channels
+```
+
+### Assets
+
+**Owner** (branding). Placeholders are tracked in [#572](https://github.com/StationBreak/stationbreaktv/issues/572).
+What Amazon needs for Fire TV and the website: the 114×114 and 512×512 PNG icons, 3 to 10 screenshots (1920×1080
+on Fire TV), and the 1280×720 banner the backlog names (F4.2). Screenshots must not show personal information, so
+take them against a test server with a demo library, not a household's.
+
+## Pricing and availability (Step 3)
+
+| Field | Draft | Notes |
+| --- | --- | --- |
+| Price | Free | Owner lock 2026-11-04: the free listing ships first |
+| In-app purchasing | None in V1 | Pro (#36) comes in a later update |
+| Countries | **Owner** | Amazon defaults to all. The app's strings are English only |
+
+## Policy and compliance (Step 4)
+
+### Content rating questionnaire
+
+Amazon asks about the app's subject matter (violence, cartoon violence, drugs, nudity, sex, intolerance, profanity,
+academic) and five additional items. **Owner** for every answer: a wrong rating is a listing risk.
+
+The app ships no media. Everything it plays comes from the viewer's own server, which the app neither supplies nor
+moderates. The recommended answers rate the app's own content, and the testing instructions (Step 5) explain where
+the media comes from. The mature-content stance (#133) is the background for these answers.
+
+| Question | Recommended | Why |
+| --- | --- | --- |
+| Subject matter (every category) | None | The app has no content of its own. The adult built-in channel is off until the viewer switches it on, and that's a Pro choice in V1 |
+| Account creation or other personal information collected | No | No account with us. The Jellyfin username and password go only to the viewer's own server, and only the server's token is kept, on the TV |
+| Advertisements | No | None |
+| Gambling | No | None |
+| Location detection or location-based services | No | No location permission (the merged manifest allows only INTERNET, WAKE_LOCK, ACCESS_NETWORK_STATE and RECEIVE_BOOT_COMPLETED; `BackupRulesTest`) |
+| User generated content or user-to-user communication | No | Viewers can't post or message anything |
+
+### User data privacy
+
+"Does your app collect user data or transfer user data to third parties?" Recommended: **No. Owner.**
+
+Amazon's questionnaire is about user data the developer, its SDKs or its service providers receive. This app sends
+nothing to the developer or anyone else: no analytics, crash reporting or advertising SDK, and no network call
+except to the server the viewer typed in. Data sent there is the viewer's own action, to their own server (see the
+[privacy page](../guide/privacy.md)).
+
+Even with No, give the privacy policy URL so the listing links it. Once GitHub Pages is on (#37), that is
+`https://stationbreak.github.io/stationbreaktv/guide/privacy.html`.
+
+If opt-in crash reporting or telemetry is added later (Q-PRIV-1: manual diagnostics only in V1), this answer changes
+to Yes with Crash logs or Diagnostics for Analytics, and the questionnaire must be updated before that release.
+
+Amazon's [account and data deletion](https://developer.amazon.com/docs/app-submission/user-account-and-data-deletion.html)
+rules are for apps that create accounts. This one doesn't: uninstalling removes everything the app keeps, and
+revoking the TV's device in Jellyfin ends its sign-in.
+
+## Release details (Step 5)
+
+| Field | Draft | Notes |
+| --- | --- | --- |
+| APK | The `amazon` flavor release APK from the tagged release workflow | CONTRIBUTING.md, Cutting a release |
+| Apply Amazon DRM | **No** | ADR-0003 §5: submit with no DRM |
+| Device support | Fire TV devices only, Fire OS 6 or later | **Owner** to confirm in the console. The manifest marks leanback and touchscreen as not required, so the console will also list Fire tablets as compatible: untick them, the app is built for a remote |
+| Export compliance | **Owner** | The app uses only the platform's standard TLS |
+
+### Testing instructions
+
+Amazon rejects an app its testers can't use, and this one does nothing without a server. It needs a test server
+that Amazon's testers can reach from the internet, with a sign-in for them and media that is licensed for that use,
+for example public-domain or Creative Commons films and cartoons. **Owner**: setting it up is a hosting and content
+decision, and the address and credentials must never be committed to this repository.
+
+Draft text, with the placeholders to fill in at submission:
+
+```text
+StationBreak is a client for Jellyfin, a self-hosted media server. It has no content of its own: it plays the viewer's library from their own server as scheduled live TV channels.
+
+To test, connect to our test server:
+1. On the first screen, enter this server address: <TEST SERVER ADDRESS>
+2. Choose Test, then sign in with username <USERNAME> and password <PASSWORD>.
+3. Choose the libraries, then wait for the guide to load. A channel starts playing.
+
+The test server's media is public-domain or Creative Commons licensed.
+
+Controls while watching: Up and Down change channels, Back opens the program guide, Select shows what is on, Play/Pause pauses, Menu goes back to the last channel. The app needs no touch input.
+```
+
+The controls line follows `feature/live/.../ui/LiveKeys.kt` and `OverlayKeys.kt`. Check it on a TV against the submitted build.
+
+## Before submitting
+
+Not part of this draft, tracked elsewhere:
+
+- The Phase 2 and Phase 3 gates (owner, 2026-11-06): 14 days of daily use, then outside testers (#31).
+- The final text and review of the app-store GPL exception (#745).
+- Store and launcher art (#572) and branding (#118).
+- GitHub Pages turned on, so the privacy policy URL works (#37).
+- Fire TV certification on a device (F4.2, 📺).
