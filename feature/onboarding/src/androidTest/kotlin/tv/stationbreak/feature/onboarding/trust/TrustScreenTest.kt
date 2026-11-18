@@ -46,11 +46,13 @@ class TrustScreenTest {
     private var refused = 0
 
     private var primary = Color.Unspecified
+    private var panel = Color.Unspecified
 
     private fun show(reason: TrustReason = TrustReason.Untrusted) {
         compose.setContent {
             StationBreakTheme {
                 primary = MaterialTheme.colorScheme.primary
+                panel = MaterialTheme.colorScheme.surfaceVariant
                 TrustScreen(
                     prompt = TrustPrompt(reason, certificate),
                     serverAddress = "jellyfin.example.test:8920",
@@ -186,15 +188,32 @@ class TrustScreenTest {
     }
 
     @Test
-    fun dontTrustHasThePrimaryFillAndTrustNeverDoes() {
+    fun dontTrustCarriesTheEmphasisAndTrustNeverDoes() {
         show()
         awaitFocused(TrustTags.DONT_TRUST)
-        // Focus on Don't trust gives it the focus look, so Trust shows its own resting fill.
-        assertFalse("Trust must not have the primary fill", fillOf(TrustTags.TRUST).isCloseTo(primary))
+        // The focused button has the orange fill. The fill eases in, so wait for it.
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
+        // Trust at rest: the panel fill and no orange border.
+        assertRestingPlain(TrustTags.TRUST)
         press(KeyEvent.KEYCODE_DPAD_RIGHT, TrustTags.DONT_TRUST)
         awaitFocused(TrustTags.TRUST)
-        // Focus on Trust gives Don't trust its resting fill. The fill eases in, so wait for it.
-        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.TRUST).isCloseTo(primary) }
+        // Don't trust at rest: the panel fill with the orange emphasis border.
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(panel) }
+        assertTrue("Don't trust must keep the orange border", topEdgeOf(TrustTags.DONT_TRUST).isCloseTo(primary))
+    }
+
+    private fun assertRestingPlain(tag: String) {
+        compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(tag).isCloseTo(panel) }
+        assertFalse("$tag must not have the primary fill", fillOf(tag).isCloseTo(primary))
+        assertFalse("$tag must not have the orange border", topEdgeOf(tag).isCloseTo(primary))
+    }
+
+    // A pixel on the button's top edge at its horizontal centre, 1 px inside the bounds: the emphasis border if any.
+    private fun topEdgeOf(tag: String): Int {
+        val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+        return screen.getPixel(bounds.center.x.toInt(), bounds.top.toInt() + 1)
     }
 
     // The dialog is a window of its own and captureToImage can't capture one below API 28, so read the screen. The
