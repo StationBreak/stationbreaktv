@@ -109,7 +109,8 @@ internal class LibraryBuilder(
         members: List<String>,
     ) {
         val ids = members.map { titleIds.getValue(it) }
-        val movies = ids.filter { it in filmIds() }.toSet()
+        val films = filmIds()
+        val movies = ids.filter { it in films }.toSet()
         val seriesIds = ids.filter { it in series.keys }.toSet()
         val id = id(NS_COLLECTION, nextCollection++)
         collections += RuleCollection(id, movies, emptySet(), seriesIds, emptySet(), name)
@@ -177,14 +178,18 @@ internal class LibraryBuilder(
 
 /**
  * Invented titles: two made-up words, from a fixed list of syllables, in a fixed scrambled order. They are not words
- * of any language and not names of anything, so no title of a profile library is a real one by design.
+ * of any language and not names of anything, so no title of a profile library is a real one by design. The pairs
+ * repeat after [WORDS] names, so from the second round on a name carries its round's number (`Bravelmi Torsenda 2`):
+ * a stress library has more titles than one round (#790), and the first round, which every golden uses, is unchanged.
  */
 internal class InventedNames {
     private var n = 1
 
     fun next(): String {
         val index = n++
-        return "${word(index * FIRST_STEP)} ${word(index * SECOND_STEP + OFFSET)}"
+        val pair = "${word(index * FIRST_STEP)} ${word(index * SECOND_STEP + OFFSET)}"
+        val round = (index - 1) / WORDS + 1
+        return if (round == 1) pair else "$pair $round"
     }
 
     private fun word(seed: Int): String {
@@ -198,10 +203,16 @@ internal class InventedNames {
     }
 
     companion object {
-        /** Whether [name] is two words of three syllables each, from the list: what [next] makes, and nothing else. */
+        /**
+         * Whether [name] is two words of three syllables each, from the list, with a round number of 2 or more after
+         * the first round: what [next] makes, and nothing else.
+         */
         fun isInvented(name: String): Boolean {
-            val words = name.split(' ')
-            return words.size == 2 &&
+            val parts = name.split(' ')
+            val round = parts.getOrNull(WORDS_PER_NAME)
+            if (parts.size > WORDS_PER_NAME + 1 || (round != null && !ROUND.matches(round))) return false
+            val words = parts.take(WORDS_PER_NAME)
+            return words.size == WORDS_PER_NAME &&
                 words.all { word ->
                     var rest = word.lowercase()
                     var syllables = 0
@@ -234,6 +245,10 @@ internal class InventedNames {
                 "xi",
             )
         private const val SYLLABLES_PER_WORD = 3
+        private const val WORDS_PER_NAME = 2
+
+        // A round after the first: 2 or more, with no leading zero.
+        private val ROUND = Regex("[2-9]|[1-9][0-9]+")
         private const val WORDS = 16 * 16 * 16
         private const val FIRST_STEP = 977
         private const val SECOND_STEP = 613
