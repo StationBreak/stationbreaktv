@@ -1108,14 +1108,35 @@ jobs:
           profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          # The logcat is saved whatever Gradle says: a crashed instrumentation process still ends BUILD SUCCESSFUL
+          # (#489), and its stack trace is only in the device log.
           script: >-
             ./gradlew -Pstationbreak.testBuildType=benchmark :app:connectedGithubBenchmarkAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest
+            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest;
+            status=$?;
+            mkdir -p instrumented-minified-diag;
+            adb logcat -d > instrumented-minified-diag/logcat.txt;
+            adb logcat -d -b crash > instrumented-minified-diag/crash.txt;
+            exit "$status"
 
+      # The job's verdict. Gradle's own result is not enough: AGP reports a crashed or lost instrumentation run as a
+      # pass (#489), so this reads the JUnit XML and fails unless every one of the five classes ran a test and nothing
+      # failed. A crash's stack trace from the device log is printed for the next fix.
       - name: Minified security test results
         if: always()
         run: |
           shopt -s globstar nullglob
+          if [ -s instrumented-minified-diag/crash.txt ]; then
+            echo "::group::crash buffer"
+            cat instrumented-minified-diag/crash.txt
+            echo "::endgroup::"
+          fi
+          if [ -s instrumented-minified-diag/logcat.txt ]; then
+            echo "::group::AndroidRuntime and the test runner (logcat)"
+            grep -E 'AndroidRuntime|FATAL|TestRunner|ClassNotFound|NoClassDefFound|NoSuchMethod|Hilt' \
+              instrumented-minified-diag/logcat.txt | head -200 || true
+            echo "::endgroup::"
+          fi
           results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
           if [ "${#results[@]}" -eq 0 ]; then
             echo "::error::No instrumented test results from the minified build."
@@ -1128,6 +1149,18 @@ jobs:
             grep -A5 '<failure' "$f" || true
             echo "::endgroup::"
           done
+          failed=0
+          if grep -lE '<failure|testRunFailed' "${results[@]}" >/dev/null; then
+            echo "::error::The minified security tests failed or did not complete (see the results above)."
+            failed=1
+          fi
+          for class in PinnedTrustOnApi25Test NetworkSecurityConfigChainTest NoPlaintextOnDiskTest SecretPersistenceTest AdapterLogBindingTest; do
+            if ! grep -qE "classname=\"tv\.stationbreak\.app\.${class}\"" "${results[@]}"; then
+              echo "::error::${class} did not run on the minified build."
+              failed=1
+            fi
+          done
+          exit "$failed"
 
       # Test reports only, no APK (ADR-0011 gates APKs).
       - name: Upload the minified security test reports
@@ -1138,6 +1171,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            instrumented-minified-diag/
           retention-days: 7
           if-no-files-found: ignore
 
