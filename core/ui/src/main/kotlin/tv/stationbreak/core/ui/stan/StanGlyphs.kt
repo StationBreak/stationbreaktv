@@ -9,7 +9,8 @@ import tv.stationbreak.core.ui.BroadcastType
 
 /**
  * The brand face (Ranchers, [BroadcastType.Voice]) for Stan's glyphs: the Zs and the question mark. Each character is
- * measured once, at [REFERENCE_PX], and kept; the painter scales the drawing, so no frame lays out text.
+ * measured once, at [REFERENCE_PX] (large, so scaling down stays sharp), and kept; the painter scales the
+ * drawing, so no frame lays out text.
  */
 internal class StanGlyphs(
     private val measurer: TextMeasurer,
@@ -26,6 +27,6 @@ internal class StanGlyphs(
 
     companion object {
         /** The size, in pixels, that glyphs are measured at. */
-        const val REFERENCE_PX = 100f
+        const val REFERENCE_PX = 200f
     }
 }

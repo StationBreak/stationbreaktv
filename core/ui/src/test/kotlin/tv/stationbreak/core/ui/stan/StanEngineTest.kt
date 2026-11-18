@@ -19,19 +19,19 @@ class StanEngineTest {
             BrandColors.Orange,
             BrandColors.Grey,
             BrandColors.DarkGrey,
-            BrandColors.Black,
+            Color.Black,
         )
 
     @Test
     fun reducedMotionDrawsTheStillFrameAtThreeSeconds() {
         assertEquals(3.0, stanTimeSeconds(null, true, 9_000_000_000L), 0.0)
-        assertEquals(3.0, stanTimeSeconds(0.5f, true, 0L), 0.0)
+        assertEquals(3.0, stanTimeSeconds(0.5, true, 0L), 0.0)
         assertEquals(3.0, STILL_FRAME_SECONDS, 0.0)
     }
 
     @Test
     fun withMotionOnTheCallersTimeWinsOverTheClock() {
-        assertEquals(1.5, stanTimeSeconds(1.5f, false, 9_000_000_000L), 0.0)
+        assertEquals(1.5, stanTimeSeconds(1.5, false, 9_000_000_000L), 0.0)
         assertEquals(9.0, stanTimeSeconds(null, false, 9_000_000_000L), 0.0)
         assertEquals(0.0, stanTimeSeconds(null, false, 0L), 0.0)
     }
@@ -66,8 +66,8 @@ class StanEngineTest {
 
     @Test
     fun theGroundsAreTheBrandsLiftAndPaper() {
-        assertEquals(BrandColors.ScreenLift, StanPalette.Dark.groundLift)
-        assertEquals(BrandColors.ScreenEdge, StanPalette.Dark.groundEdge)
+        assertEquals(BrandColors.ScreenLiftTop, StanPalette.Dark.groundLift)
+        assertEquals(BrandColors.ScreenLiftBottom, StanPalette.Dark.groundEdge)
         assertEquals(BrandColors.Paper, StanPalette.Paper.groundLift)
         assertEquals(BrandColors.PaperEdge, StanPalette.Paper.groundEdge)
     }
@@ -146,5 +146,51 @@ class StanEngineTest {
         assertEquals("0", num(r1(-0.04)))
         assertEquals("12", num(12.0))
         assertEquals("-3.5", num(-3.5))
+    }
+
+    @Test
+    fun theOpeningIsOverWhenItsFadeCompletes() {
+        val end = checkNotNull(StanScene.Opening.runSeconds)
+        assertEquals(6.2, end, 0.0)
+        assertEquals(0.0, StanScene.Opening.frame(end).fade, 0.0)
+        assertTrue(StanScene.Opening.frame(end - 0.1).fade > 0.0)
+        assertEquals(1.0, StanScene.Opening.frame(end - 0.7).fade, 0.0)
+    }
+
+    @Test
+    fun onlyTheOpeningIsARunAndEverySceneHasALoop() {
+        for (scene in StanScene.entries) {
+            assertEquals(scene == StanScene.Opening, scene.runSeconds != null)
+            assertTrue(scene.loopSeconds > 0.0)
+        }
+    }
+
+    @Test
+    fun theStageFitsUniformlyAndCentresWhenTheAspectDiffers() {
+        val wide = StanStageTransform(2560f, 1080f)
+        assertEquals(1f, wide.scale, 0f)
+        assertEquals(320f, wide.offsetX, 0f)
+        assertEquals(0f, wide.offsetY, 0f)
+        assertFalse(wide.fillsCanvas)
+        val tall = StanStageTransform(960f, 800f)
+        assertEquals(0.5f, tall.scale, 0f)
+        assertEquals(130f, tall.offsetY, 0f)
+        assertEquals(130f + 540f, tall.y(1080.0), 0f)
+    }
+
+    @Test
+    fun aCanvasOfTheStagesAspectHasNoBars() {
+        val half = StanStageTransform(960f, 540f)
+        assertTrue(half.fillsCanvas)
+        assertEquals(480f, half.x(960.0), 0f)
+        assertEquals(24f, half.length(48.0), 0f)
+        assertEquals(960.0, half.stageX(480f), 0.0)
+    }
+
+    @Test
+    fun aCanvasWithNoSizeMapsNothing() {
+        val none = StanStageTransform(0f, 0f)
+        assertEquals(0f, none.scale, 0f)
+        assertEquals(0.0, none.stageX(10f), 0.0)
     }
 }

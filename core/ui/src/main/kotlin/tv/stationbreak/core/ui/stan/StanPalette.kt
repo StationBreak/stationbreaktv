@@ -28,10 +28,10 @@ enum class StanPalette(
         cream = BrandColors.Cream,
         ink = BrandColors.Ink,
         grey = BrandColors.Grey,
-        groundLift = BrandColors.ScreenLift,
-        groundEdge = BrandColors.ScreenEdge,
+        groundLift = BrandColors.ScreenLiftTop,
+        groundEdge = BrandColors.ScreenLiftBottom,
         dots = BrandColors.Cream,
-        shadow = BrandColors.Black,
+        shadow = Color.Black,
         shadowAlpha = .4f,
     ),
 
@@ -49,12 +49,12 @@ enum class StanPalette(
     ;
 
     /** The colour of a token on this ground. */
-    fun color(token: StanColor): Color =
+    internal fun color(token: StanColor): Color =
         when (token) {
             StanColor.Cream -> cream
             StanColor.Ink -> ink
             StanColor.Accent -> BrandColors.Orange
             StanColor.Grey -> grey
-            StanColor.Black -> BrandColors.Black
+            StanColor.Black -> Color.Black
         }
 }

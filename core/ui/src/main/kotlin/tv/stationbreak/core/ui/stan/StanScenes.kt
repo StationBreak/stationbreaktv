@@ -19,28 +19,41 @@ import kotlin.math.sin
  * and returns one frame, so a screen only has to feed in a clock. The study is the source of truth; the fixture test
  * (StanFixtureTest) holds this port to its output.
  *
- * Cost: a frame is about 60 small shapes built fresh from the clock. That is the one allocation the engine makes per
- * frame (a few kilobytes, short-lived); the drawing layer adds none that matter (see StanStage).
+ * Cost: a frame is about 60 small shape objects plus some path strings (the ones with a moving number in them), all
+ * built fresh from the clock. That is the engine's per-frame allocation: a few kilobytes, short-lived. The drawing
+ * layer adds almost none (see StanStage).
  */
 
-/** The scenes. [key] is the name the motion study (and the fixture) gives each. */
+/**
+ * The scenes. Each is a loop of [loopSeconds]: the study's own cycle for that scene (`t % loop`), after which its main
+ * beat starts again. The small sways (ears, arms, bobbing) run on their own periods and are not locked to it.
+ *
+ * [runSeconds] is set for a scene that is a one-off run, not a loop to leave on: the time at which it has faded out
+ * completely, so a screen can move on (the load screen dissolves to the guide) without hard-coding it. Null for the
+ * scenes that run for as long as the screen is up.
+ */
 enum class StanScene(
-    val key: String,
+    internal val key: String,
+    val loopSeconds: Double,
+    val runSeconds: Double? = null,
 ) {
     /** "Please stand by": he works the aerial until the picture comes in, then loses it. Blocks count up. */
-    Standby("standby"),
+    Standby("standby", 5.2),
 
-    /** The load screen: dozing, wakes, stands up and waves while the name comes in. About 6.4 seconds, looping. */
-    Opening("opening"),
+    /**
+     * The load screen: dozing, wakes, stands up and waves while the name comes in, then fades out. The study loops it
+     * every 6.4 seconds; as a load screen it is over at [runSeconds] (6.2), when [StanFrame.fade] reaches 0.
+     */
+    Opening("opening", 6.4, OPENING_END),
 
     /** "Off the air": asleep with his bear, Zs drifting up, stars twinkling. */
-    OffAir("offair"),
+    OffAir("offair", 3.6),
 
     /** "No signal": looks both ways and shrugs, his screen flickering now and then. */
-    NoSignal("nosignal"),
+    NoSignal("nosignal", 6.0),
 
     /** "Technical difficulties": wobbling, sparks, smoke off his bent ear and static now and then. */
-    Trouble("trouble"),
+    Trouble("trouble", 3.2),
     ;
 
     /** The frame for this scene at [t] seconds. */
@@ -55,47 +68,57 @@ enum class StanScene(
 }
 
 /** Which ground a scene stands on: [Left] lifts toward the left (copy beside Stan), [Centre] toward the middle. */
-enum class StanBackground { Left, Centre }
+internal enum class StanBackground { Left, Centre }
 
 /** The ellipse under Stan's feet, in stage space. */
-data class StanShadow(
+internal data class StanShadow(
     val cx: Double,
     val cy: Double,
     val rx: Double,
     val ry: Double,
 )
 
-/** The load screen's title, as how far each part has come in (0..1) and how far the name still has to rise (`dy`). */
+/**
+ * The load screen's name coming in, for a screen that lays out its own text. The name is "Station" (cream) then "Break"
+ * (accent) on one line, then a tagline under it; each fades in (0..1) in that order, and the whole block starts
+ * [offsetY] stage units low and rises to rest as "Station" arrives.
+ */
 data class StanTitle(
-    val a1: Double,
-    val a2: Double,
-    val a3: Double,
-    val dy: Double,
+    /** Opacity of "Station", the first half of the name. Comes in first. */
+    val nameStationAlpha: Double,
+    /** Opacity of "Break", the second half of the name. Comes in second. */
+    val nameBreakAlpha: Double,
+    /** Opacity of the tagline under the name. Comes in last. */
+    val taglineAlpha: Double,
+    /** How far below its resting place the name is, in stage units (1920 x 1080); 18 at the start, 0 when settled. */
+    val offsetY: Double,
 )
 
 /**
- * One frame, in the study's 1920 x 1080 stage space. [back] is drawn first, in stage space; then the [shadow]; then
- * [stan], inside a group that is moved to ([x], [y]), turned [rot] degrees and scaled by [sc] across and [sc] x [sy]
- * down. Everything but the ground fades with [fade].
+ * One frame of a scene. Screens read only what they lay their own text with: [blocks], [title] and [fade]; the
+ * picture itself (the ground, the shadow, Stan and everything around him) is for [StanStage] to draw.
  *
- * [blocks] and [title] are not drawn by the engine: a screen lays out its own text and reads them. [blocks] is how many
- * of the seven standby blocks are lit (null when the scene has none); [title] is how far the load screen's name,
- * "Station Break", and its line have come in.
+ * [blocks] is how many of the seven standby blocks are lit (null when the scene has none); [title] is the load
+ * screen's name coming in (null when the scene has none); [fade] (1 down to 0) is how much of the picture is left, for
+ * the opening's dissolve: a screen fades its own text with it.
  */
-data class StanFrame(
-    val bg: StanBackground,
-    val back: List<StanShape>,
-    val shadow: StanShadow,
-    val x: Double,
-    val y: Double,
-    val sc: Double,
-    val rot: Double,
-    val sy: Double,
-    val stan: List<StanShape>,
+class StanFrame internal constructor(
+    internal val bg: StanBackground,
+    internal val back: List<StanShape>,
+    internal val shadow: StanShadow,
+    internal val x: Double,
+    internal val y: Double,
+    internal val sc: Double,
+    internal val rot: Double,
+    internal val sy: Double,
+    internal val stan: List<StanShape>,
     val blocks: Int?,
     val title: StanTitle?,
     val fade: Double,
 )
+
+private const val OPENING_FADE_START = 5.6
+private const val OPENING_END = 6.2
 
 private val SLATE_SHADOW = StanShadow(560.0, 862.0, 330.0, 34.0)
 private const val SLATE_X = 560.0
@@ -342,6 +365,6 @@ private fun opening(t: Double): StanFrame {
         stan = stanShapes(s),
         blocks = null,
         title = StanTitle(r2(a1), r2(ramp(p, 1.6, 2.0)), r2(ramp(p, 2.2, 2.6)), r1(18 * (1 - a1))),
-        fade = r2(1 - ramp(p, 5.6, 6.2)),
+        fade = r2(1 - ramp(p, OPENING_FADE_START, OPENING_END)),
     )
 }

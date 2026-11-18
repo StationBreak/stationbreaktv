@@ -11,7 +11,7 @@ import kotlin.math.floor
  * which is how the same shapes serve the ink ground and the paper ground. [token] is the name the motion study (and
  * the fixture) uses.
  */
-enum class StanColor(
+internal enum class StanColor(
     val token: String,
 ) {
     Cream("cream"),
@@ -19,12 +19,6 @@ enum class StanColor(
     Accent("accent"),
     Grey("grey"),
     Black("black"),
-    ;
-
-    companion object {
-        /** The token for a name from the motion study's data; null for the empty string (no colour). */
-        fun fromToken(token: String): StanColor? = entries.firstOrNull { it.token == token }
-    }
 }
 
 /**
@@ -33,10 +27,10 @@ enum class StanColor(
  * coordinates are in Stan's own space (the cabinet is 240 x 180, centred on 0,0) unless the shape is in
  * [StanFrame.back], which is in the 1920 x 1080 stage space.
  */
-sealed interface StanShape
+internal sealed interface StanShape
 
 /** An open or closed path, stroked with round caps and joins. */
-data class StanStroke(
+internal data class StanStroke(
     val d: String,
     val c: StanColor,
     val w: Double,
@@ -44,14 +38,14 @@ data class StanStroke(
 ) : StanShape
 
 /** A filled path. */
-data class StanFill(
+internal data class StanFill(
     val d: String,
     val c: StanColor,
     val a: Double,
 ) : StanShape
 
 /** A circle, filled, or an unfilled ring when [sw] is above 0. */
-data class StanCircle(
+internal data class StanCircle(
     val x: Double,
     val y: Double,
     val r: Double,
@@ -61,7 +55,7 @@ data class StanCircle(
 ) : StanShape
 
 /** An ellipse. */
-data class StanOval(
+internal data class StanOval(
     val x: Double,
     val y: Double,
     val rx: Double,
@@ -74,7 +68,7 @@ data class StanOval(
  * A rounded rectangle, turned [rot] degrees about ([px], [py]) and outlined in [sc] at width [sw] when [sc] is set.
  * [w], [h] and [r] are whole numbers in the study, so they are not rounded.
  */
-data class StanRoundRect(
+internal data class StanRoundRect(
     val x: Double,
     val y: Double,
     val w: Double,
@@ -89,7 +83,7 @@ data class StanRoundRect(
 ) : StanShape
 
 /** One character of the brand face (Ranchers), baseline at [x], [y]; [mid] centres it on [x]. */
-data class StanGlyph(
+internal data class StanGlyph(
     val ch: String,
     val x: Double,
     val y: Double,
@@ -100,29 +94,29 @@ data class StanGlyph(
 ) : StanShape
 
 /** Opens a group turned [rot] degrees about ([px], [py]); the matching [StanPop] closes it. */
-data class StanPush(
+internal data class StanPush(
     val rot: Double,
     val px: Double,
     val py: Double,
 ) : StanShape
 
 /** Opens a group clipped to the path [d]; the matching [StanPop] closes it. */
-data class StanClip(
+internal data class StanClip(
     val d: String,
 ) : StanShape
 
 /** Closes the innermost [StanPush] or [StanClip]. */
-data object StanPop : StanShape
+internal data object StanPop : StanShape
 
 /** Static over Stan's screen at alpha [a]: noise tile [tile] (0..5), and a rolling bar at [roll] (0..1). */
-data class StanSnow(
+internal data class StanSnow(
     val a: Double,
     val tile: Int,
     val roll: Double,
 ) : StanShape
 
 /** A moon: the circle at [x], [y], [r] with the circle at [ox], [oy], [or] cut out of it. Stage space. */
-data class StanCrescent(
+internal data class StanCrescent(
     val x: Double,
     val y: Double,
     val r: Double,

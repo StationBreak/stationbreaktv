@@ -105,7 +105,7 @@ class StanFixtureTest {
     }
 
     private companion object {
-        val TIMES = listOf(0.0, 0.4, 1.0, 1.5, 2.0, 2.7, 3.0, 3.6, 4.2, 5.0, 6.5, 9.1, 13.3)
+        val TIMES = listOf(0.0, 0.4, 1.0, 1.5, 2.0, 2.7, 3.0, 3.6, 4.2, 5.0, 5.5, 5.9, 6.1, 6.5, 9.1, 11.5, 13.3)
     }
 }
 
@@ -135,10 +135,10 @@ private fun StanFrame.toJson(): JsonObject =
             "title",
             title?.let {
                 buildJsonObject {
-                    put("a1", it.a1)
-                    put("a2", it.a2)
-                    put("a3", it.a3)
-                    put("dy", it.dy)
+                    put("a1", it.nameStationAlpha)
+                    put("a2", it.nameBreakAlpha)
+                    put("a3", it.taglineAlpha)
+                    put("dy", it.offsetY)
                 }
             } ?: JsonNull,
         )

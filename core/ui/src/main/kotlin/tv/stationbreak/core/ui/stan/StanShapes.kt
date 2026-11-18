@@ -133,26 +133,56 @@ internal fun starD(
         "L${num(r1(x - r))} ${num(r1(y))} L${num(r1(x - q))} ${num(r1(y - q))} Z"
 }
 
-/** The tip of an ear that grows from [bx] on the cabinet's top edge, [deg] degrees from upright and [len] long. */
-internal fun earTip(
+/** The x of the tip of an ear grown from [bx] on the cabinet's top edge, [deg] degrees from upright, [len] long. */
+internal fun earTipX(
     bx: Double,
     deg: Double,
     len: Double,
-): Pair<Double, Double> {
-    val a = deg * PI / 180
-    return (bx + len * sin(a)) to (-96 - len * cos(a))
+): Double = bx + len * sin(deg * PI / 180)
+
+/** The y of the same ear tip. */
+internal fun earTipY(
+    deg: Double,
+    len: Double,
+): Double = -96 - len * cos(deg * PI / 180)
+
+private const val LEFT_EAR_DEG = -34.3
+private const val LEFT_EAR_LEN = 99.3
+private const val RIGHT_EAR_DEG = 30.0
+private const val RIGHT_EAR_LEN = 104.0
+
+// The ear tips as plain numbers, not pairs: they are worked out for every frame (the arms reach for the right one).
+private fun leftX(s: StanState): Double {
+    if (s.ears == Ears.Droop) return -104.0
+    return earTipX(-6.0, LEFT_EAR_DEG + s.earL, LEFT_EAR_LEN)
 }
 
-/** A point of the stage that other parts hang from: an ear tip. */
-private typealias Tip = Pair<Double, Double>
+private fun leftY(s: StanState): Double {
+    if (s.ears == Ears.Droop) return -120 + s.droop
+    return earTipY(LEFT_EAR_DEG + s.earL, LEFT_EAR_LEN)
+}
+
+private fun rightX(s: StanState) =
+    when (s.ears) {
+        Ears.Droop -> 104.0
+        Ears.Zig -> 60.0
+        Ears.Rabbit -> earTipX(6.0, RIGHT_EAR_DEG + s.earR, RIGHT_EAR_LEN)
+    }
+
+private fun rightY(s: StanState) =
+    when (s.ears) {
+        Ears.Droop -> -118 + s.droop
+        Ears.Zig -> -188.0
+        Ears.Rabbit -> earTipY(RIGHT_EAR_DEG + s.earR, RIGHT_EAR_LEN)
+    }
 
 /** Stan as a list of shapes for [s], back to front: legs, ears, cap, arms, cabinet, face, snow, held things. */
 internal fun stanShapes(s: StanState): MutableList<StanShape> {
     val o = ArrayList<StanShape>(SHAPE_CAPACITY)
     legs(o, s)
-    val (_, right) = ears(o, s)
+    ears(o, s)
     cap(o, s)
-    arms(o, s, right)
+    arms(o, s)
     cabinet(o)
     face(o, s)
     if (s.snow > 0) o.add(StanSnow(r2(s.snow), s.tile, roundTo(s.roll, 100.0)))
@@ -169,14 +199,7 @@ private fun legs(
 ) {
     when (s.legs) {
         Legs.Sit -> {
-            o.addAll(
-                listOf(
-                    stroke("M-30 86 L-33 116", StanColor.Cream),
-                    stroke("M30 86 L33 116", StanColor.Cream),
-                    roundRect(-52.0, 104.0, 34.0, 46.0, 15.0, StanColor.Accent, -8.0, -35.0, 127.0),
-                    roundRect(18.0, 104.0, 34.0, 46.0, 15.0, StanColor.Accent, 8.0, 35.0, 127.0),
-                ),
-            )
+            o.addAll(SIT_LEGS)
         }
 
         Legs.Kick -> {
@@ -200,39 +223,43 @@ private fun legs(
     }
 }
 
-/** Draws the rabbit ears and their orange tips; returns the two tips, which the arms reach for. */
+/** Draws the rabbit ears and their orange tips. */
 private fun ears(
     o: MutableList<StanShape>,
     s: StanState,
-): Pair<Tip, Tip> {
-    val left: Tip
-    val right: Tip
+) {
+    val lx = leftX(s)
+    val ly = leftY(s)
+    val rx = rightX(s)
+    val ry = rightY(s)
     val d = s.droop
     when (s.ears) {
         Ears.Droop -> {
-            left = -104.0 to -120 + d
-            right = 104.0 to -118 + d
             o.add(stroke("M-6 -96 Q-58 -152 -104 ${num(r1(-120 + d))}", StanColor.Cream, 9.0))
             o.add(stroke("M6 -96 Q58 -152 104 ${num(r1(-118 + d))}", StanColor.Cream, 9.0))
         }
 
         else -> {
-            left = earTip(-6.0, -34.3 + s.earL, 99.3)
-            o.add(stroke("M-6 -96 L${num(r1(left.first))} ${num(r1(left.second))}", StanColor.Cream, 9.0))
+            o.add(stroke("M-6 -96 L${num(r1(lx))} ${num(r1(ly))}", StanColor.Cream, 9.0))
             if (s.ears == Ears.Zig) {
-                right = 60.0 to -188.0
                 o.add(stroke("M6 -96 L42 -138 L20 -156 L60 -188", StanColor.Cream, 9.0))
             } else {
-                right = earTip(6.0, 30 + s.earR, 104.0)
-                o.add(stroke("M6 -96 L${num(r1(right.first))} ${num(r1(right.second))}", StanColor.Cream, 9.0))
+                o.add(stroke("M6 -96 L${num(r1(rx))} ${num(r1(ry))}", StanColor.Cream, 9.0))
             }
         }
     }
-    o.add(circle(left.first, left.second, 9.0, StanColor.Accent))
-    o.add(circle(right.first, right.second, 9.0, StanColor.Accent))
+    o.add(circle(lx, ly, 9.0, StanColor.Accent))
+    o.add(circle(rx, ry, 9.0, StanColor.Accent))
     o.add(circle(0.0, -88.0, 22.0, StanColor.Cream))
-    return left to right
 }
+
+private val SIT_LEGS: List<StanShape> =
+    listOf(
+        stroke("M-30 86 L-33 116", StanColor.Cream),
+        stroke("M30 86 L33 116", StanColor.Cream),
+        roundRect(-52.0, 104.0, 34.0, 46.0, 15.0, StanColor.Accent, -8.0, -35.0, 127.0),
+        roundRect(18.0, 104.0, 34.0, 46.0, 15.0, StanColor.Accent, 8.0, 35.0, 127.0),
+    )
 
 /** The nightcap: pushed, filled, striped inside a clip, popped, with its bobble. */
 private fun cap(
@@ -265,12 +292,11 @@ private fun arm(
 private fun arms(
     o: MutableList<StanShape>,
     s: StanState,
-    right: Tip,
 ) {
     val b = s.armBob
     when (s.arms) {
         Arms.Tune -> {
-            tune(o, right)
+            tune(o, rightX(s), rightY(s))
         }
 
         Arms.Rest -> {
@@ -303,9 +329,9 @@ private fun arms(
 /** The right hand holds the ear tip; the left rests on the knob. Two orange tuning marks by the tip. */
 private fun tune(
     o: MutableList<StanShape>,
-    right: Tip,
+    rx: Double,
+    ry: Double,
 ) {
-    val (rx, ry) = right
     val hx = rx + 20
     val hy = ry
     arm(o, "M-116 10 Q-166 22 -130 52", -128.0, 54.0)
@@ -362,14 +388,19 @@ private fun wave(
 }
 
 /** The cabinet, the screen, the knobs and the speaker lines. */
+private val CABINET: List<StanShape> =
+    listOf(
+        roundRect(-120.0, -90.0, 240.0, 180.0, 36.0, StanColor.Cream),
+        roundRect(-100.0, -70.0, 144.0, 136.0, 30.0, StanColor.Ink),
+        circle(82.0, -42.0, 13.0, StanColor.Accent),
+        circle(82.0, -4.0, 13.0, StanColor.Ink),
+        stroke("M68 34 L96 34", StanColor.Ink, 5.0),
+        stroke("M68 46 L96 46", StanColor.Ink, 5.0),
+        stroke("M68 58 L96 58", StanColor.Ink, 5.0),
+    )
+
 private fun cabinet(o: MutableList<StanShape>) {
-    o.add(roundRect(-120.0, -90.0, 240.0, 180.0, 36.0, StanColor.Cream))
-    o.add(roundRect(-100.0, -70.0, 144.0, 136.0, 30.0, StanColor.Ink))
-    o.add(circle(82.0, -42.0, 13.0, StanColor.Accent))
-    o.add(circle(82.0, -4.0, 13.0, StanColor.Ink))
-    o.add(stroke("M68 34 L96 34", StanColor.Ink, 5.0))
-    o.add(stroke("M68 46 L96 46", StanColor.Ink, 5.0))
-    o.add(stroke("M68 58 L96 58", StanColor.Ink, 5.0))
+    o.addAll(CABINET)
 }
 
 private val EYE_XS = doubleArrayOf(-58.0, 2.0)

@@ -11,12 +11,12 @@ private const val NANOS_PER_SECOND = 1_000_000_000.0
  * otherwise the caller's [explicit] time, or the engine's own clock ([clockNanos] since the stage started).
  */
 internal fun stanTimeSeconds(
-    explicit: Float?,
+    explicit: Double?,
     reducedMotion: Boolean,
     clockNanos: Long,
 ): Double =
     when {
         reducedMotion -> STILL_FRAME_SECONDS
-        explicit != null -> explicit.toDouble()
+        explicit != null -> explicit
         else -> clockNanos / NANOS_PER_SECOND
     }

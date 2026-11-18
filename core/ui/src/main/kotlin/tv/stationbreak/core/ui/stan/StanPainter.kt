@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.rotate
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import kotlin.math.min
 
 /**
  * Draws [StanFrame]s: the ground, the stage-space shapes, the shadow and Stan inside his group transform, every shape
@@ -30,7 +29,7 @@ import kotlin.math.min
  *
  * Built once per palette and kept by the stage. It owns the caches that keep steady animation free of per-frame work:
  * parsed paths ([StanPathCache]), stroke styles by width, the crescent's cut-out path, the screen's clip path and one
- * layer [Paint]. [draw] itself creates only value types (offsets, sizes, colours).
+ * layer [Paint]. Drawing itself creates only value types (offsets, sizes, colours).
  */
 internal class StanPainter(
     private val palette: StanPalette,
@@ -38,36 +37,53 @@ internal class StanPainter(
     private val glyphs: StanGlyphs,
 ) {
     private val paths = StanPathCache()
-    private val strokes = HashMap<Double, Stroke>()
+    private val strokeWidths = FloatArray(STROKE_SLOTS)
+    private val strokeStyles = arrayOfNulls<Stroke>(STROKE_SLOTS)
+    private var strokeCount = 0
     private val crescents = HashMap<StanCrescent, Path>()
     private val layerPaint = Paint()
     private val screenClip = Path().apply { addRoundRect(SCREEN) }
 
-    /** Draws [frame] to fill [scope]'s canvas, centred and scaled to fit; the bars either side are ground. */
-    fun draw(
+    /**
+     * Draws the ground: the lift and the halftone dots of the stage, and, if the canvas is not the stage's aspect,
+     * the ground's edge colour in the bars either side. Nothing here depends on the frame but [bg], so the stage
+     * caches it (see StanStage).
+     */
+    fun drawGround(
         scope: DrawScope,
-        frame: StanFrame,
+        tf: StanStageTransform,
+        bg: StanBackground,
     ) = with(scope) {
-        val s = min(size.width / STAGE_W, size.height / STAGE_H)
-        if (s > 0f && s.isFinite()) {
-            drawRect(palette.groundEdge)
+        if (tf.scale > 0f) {
+            if (!tf.fillsCanvas) drawRect(palette.groundEdge)
             withTransform({
-                translate((size.width - STAGE_W * s) / 2f, (size.height - STAGE_H * s) / 2f)
-                scale(s, s, Offset.Zero)
+                translate(tf.offsetX, tf.offsetY)
+                scale(tf.scale, tf.scale, Offset.Zero)
             }) {
-                drawGround(frame.bg)
-                faded(frame.fade) { drawStage(frame) }
+                withTransform({ scale(1f, STAGE_H / STAGE_W, Offset.Zero) }) {
+                    drawRect(ground.lift(bg), size = Size(STAGE_W, STAGE_W))
+                }
+                // Rotated 30 degrees, so the rectangle is the stage's corners turned back by 30 degrees.
+                withTransform({ rotate(30f, Offset.Zero) }) {
+                    drawRect(ground.halftone, topLeft = Offset(0f, -960f), size = Size(2204f, 1896f))
+                }
             }
         }
     }
 
-    private fun DrawScope.drawGround(bg: StanBackground) {
-        withTransform({ scale(1f, STAGE_H / STAGE_W, Offset.Zero) }) {
-            drawRect(ground.lift(bg), size = Size(STAGE_W, STAGE_W))
-        }
-        // Rotated 30 degrees, so the rectangle is the stage's corners turned back by 30 degrees.
-        withTransform({ rotate(30f, Offset.Zero) }) {
-            drawRect(ground.halftone, topLeft = Offset(0f, -960f), size = Size(2204f, 1896f))
+    /** Draws [frame]'s picture over the ground: what is behind Stan, his shadow and Stan, faded by [StanFrame.fade]. */
+    fun drawPicture(
+        scope: DrawScope,
+        tf: StanStageTransform,
+        frame: StanFrame,
+    ) = with(scope) {
+        if (tf.scale > 0f) {
+            withTransform({
+                translate(tf.offsetX, tf.offsetY)
+                scale(tf.scale, tf.scale, Offset.Zero)
+            }) {
+                faded(frame.fade) { drawStage(frame) }
+            }
         }
     }
 
@@ -237,10 +253,24 @@ internal class StanPainter(
             Path.combine(PathOperation.Difference, moon, bite)
         }
 
-    private fun strokeFor(width: Double): Stroke =
-        strokes.getOrPut(width) { Stroke(width.toFloat(), cap = StrokeCap.Round, join = StrokeJoin.Round) }
+    /** The round-capped stroke of [width]: the few widths in use (3 to 11) are kept in two small arrays. */
+    private fun strokeFor(width: Double): Stroke {
+        val w = width.toFloat()
+        for (i in 0 until strokeCount) {
+            val known = strokeStyles[i]
+            if (known != null && strokeWidths[i] == w) return known
+        }
+        val style = Stroke(w, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        if (strokeCount < STROKE_SLOTS) {
+            strokeWidths[strokeCount] = w
+            strokeStyles[strokeCount] = style
+            strokeCount++
+        }
+        return style
+    }
 
     private companion object {
+        const val STROKE_SLOTS = 16
         val STAGE = Rect(0f, 0f, STAGE_W, STAGE_H)
         val SCREEN_BOUNDS = Rect(-100f, -70f, 44f, 66f)
         val SCREEN = RoundRect(-100f, -70f, 44f, 66f, CornerRadius(30f))
