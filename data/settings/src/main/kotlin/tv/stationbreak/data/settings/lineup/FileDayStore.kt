@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.data.settings.readAtMost
+import tv.stationbreak.data.settings.syncDirectoryWithOs
 import tv.stationbreak.data.settings.writeStaged
 import java.io.File
 import java.io.IOException

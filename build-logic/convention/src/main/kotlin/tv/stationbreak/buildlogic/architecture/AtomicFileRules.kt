@@ -4,7 +4,7 @@ package tv.stationbreak.buildlogic.architecture
 /**
  * `android.util.AtomicFile` is not used in `:data:settings` (#818): on API 25 its `.bak` scheme can leave the only copy
  * truncated when a write fails, so the module writes `<name>.new`, syncs, renames and syncs the directory instead
- * (`DiskLineupFiles`, `DiskRecordFile`, `DiskBlobFiles`). A source-text tripwire over the module's shipped sources, with
+ * (`StagedFiles`). A source-text tripwire over the module's shipped sources, with
  * comments removed, so the KDoc that explains the ban does not trip it.
  */
 object AtomicFileRules {

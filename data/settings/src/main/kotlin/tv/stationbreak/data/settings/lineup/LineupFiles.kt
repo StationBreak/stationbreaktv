@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.lineup
 
-import android.system.ErrnoException
-import android.system.Os
-import android.system.OsConstants
 import tv.stationbreak.core.model.LineupLimits
 import tv.stationbreak.data.settings.readAtMost
+import tv.stationbreak.data.settings.syncDirectoryWithOs
 import tv.stationbreak.data.settings.writeStaged
 import java.io.File
 import java.io.IOException
@@ -100,23 +98,5 @@ internal class DiskLineupFiles(
 
     private companion object {
         const val NEW = ".new"
-    }
-}
-
-/**
- * Flushes [directory]'s entries to storage so a rename or a new file in it survives a power cut. `RandomAccessFile`
- * can't open a directory, so this opens it read-only with `Os.open` and syncs the descriptor (API 21+). Best effort:
- * a file system that refuses it is not a failed save.
- */
-internal fun syncDirectoryWithOs(directory: File) {
-    try {
-        val fd = Os.open(directory.path, OsConstants.O_RDONLY, 0)
-        try {
-            Os.fsync(fd)
-        } finally {
-            Os.close(fd)
-        }
-    } catch (_: ErrnoException) {
-        // Best effort.
     }
 }
