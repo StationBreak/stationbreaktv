@@ -478,7 +478,7 @@ class LineupService internal constructor(
                 replanFromMs = planned.replanFromMs(),
                 plannedWithoutCollections = before.plannedWithoutCollections || read.giveUp,
             )
-        return planned to meta
+        return planned to meta.copy(plannedWithoutCollections = meta.givenUpMatters(planned))
     }
 
     internal fun nowMs(): Long = clock.now().toEpochMilliseconds()

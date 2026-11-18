@@ -12,6 +12,7 @@ import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.InMemoryLineupStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryStatus
+import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.SyncState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.model.ServerId
@@ -19,7 +20,10 @@ import tv.stationbreak.core.model.UserId
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -200,6 +204,90 @@ class FirstLineupTest {
             signIn(LibraryAccount(ServerId("not-an-id"), UserId("nor-this")))
 
             assertEquals(FirstLineupState.Settled, now())
+        }
+
+    private suspend fun storedVersion(): Int {
+        val bytes = (store.load(ACCOUNT) as StoredBytes.Present).bytes
+        return assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes)).fileVersion
+    }
+
+    // A thin lineup whose plan gave up on its collections: stored as version 7.
+    private suspend fun gaveUp() {
+        signIn()
+        seedThin()
+        library.delegate.setCollectionsSynced(ACCOUNT, false)
+        library.delegate.setFailedCollectionPasses(ACCOUNT, GIVE_UP_AFTER)
+        service.refresh(ACCOUNT, LIBRARIES)
+        assertEquals(LineupCodec.GAVE_UP_VERSION, storedVersion())
+    }
+
+    @Test
+    fun aPassLandingAfterAGiveUpClearsTheFlagAndItStaysSettled() =
+        runBlocking<Unit> {
+            gaveUp()
+
+            library.delegate.setCollectionsSynced(ACCOUNT, true)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 0)
+            library.delegate.completeCollectionPass(ACCOUNT, NOON)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            assertEquals(false, held.meta.plannedWithoutCollections, "cleared: the pass says it now")
+            assertTrue(storedVersion() < LineupCodec.GAVE_UP_VERSION, "written below version 7 again")
+            assertEquals(FirstLineupState.Settled, now())
+            val restarted = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+            assertEquals(FirstLineupState.Settled, restarted.firstLineup().first())
+        }
+
+    @Test
+    fun finalisingAfterAGiveUpClearsTheFlagAndItStaysSettled() =
+        runBlocking<Unit> {
+            gaveUp()
+
+            // The library fills: the next plan (still without the collections) finalises the lineup.
+            library.seed(fillingLibrary().drop(14))
+            library.delegate.noteContentChange(ACCOUNT)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            val held = checkNotNull(service.loaded(ACCOUNT))
+            assertEquals(true, held.lineup.finalised)
+            assertEquals(false, held.meta.plannedWithoutCollections)
+            assertTrue(storedVersion() < LineupCodec.GAVE_UP_VERSION, "written below version 7 again")
+            assertEquals(FirstLineupState.Settled, now())
+        }
+
+    @Test
+    fun aVersion3FileReplacedByAGiveUpIsCopiedFirst() =
+        runBlocking<Unit> {
+            signIn()
+            seedThin()
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            val waiting = Lineup(SERVER, USER, 1, 0, finalised = false, channels = emptyList())
+            val v3 = LineupCodec.encode(waiting)
+            store.save(ACCOUNT, v3)
+
+            library.delegate.setFailedCollectionPasses(ACCOUNT, GIVE_UP_AFTER)
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(LineupCodec.GAVE_UP_VERSION, storedVersion())
+            assertContentEquals(v3, store.keptCopy(ACCOUNT, "v3-to7"))
+        }
+
+    @Test
+    fun theFlagStaysOnDiskAfterARestartWhileItStillMatters() =
+        runBlocking<Unit> {
+            gaveUp()
+
+            // A new process, and the failed passes no longer counted (a pass was cancelled and restarted, say): the
+            // plan does not give up this time, but the choice it made then is still the lineup's.
+            val restarted = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, 0)
+            library.delegate.noteContentChange(ACCOUNT)
+            restarted.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(true, restarted.loaded(ACCOUNT)?.meta?.plannedWithoutCollections)
+            assertEquals(LineupCodec.GAVE_UP_VERSION, storedVersion())
+            assertEquals(FirstLineupState.Settled, restarted.firstLineup().first())
         }
 }
 

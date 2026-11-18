@@ -2,11 +2,17 @@
 package tv.stationbreak.core.domain.lineup
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
+import tv.stationbreak.core.domain.lineup.repair.repairOf
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.ShelfReason
+import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,7 +34,7 @@ class LineupCodecV7Test {
     private fun rewritten(
         bytes: ByteArray,
         version: Int,
-        flag: JsonPrimitive?,
+        flag: JsonElement?,
     ): ByteArray {
         val root = tree(bytes)
         val meta = root.getValue("meta").jsonObject - KEY
@@ -70,11 +76,15 @@ class LineupCodecV7Test {
     @Test
     fun theFieldBelowVersion7OrNotTrueIsUnreadable() {
         val seven = LineupCodec.encode(unfinalised, gaveUp)
-        for (version in 3..6) {
-            val read = LineupCodec.decode(rewritten(seven, version, JsonPrimitive(true)))
-            assertEquals(LineupCodec.Decoded.Unreadable, read, "version $version")
+        for (version in 1..6) {
+            for (flag in listOf(JsonPrimitive(true), JsonNull)) {
+                val read = LineupCodec.decode(rewritten(seven, version, flag))
+                assertEquals(LineupCodec.Decoded.Unreadable, read, "version $version, $flag")
+            }
         }
-        assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(rewritten(seven, 7, JsonPrimitive(false))))
+        for (flag in listOf(JsonPrimitive(false), JsonNull, JsonPrimitive("true"), JsonPrimitive(1))) {
+            assertEquals(LineupCodec.Decoded.Unreadable, LineupCodec.decode(rewritten(seven, 7, flag)), "$flag")
+        }
     }
 
     @Test
@@ -82,6 +92,39 @@ class LineupCodecV7Test {
         assertEquals(7, LineupCodec.VERSION)
         val other = lineupOf(starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))))
         assertEquals(3, versionOf(LineupCodec.encode(other)))
+    }
+
+    @Test
+    fun theFlagIsNotWrittenOnceAPassIsTakenInOrTheLineupIsFinalised() {
+        val passTaken = LineupCodec.encode(unfinalised, gaveUp.copy(collectionPassActedOn = 1L))
+        val finalised = LineupCodec.encode(unfinalised.copy(finalised = true), gaveUp)
+
+        for (bytes in listOf(passTaken, finalised)) {
+            assertEquals(3, versionOf(bytes))
+            assertNull(tree(bytes).getValue("meta").jsonObject[KEY], "no key")
+            val read = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes))
+            assertFalse(read.meta.plannedWithoutCollections)
+            assertTrue(firstChoiceMade(read.lineup, read.meta), "still has its first choice")
+        }
+    }
+
+    @Test
+    fun aVersion7FileWithEveryLaterFeatureRoundTrips() {
+        val crime = rules("Whodunit", Source.Genre("Crime"))
+        val noNumber = starter("laughs", 110, ChannelState.Shelf, rules("Laughs", Source.Genre("Comedy")))
+        val added = starter("whodunit", 210, ChannelState.On, crime).copy(viewerChoice = ViewerChoice.Added)
+        val lineup =
+            lineupOf(noNumber.copy(shelfReason = ShelfReason.NoNumber), added).copy(finalised = false)
+        val repairs = TodayRepairs(selection = listOf(repairOf()))
+
+        val bytes = LineupCodec.encode(lineup, gaveUp, repairs)
+
+        assertEquals(7, versionOf(bytes))
+        val read = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(bytes))
+        assertEquals(7, read.fileVersion)
+        assertEquals(lineup, read.lineup)
+        assertEquals(gaveUp, read.meta)
+        assertEquals(repairs, read.repairs)
     }
 }
 
