@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
+import android.provider.Settings
 import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -455,7 +456,15 @@ class LaunchNavigationTest {
             Thread.sleep(POLL_MS)
         }
         assertFalse("the opening should have handed over without a key", openingIsUp())
-        assertTrue("not before the name is fully in: advanced $advanced ms", advanced >= NAME_IN_MS)
+        // An emulator with animations off has reduced motion: then the still frame stays about a second instead.
+        val reduced =
+            Settings.Global.getFloat(
+                InstrumentationRegistry.getInstrumentation().targetContext.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        val nameIn = if (reduced) REDUCED_DWELL_MS else NAME_IN_MS
+        assertTrue("not before the name is fully in: advanced $advanced ms", advanced >= nameIn)
         compose.mainClock.autoAdvance = true
         awaitFocused(WelcomeTags.GET_STARTED)
     }
@@ -867,6 +876,7 @@ class LaunchNavigationTest {
         const val POLL_MS = 50L
         const val STEP_MS = 100L
         const val NAME_IN_MS = 2_600L
+        const val REDUCED_DWELL_MS = 1_000L
         const val SHELL_LINES = 12
         const val APP_PACKAGE = "tv.stationbreak.app"
     }

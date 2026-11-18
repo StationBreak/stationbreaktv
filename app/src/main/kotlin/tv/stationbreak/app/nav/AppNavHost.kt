@@ -150,9 +150,11 @@ private class SwallowedKeys {
         count = keys.size
     }
 
-    fun remove(key: Key) {
-        keys -= key
+    /** Removes [key]; true when it was held, so a release is matched to a press the opening saw. */
+    fun remove(key: Key): Boolean {
+        val held = keys.remove(key)
         count = keys.size
+        return held
     }
 }
 
@@ -176,13 +178,14 @@ private fun handleOpeningKey(
         }
 
         else -> {
+            val isBack = stanOpeningKey(key) == StanOpeningKey.Back
             if (isUp) {
-                swallowing.remove(key)
+                // Back acts on its release, as the platform's Back does: finishing on the press would send the
+                // release to whatever is behind the app.
+                if (swallowing.remove(key) && isBack) back()
             } else {
                 swallowing.add(key)
-                if (event.type == KeyEventType.KeyDown) {
-                    if (stanOpeningKey(key) == StanOpeningKey.Back) back() else skip()
-                }
+                if (event.type == KeyEventType.KeyDown && !isBack) skip()
             }
             true
         }
