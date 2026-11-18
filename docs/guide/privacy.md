@@ -1,3 +1,7 @@
+---
+permalink: /privacy/
+---
+
 # Privacy
 
 The app talks to one place: the Jellyfin server you connect it to. It has no analytics, no advertising, no crash
@@ -33,6 +37,6 @@ no microphone, location, contacts or storage.
 
 ## Contact
 
-Questions or concerns: open an issue on [GitHub](https://github.com/StationBreak/stationbreaktv/issues). To report
-a security problem privately, follow the
+Questions or concerns: email [support@stationbreak.tv](mailto:support@stationbreak.tv), or open an issue on
+[GitHub](https://github.com/StationBreak/stationbreaktv/issues). To report a security problem privately, follow the
 [security policy](https://github.com/StationBreak/stationbreaktv/blob/main/SECURITY.md).

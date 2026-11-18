@@ -131,8 +131,8 @@ except to the server the viewer typed in. Data sent there is the viewer's own ac
 [privacy page](../guide/privacy.md)).
 
 Even with No, give the privacy policy URL so the listing links it. The policy is hosted on stationbreak.tv (owner
-decision, 2026-11-18), from the text in `docs/guide/privacy.md`. Its exact URL goes in at submission:
-`<PRIVACY POLICY URL on stationbreak.tv>`.
+decision, 2026-11-18), from the text in `docs/guide/privacy.md`: `https://stationbreak.tv/privacy/`, live once
+GitHub Pages and the domain's DNS are set up. Check it loads before submitting.
 
 If opt-in crash reporting or telemetry is added later (Q-PRIV-1: manual diagnostics only in V1), this answer changes
 to Yes with Crash logs or Diagnostics for Analytics, and the questionnaire must be updated before that release.

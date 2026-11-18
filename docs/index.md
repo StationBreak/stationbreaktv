@@ -1,9 +1,22 @@
 # StationBreak
 
-StationBreak turns your own Jellyfin library into live TV channels on a Fire TV. Shows and films play on a schedule,
-the way a cable channel does: you tune in to whatever is on, flip channels, and browse a program guide.
+![StationBreak](https://raw.githubusercontent.com/StationBreak/stationbreaktv/main/art/brand/repo-banner.png)
 
-It is not released yet. These pages describe the app as it is built today.
+StationBreak turns your own Jellyfin library into live TV. Your shows and films play on a schedule across themed
+channels, the way cable does: turn it on and something is already playing. Flip channels, browse a program guide,
+and build a few channels of your own.
+
+It plays only your own media, from your own Jellyfin server (12.0 or later). It has no content of its own, no ads and
+no tracking.
+
+## Fire TV first
+
+StationBreak is made for Fire TV, on Fire OS 6 or later, and works with the remote alone.
+
+**Amazon Appstore:** coming soon. The link goes here when the listing is live.
+<!-- AMAZON APPSTORE LISTING URL: replace the line above with a link once the listing is published. -->
+
+Until then, see [Install](guide/install.md) for what you need.
 
 ## Guide
 
@@ -16,7 +29,11 @@ It is not released yet. These pages describe the app as it is built today.
 | [Channels](guide/channels.md) | The built-in channels, switching channels on and off, numbers, and building your own |
 | [Mature content and kids](guide/mature-content.md) | What the app filters, what it relies on, and where the real lock is |
 | [FAQ](guide/faq.md) | Short answers to common questions |
-| [Privacy](guide/privacy.md) | What the app stores and what it sends, and to whom |
 
-The source code, issue tracker and developer documentation are on
-[GitHub](https://github.com/StationBreak/stationbreaktv).
+## Privacy and support
+
+- [Privacy policy](guide/privacy.md): what the app stores and what it sends, and to whom.
+- [Support](support.md): how to get help.
+
+StationBreak is free and open source software under the GNU GPL. The source code, issue tracker and developer
+documentation are on [GitHub](https://github.com/StationBreak/stationbreaktv).
