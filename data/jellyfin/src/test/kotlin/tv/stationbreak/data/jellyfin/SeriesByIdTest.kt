@@ -40,6 +40,7 @@ class SeriesByIdTest {
         val url = jellyfin.requests("/Items/h1").single().url
         val fields = url.queryParameter("fields").orEmpty().split(',')
         assertEquals(listOf("Genres", "Tags", "Studios", "ProviderIds"), fields)
+        assertItemFields(fields)
         assertEquals("user1", url.queryParameter("userId"))
     }
 
