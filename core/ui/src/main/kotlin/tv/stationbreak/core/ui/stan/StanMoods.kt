@@ -3,9 +3,9 @@
 
 package tv.stationbreak.core.ui.stan
 
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.floor
-import kotlin.math.max
 import kotlin.math.sin
 
 /*
@@ -31,7 +31,11 @@ private val HOST_SHADOW = StanShadow(HOST_X, HOST_Y + 166, 140.0, 16.0)
 private const val BLINK_EVERY = 3.7
 private const val BLINK_FOR = .12
 private const val HOP_FOR = .6
-private const val FLAP_EVERY = .09
+private const val HOP_RATE = 10.5
+private const val HOP_HEIGHT = 14.0
+
+/** The talking mouth flips every 0.1 s: two ticks of the host's 20 fps clock, so no flip is ever skipped. */
+private const val FLAP_EVERY = .1
 private const val TALK_MOUTH_R = 9.0
 
 /** A standing Stan, arms at rest, his ears swaying a little. */
@@ -77,7 +81,7 @@ private fun pose(
         }
 
         StanMood.Dozing -> {
-            asleep(sin(t * 1.7), bear = false)
+            asleep(sleepBreath(t), bear = false)
         }
     }
 
@@ -86,7 +90,7 @@ private fun talks(mood: StanMood) = mood != StanMood.Busy && mood != StanMood.Do
 
 /**
  * Stan's pose for [mood] at [t] seconds since the mood began. With [talking] (a new line is up), his mouth flips
- * between a smile and an O every 0.09 s, except while busy or dozing.
+ * between a smile and an O every 0.1 s, except while busy or dozing.
  */
 internal fun hostState(
     mood: StanMood,
@@ -105,19 +109,57 @@ private fun bob(
     t: Double,
 ): Double =
     when (mood) {
-        StanMood.Idle -> 2 * sin(t * 2)
+        StanMood.Idle -> {
+            2 * sin(t * 2)
+        }
 
-        StanMood.Busy -> 2.5 * sin(t * 3)
+        StanMood.Busy -> {
+            2.5 * sin(t * 3)
+        }
 
-        // One hop as the mood begins, then the idle bob, from rest so there is no jump.
-        StanMood.Pleased -> if (t < HOP_FOR) -10 * max(0.0, sin(t * 6)) else 2 * sin((t - HOP_FOR) * 2)
+        // One hop (the first lobe of the sine, over by 0.3 s), still until 0.6 s, then the idle bob from rest: no jump.
+        StanMood.Pleased -> {
+            when {
+                t < PI / HOP_RATE -> -HOP_HEIGHT * sin(t * HOP_RATE)
+                t < HOP_FOR -> 0.0
+                else -> 2 * sin((t - HOP_FOR) * 2)
+            }
+        }
 
-        StanMood.Shrug -> 2 * sin(t * 2.2)
+        StanMood.Shrug -> {
+            2 * sin(t * 2.2)
+        }
 
-        StanMood.Cheer -> -10 * abs(sin(t * 5))
+        StanMood.Cheer -> {
+            -10 * abs(sin(t * 5))
+        }
 
-        StanMood.Dozing -> SIT_DROP
+        // Sitting lower, and lifted as he breathes in so he stays on his shadow (off-air's lift, in his units).
+        StanMood.Dozing -> {
+            SIT_DROP - (squash(mood, t) - 1) * SLEEP_LIFT / SLATE_SCALE * HOST_SCALE
+        }
     }
+
+/** How tall Stan is drawn: a dozing Stan breathes as off the air does; otherwise 1. */
+private fun squash(
+    mood: StanMood,
+    t: Double,
+): Double = if (mood == StanMood.Dozing) roundTo(sleepSquash(sleepBreath(t)), SQUASH_ROUNDING) else 1.0
+
+/**
+ * The line the host shows for [line] in [mood]: none while he dozes, and none for a blank line, so a screen can pass
+ * whatever it has without drawing an empty bubble.
+ */
+internal fun hostLine(
+    mood: StanMood,
+    line: String?,
+): String? = line?.takeIf { mood != StanMood.Dozing && it.isNotBlank() }
+
+/** How the host's [HOST_W] x [HOST_H] space sits in a canvas of [width] x [height] pixels. */
+internal fun hostTransform(
+    width: Float,
+    height: Float,
+) = StanStageTransform(width, height, HOST_W.toFloat(), HOST_H.toFloat())
 
 /** One host frame: Stan in [mood] at [t] seconds, in the host's [HOST_W] x [HOST_H] space, on no ground. */
 internal fun hostFrame(
@@ -135,7 +177,7 @@ internal fun hostFrame(
         y = r1(HOST_Y + bob(mood, t)),
         sc = HOST_SCALE,
         rot = 0.0,
-        sy = 1.0,
+        sy = squash(mood, t),
         stan = shapes,
         blocks = null,
         title = null,

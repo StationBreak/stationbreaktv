@@ -23,6 +23,21 @@ internal fun tuning(
     face = face,
 )
 
+/** A sleeping Stan's breath at [t] seconds, -1..1: [asleep] and [sleepSquash] take it. */
+internal fun sleepBreath(t: Double) = sin(t * 1.5)
+
+/** How tall a sleeping Stan is drawn as he breathes by [b]: the frame's `sy`, before rounding to [SQUASH_ROUNDING]. */
+internal fun sleepSquash(b: Double) = 1 + .014 * b
+
+/** The frame's `sy` is rounded to 1/10000. */
+internal const val SQUASH_ROUNDING = 10000.0
+
+/**
+ * How far up a squashed sleeper is moved per unit of `sy` above 1, in stage units at [SLATE_SCALE], so he stays
+ * sitting on his shadow as he breathes. Divide by [SLATE_SCALE] for Stan's own units.
+ */
+internal const val SLEEP_LIFT = 230.0
+
 /**
  * Asleep, as off the air: sitting, in his nightcap, mouth an O, breathing by [b] (-1..1). With [bear] he hugs his
  * teddy; without, his arms rest.

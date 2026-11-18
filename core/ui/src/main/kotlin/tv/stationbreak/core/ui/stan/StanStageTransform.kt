@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui.stan
 
+import androidx.compose.ui.geometry.Rect
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -9,18 +10,24 @@ import kotlin.math.min
  * so a canvas of another aspect gets bars either side (or above and below). [StanStage] draws with it, and a screen
  * uses the same numbers to put its own text where the study puts it, in stage coordinates.
  *
- * [stageWidth] x [stageHeight] is the space being fitted, in stage units: the study's stage by default. [StanHost]
- * fits its own smaller space (Stan alone, with room for his Zs) the same way.
+ * Internally the fitted space can be another size ([stageWidth] x [stageHeight]): the host fits its own smaller
+ * space (Stan alone, with room for his Zs) the same way. Screens only ever get the study's stage.
  *
  * Stage numbers are in stage units; results are pixels in the canvas. Lengths (a font size, a gap) scale by [scale];
  * points also move by the letterbox offset.
  */
-class StanStageTransform(
+class StanStageTransform internal constructor(
     val width: Float,
     val height: Float,
-    stageWidth: Float = STAGE_W,
-    stageHeight: Float = STAGE_H,
+    internal val stageWidth: Float,
+    internal val stageHeight: Float,
 ) {
+    /** The study's 1920 x 1080 stage in a canvas of [width] x [height] pixels. */
+    constructor(width: Float, height: Float) : this(width, height, STAGE_W, STAGE_H)
+
+    /** The fitted space itself, in its own units: what a fade's layer covers. */
+    internal val stageBounds: Rect = Rect(0f, 0f, stageWidth, stageHeight)
+
     /** Pixels per stage unit; 0 when the canvas has no size. */
     val scale: Float =
         min(width / stageWidth, height / stageHeight).let { if (it.isFinite() && it > 0f) it else 0f }

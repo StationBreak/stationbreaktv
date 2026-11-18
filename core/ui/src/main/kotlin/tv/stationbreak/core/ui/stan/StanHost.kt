@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -59,7 +58,7 @@ enum class StanMood {
     /** Both arms up, bouncing: the big moments. */
     Cheer,
 
-    /** Asleep, sitting, with Zs drifting up: nothing has happened for a while. Pass a null line with it. */
+    /** Asleep, sitting, with Zs drifting up: nothing has happened for a while. No bubble, whatever the line. */
     Dozing,
 }
 
@@ -84,17 +83,20 @@ private const val FADE_MILLIS = 200
 private val TAIL_TIP = TransformOrigin(pivotFractionX = 0.5f, pivotFractionY = 1f)
 
 /**
- * Stan as a host in the corner of a screen: [mood], with his [line] in a speech bubble above him (none when null).
+ * Stan as a host in the corner of a screen: [mood], with his [line] in a speech bubble above him. There is no bubble
+ * for a null or blank line, nor while he dozes.
  *
- * He is decoration and never the message: the host has no semantics at all (a screen reader skips him and his
- * line) and is never focusable, so the screen's own text must say everything the viewer needs. [line] is "Stan's line"
- * from DESIGN.md: Ranchers, capitals, a few words at most.
+ * He is decoration and never the message: the host has no semantics at all (a screen reader skips him and his line)
+ * and holds nothing focusable, so the screen's own text must say everything the viewer needs. [line] is "Stan's
+ * line" from DESIGN.md: Ranchers, capitals, a few words at most.
  *
  * A new line pops the bubble in and has him talk for a moment; a new mood cross-fades him. With "Remove animations"
  * on ([LocalMotionReduced]) each mood is a still frame, the bubble just appears, a mood change cuts, and he does not
  * talk. Stan is drawn at 220 x 236 dp, at no more than 20 frames a second, on [palette]'s colours with no ground of
- * his own. The host is 320 dp wide (the widest bubble) and as tall as Stan plus the bubble, so anchor it by its bottom
- * edge: Stan then stays put as lines come and go.
+ * his own. [renderer] must be for [palette]; hoist one with [rememberStanRenderer] when the host comes and goes.
+ *
+ * Placement: the host is 320 dp wide (the widest bubble) and as tall as Stan plus the bubble. Lay it as an overlay in
+ * a `Box`, aligned `BottomEnd` (or `BottomStart`) inside the safe area, so Stan stays put as lines come and go.
  */
 @Composable
 fun StanHost(
@@ -102,26 +104,27 @@ fun StanHost(
     line: String?,
     modifier: Modifier = Modifier,
     palette: StanPalette = StanPalette.Dark,
+    renderer: StanRenderer = rememberStanRenderer(palette),
 ) {
     val reduced = LocalMotionReduced.current
+    val shown = hostLine(mood, line)
     val talking = remember { mutableStateOf(false) }
-    LaunchedEffect(line, reduced) {
-        talking.value = line != null && !reduced
+    LaunchedEffect(shown, reduced) {
+        talking.value = shown != null && !reduced
         if (talking.value) {
             delay(TALK_MILLIS)
             talking.value = false
         }
     }
-    val renderer = rememberStanRenderer(palette)
     Column(
-        modifier
-            // As wide as the widest bubble, so Stan stays put whatever the line's length.
+        // As wide as the widest bubble, so Stan stays put whatever the line's length.
+        Modifier
             .width(BUBBLE_MAX_W)
-            .clearAndSetSemantics {}
-            .focusProperties { canFocus = false },
+            .then(modifier)
+            .clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StanBubble(line, palette)
+        StanBubble(shown, palette)
         Crossfade(
             targetState = mood,
             animationSpec = if (reduced) snap() else tween(FADE_MILLIS),
@@ -151,7 +154,7 @@ private fun StanFigure(
     val painter = renderer.painter
     Spacer(
         modifier.drawWithCache {
-            val transform = StanStageTransform(size.width, size.height, HOST_W.toFloat(), HOST_H.toFloat())
+            val transform = hostTransform(size.width, size.height)
             onDrawBehind { painter.drawPicture(this, transform, frame.value) }
         },
     )

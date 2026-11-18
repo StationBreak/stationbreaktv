@@ -127,7 +127,9 @@ internal const val OPENING_TITLE_IN = 2.6
 
 private val SLATE_SHADOW = StanShadow(560.0, 862.0, 330.0, 34.0)
 private const val SLATE_X = 560.0
-private const val SLATE_SCALE = 1.72
+
+/** Stan's size on the slates (the scenes Stan stands beside copy in), in stage units per Stan unit. */
+internal const val SLATE_SCALE = 1.72
 private const val TILES = 6
 
 private fun clamp(v: Double) = max(0.0, min(1.0, v))
@@ -195,8 +197,8 @@ private val STARS =
     )
 
 private fun offAir(t: Double): StanFrame {
-    val b = sin(t * 1.5)
-    val sy = 1 + .014 * b
+    val b = sleepBreath(t)
+    val sy = sleepSquash(b)
     val shapes = stanShapes(asleep(b, bear = true))
     addSleepZs(shapes, t)
     val back = ArrayList<StanShape>()
@@ -209,10 +211,10 @@ private fun offAir(t: Double): StanFrame {
         back = back,
         shadow = SLATE_SHADOW,
         x = SLATE_X,
-        y = r1(606 - (sy - 1) * 230),
+        y = r1(606 - (sy - 1) * SLEEP_LIFT),
         sc = SLATE_SCALE,
         rot = 4.0,
-        sy = roundTo(sy, 10000.0),
+        sy = roundTo(sy, SQUASH_ROUNDING),
         stan = shapes,
         blocks = null,
         title = null,

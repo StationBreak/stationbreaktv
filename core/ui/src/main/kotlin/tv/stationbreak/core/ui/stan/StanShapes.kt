@@ -16,6 +16,8 @@ import kotlin.math.sin
  * Stan, as a list of plain shapes. A faithful Kotlin port of `stanShapes(state)` from the "Stan In Motion" motion
  * study (the source of truth), with its rounding helpers. The shapes come out in the same order, with the same path
  * strings and the same rounded numbers; StanFixtureTest proves it against the study's own output.
+ *
+ * One branch is not the study's: [Arms.Cheer] (both arms up), drawn only by the host's Cheer mood, never by a scene.
  */
 
 internal enum class Legs { Stand, Sit, Kick }
