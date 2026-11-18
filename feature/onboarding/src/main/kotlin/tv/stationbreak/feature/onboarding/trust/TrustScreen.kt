@@ -80,7 +80,7 @@ internal fun TrustScreen(
                     .semantics { paneTitle = title }
                     .testTag(TrustTags.SCREEN),
         ) {
-            // A 5% safe area on every side, inside the scroll area so a focused, scaled button isn't clipped.
+            // A 5% safe area on every side, inside the scroll area.
             Column(
                 modifier =
                     Modifier
@@ -99,7 +99,7 @@ internal fun TrustScreen(
                         ServerButton(
                             label = R.string.trust_dont_trust,
                             onClick = onDontTrust,
-                            // The safe answer carries the weight; Trust never gets the primary fill.
+                            // The safe answer carries the weight (the orange border at rest); Trust never gets it.
                             emphasis = true,
                             modifier = Modifier.focusRequester(dontTrustFocus).testTag(TrustTags.DONT_TRUST),
                         )

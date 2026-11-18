@@ -13,3 +13,9 @@ internal data class StanCue(
     val mood: StanMood,
     @param:StringRes val line: Int?,
 )
+
+/**
+ * The cue of a phase a dialog window covers ([SetupScaffold]'s covered): Stan is not drawn then, so he has no line;
+ * the cue keeps his column reserved.
+ */
+internal val standingBy = StanCue(StanMood.Idle, null)

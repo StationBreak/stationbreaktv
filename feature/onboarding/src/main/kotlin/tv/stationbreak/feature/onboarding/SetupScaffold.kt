@@ -44,8 +44,8 @@ internal const val DOZE_AFTER_MS = 60_000L
 internal val MIN_HOST_HEIGHT = 400.dp
 
 /**
- * Stan's column: the host's 320 dp and a 24 dp gap, so a full-width control at the form's edge, focused and drawn at
- * the button focus scale (1.08: about 21 dp more each side at 960 dp), still clears him.
+ * Stan's column: the host's 320 dp and a 24 dp gap, so a full-width control at the form's edge, focused, still clears
+ * him with room to spare.
  */
 private val HOST_COLUMN = 344.dp
 

@@ -4,7 +4,7 @@ package tv.stationbreak.feature.onboarding.server
 import tv.stationbreak.core.ui.stan.StanMood
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.StanCue
-import tv.stationbreak.feature.onboarding.trust.trustCue
+import tv.stationbreak.feature.onboarding.standingBy
 
 /** Stan's cue on the server screen for [phase] (spec 2026-11-18, mapping table). */
 internal fun serverCue(phase: ServerPhase): StanCue =
@@ -20,8 +20,8 @@ internal fun serverCue(phase: ServerPhase): StanCue =
         // The viewer refused the certificate: not connected, like any failure.
         ServerPhase.NotTrusted -> StanCue(StanMood.Shrug, R.string.stan_server_failed)
 
-        // Covered by their dialog windows ([serverCovered]), so Stan is not drawn: the cue is the question's.
-        is ServerPhase.ConfirmCleartext, is ServerPhase.TrustRequired -> trustCue
+        // Covered by their dialog windows ([serverCovered]): Stan is not drawn.
+        is ServerPhase.ConfirmCleartext, is ServerPhase.TrustRequired -> standingBy
     }
 
 /** True while [phase] puts a dialog window over the screen: its keys never reach the screen, so Stan stands down. */

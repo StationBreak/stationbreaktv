@@ -102,13 +102,13 @@ class SetupScaffoldTest {
     }
 
     @Test
-    fun theFormAndTheScaledFocusedButtonClearStanAtLargeFont() {
+    fun theFormAndAFullWidthFocusedButtonClearStanAtLargeFont() {
         show(960.dp, 540.dp, fontScale = 1.3f)
         compose.onNodeWithTag(FIRST).assertIsFocused()
         val host = compose.onNodeWithTag(SetupScaffoldTags.HOST).getUnclippedBoundsInRoot()
         val form = compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot()
-        // A focused button is drawn scaled about its centre, past its layout bounds. FIRST spans the form's width, the
-        // widest a control there can be, so it grows the most.
+        // FIRST spans the form's width, the widest a control there can be. A focused button is drawn at the real
+        // focus scale about its centre, which would take it past its layout bounds if the scale ever grows.
         val focused = compose.onNodeWithTag(FIRST).getUnclippedBoundsInRoot().scaled(FocusStyle.BUTTON_SCALE)
         assertFalse("form $form and Stan $host overlap", form.overlaps(host))
         assertFalse("focused button $focused and Stan $host overlap", focused.overlaps(host))

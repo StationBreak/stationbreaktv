@@ -238,7 +238,6 @@
     <string name="stan_server_testing">FIDDLING WITH THE AERIAL</string>
     <string name="stan_server_found">THERE IT IS!</string>
     <string name="stan_server_failed">CAN\'T PICK IT UP</string>
-    <string name="stan_trust">NEVER SEEN THIS ONE. YOUR CALL.</string>
     <string name="stan_signin_idle">PUT YOUR FEET UP</string>
     <string name="stan_signin_busy">ONE SEC…</string>
     <string name="stan_signin_failed">DIDN\'T TAKE. AGAIN?</string>

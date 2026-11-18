@@ -28,7 +28,6 @@ import tv.stationbreak.feature.onboarding.signin.SignInPhase
 import tv.stationbreak.feature.onboarding.signin.signInCue
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.TrustReason
-import tv.stationbreak.feature.onboarding.trust.trustCue
 import tv.stationbreak.feature.onboarding.welcome.welcomeCue
 
 /**
@@ -49,7 +48,6 @@ class StanCuesTest {
     private val prompt = TrustPrompt(TrustReason.Untrusted, evidence)
     private val error = MediaServerError.Timeout()
     private val copy = ErrorCopyTable.copyFor(error)
-    private val trust = StanCue(StanMood.Idle, R.string.stan_trust)
     private val launchTrust = LaunchPhase.Trust(input, prompt, error, address)
 
     @Test
@@ -68,15 +66,15 @@ class StanCuesTest {
                 ServerPhase.Failed(error, copy) to StanCue(StanMood.Shrug, R.string.stan_server_failed),
                 ServerPhase.InvalidInput(copy) to StanCue(StanMood.Shrug, R.string.stan_server_failed),
                 ServerPhase.NotTrusted to StanCue(StanMood.Shrug, R.string.stan_server_failed),
-                ServerPhase.ConfirmCleartext(resolved) to trust,
-                ServerPhase.TrustRequired(input, prompt) to trust,
+                ServerPhase.ConfirmCleartext(resolved) to standingBy,
+                ServerPhase.TrustRequired(input, prompt) to standingBy,
             )
         for ((phase, cue) in expected) assertEquals(phase.toString(), cue, serverCue(phase))
     }
 
     @Test
-    fun theTrustCueLeavesItToTheViewer() {
-        assertEquals(trust, trustCue)
+    fun aCoveredPhaseStandsByWithNoLine() {
+        assertEquals(StanCue(StanMood.Idle, null), standingBy)
     }
 
     @Test
@@ -108,7 +106,7 @@ class StanCuesTest {
             StanCue(StanMood.Shrug, R.string.stan_launch_unavailable),
             launchCue(LaunchPhase.Unavailable(error, copy)),
         )
-        assertEquals(trust, launchCue(launchTrust))
+        assertEquals(standingBy, launchCue(launchTrust))
     }
 
     @Test
