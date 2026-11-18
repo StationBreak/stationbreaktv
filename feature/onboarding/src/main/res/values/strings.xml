@@ -229,4 +229,19 @@
     <string name="first_sync_sign_in_again">Sign in again</string>
     <!-- Said by TalkBack at each quarter: 25, 50, 75 and 100. -->
     <string name="first_sync_announce">%1$d percent</string>
+
+    <!-- Stan, the host in the corner of the setup screens. Decoration only: a screen reader never reads these, so the
+         screen's own text says everything. DESIGN.md's "Stan's line": Ranchers, capitals, a few words at most. Approved
+         by the owner in the mock-ups (2026-11-18). -->
+    <string name="stan_welcome">EVENING! LET\'S TUNE IN.</string>
+    <string name="stan_server_idle">WHAT\'S ON TONIGHT?</string>
+    <string name="stan_server_testing">FIDDLING WITH THE AERIAL</string>
+    <string name="stan_server_found">THERE IT IS!</string>
+    <string name="stan_server_failed">CAN\'T PICK IT UP</string>
+    <string name="stan_trust">NEVER SEEN THIS ONE. YOUR CALL.</string>
+    <string name="stan_signin_idle">PUT YOUR FEET UP</string>
+    <string name="stan_signin_busy">ONE SEC…</string>
+    <string name="stan_signin_failed">DIDN\'T TAKE. AGAIN?</string>
+    <string name="stan_quick_connect">TAKE YOUR TIME</string>
+    <string name="stan_launch_unavailable">CAN\'T FIND THE STATION</string>
 </resources>

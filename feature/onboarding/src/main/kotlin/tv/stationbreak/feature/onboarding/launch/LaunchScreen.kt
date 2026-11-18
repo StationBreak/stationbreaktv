@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.launch
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -37,6 +36,8 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.SetupScaffold
+import tv.stationbreak.feature.onboarding.launchCue
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -194,24 +195,25 @@ internal fun LaunchScreen(
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(LaunchTags.SCREEN),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    // The trust question is a window of its own over this screen: its keys never pass through here.
+    SetupScaffold(launchCue(state), modifier, dozeEnabled = state !is LaunchPhase.Trust) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LaunchTags.SCREEN)) {
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                when (state) {
-                    LaunchPhase.Routing, LaunchPhase.Trusting, is LaunchPhase.Trust -> Progress()
-                    is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry, onChangeServer)
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    when (state) {
+                        LaunchPhase.Routing, LaunchPhase.Trusting, is LaunchPhase.Trust -> Progress()
+                        is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry, onChangeServer)
+                    }
                 }
             }
         }

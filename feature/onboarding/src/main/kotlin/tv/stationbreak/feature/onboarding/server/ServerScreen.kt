@@ -2,7 +2,6 @@
 package tv.stationbreak.feature.onboarding.server
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -60,9 +59,11 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RemoteAppTip
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
+import tv.stationbreak.feature.onboarding.serverCue
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
 
 // Sizes only this screen uses.
@@ -126,70 +127,76 @@ internal fun ServerScreen(
         onTest()
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        // A 5% safe area on every side (overscan). The content starts at a fixed height, so the headline and the field
-        // don't move when a result appears below them.
-        // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area.
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    // The cleartext and trust questions are windows of their own: their keys never pass through here.
+    val dialogUp = phase is ServerPhase.ConfirmCleartext || phase is ServerPhase.TrustRequired
+    SetupScaffold(serverCue(phase), modifier, dozeEnabled = !dialogUp) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // The safe area (overscan), Stan's column taking the end side. The content starts at a fixed height, so
+            // the headline and the field don't move when a result appears below them.
+            // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area, so
+            // a focused, scaled button can grow into it instead of being clipped.
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                StepHeadline(
-                    headline = stringResource(R.string.server_headline, stringResource(R.string.server_product_name)),
-                    step = if (showStep) 1 else null,
-                )
-                Text(
-                    text = stringResource(R.string.server_help, stringResource(R.string.server_product_name)),
-                    style = MaterialTheme.typography.screenBody,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                RemoteAppTip(ServerTags.TIP)
-                AddressField(
-                    value = state.input,
-                    onValueChange = onInputChange,
-                    onGo = runTest,
-                    fieldFocus = focus.field,
-                    error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
-                )
-                (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
-                ServerButton(
-                    label = R.string.server_test,
-                    onClick = runTest,
-                    enabled = phase != ServerPhase.Testing,
-                    modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
-                )
-                if (phase == ServerPhase.NotTrusted) NotTrustedNotice()
-                if (phase == ServerPhase.Testing) {
-                    TestingStatus()
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    StepHeadline(
+                        headline =
+                            stringResource(R.string.server_headline, stringResource(R.string.server_product_name)),
+                        step = if (showStep) 1 else null,
+                    )
+                    Text(
+                        text = stringResource(R.string.server_help, stringResource(R.string.server_product_name)),
+                        style = MaterialTheme.typography.screenBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    RemoteAppTip(ServerTags.TIP)
+                    AddressField(
+                        value = state.input,
+                        onValueChange = onInputChange,
+                        onGo = runTest,
+                        fieldFocus = focus.field,
+                        error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
+                    )
+                    (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
                     ServerButton(
-                        label = R.string.server_cancel,
-                        onClick = onCancel,
-                        modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
+                        label = R.string.server_test,
+                        onClick = runTest,
+                        enabled = phase != ServerPhase.Testing,
+                        modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
                     )
-                }
-                if (phase is ServerPhase.Connected) {
-                    ConnectedPanel(phase, focus.continueButton) {
-                        onContinue(ConnectedServer(phase.server, phase.acknowledgement))
+                    if (phase == ServerPhase.NotTrusted) NotTrustedNotice()
+                    if (phase == ServerPhase.Testing) {
+                        TestingStatus()
+                        ServerButton(
+                            label = R.string.server_cancel,
+                            onClick = onCancel,
+                            modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
+                        )
                     }
-                }
-                if (phase is ServerPhase.Failed) {
-                    ErrorPanel(
-                        phase = phase,
-                        actionFocus = focus.action,
-                        onRetry = onTest,
-                        onEditAddress = {
-                            onEditAddress()
-                            focus.field.requestFocus()
-                        },
-                    )
+                    if (phase is ServerPhase.Connected) {
+                        ConnectedPanel(phase, focus.continueButton) {
+                            onContinue(ConnectedServer(phase.server, phase.acknowledgement))
+                        }
+                    }
+                    if (phase is ServerPhase.Failed) {
+                        ErrorPanel(
+                            phase = phase,
+                            actionFocus = focus.action,
+                            onRetry = onTest,
+                            onEditAddress = {
+                                onEditAddress()
+                                focus.field.requestFocus()
+                            },
+                        )
+                    }
                 }
             }
         }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.trust
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -36,12 +35,14 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
+import tv.stationbreak.feature.onboarding.trustCue
 import java.text.DateFormat
 import java.util.Date
 
@@ -72,47 +73,49 @@ internal fun TrustScreen(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         RequestInitialDialogFocus(dontTrustFocus)
-        BoxWithConstraints(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .semantics { paneTitle = title }
-                    .testTag(TrustTags.SCREEN),
-        ) {
-            // A 5% safe area on every side, inside the scroll area.
-            Column(
+        SetupScaffold(trustCue()) {
+            BoxWithConstraints(
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                        .semantics { paneTitle = title }
+                        .testTag(TrustTags.SCREEN),
             ) {
+                // The safe area, Stan's column taking the end side, inside the scroll area so a focused, scaled
+                // button isn't clipped.
                 Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    WarningBlock(prompt, serverAddress)
-                    FingerprintBlock(prompt)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
-                        ServerButton(
-                            label = R.string.trust_dont_trust,
-                            onClick = onDontTrust,
-                            // The safe answer carries the weight (the orange border at rest); Trust never gets it.
-                            emphasis = true,
-                            modifier = Modifier.focusRequester(dontTrustFocus).testTag(TrustTags.DONT_TRUST),
-                        )
-                        ServerButton(
-                            label =
-                                if (prompt.reason == TrustReason.Changed) {
-                                    R.string.trust_trust_changed
-                                } else {
-                                    R.string.trust_trust
-                                },
-                            onClick = onTrust,
-                            modifier = Modifier.testTag(TrustTags.TRUST),
-                        )
+                    Column(
+                        modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Gap),
+                    ) {
+                        WarningBlock(prompt, serverAddress)
+                        FingerprintBlock(prompt)
+                        Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
+                            ServerButton(
+                                label = R.string.trust_dont_trust,
+                                onClick = onDontTrust,
+                                // The safe answer carries the weight; Trust never gets the primary fill.
+                                emphasis = true,
+                                modifier = Modifier.focusRequester(dontTrustFocus).testTag(TrustTags.DONT_TRUST),
+                            )
+                            ServerButton(
+                                label =
+                                    if (prompt.reason == TrustReason.Changed) {
+                                        R.string.trust_trust_changed
+                                    } else {
+                                        R.string.trust_trust
+                                    },
+                                onClick = onTrust,
+                                modifier = Modifier.testTag(TrustTags.TRUST),
+                            )
+                        }
                     }
                 }
             }

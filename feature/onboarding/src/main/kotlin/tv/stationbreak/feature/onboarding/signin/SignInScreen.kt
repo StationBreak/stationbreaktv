@@ -46,6 +46,7 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RemoteAppTip
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.safeAreaPadding
@@ -55,6 +56,7 @@ import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.detailsText
+import tv.stationbreak.feature.onboarding.signInCue
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
 private val ContentWidth = 640.dp
@@ -145,54 +147,57 @@ internal fun SignInScreen(
     FocusFollowsPhase(phase, focus)
     BackHandler(enabled = phase is SignInPhase.QuickConnect, onBack = onCancelQuickConnect)
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    SetupScaffold(signInCue(phase), modifier) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                val quickConnecting = phase as? SignInPhase.QuickConnect
-                StepHeadline(
-                    headline =
-                        if (quickConnecting == null) {
-                            stringResource(R.string.signin_headline, state.serverName)
-                        } else {
-                            stringResource(R.string.quick_connect_headline)
-                        },
-                    // Quick Connect is a side trip, not a step.
-                    step = if (showStep && quickConnecting == null) 2 else null,
-                )
-                // The password is typed here, so a connection the user accepted without encryption says so here too.
-                if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
-                if (quickConnecting != null) {
-                    QuickConnectPanel(quickConnecting.code, focus.quickConnectCancel, onCancelQuickConnect)
-                } else if (phase == SignInPhase.SignedIn) {
-                    // Done: the form has nothing left to ask, so only the status stays.
-                    SignedInStatus()
-                } else {
-                    Text(
-                        text = stringResource(R.string.signin_help),
-                        style = MaterialTheme.typography.screenBody,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    val quickConnecting = phase as? SignInPhase.QuickConnect
+                    StepHeadline(
+                        headline =
+                            if (quickConnecting == null) {
+                                stringResource(R.string.signin_headline, state.serverName)
+                            } else {
+                                stringResource(R.string.quick_connect_headline)
+                            },
+                        // Quick Connect is a side trip, not a step.
+                        step = if (showStep && quickConnecting == null) 2 else null,
                     )
-                    RemoteAppTip(SignInTags.TIP)
-                    Form(
-                        state,
-                        focus,
-                        onUsernameChange,
-                        onPasswordChange,
-                        onToggleShowPassword,
-                        onSignIn,
-                        onQuickConnect,
-                    )
-                    Outcome(phase, focus, onEditAddress)
+                    // The password is typed here, so a connection the user accepted without encryption says so here
+                    // too.
+                    if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
+                    if (quickConnecting != null) {
+                        QuickConnectPanel(quickConnecting.code, focus.quickConnectCancel, onCancelQuickConnect)
+                    } else if (phase == SignInPhase.SignedIn) {
+                        // Done: the form has nothing left to ask, so only the status stays.
+                        SignedInStatus()
+                    } else {
+                        Text(
+                            text = stringResource(R.string.signin_help),
+                            style = MaterialTheme.typography.screenBody,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        RemoteAppTip(SignInTags.TIP)
+                        Form(
+                            state,
+                            focus,
+                            onUsernameChange,
+                            onPasswordChange,
+                            onToggleShowPassword,
+                            onSignIn,
+                            onQuickConnect,
+                        )
+                        Outcome(phase, focus, onEditAddress)
+                    }
                 }
             }
         }
