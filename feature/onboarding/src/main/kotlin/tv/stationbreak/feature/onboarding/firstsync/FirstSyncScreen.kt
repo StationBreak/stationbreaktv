@@ -110,8 +110,9 @@ internal fun FirstSyncRoot(
 
 /**
  * The stateless screen, hosted by Stan. While it syncs nothing on it takes focus and Select and the arrow keys do
- * nothing; the count and the bar change at most twice a second and there is no animation. On a failure the error from
- * the error table shows with Retry, which has default focus. When it is done Stan cheers us on the air, and any key
+ * nothing; the count and the bar change at most twice a second and do not animate. Stan, in the corner, does: he works
+ * the aerial for the whole sync (a busy Stan never dozes), at the host's 20 fps cap. On a failure the error from the
+ * error table shows with Retry, which has default focus. When it is done Stan cheers us on the air, and any key
  * but volume, Back included, calls [onSkipCheer]: on to live TV, never out of the app.
  */
 @Composable
@@ -190,7 +191,8 @@ private fun OnTheAir() {
         style = MaterialTheme.typography.screenBody,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Bar(fraction = 1f, description = headline)
+    // The headline already says it is ready; the bar says how far, as it does while syncing, so nothing is read twice.
+    Bar(fraction = 1f, description = stringResource(R.string.first_sync_announce, PERCENT_PER_QUARTER * QUARTERS))
 }
 
 @Composable
@@ -259,7 +261,7 @@ private fun Announcement(fraction: Float) {
     )
 }
 
-/** A plain bar: no animation of its own, so the Insignia only redraws it when the count changes. */
+/** A plain bar with no animation of its own: it redraws only when the count changes (Stan beside it animates). */
 @Composable
 private fun Bar(
     fraction: Float,

@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocusable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -227,6 +228,17 @@ class FirstSyncScreenTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
 
         assertEquals(1, skipped)
+    }
+
+    @Test
+    fun whenItIsDoneTalkBackHearsThatItIsReadyOnce() {
+        show(FirstSyncPhase.Done)
+
+        val ready = "Your library is ready"
+        compose
+            .onAllNodes(hasText(ready, substring = true) or hasContentDescription(ready, substring = true))
+            .assertCountEquals(1)
+        compose.onNodeWithTag(FirstSyncTags.BAR).assert(hasContentDescription("100 percent"))
     }
 
     @Test
