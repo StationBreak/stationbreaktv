@@ -1,6 +1,6 @@
 # StationBreak
 
-![StationBreak: a TV set showing a pause symbol, and "We'll be right back"](art/brand/repo-banner.png)
+![StationBreak: Stan, a smiling TV with rabbit ears, waving beside the words "Station Break, put your feet up"](art/brand/repo-banner.png)
 
 Turn your Jellyfin library into always-on, flip-through broadcast channels on Fire TV and Android TV.
 
