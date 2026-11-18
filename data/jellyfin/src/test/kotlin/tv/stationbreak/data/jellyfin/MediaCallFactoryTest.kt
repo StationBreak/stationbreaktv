@@ -296,7 +296,7 @@ class MediaCallFactoryTest {
         val session = signedIn(adapter)
         val factory = adapter.mediaCallFactory { session }
 
-        factory.get("$origin/x.ts?api%5Fkey=SECRET&a=1&Api%4Bey=SECRET&X-Emby-Token=SECRET&b=2")
+        factory.get("$origin/x.ts?api%5Fkey=SECRET&a=1&Api%4Bey=SECRET&X-Emby-Token=SECRET&x%2Demby-TOKEN=S&b=2")
 
         assertEquals("$origin/x.ts?a=1&b=2", recorder.seen.last().first)
     }
@@ -310,6 +310,18 @@ class MediaCallFactoryTest {
         factory.get("$origin/x.ts?a=1&&api_key=SECRET&flag&=v&")
 
         assertEquals("$origin/x.ts?a=1&&flag&=v&", recorder.seen.last().first)
+    }
+
+    @Test
+    fun aQueryWithNoTokenIsSentAsItCame() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+        val url = "$origin/x.ts?Signature=a%2Cb,c/d:e&p=1+2&bad=%zz&x=%41"
+
+        factory.get(url)
+
+        assertEquals(url, recorder.seen.last().first)
     }
 
     @Test
