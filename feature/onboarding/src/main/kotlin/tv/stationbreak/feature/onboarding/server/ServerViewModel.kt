@@ -140,6 +140,9 @@ internal class ServerViewModel
         private var clearGeneration = 0
 
         fun onInputChange(text: String) {
+            // A keyboard can commit the text the field already holds, late (#810); that is no edit, so a running Test
+            // or a Connected result stays.
+            if (text == mutableState.value.input) return
             edited = true
             val running = testJob
             running?.cancel()
