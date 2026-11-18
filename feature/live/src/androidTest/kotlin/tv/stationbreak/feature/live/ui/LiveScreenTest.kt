@@ -86,7 +86,8 @@ class LiveScreenTest {
     fun tuningShowsStansStandbyScreenAndBanner() {
         show(LiveState.Tuning(banner(BannerLabel.TuningIn)))
         compose.onNodeWithTag(LiveTags.STAN_STANDBY).assertExists()
-        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("TUNING CHANNEL 7")
+        // The test banner is channel 4.
+        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("TUNING CHANNEL 4")
         compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("TEST MOVIE A")
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
