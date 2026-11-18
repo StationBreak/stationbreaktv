@@ -1024,7 +1024,11 @@ class ChannelsScreenTest {
 
         press(Pad.Select)
         messageIs("Pro coming soon.")
-        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+        // Only the picker's first try, refused as taken (that is what opens the swap); no swap is sent.
+        assertEquals(listOf<ChannelChange>(ChannelChange.SetNumber(ECHO, 6)), lineup.changes.toList())
+        val numbers = lineup.list.value.associate { it.id to it.number }
+        assertEquals(5, numbers[ECHO])
+        assertEquals(6, numbers[ALPHA])
     }
 
     @Test
