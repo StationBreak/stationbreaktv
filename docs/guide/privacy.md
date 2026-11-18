@@ -17,8 +17,12 @@ reporting and no account with us. Nobody but you and whoever runs your Jellyfin 
 - The sign-in token the server issued, encrypted with a key held by the TV's secure key store. Never your password.
 - A copy of your library's titles and metadata, the channel lineup, your channel changes and your settings.
 - A cache of channel logos from your server.
+- Your channel lineup: the names, numbers and rules of the channels, kept for each account you sign in with. It
+  holds no password, token or media titles. Signing out keeps it, so signing in again brings your channels back.
 
-None of it is backed up to the cloud. Uninstalling the app removes all of it. Revoking the TV's device in your
+None of it is backed up to the cloud. Uninstalling the app removes all of it, and so does clearing the app's data
+(on Fire TV: **Settings → Applications → Manage Installed Applications**, then the app, then **Clear data**). That
+includes the lineup and any copy of a file that was only partly written when the TV lost power. Revoking the TV's device in your
 Jellyfin dashboard ends its sign-in.
 
 ## Permissions

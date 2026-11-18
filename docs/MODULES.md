@@ -223,7 +223,8 @@ appears in a path, holding only the last channel's ID and replaced atomically. S
 sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The
 lineup is the per-account file plus up to three set-aside copies. It holds channel names and rules, with no credentials and no
 media titles, and it is app-private and excluded from backup. A user removes it today by clearing app data. A "forget this account's channels" action
-is planned: `LineupService.forget` exists (it deletes the file and its set-aside copies), with no UI yet. The privacy policy
+is planned: `LineupService.forget` exists (it deletes the file, its set-aside copies and any half-written `<name>.new` an
+interrupted write left), with no UI yet. The privacy policy
 must cover this (F4.6).
 
 `data:library` exists since F0.6 task 2.0. It holds the saved copy of the user's chosen libraries in Room (`RoomLibraryRepository`,
