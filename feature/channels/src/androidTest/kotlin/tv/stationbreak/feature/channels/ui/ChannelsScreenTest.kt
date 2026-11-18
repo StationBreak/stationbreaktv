@@ -31,6 +31,7 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isOff
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
@@ -136,6 +137,7 @@ private fun summary(
     optIn: Boolean = false,
     kind: ChannelKind = ChannelKind.Starter,
     shelfReason: ShelfReason? = null,
+    viewerMade: Boolean = kind == ChannelKind.Custom,
 ): ChannelSummary {
     val since = Instant.fromEpochMilliseconds(T0)
     return ChannelSummary(
@@ -150,6 +152,7 @@ private fun summary(
         optIn = optIn,
         playKey = PlayKey("test"),
         shelfReason = shelfReason,
+        viewerMade = viewerMade,
     )
 }
 
@@ -950,6 +953,9 @@ class ChannelsScreenTest {
         const val HEIGHT_DP = 540
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
         const val TIMEOUT_MS = 5_000L
+
+        // More than any panel lists, so a choice that is not there fails the assertion rather than looping.
+        const val MAX_CHOICES = 12
     }
 
     // #811: the free-tier gates on a real screen, with the entitlement closed, then opened while the screen is open.
@@ -1037,6 +1043,95 @@ class ChannelsScreenTest {
         builder.canAdd.value = false
         show(null)
         compose.onNodeWithTag(ChannelsTags.NEW_CHANNEL).assertIsSelected().assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Free includes 5 custom channels.")
+        assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
+        assertTrue("no channel is made", lineup.changes.isEmpty())
+    }
+
+    // Down the open panel until the choice tagged [tag] has the D-pad: by what is focused, not by counting presses,
+    // as the choices a panel lists depend on the channel and on whether its reasons have been read.
+    private fun toChoice(tag: String) {
+        repeat(MAX_CHOICES) {
+            if (nodes(hasTestTag(tag) and isSelected()).isNotEmpty()) return
+            press(Pad.Down)
+        }
+        compose.onNodeWithTag(tag).assertIsSelected()
+    }
+
+    @Test
+    fun free_aStartersRenumberIsRefused_andNoPickerOpens() {
+        pro.set(false)
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_CHANGE_NUMBER) }
+        toChoice(ChannelsTags.ACTION_CHANGE_NUMBER)
+        compose.onNodeWithTag(ChannelsTags.ACTION_CHANGE_NUMBER).assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("no number picker opens while the gate is closed", !exists(ChannelsTags.PICKER))
+        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+    }
+
+    @Test
+    fun free_resetIsRefused_withoutAskingAndWithoutResetting() {
+        pro.set(false)
+        show(ALPHA)
+        repeat(lineup().size) { press(Pad.Down) }
+        compose.onNodeWithTag(ChannelsTags.RESET).assertIsSelected()
+
+        press(Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("no reset question while the gate is closed", !exists(ChannelsTags.PANEL))
+        assertEquals(0, lineup.resets.get())
+    }
+
+    @Test
+    fun free_theViewersOwnCustomChannelRenumbers() {
+        pro.set(false)
+        show(ECHO, extra = listOf(summary(ECHO, 5, "Echo", kind = ChannelKind.Custom, viewerMade = true)))
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_CHANGE_NUMBER) }
+        toChoice(ChannelsTags.ACTION_CHANGE_NUMBER)
+        compose.onNodeWithTag(ChannelsTags.ACTION_CHANGE_NUMBER).assert(hasPro().not())
+
+        press(Pad.Select)
+        until { exists(ChannelsTags.PICKER) }
+        // 005: the middle digit up once is 015, a number nobody holds.
+        press(Pad.Right, Pad.Up, Pad.Select)
+        until { lineup.changes.isNotEmpty() && !exists(ChannelsTags.PANEL) }
+        assertEquals(listOf<ChannelChange>(ChannelChange.SetNumber(ECHO, 15)), lineup.changes.toList())
+    }
+
+    // #876 / #805: a starter whose recipe left the catalog is listed as Custom but is still the planner's. The free
+    // viewer sees it marked before choosing, and the choice is refused as the domain refuses it.
+    @Test
+    fun free_aRetiredStarterIsMarkedAsThePlannersAndRefused() {
+        pro.set(false)
+        show(ECHO, extra = listOf(summary(ECHO, 5, "Echo", kind = ChannelKind.Custom, viewerMade = false)))
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
+        toChoice(ChannelsTags.ACTION_SWITCH_OFF)
+        compose.onNodeWithTag(ChannelsTags.ACTION_SWITCH_OFF).assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+    }
+
+    @Test
+    fun free_atTheCustomChannelLimit_copyToCustomiseIsMarkedAndShowsTheLimitNote() {
+        pro.set(false)
+        builder.canAdd.value = false
+        show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        press(Pad.Select)
+        until { exists(ChannelsTags.ACTION_COPY) }
+        toChoice(ChannelsTags.ACTION_COPY)
+        compose.onNodeWithTag(ChannelsTags.ACTION_COPY).assert(hasPro())
 
         press(Pad.Select)
         messageIs("Free includes 5 custom channels.")
