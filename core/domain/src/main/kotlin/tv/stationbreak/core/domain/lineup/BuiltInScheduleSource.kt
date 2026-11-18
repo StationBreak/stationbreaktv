@@ -117,7 +117,7 @@ import kotlin.time.TimeSource
 @Suppress(
     "TooManyFunctions", // The one source of the days: its reads, builds and warm-up stay together.
     "LargeClass", // The same: the build, its keys and its caches share one lock and are not read apart.
-    "LongParameterList", // Its three timing hooks are numbers-only and each defaulted.
+    "LongParameterList", // Its timing and test hooks are each defaulted, and the rest are its own ports.
 )
 class BuiltInScheduleSource(
     private val service: LineupService,
@@ -125,6 +125,7 @@ class BuiltInScheduleSource(
     private val timed: (dayIndex: Long, buildMs: Long) -> Unit = { _, _ -> },
     private val built: (DayBuild) -> Unit = {},
     laidOut: (dayIndex: Long, layoutMs: Long) -> Unit = { _, _ -> },
+    private val dayFinished: (ChannelId) -> Unit = {},
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     internal val probes: BuildProbes = BuildProbes(),
     private val persisted: PersistedDays? = null,
@@ -967,7 +968,10 @@ class BuiltInScheduleSource(
                             read.filtered,
                             checkpoint,
                             reused,
-                            { done += it },
+                            {
+                                done += it
+                                dayFinished(it.channel.id)
+                            },
                             unbuilt,
                             key.libraries,
                         ) { evaluations++ }
