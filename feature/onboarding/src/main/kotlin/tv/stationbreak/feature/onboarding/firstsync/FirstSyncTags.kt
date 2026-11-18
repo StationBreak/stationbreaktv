@@ -11,4 +11,7 @@ object FirstSyncTags {
     const val ANNOUNCE = "firstSync:announce"
     const val ERROR_PANEL = "firstSync:errorPanel"
     const val RETRY = "firstSync:retry"
+
+    /** The headline of the moment Stan cheers us on the air, before live TV. */
+    const val DONE = "firstSync:done"
 }

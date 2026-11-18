@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.firstsync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.FirstSync
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServerError
@@ -60,6 +62,7 @@ internal class FirstSyncViewModel
         private var seenAccount = false
         private var asked = false
         private var finished = false
+        private val skipped = CompletableDeferred<Unit>()
 
         init {
             startTimer()
@@ -67,7 +70,8 @@ internal class FirstSyncViewModel
                 combine(firstSync.status().onEach(::react), wait) { status, waited -> phaseOf(status, waited) }
                     .filterNotNull()
                     .throttleLatest(UPDATE_INTERVAL)
-                    .collect { mutableState.value = it }
+                    // A count held back by the throttle never replaces the cheer.
+                    .collect { if (!finished) mutableState.value = it }
             }
         }
 
@@ -82,18 +86,38 @@ internal class FirstSyncViewModel
             }
             when {
                 // Nobody is signed in at the start: nothing to wait for. Nobody after an account was: it was forgotten.
-                status == null -> if (first) finish() else results.send(FirstSyncEvent.SessionLost)
+                status == null -> if (first) finish(cheer = false) else results.send(FirstSyncEvent.SessionLost)
 
-                status.lastSuccess != null -> finish()
+                // Ended before the screen saw it run: nothing was shown, so there is nothing to cheer.
+                status.lastSuccess != null -> finish(cheer = !first)
 
                 status.state is SyncState.NeverSynced || status.state is SyncState.FirstSyncRunning -> ask()
             }
         }
 
-        private suspend fun finish() {
+        /**
+         * The first sync has ended. When the screen showed it, Stan cheers us on the air first: [FirstSyncPhase.Done]
+         * for [CHEER_HOLD_MS] (the same with reduced motion), or until [skipCheer]. With nothing shown there is nothing
+         * to cheer, so the screen finishes at once.
+         */
+        private suspend fun finish(cheer: Boolean) {
             if (finished) return
             finished = true
-            results.send(FirstSyncEvent.Finished)
+            if (!cheer) {
+                results.send(FirstSyncEvent.Finished)
+                return
+            }
+            mutableState.value = FirstSyncPhase.Done
+            // Off the status pipeline, so the statuses that follow are still taken in while Stan cheers.
+            viewModelScope.launch {
+                withTimeoutOrNull(CHEER_HOLD_MS) { skipped.await() }
+                results.send(FirstSyncEvent.Finished)
+            }
+        }
+
+        /** A key during the cheer: on to live TV now. Before the cheer, or after it, it does nothing. */
+        fun skipCheer() {
+            if (mutableState.value == FirstSyncPhase.Done) skipped.complete(Unit)
         }
 
         private fun ask() {
@@ -178,6 +202,9 @@ internal class FirstSyncViewModel
             val FAILED_AFTER = 5.minutes
         }
     }
+
+/** How long Stan cheers "WE'RE ON THE AIR!" before live TV, unless a key skips it (spec 2026-11-18, owner choice). */
+internal const val CHEER_HOLD_MS = 1_500L
 
 private enum class Wait { None, Waiting, TimedOut }
 

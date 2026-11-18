@@ -84,6 +84,16 @@ internal class DozeTimer(
 }
 
 /**
+ * Whether Stan may doze with [cue] up: not with no Stan, not while [covered] (a dialog has the keys, so no key here
+ * means nothing), and not while he is busy: the first sync runs for minutes with no key, and dozing off mid-aerial
+ * would read wrong.
+ */
+internal fun dozes(
+    cue: StanCue?,
+    covered: Boolean,
+): Boolean = cue != null && !covered && cue.mood != StanMood.Busy
+
+/**
  * A setup screen with Stan as its host: the screen-lift ground, [content] on the left, and Stan's column, always
  * reserved, in the bottom-right corner inside the safe area, so the two never overlap and the content never moves when
  * Stan comes or goes.
@@ -93,8 +103,9 @@ internal class DozeTimer(
  * one ([withTop]). It must not measure the safe area on its own box, which is narrower than the screen.
  *
  * [cue] null leaves the column empty. Below [MIN_HOST_HEIGHT] Stan is left out. After [DOZE_AFTER_MS] with no key he
- * dozes; any key, or a new [cue], wakes him, and the key still reaches the content. [covered] is true while a dialog
- * window is over the screen: its keys never pass through here, so the timer stops, and Stan, unseen, is not drawn.
+ * dozes, unless he is busy ([dozes]); any key, or a new [cue], wakes him, and the key still reaches the content.
+ * [covered] is true while a dialog window is over the screen: its keys never pass through here, so the timer stops,
+ * and Stan, unseen, is not drawn.
  *
  * [fullWidth] (only with no [cue]) lets [content] span the whole screen, with the full safe area, so a plain line is
  * centred on the screen; the column stays reserved, and [content] keeps its place in the tree, so nothing restarts
@@ -112,7 +123,7 @@ internal fun SetupScaffold(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val timer = remember { DozeTimer() }
-    LaunchedEffect(timer, covered, cue) { timer.run(enabled = !covered) }
+    LaunchedEffect(timer, covered, cue) { timer.run(enabled = dozes(cue, covered)) }
     val dozing by timer.dozing.collectAsState()
     BoxWithConstraints(
         modifier

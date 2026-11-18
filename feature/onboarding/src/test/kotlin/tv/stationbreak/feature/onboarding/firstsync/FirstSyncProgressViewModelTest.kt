@@ -114,6 +114,8 @@ class FirstSyncProgressViewModelTest {
             firstSync.current = LibraryStatus(SyncState.Idle, finishedAt)
             runCurrent()
             firstSync.current = LibraryStatus(SyncState.Idle, finishedAt + 1.minutes)
+            // After Stan's cheer (FirstSyncViewModelTest).
+            advanceTimeBy(CHEER_HOLD_MS)
             runCurrent()
 
             assertEquals(listOf(FirstSyncEvent.Finished), seen)

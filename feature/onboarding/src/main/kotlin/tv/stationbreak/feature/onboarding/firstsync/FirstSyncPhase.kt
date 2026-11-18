@@ -34,6 +34,8 @@ internal sealed interface FirstSyncPhase {
         val copy: ErrorCopy,
         val sessionLost: Boolean,
     ) : FirstSyncPhase
+
+    data object Done : FirstSyncPhase
 }
 
 /** What the screen tells whoever shows it, once each. */

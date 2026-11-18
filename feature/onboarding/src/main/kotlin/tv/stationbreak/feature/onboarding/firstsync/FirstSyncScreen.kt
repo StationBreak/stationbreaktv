@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.onboarding.firstsync
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,6 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -46,8 +52,10 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
+import tv.stationbreak.core.ui.stan.StanOpeningKey
+import tv.stationbreak.core.ui.stan.stanOpeningKey
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.safeAreaPadding
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -57,6 +65,7 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
+import tv.stationbreak.feature.onboarding.withTop
 import java.text.NumberFormat
 
 private val ContentWidth = 640.dp
@@ -69,7 +78,7 @@ private const val TOP_OFFSET = 0.1f
  * The first-sync progress screen (spec 06, Unit 3), shown from the end of onboarding until the first sync of the
  * signed-in account ends. The first sync is queued here if it is not already, and the app moves on by itself when it
  * ends, with no button. Back is the platform's: the navigation graph puts nothing beneath this screen, so Back leaves
- * the app and the sync carries on in the background.
+ * the app and the sync carries on in the background. Only during the cheer at the end does Back skip to live TV.
  */
 @Composable
 fun FirstSyncDestination(
@@ -96,46 +105,92 @@ internal fun FirstSyncRoot(
             }
         }
     }
-    FirstSyncScreen(phase, onRetry = viewModel::onRetry)
+    FirstSyncScreen(phase, onRetry = viewModel::onRetry, onSkipCheer = viewModel::skipCheer)
 }
 
 /**
- * The stateless screen. While it syncs nothing on it takes focus and Select and the arrow keys do nothing; the count
- * and the bar change at most twice a second and there is no animation. On a failure the error from the error table
- * shows with Retry, which has default focus.
+ * The stateless screen, hosted by Stan. While it syncs nothing on it takes focus and Select and the arrow keys do
+ * nothing; the count and the bar change at most twice a second and there is no animation. On a failure the error from
+ * the error table shows with Retry, which has default focus. When it is done Stan cheers us on the air, and any key
+ * but volume, Back included, calls [onSkipCheer]: on to live TV, never out of the app.
  */
 @Composable
 internal fun FirstSyncScreen(
     phase: FirstSyncPhase,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onSkipCheer: () -> Unit = {},
 ) {
     val scrolling = if (phase is FirstSyncPhase.Failed) Modifier.verticalScroll(rememberScrollState()) else Modifier
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(FirstSyncTags.SCREEN),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    // Only the failure panel can outgrow the screen (large text); the progress screen never scrolls.
-                    .then(scrolling)
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    val cheering = phase == FirstSyncPhase.Done
+    val keys = if (cheering) Modifier.onPreviewKeyEvent { skipsCheer(it, onSkipCheer) } else Modifier
+    SetupScaffold(firstSyncCue(phase), modifier.then(keys)) { contentPadding ->
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(FirstSyncTags.SCREEN)) {
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
+                        .then(scrolling)
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                when (phase) {
-                    FirstSyncPhase.Starting -> Progress(copied = null, total = null, fraction = 0f)
-                    FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
-                    is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
-                    is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    when (phase) {
+                        FirstSyncPhase.Starting -> Progress(copied = null, total = null, fraction = 0f)
+                        FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
+                        is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
+                        is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
+                        FirstSyncPhase.Done -> OnTheAir()
+                    }
                 }
             }
         }
     }
+}
+
+/**
+ * A key during the cheer: every key but volume is consumed, and its release skips, as the platform's Back acts on its
+ * release; so Back goes on to live TV instead of leaving the app, and no release reaches live TV.
+ */
+private fun skipsCheer(
+    event: KeyEvent,
+    onSkipCheer: () -> Unit,
+): Boolean {
+    if (stanOpeningKey(event.key) == StanOpeningKey.PassThrough) return false
+    if (event.type == KeyEventType.KeyUp) onSkipCheer()
+    return true
+}
+
+/**
+ * The moment between the end of the first sync and live TV: the full bar, and a headline that takes focus, so the
+ * keys that skip the cheer reach this screen (nothing else on it is focusable).
+ */
+@Composable
+private fun OnTheAir() {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val headline = stringResource(R.string.first_sync_done_headline)
+    Text(
+        text = headline,
+        modifier =
+            Modifier
+                .testTag(FirstSyncTags.DONE)
+                .focusRequester(focus)
+                .focusable()
+                .semantics { heading() },
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Text(
+        text = stringResource(R.string.first_sync_done_second_line),
+        style = MaterialTheme.typography.screenBody,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Bar(fraction = 1f, description = headline)
 }
 
 @Composable

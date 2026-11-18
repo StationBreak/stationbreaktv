@@ -31,12 +31,13 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
-import tv.stationbreak.feature.onboarding.safeAreaPadding
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
+import tv.stationbreak.feature.onboarding.withTop
 
 private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
@@ -87,48 +88,49 @@ internal fun SignedInScreen(
 ) {
     val continueFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { continueFocus.requestFocus() }
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(SignedInTags.SCREEN),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    SetupScaffold(signedInCue, modifier) { contentPadding ->
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(SignedInTags.SCREEN)) {
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    text =
-                        state.name?.let { stringResource(R.string.signed_in_as, it) }
-                            ?: state.serverName
-                                .takeIf { it.isNotEmpty() }
-                                ?.let { stringResource(R.string.signed_in_to, it) }
-                            ?: stringResource(R.string.signed_in_plain),
-                    modifier = Modifier.testTag(SignedInTags.HEADLINE),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
-                    ServerButton(
-                        label = R.string.signed_in_continue,
-                        // Both buttons stay focusable while signing out, so focus is never dropped; Continue does
-                        // nothing then (the screen is about to be replaced) and a repeat of Switch user is ignored.
-                        onClick = { if (!state.switching) onContinue() },
-                        emphasis = true,
-                        modifier = Modifier.focusRequester(continueFocus).testTag(SignedInTags.CONTINUE),
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    Text(
+                        text =
+                            state.name?.let { stringResource(R.string.signed_in_as, it) }
+                                ?: state.serverName
+                                    .takeIf { it.isNotEmpty() }
+                                    ?.let { stringResource(R.string.signed_in_to, it) }
+                                ?: stringResource(R.string.signed_in_plain),
+                        modifier = Modifier.testTag(SignedInTags.HEADLINE),
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
-                    ServerButton(
-                        label = R.string.signed_in_switch_user,
-                        onClick = onSwitchUser,
-                        modifier = Modifier.testTag(SignedInTags.SWITCH_USER),
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(Gap)) {
+                        ServerButton(
+                            label = R.string.signed_in_continue,
+                            // Both buttons stay focusable while signing out, so focus is never dropped; Continue does
+                            // nothing then (the screen is about to be replaced) and a repeat of Switch user is
+                            // ignored.
+                            onClick = { if (!state.switching) onContinue() },
+                            emphasis = true,
+                            modifier = Modifier.focusRequester(continueFocus).testTag(SignedInTags.CONTINUE),
+                        )
+                        ServerButton(
+                            label = R.string.signed_in_switch_user,
+                            onClick = onSwitchUser,
+                            modifier = Modifier.testTag(SignedInTags.SWITCH_USER),
+                        )
+                    }
+                    if (state.switching) SwitchingStatus()
                 }
-                if (state.switching) SwitchingStatus()
             }
         }
     }

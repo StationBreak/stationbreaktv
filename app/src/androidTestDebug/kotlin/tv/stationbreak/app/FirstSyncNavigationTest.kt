@@ -289,9 +289,29 @@ class FirstSyncNavigationTest {
 
         Syncing.firstSync.current = finished
 
+        // Stan cheers us on the air for a moment and live TV follows by itself, with no key.
+        awaitExists(FirstSyncTags.DONE)
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(FirstSyncTags.HEADLINE))
+        assertEquals(0, count(FirstSyncTags.DONE))
         assertBackOpensTheGuideThenLeavesTheApp()
+    }
+
+    @Test
+    fun backDuringTheCheerGoesLive() {
+        Syncing.firstSync.current = running(900, 1_000)
+        launchApp()
+        awaitExists(FirstSyncTags.HEADLINE)
+        Syncing.firstSync.current = finished
+        awaitFocused(FirstSyncTags.DONE)
+
+        // Back skips the cheer: on to live TV, not out of the app, and not back into setup.
+        press(KeyEvent.KEYCODE_BACK)
+
+        awaitExists(LiveTags.NO_CHANNELS)
+        assertFalse("Back during the cheer must not leave the app", compose.activity.isFinishing)
+        assertEquals(0, count(FirstSyncTags.DONE))
+        assertEquals(0, count(LibrariesTags.SCREEN))
     }
 
     @Test
