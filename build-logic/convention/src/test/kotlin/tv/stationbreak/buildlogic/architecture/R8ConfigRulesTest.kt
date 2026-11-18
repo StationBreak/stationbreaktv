@@ -196,6 +196,88 @@ class R8ConfigRulesTest {
         assertEquals(1, violations("-keep class !a.B").size)
     }
 
+    // #851: `?` matches one character, so a name of `?`, `*` and `.` only is as broad as `**`.
+    @Test
+    fun aQuestionMarkWildcardIsAKeepAll() {
+        assertFlagged("-keep class ?** { *; }")
+        assertEquals(1, violations("-keepnames class ?").size)
+        assertEquals(1, violations("-dontwarn ?**").size)
+    }
+
+    @Test
+    fun aQuestionMarkInsideANameStillNarrows() = assertEquals(emptyList(), violations("-keep class a.B? { *; }"))
+
+    // #851: every class extends java.lang.Object, so naming it, or a pattern that matches it, limits nothing.
+    @Test
+    fun extendingObjectIsAKeepAll() {
+        assertFlagged("-keep class * extends java.lang.Object { *; }")
+        for (supertype in listOf("**.Object", "java.**", "java.lang.Obj*", "java.lang.Object*", "java.?ang.Object")) {
+            assertEquals(1, violations("-keep class ** extends $supertype { *; }").size, supertype)
+        }
+    }
+
+    @Test
+    fun aSupertypePatternThatMissesObjectNarrows() =
+        assertEquals(emptyList(), violations("-keep class ** extends java.util.* { *; }", "-keep class * extends a.**.B"))
+
+    // #851: a specific class list narrows the rule even with a broad supertype.
+    @Test
+    fun aSpecificClassListNarrowsEvenWithABroadSupertype() =
+        assertEquals(emptyList(), violations("-keep class com.foo.Bar extends **", "-keep class a.B implements **"))
+
+    // #851: a package wildcard is a real limit, unlike `**` alone; only the supertype being broad too is not enough.
+    @Test
+    fun aPackageWildcardWithABroadSupertypePasses() = assertEquals(emptyList(), violations("-keep class com.foo.** extends **"))
+
+    // #851, checked with R8's -printseeds on a three-class sample: `a.B,!c.D` kept a.B and x.E (every class but c.D),
+    // `a.B,!c.D,x.E` kept a.B and x.E, and `!**,a.B` kept nothing. A list that ends in a negation accepts the rest.
+    @Test
+    fun aListEndingInANegationIsAKeepAll() {
+        assertFlagged("-keep class a.B,!c.D { *; }")
+        assertEquals(1, violations("-keep class !a.B,!c.D").size)
+    }
+
+    @Test
+    fun aListEndingInASpecificNameNarrows() =
+        assertEquals(emptyList(), violations("-keep class a.B,!c.D,x.E { *; }", "-keep class !**,a.B { *; }"))
+
+    // The same reading for -dontwarn and -keeppackagenames: `!a.B` silences every class but a.B.
+    @Test
+    fun aDontwarnEndingInANegationIsFlagged() {
+        assertFlagged("-dontwarn !a.B")
+        assertEquals(1, violations("-dontwarn x.Y,!a.B").size)
+        assertEquals(1, violations("-keeppackagenames a.b,!c.d").size)
+        assertEquals(emptyList(), violations("-dontwarn !a.B,x.Y"))
+    }
+
+    // #851: R8 reads `#` as a comment anywhere on a line; `-keep class ** # @a.B` kept every class under -printseeds.
+    @Test
+    fun aCommentAfterARuleIsNotPartOfIt() {
+        assertEquals(1, violations("-keep class ** # @a.B").size)
+        assertEquals(1, violations("-keep class ** # extends a.B").size)
+        assertEquals(1, violations("-dontwarn !a.B # note").size)
+        assertEquals(1, violations("-keep class ** {", "    *; # only the api", "}").size)
+        assertEquals(emptyList(), violations("-keep class a.B # ** everything"))
+    }
+
+    @Test
+    fun theMemberFamiliesAndImplementsAlsoReadObjectAsEveryClass() {
+        assertEquals(1, violations("-keepclassmembers class * extends java.lang.Object { *; }").size)
+        assertEquals(1, violations("-keep class ** implements java.lang.Object").size)
+    }
+
+    // A bare `@` (whitespace before the annotation's name) never narrows the rule. R8 itself rejects `@ a.B` and
+    // `! c.D` as parse errors, so neither can slip past at build time either.
+    @Test
+    fun aBareAtSignDoesNotNarrow() = assertFlagged("-keep @ ** class ** { *; }")
+
+    // #851: `@interface` is the keyword for every annotation type, not an annotation that narrows the rule.
+    @Test
+    fun theAnnotationTypeKeywordIsNotANarrowingAnnotation() {
+        assertFlagged("-keep @interface ** { *; }")
+        assertEquals(emptyList(), violations("-keep @interface a.MyAnnotation { *; }"))
+    }
+
     @Test
     fun aHeaderInsideAnOpenSectionIsFlagged() {
         val spoof =
