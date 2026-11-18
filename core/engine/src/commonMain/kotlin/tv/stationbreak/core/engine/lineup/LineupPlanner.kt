@@ -42,7 +42,10 @@ import tv.stationbreak.core.rules.ChannelRules
  *   or withholds; a withholding one beyond the room (many hidden starters on a full lineup): what the leftovers
  *   withhold can shift once in the middle of a day; one that is not on, not withholding and not in a pending basis
  *   (nothing of it airs or is withheld today); and one that starts at the boundary (it airs nothing before). A shelved
- *   starter that switches on takes its new rules at once too.
+ *   starter that switches on takes its new rules at once too. The same mid-day change can follow a quiet plan, with
+ *   nothing resolved again: a renumber or a switch-on can move a starter that holds previous rules out of the keepers
+ *   (the protected ones, then the switched-on ones by number, up to [LineupDefaults.KEEPER_COPIES]), and the plan
+ *   then drops them (`withoutPrevious`), so it airs its newer rules from that moment.
  * - A starter the viewer switches on in the middle of a day airs from now (`onSinceMs`). A programmed one is not in the
  *   basis's on-set, so until the boundary it airs its whole pool: the titles no basis channel homes as its own, and the
  *   titles a basis channel homes as guests (`Curation.lateOn`; never a made-for-kids title on a grown-up channel, and
