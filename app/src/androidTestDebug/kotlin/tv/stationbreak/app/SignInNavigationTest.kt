@@ -205,10 +205,13 @@ class SignInNavigationTest {
     /** Types the address with [typeWhenReady], which waits out a cold emulator's IME. */
     private fun typeIntoField(address: String) = compose.typeWhenReady(ServerTags.FIELD_INPUT, address)
 
-    /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
+    /**
+     * The Test runs off the main thread; on a cold emulator its result can land after the idle check. The wait ends as
+     * soon as the focus lands, so its limit costs nothing on a fast run; 5 s was too short on a slow CI runner.
+     */
     private fun awaitFocused(tag: String) {
         try {
-            compose.awaitFocusedForKeys(tag, BACK_TIMEOUT_MS)
+            compose.awaitFocusedForKeys(tag, FOCUS_TIMEOUT_MS)
         } catch (e: ComposeTimeoutException) {
             throw AssertionError("${e.message}; ${describeScreen()}", e)
         }
@@ -470,6 +473,7 @@ class SignInNavigationTest {
 
     private companion object {
         const val BACK_TIMEOUT_MS = 5_000L
+        const val FOCUS_TIMEOUT_MS = 15_000L
         const val POLL_MS = 50L
     }
 }

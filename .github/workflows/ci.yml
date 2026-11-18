@@ -774,13 +774,24 @@ jobs:
   # Instrumented tests on the Insignia's Android version (API 25), so a call to a newer API crashes here, not on a
   # device. It runs in parallel with `verify` and `assemble`, once `checks` has decided it's needed: not for docs-only PRs, nor for
   # PRs that touch neither the app, the modules nor the build.
-  emulator:
+  # The instrumented tests, in two shards on two emulators: `guide` is :feature:guide alone (about 6.5 minutes of
+  # tests, its screenshot proof included) and `main` is everything else (about 10). Together they ran 16.5 minutes in
+  # one 18-minute attempt, so a slow runner cut attempt 1 off in the guide every time, and attempt plus retry outran
+  # the old 40-minute job (runs 1350, 1378, 1388). The required check is still `emulator`: the job after this one,
+  # which passes only when every shard did.
+  emulator-shard:
+    name: emulator (${{ matrix.shard }})
     needs: checks
     if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' }}
     runs-on: ubuntu-latest
-    # Setup 3 + cold build ~10 + attempt 12 (step limit) + retry 12 + cleanup and uploads 3 = 40.
+    strategy:
+      # Both shards always finish, so one red shard still shows the other's results.
+      fail-fast: false
+      matrix:
+        shard: [main, guide]
+    # Setup 3 + cold build ~10 + attempt 18 (step limit) + retry 18 + cleanup and uploads 3 = 52, plus margin.
     # Still catches a hang well before the default 6 hours.
-    timeout-minutes: 40
+    timeout-minutes: 58
     # Repeats the workflow default so this job stays read-only if the top level is ever widened for another job.
     permissions:
       contents: read
@@ -827,13 +838,20 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # The app's github debug tests, plus the debug tests of every Android library module that has androidTest
-      # sources (none yet; core:ui is picked up when it gets some).
+      # This shard's tasks. `guide`: :feature:guide's debug tests. `main`: the app's github debug tests, plus the debug
+      # tests of every other Android library module that has androidTest sources. A new module lands in `main`.
       - name: List instrumented test tasks
         id: instrumented
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
-          assemble="assembleGithubDebug assembleGithubDebugAndroidTest"
-          connected="connectedGithubDebugAndroidTest"
+          guide="feature/guide"
+          assemble=""
+          connected=""
+          if [ "$SHARD" = main ]; then
+            assemble="assembleGithubDebug assembleGithubDebugAndroidTest"
+            connected="connectedGithubDebugAndroidTest"
+          fi
           # Only the module roots that exist yet (feature/ comes with the first feature module).
           roots=()
           for root in core data feature; do
@@ -841,14 +859,19 @@ jobs:
           done
           while IFS= read -r build_file; do
             dir="$(dirname "$build_file")"
-            if [ -d "$dir/src/androidTest" ]; then
-              project=":${dir//\//:}"
-              assemble+=" $project:assembleDebugAndroidTest"
-              connected+=" $project:connectedDebugAndroidTest"
-            fi
+            [ -d "$dir/src/androidTest" ] || continue
+            if [ "$SHARD" = guide ] && [ "$dir" != "$guide" ]; then continue; fi
+            if [ "$SHARD" = main ] && [ "$dir" = "$guide" ]; then continue; fi
+            project=":${dir//\//:}"
+            assemble+=" $project:assembleDebugAndroidTest"
+            connected+=" $project:connectedDebugAndroidTest"
           done < <(grep -rl --include=build.gradle.kts 'id("stationbreak.android-lib")' "${roots[@]}")
-          echo "assemble=$assemble" >> "$GITHUB_OUTPUT"
-          echo "connected=$connected" >> "$GITHUB_OUTPUT"
+          if [ -z "${connected// /}" ]; then
+            echo "::error::shard $SHARD has no instrumented test tasks"
+            exit 1
+          fi
+          echo "assemble=${assemble# }" >> "$GITHUB_OUTPUT"
+          echo "connected=${connected# }" >> "$GITHUB_OUTPUT"
 
       # The build cache, as in the build job, with this job's own entries. After the disk is freed: the emulator needs
       # that space.
@@ -904,11 +927,12 @@ jobs:
           script: >-
             bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt1;
             status=$?;
-            bash .github/scripts/pull-guide-screenshots.sh;
-            pull=$?;
+            pull=0;
+            if [ "$SHARD" = guide ]; then bash .github/scripts/pull-guide-screenshots.sh; pull=$?; fi;
             if [ "$status" -eq 0 ]; then exit "$pull"; else exit "$status"; fi
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
+          SHARD: ${{ matrix.shard }}
 
       - name: Was the failure infrastructure?
         id: infra
@@ -948,11 +972,12 @@ jobs:
           script: >-
             bash .github/scripts/instrumented-infra.sh run instrumented-diag/attempt2 final;
             status=$?;
-            bash .github/scripts/pull-guide-screenshots.sh;
-            pull=$?;
+            pull=0;
+            if [ "$SHARD" = guide ]; then bash .github/scripts/pull-guide-screenshots.sh; pull=$?; fi;
             if [ "$status" -eq 0 ]; then exit "$pull"; else exit "$status"; fi
         env:
           CONNECTED_TASKS: ${{ steps.instrumented.outputs.connected }}
+          SHARD: ${{ matrix.shard }}
 
       # Attempt 1 ran with continue-on-error, so a failure it was not retried for fails the job here.
       - name: Fail on a test failure that was not retried
@@ -965,14 +990,16 @@ jobs:
       # every time. The daemon is stopped first so it isn't writing to the caches while they're archived. The sizes
       # are logged so growth is visible; each new key's entry starts from the previous one. To reset a chain, bump
       # the vN in its cache key prefix.
+      # The `main` shard alone writes the caches: it builds everything the `guide` shard does, and two writers would
+      # race for the same keys.
       - name: Stop Gradle
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.shard == 'main'
         run: |
           ./gradlew --stop
           du -sh ~/.gradle/caches ~/.gradle/wrapper ~/.gradle/caches/build-cache-1 || true
 
       - name: Save Gradle caches
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gradle-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.shard == 'main' && steps.gradle-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -982,7 +1009,7 @@ jobs:
           key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
       - name: Save Gradle build cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.shard == 'main'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.gradle/caches/build-cache-1
@@ -1008,7 +1035,7 @@ jobs:
 
       # Guide focus proof (#566, #569). Pulled inside the emulator script above; no APKs.
       - name: Upload guide screenshots
-        if: always() && steps.tests.outcome != 'skipped'
+        if: always() && steps.tests.outcome != 'skipped' && matrix.shard == 'guide'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: guide-screenshots
@@ -1021,7 +1048,7 @@ jobs:
         if: failure() && steps.tests.outcome != 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: instrumented-test-reports
+          name: instrumented-test-reports-${{ matrix.shard }}
           path: |
             **/build/reports/androidTests/
             **/build/outputs/androidTest-results/
@@ -1034,10 +1061,31 @@ jobs:
         if: always() && steps.tests.outcome != 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: instrumented-attempt1-diag
+          name: instrumented-attempt1-diag-${{ matrix.shard }}
           path: instrumented-diag/
           retention-days: 7
           if-no-files-found: ignore
+
+  # The required check: green only when every instrumented-test shard passed. Skipped (as the shards are) when the
+  # change can't affect the instrumented tests, so `sign-debug` and `publish` read it exactly as they read the single
+  # job before the shards.
+  emulator:
+    needs: [checks, emulator-shard]
+    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Every shard passed
+        env:
+          SHARDS: ${{ needs.emulator-shard.result }}
+        run: |
+          if [ "$SHARDS" != success ]; then
+            echo "::error::An instrumented-test shard did not pass (result: $SHARDS); see emulator (main) and emulator (guide)."
+            exit 1
+          fi
+          echo "Every instrumented-test shard passed."
 
   # Known vulnerabilities in dependencies. Scans the base and the PR head and fails only on vulnerabilities the PR
   # introduces. The packages come from gradle/verification-metadata.xml. The verification guard's test fixtures
