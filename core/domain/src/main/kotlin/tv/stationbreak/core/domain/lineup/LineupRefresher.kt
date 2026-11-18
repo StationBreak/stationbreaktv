@@ -7,11 +7,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -27,6 +29,7 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.model.ItemId
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Instant
 
 /**
@@ -164,14 +167,15 @@ class LineupRefresher(
                 .filterNotNull()
                 .distinctUntilChanged()
                 .map { Trigger.Pass }
-        // The first value is where the sync stands, not news: the start check and the pass signal cover it.
+        // The success the follow began with is where the sync stands, not news: the start check and the pass signal
+        // cover it. It is read before any trigger is listened to, so a success that lands before this listener has
+        // subscribed is still news (#891: `drop(1)` took the first value seen as the baseline, and lost a success that
+        // came first on a busy machine).
         val successes =
             library
                 .status(account)
                 .map { it.lastSuccess }
-                .distinctUntilChanged()
-                .drop(1)
-                .filterNotNull()
+                .successesAfter(AtomicReference(library.lastSuccessOrNull(account)))
                 .map { Trigger.Success }
         // A run that ends: the first value is where things stand, so only a change to "not running" is news. A known
         // weakness, older than spec 26 and left as it is: the signal is a state, so a run that starts and ends between
@@ -390,6 +394,16 @@ class LineupRefresher(
         }
 
         private const val MAX_DOUBLINGS = 20L
+
+        /**
+         * The successes after [seen]: values equal to it at the start are where the sync stood, not news, and each one
+         * passed on becomes [seen], so listening again after a failure does not send the last one twice (#891).
+         */
+        fun Flow<Instant?>.successesAfter(seen: AtomicReference<Instant?>): Flow<Instant> =
+            distinctUntilChanged()
+                .dropWhile { it == seen.get() }
+                .filterNotNull()
+                .onEach { seen.set(it) }
     }
 
     /** The waits between failures of one trigger source: the initial wait, doubling to the cap; [reset] starts over. */
@@ -441,3 +455,15 @@ enum class RebuildTodayResult {
     /** The account's IDs are not canonical, so it has no lineup: nothing done. */
     NoLineup,
 }
+
+// The last success the library has, or null if it cannot say: then the first success seen counts as news, which at
+// worst is one refresh more, never a follow that stops (#891).
+@Suppress("TooGenericExceptionCaught") // A failing library must not stop the follow; the triggers retry it.
+private suspend fun LibraryRepository.lastSuccessOrNull(account: LibraryAccount): Instant? =
+    try {
+        status(account).first().lastSuccess
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
