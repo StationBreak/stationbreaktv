@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.SpkiPin
 import javax.inject.Inject
 
@@ -55,10 +56,10 @@ internal class CertificateTrust
             prompt: TrustPrompt,
         ): TrustOutcome {
             withContext(NonCancellable) { sessions.clear() }
-            val pin = prompt.certificate.spki
-            return when (val result = server.trust(input, pin)) {
+            val pin = prompt.pin
+            return when (val result = server.trust(input, pin, prompt.kind)) {
                 is ServerResult.Failure -> TrustOutcome.Refused(result.error)
-                is ServerResult.Success -> record(result.value, pin)
+                is ServerResult.Success -> record(result.value, pin, prompt.kind)
             }
         }
 
@@ -66,11 +67,12 @@ internal class CertificateTrust
         private suspend fun record(
             trusted: ResolvedServer,
             pin: SpkiPin,
+            kind: PinKind,
         ): TrustOutcome {
             val stillWanted = currentCoroutineContext().isActive
             val saved =
                 withContext(NonCancellable) {
-                    val written = stillWanted && saved(trusted, pin)
+                    val written = stillWanted && saved(trusted, pin, kind)
                     if (!written) settings.clearPin()
                     written
                 }
@@ -82,9 +84,10 @@ internal class CertificateTrust
         private suspend fun saved(
             trusted: ResolvedServer,
             pin: SpkiPin,
+            kind: PinKind,
         ): Boolean =
             try {
-                settings.save(ServerRecord(trusted.address, pin))
+                settings.save(ServerRecord(trusted.address, pin, kind))
             } catch (
                 @Suppress("TooGenericExceptionCaught") e: Exception,
             ) {

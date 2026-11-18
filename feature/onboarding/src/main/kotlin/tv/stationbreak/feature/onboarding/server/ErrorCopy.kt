@@ -137,7 +137,16 @@ internal object ErrorCopyTable {
                 other(R.string.error_quick_connect_message, R.string.error_quick_connect_details),
         )
 
-    fun copyFor(error: MediaServerError): ErrorCopy = entries[error::class.java] ?: missing(error)
+    fun copyFor(error: MediaServerError): ErrorCopy =
+        if (error.leadsToShortLivedPrivateCa()) SHORT_LIVED_CA else entries[error::class.java] ?: missing(error)
+
+    // A chain that reaches a private CA too short-lived to pin, such as default Caddy's weekly intermediate (#223):
+    // what to change on the server rather than a dead end.
+    private val SHORT_LIVED_CA =
+        tls(R.string.error_tls_short_lived_ca_message, R.string.error_tls_short_lived_ca_details)
+
+    private fun MediaServerError.leadsToShortLivedPrivateCa(): Boolean =
+        (this as? MediaServerError.TlsUntrusted)?.certificate?.authorityTooShortLived == true
 
     private fun missing(error: MediaServerError): Nothing = error("No error copy for ${error.javaClass.logName()}")
 

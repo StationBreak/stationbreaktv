@@ -16,6 +16,7 @@ import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
@@ -101,6 +102,9 @@ class FakeMediaServer : MediaServer {
 
     val discoverCalls = mutableListOf<String>()
     val trustCalls = mutableListOf<Pair<String, SpkiPin>>()
+
+    /** The kind each [trust] call asked to pin, in order (#223). */
+    val trustKinds = mutableListOf<PinKind>()
     val connectCalls = mutableListOf<Pair<ServerAddress, CleartextAcknowledgement?>>()
     val resumeCalls = mutableListOf<StoredSession>()
     val revokeCalls = mutableListOf<Session>()
@@ -171,8 +175,10 @@ class FakeMediaServer : MediaServer {
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> {
         trustCalls += input to pin
+        trustKinds += kind
         return trustResult
     }
 

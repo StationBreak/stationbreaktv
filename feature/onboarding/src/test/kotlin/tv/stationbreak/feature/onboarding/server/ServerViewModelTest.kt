@@ -37,6 +37,7 @@ import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -90,6 +91,7 @@ private class GatedTrustServer(
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> {
         val held = gate ?: return fake.trust(input, pin)
         fake.trustCalls += input to pin

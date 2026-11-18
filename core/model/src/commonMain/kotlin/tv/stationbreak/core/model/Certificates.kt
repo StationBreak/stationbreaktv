@@ -82,6 +82,29 @@ data class CertificateEvidence(
     val selfSigned: Boolean,
     val notBeforeMillis: Long,
     val notAfterMillis: Long,
+    /**
+     * A private certificate authority that could be pinned instead of the leaf (#223), captured in the same handshake:
+     * the topmost CA the chain verifiably leads to, offered only when a pin on it would be accepted, it is not a
+     * public CA, and it lives long enough. Null otherwise.
+     */
+    val authority: AuthorityEvidence? = null,
+    /** The chain leads to a private CA too short-lived to pin (default Caddy renews its intermediate weekly). */
+    val authorityTooShortLived: Boolean = false,
 ) {
     override fun toString(): String = "CertificateEvidence(***)"
 }
+
+/** A private CA's [spki] pin and validity dates, as the trust screen shows them (#223). [toString] shows none. */
+data class AuthorityEvidence(
+    val spki: SpkiPin,
+    val notBeforeMillis: Long,
+    val notAfterMillis: Long,
+) {
+    override fun toString(): String = "AuthorityEvidence(***)"
+}
+
+/**
+ * What a pin is on (#223): the server's own self-signed certificate ([Leaf]), or the private certificate authority that
+ * issues its certificates ([Authority]), which survives the renewals that change the leaf's key.
+ */
+enum class PinKind { Leaf, Authority }

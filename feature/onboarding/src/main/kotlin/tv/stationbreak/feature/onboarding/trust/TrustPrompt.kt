@@ -2,7 +2,9 @@
 package tv.stationbreak.feature.onboarding.trust
 
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.model.AuthorityEvidence
 import tv.stationbreak.core.model.CertificateEvidence
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.SpkiPin
 
 /** Why the user is asked, which picks the screen's warning (spec 05, Unit 3). */
@@ -15,12 +17,32 @@ internal enum class TrustReason { Untrusted, HostnameMismatch, Expired, NotYetVa
 internal data class TrustPrompt(
     val reason: TrustReason,
     val certificate: CertificateEvidence,
-)
+    /** What is pinned on a yes: the self-signed leaf, or the private CA that issues the server's certificates. */
+    val kind: PinKind = PinKind.Leaf,
+) {
+    init {
+        require(kind == PinKind.Leaf || certificate.authority != null) { "A CA question needs the CA's evidence" }
+    }
+
+    // The private CA (#223) when that is what this question is about.
+    private val authority: AuthorityEvidence? get() = certificate.authority?.takeIf { kind == PinKind.Authority }
+
+    /** The SPKI that is shown and, on a yes, pinned: the leaf's, or the CA's. */
+    val pin: SpkiPin get() = authority?.spki ?: certificate.spki
+
+    /** The validity dates of what is pinned. */
+    val notBeforeMillis: Long get() = authority?.notBeforeMillis ?: certificate.notBeforeMillis
+
+    val notAfterMillis: Long get() = authority?.notAfterMillis ?: certificate.notAfterMillis
+
+    override fun toString(): String = "TrustPrompt(reason=$reason, kind=$kind)"
+}
 
 /**
- * The question this error puts to the user, or null when there is none. Only a **self-signed** leaf can be trusted: a
- * CA-chained one that fails (expired, wrong name, changed) is a dead end with its own copy, and a handshake failure
- * or a plaintext answer is never offered a trust option.
+ * The question this error puts to the user, or null when there is none. A **self-signed** leaf can be trusted, and so
+ * can a **private CA** the adapter found pinnable in the same handshake (#223): one a pin would accept, that is not a
+ * public CA and that lives long enough. Any other CA-chained failure is a dead end with its own copy, and a handshake
+ * failure or a plaintext answer is never offered a trust option.
  */
 internal fun MediaServerError.toTrustPrompt(): TrustPrompt? {
     val found =
@@ -33,7 +55,12 @@ internal fun MediaServerError.toTrustPrompt(): TrustPrompt? {
             else -> null
         }
     val (certificate, reason) = found ?: return null
-    return if (certificate != null && certificate.selfSigned) TrustPrompt(reason, certificate) else null
+    return when {
+        certificate == null -> null
+        certificate.selfSigned -> TrustPrompt(reason, certificate)
+        certificate.authority != null -> TrustPrompt(reason, certificate, PinKind.Authority)
+        else -> null
+    }
 }
 
 /** The SPKI SHA-256 as the screen writes it: upper-case hex in groups of four (decision 4). */

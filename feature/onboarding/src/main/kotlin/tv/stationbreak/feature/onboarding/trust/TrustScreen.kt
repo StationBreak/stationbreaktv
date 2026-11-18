@@ -31,6 +31,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
@@ -124,9 +125,8 @@ private fun WarningBlock(
     prompt: TrustPrompt,
     serverAddress: String,
 ) {
-    val certificate = prompt.certificate
-    val notAfter = formatDate(certificate.notAfterMillis)
-    val notBefore = formatDate(certificate.notBeforeMillis)
+    val notAfter = formatDate(prompt.notAfterMillis)
+    val notBefore = formatDate(prompt.notBeforeMillis)
     val changed = prompt.reason == TrustReason.Changed
     Column(
         modifier = Modifier.testTag(TrustTags.WARNING).politeLiveRegion(),
@@ -147,14 +147,19 @@ private fun WarningBlock(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.testTag(TrustTags.SERVER_ADDRESS),
         )
+        // A private CA (#223): the screen says what is trusted, the issuer, not this one certificate.
         Text(
             text =
-                when (prompt.reason) {
-                    TrustReason.Untrusted -> stringResource(R.string.trust_warning_untrusted)
-                    TrustReason.HostnameMismatch -> stringResource(R.string.trust_warning_hostname)
-                    TrustReason.Expired -> stringResource(R.string.trust_warning_expired, notAfter)
-                    TrustReason.NotYetValid -> stringResource(R.string.trust_warning_not_yet_valid, notBefore)
-                    TrustReason.Changed -> stringResource(R.string.trust_warning_changed)
+                if (prompt.kind == PinKind.Authority) {
+                    stringResource(
+                        if (prompt.reason == TrustReason.Changed) {
+                            R.string.trust_warning_authority_changed
+                        } else {
+                            R.string.trust_warning_authority
+                        },
+                    )
+                } else {
+                    warningFor(prompt.reason, notAfter, notBefore)
                 },
             style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurface,
@@ -164,8 +169,7 @@ private fun WarningBlock(
 
 @Composable
 private fun FingerprintBlock(prompt: TrustPrompt) {
-    val certificate = prompt.certificate
-    val lines = Fingerprint.lines(certificate.spki)
+    val lines = Fingerprint.lines(prompt.pin)
     Column(verticalArrangement = Arrangement.spacedBy(TightGap)) {
         Text(
             text = stringResource(R.string.trust_fingerprint_label),
@@ -178,7 +182,7 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
                 Modifier.testTag(TrustTags.FINGERPRINT).clearAndSetSemantics {
                     // One character at a time, so TalkBack doesn't read a group such as "1118" as a number. The
                     // children's own text is cleared, or TalkBack would read the lines as well.
-                    contentDescription = Fingerprint.spoken(certificate.spki)
+                    contentDescription = Fingerprint.spoken(prompt.pin)
                 },
         ) {
             // One line per row of groups, so the full 64 digits fit at the size a 10-foot screen needs.
@@ -195,8 +199,8 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
             text =
                 stringResource(
                     R.string.trust_validity,
-                    formatDate(certificate.notBeforeMillis),
-                    formatDate(certificate.notAfterMillis),
+                    formatDate(prompt.notBeforeMillis),
+                    formatDate(prompt.notAfterMillis),
                 ),
             style = MaterialTheme.typography.screenBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -213,3 +217,17 @@ private fun FingerprintBlock(prompt: TrustPrompt) {
 
 // The device's own short date, in its language and zone.
 private fun formatDate(millis: Long): String = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis))
+
+@Composable
+private fun warningFor(
+    reason: TrustReason,
+    notAfter: String,
+    notBefore: String,
+): String =
+    when (reason) {
+        TrustReason.Untrusted -> stringResource(R.string.trust_warning_untrusted)
+        TrustReason.HostnameMismatch -> stringResource(R.string.trust_warning_hostname)
+        TrustReason.Expired -> stringResource(R.string.trust_warning_expired, notAfter)
+        TrustReason.NotYetValid -> stringResource(R.string.trust_warning_not_yet_valid, notBefore)
+        TrustReason.Changed -> stringResource(R.string.trust_warning_changed)
+    }

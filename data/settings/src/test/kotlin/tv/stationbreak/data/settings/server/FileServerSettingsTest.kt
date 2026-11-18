@@ -11,6 +11,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -71,6 +72,21 @@ class FileServerSettingsTest {
             assertTrue(settings.clearPin())
             assertEquals(ServerRecord(address, null), settings.load())
             assertEquals(2, file.writes)
+        }
+
+    // #223: clearing a CA pin drops it and its kind, and keeps the address.
+    @Test
+    fun clearingAnAuthorityPinKeepsTheAddressAndDropsBothKeys() =
+        runBlocking {
+            settings.save(ServerRecord(address, pin, PinKind.Authority))
+            assertTrue(settings.clearPin())
+            assertEquals(ServerRecord(address), settings.load())
+            assertFalse(
+                file.text
+                    .orEmpty()
+                    .lines()
+                    .any { it.startsWith("pin=") || it.startsWith("caPin=") },
+            )
         }
 
     @Test

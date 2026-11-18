@@ -26,6 +26,7 @@ import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
@@ -130,20 +131,22 @@ class JellyfinMediaServer internal constructor(
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> =
         when (val parsed = AddressParser.parse(input)) {
-            is ServerResult.Success -> trustAt(parsed.value.explicit ?: parsed.value.at(Scheme.Https), pin)
+            is ServerResult.Success -> trustAt(parsed.value.explicit ?: parsed.value.at(Scheme.Https), pin, kind)
             is ServerResult.Failure -> parsed
         }
 
     private suspend fun trustAt(
         address: ServerAddress,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> {
         // A pin is never made over cleartext, and nothing is probed for an address that can't hold one.
         if (address.scheme != Scheme.Https) return ServerResult.Failure(MediaServerError.InvalidAddress())
-        val previous = pins.pinFor(address)
-        pins.pin(address, pin)
+        val previous = pins.pinnedTo(address)
+        pins.pin(address, pin, kind)
         var kept = false
         try {
             val result = probe.probe(address)
@@ -152,7 +155,7 @@ class JellyfinMediaServer internal constructor(
         } finally {
             // A failure, a different certificate than the one confirmed, or a cancelled caller all put things back as
             // they were: the pin that was in force for this place, or none.
-            if (!kept) previous?.let { pins.pin(address, it) } ?: pins.unpin(address)
+            if (!kept) previous?.let { (spki, was) -> pins.pin(address, spki, was) } ?: pins.unpin(address)
         }
     }
 

@@ -147,7 +147,7 @@ class FileServerSettings internal constructor(
         when {
             held == null -> false
             held.record.pin == null -> true
-            else -> write(held.copy(record = held.record.copy(pin = null)))
+            else -> write(held.copy(record = held.record.withoutPin()))
         }
 
     // A constant: nothing about the contents may reach a log through this.

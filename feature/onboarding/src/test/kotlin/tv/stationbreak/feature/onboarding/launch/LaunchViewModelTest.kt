@@ -37,6 +37,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -414,6 +415,7 @@ private class ThrowingTrust(
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> = error("boom")
 }
 
@@ -425,6 +427,7 @@ private class GatedTrust(
     override suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind,
     ): ServerResult<ResolvedServer> {
         fake.trustCalls += input to pin
         return withContext(NonCancellable) { gate.await() }

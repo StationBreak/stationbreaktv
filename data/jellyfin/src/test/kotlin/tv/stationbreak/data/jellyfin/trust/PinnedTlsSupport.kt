@@ -87,19 +87,24 @@ internal class RotatingSocketFactory(
     ): Socket = current.createSocket(address, port, localAddress, localPort)
 }
 
-private fun socketFactoryFor(cert: HeldCertificate): SSLSocketFactory =
+private fun socketFactoryFor(
+    cert: HeldCertificate,
+    intermediates: List<HeldCertificate> = emptyList(),
+): SSLSocketFactory =
     HandshakeCertificates
         .Builder()
-        .heldCertificate(cert)
+        .heldCertificate(cert, *intermediates.map { it.certificate }.toTypedArray())
         .build()
         .sslSocketFactory()
 
 /** A TLS Jellyfin on the loopback presenting a certificate, that records its requests and can redirect them. */
 internal class TlsJellyfin(
     cert: HeldCertificate,
+    /** The CA certificates the server sends after its own, as a CA-issued server does (#223). */
+    intermediates: List<HeldCertificate> = emptyList(),
 ) : AutoCloseable {
     private val server = MockWebServer()
-    private val factory = RotatingSocketFactory(socketFactoryFor(cert))
+    private val factory = RotatingSocketFactory(socketFactoryFor(cert, intermediates))
     val requests = CopyOnWriteArrayList<RecordedRequest>()
 
     @Volatile
@@ -140,8 +145,11 @@ internal class TlsJellyfin(
     fun address(host: String = NAS) = ServerAddress(Scheme.Https, host, port)
 
     /** From the next handshake on, the server presents [cert]. Connections already open keep what they negotiated. */
-    fun rotateTo(cert: HeldCertificate) {
-        factory.current = socketFactoryFor(cert)
+    fun rotateTo(
+        cert: HeldCertificate,
+        intermediates: List<HeldCertificate> = emptyList(),
+    ) {
+        factory.current = socketFactoryFor(cert, intermediates)
     }
 
     override fun close() = server.close()

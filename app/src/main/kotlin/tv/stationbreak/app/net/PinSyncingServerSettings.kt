@@ -62,7 +62,8 @@ internal class PinSyncingServerSettings(
 
     private fun apply(record: ServerRecord?) {
         val pin = record?.pin
-        clients.setPins(if (record != null && pin != null) mapOf(record.address to pin) else emptyMap())
+        val pins = if (record != null && pin != null) mapOf(record.address to (pin to record.pinKind)) else emptyMap()
+        clients.setPins(pins)
     }
 
     // A constant: nothing about the record may reach a log through this.
