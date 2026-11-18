@@ -79,7 +79,7 @@ TVs people already own. Against the alternatives:
   content airing late, and breaks that interrupt every channel at once.
 - Channel identity is a portfolio of independent, original brands, governed by `docs/design/channel-identity.md`.
   Nothing may evoke a real network.
-- Current logo, launcher icons and TV banner are placeholders, not final brand art (`art/placeholder/`).
+- The launcher icon, TV banner and README banner are the approved brand art (Stan and the Ranchers wordmark), in `art/brand/`.
 - Public text (docs, issues, fixtures, store copy) uses generic stand-ins, never real library titles.
 
 ## Evidence on Hand

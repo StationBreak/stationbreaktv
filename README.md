@@ -1,6 +1,6 @@
 # StationBreak
 
-![StationBreak: a TV set showing a pause symbol, and "We'll be right back"](art/placeholder/repo-banner.png)
+![StationBreak: Stan, a smiling TV with rabbit ears, waving beside the words "Station Break, put your feet up"](art/brand/repo-banner.png)
 
 Turn your Jellyfin library into always-on, flip-through broadcast channels on Fire TV and Android TV.
 
@@ -30,11 +30,10 @@ The playback matrix is produced by the tooling in `scripts/playback-matrix/`.
 
 ## Assets
 
-The TV banner, the launcher icons and the banner at the top of this README are **placeholders**, not final brand art.
-They come from the "StationBreak Logo" design canvas: the sign-off test card is the app icon and, widened to 16:9, the
-TV banner; the TV mark and wordmark are the README banner. The SVG sources are in `art/placeholder/`, and
-`scripts/render-placeholder-art.sh <font-dir>` renders every PNG at its exact size. The text is set in Archivo Black
-and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`). The fonts bundled in the app, with their licences and provenance, are listed in `core/ui/FONTS.md`.
+The launcher icon, the TV banner and the banner at the top of this README are the brand art: Stan, a console TV with
+rabbit ears, and the Ranchers wordmark (see [DESIGN.md](DESIGN.md)). The SVG sources are in `art/brand/` (its README says
+what each file is and how it is licensed), and `scripts/render-brand-art.sh <font-dir>` renders every PNG at its exact
+size. The text is set in Ranchers and Space Mono Bold (both SIL OFL 1.1, from `github.com/google/fonts`). The fonts bundled in the app, with their licences and provenance, are listed in `core/ui/FONTS.md`.
 
 ## Third-party software
 

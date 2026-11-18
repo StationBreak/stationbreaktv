@@ -97,7 +97,7 @@ internal class CardScale(
 }
 
 /**
- * The StationBreak test card (design: board E2), drawn from the app icon's art in `art/placeholder/tv-banner.svg`:
+ * The StationBreak test card (design: board E2), drawn from the old placeholder icon's sign-off card:
  * the grid, rays, rings, wedges, corner targets, the ring numbers, the centre disc and the orange TV. It is drawn with
  * the canvas, not from a bitmap, so it is sharp at any size and costs nothing to keep. [tvY] is where the TV sits, in
  * card units. [content] is laid over it for the card's words, with [CardScale] to place them.
