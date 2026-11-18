@@ -108,7 +108,7 @@ internal object BroadLibrary {
 
     fun build(total: Int): Profile {
         val description = "A broad library of $total titles across every shelf of the catalog"
-        return of("broad-1900", description, total, false)
+        return of("broad-$total", description, total, false)
     }
 
     fun buildThin(): Profile {
@@ -122,9 +122,22 @@ internal object BroadLibrary {
         total: Int,
         thin: Boolean,
     ): Profile {
+        val cases = ArrayList<ProfileCase>()
+        val b = shelved(total, thin, cases)
+        collect(b)
+        return Profile(key, description, AuditInput(b.build(), null), cases)
+    }
+
+    /** The broad library's titles, with no collections yet: for a stress library that adds its own (#790). */
+    fun builder(total: Int): LibraryBuilder = shelved(total, false, ArrayList())
+
+    private fun shelved(
+        total: Int,
+        thin: Boolean,
+        cases: MutableList<ProfileCase>,
+    ): LibraryBuilder {
         val b = LibraryBuilder(if (thin) THIN_LIBRARY else BROAD_LIBRARY)
         val scale = total.toDouble() / TITLES
-        val cases = ArrayList<ProfileCase>()
         cases += b.addSitcomWithAnExtraGenre()
         cases += b.addAdultAnimatedSitcom()
         if (thin) cases += b.addSmallHorrorShelf()
@@ -142,8 +155,7 @@ internal object BroadLibrary {
             filler++
         }
         check(b.titleIds.size == total) { "The shelves make exactly the library's titles" }
-        collect(b)
-        return Profile(key, description, AuditInput(b.build(), null), cases)
+        return b
     }
 
     private fun add(
