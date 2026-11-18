@@ -36,11 +36,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.ChannelChange
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
 import tv.stationbreak.core.ui.mark.MarkCaches
+import tv.stationbreak.core.ui.rememberChannelChangeStore
 import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.core.ui.rememberVolumeLevellingStore
 import tv.stationbreak.feature.guide.GuideDirection
@@ -87,6 +89,9 @@ fun GuideDestination(
     // Volume levelling (#498) is the TV's own choice, read by the player; the guide only sets it.
     val levellings = rememberVolumeLevellingStore()
     val levelling by levellings.enabled.collectAsStateWithLifecycle()
+    // What live TV shows while the channel changes: the guide only sets it.
+    val changes = rememberChannelChangeStore()
+    val channelChange by changes.change.collectAsStateWithLifecycle()
     CompositionLocalProvider(
         LocalGuideColors provides theme.colors,
         LocalPanelColors provides theme.colors.panel,
@@ -107,6 +112,8 @@ fun GuideDestination(
             libraries,
             levelling = levelling,
             onLevelling = { enabled, from -> levellings.choose(enabled, from) },
+            channelChange = channelChange,
+            onChannelChange = changes::choose,
         )
     }
 }
@@ -170,6 +177,8 @@ internal fun GuideRoot(
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
     levelling: Boolean = true,
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
+    channelChange: ChannelChange = ChannelChange.Stan,
+    onChannelChange: (ChannelChange) -> Unit = {},
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -238,6 +247,7 @@ internal fun GuideRoot(
     val chooseTheme = rememberUpdatedState(onTheme)
     val chooseFit = rememberUpdatedState(onFit)
     val chooseLevelling = rememberUpdatedState(onLevelling)
+    val chooseChannelChange = rememberUpdatedState(onChannelChange)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -288,6 +298,7 @@ internal fun GuideRoot(
             themeChoice = themeChoice,
             syncNow = syncNow,
             levelling = levelling,
+            channelChange = channelChange,
             firstVisitNote = firstVisitNote,
             onNarrowBreakBelow = { viewModel.narrowBreakBelowMs = it },
             modifier =
@@ -313,6 +324,7 @@ internal fun GuideRoot(
                                 step.levelling?.let { next ->
                                     chooseLevelling.value(next, step.levellingFrom.orEmpty())
                                 }
+                                step.channelChange?.let { next -> chooseChannelChange.value(next) }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },

@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.ui.ChannelChange
 import tv.stationbreak.core.ui.ScreenFit
 
 class GuideSettingsKeysTest {
@@ -35,11 +36,13 @@ class GuideSettingsKeysTest {
         assertEquals(SettingsRow.Libraries, libraries?.row)
         val syncNow = libraries!!.press(Key.DirectionDown, repeat = 2).panel
         assertEquals(SettingsRow.SyncNow, syncNow?.row)
-        // Then Even out volume (#498), the last row: Down stops there.
+        // Then Even out volume (#498), then Changing channel, the last row: Down stops there.
         val levelling = syncNow!!.press(Key.DirectionDown).panel
         assertEquals(SettingsRow.VolumeLevelling, levelling?.row)
-        assertEquals(SettingsStep(levelling), levelling!!.press(Key.DirectionDown))
-        assertEquals(SettingsStep(levelling), levelling.press(Key.DirectionDown, repeat = 3))
+        val channelChange = levelling!!.press(Key.DirectionDown).panel
+        assertEquals(SettingsRow.ChannelChange, channelChange?.row)
+        assertEquals(SettingsStep(channelChange), channelChange!!.press(Key.DirectionDown))
+        assertEquals(SettingsStep(channelChange), channelChange.press(Key.DirectionDown, repeat = 3))
         // Left and Right on Libraries and on Sync now are kept, and do nothing.
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionLeft))
         assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionRight))
@@ -74,6 +77,18 @@ class GuideSettingsKeysTest {
         assertNull(SettingsPanel(SettingsRow.ScreenFit).press(Key.DirectionRight).levelling)
         assertNull(SettingsPanel(SettingsRow.SyncNow).press(Key.DirectionLeft).levelling)
         assertEquals(SettingsStep(null), onLevelling.release(Key.Back))
+    }
+
+    @Test
+    fun channelChange_leftPicksStan_rightPicksSnow_selectClosesKeepingThePick_andNothingElsePicksIt() {
+        val onChange = SettingsPanel(SettingsRow.ChannelChange)
+        assertEquals(SettingsStep(onChange, channelChange = ChannelChange.Stan), onChange.press(Key.DirectionLeft))
+        assertEquals(SettingsStep(onChange, channelChange = ChannelChange.Snow), onChange.press(Key.DirectionRight))
+        assertEquals(SettingsStep(null), onChange.press(Key.DirectionCenter))
+        assertEquals(SettingsStep(onChange), onChange.press(Key.DirectionCenter, repeat = 1))
+        assertNull(SettingsPanel(SettingsRow.VolumeLevelling).press(Key.DirectionRight).channelChange)
+        assertNull(SettingsPanel(SettingsRow.Appearance).press(Key.DirectionLeft).channelChange)
+        assertEquals(SettingsStep(null), onChange.release(Key.Back))
     }
 
     @Test

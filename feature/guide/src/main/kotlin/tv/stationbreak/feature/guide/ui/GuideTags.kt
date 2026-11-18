@@ -84,6 +84,8 @@ object GuideTags {
     /** The Off and On choices of the Settings panel's Even out volume row (#498). */
     const val LEVELLING_OFF = "guide:levelling:off"
     const val LEVELLING_ON = "guide:levelling:on"
+    const val CHANNEL_CHANGE_STAN = "guide:channelChange:stan"
+    const val CHANNEL_CHANGE_SNOW = "guide:channelChange:snow"
 
     /** The Libraries row of the Settings panel: Select shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"

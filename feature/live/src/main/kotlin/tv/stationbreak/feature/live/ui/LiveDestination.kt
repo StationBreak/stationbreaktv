@@ -41,6 +41,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.rememberChannelChangeStore
 import tv.stationbreak.core.ui.stepOverview
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
@@ -98,6 +100,8 @@ internal fun LiveRoot(
     val guideOpenedAt by viewModel.guideOpenedAt.collectAsStateWithLifecycle()
     val aspect by viewModel.videoAspect.collectAsStateWithLifecycle()
     val pictureLabel by viewModel.pictureLabel.collectAsStateWithLifecycle()
+    // What shows while the channel changes is the viewer's choice, made in the guide's Settings.
+    val changeStyle by rememberChannelChangeStore().change.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -137,6 +141,7 @@ internal fun LiveRoot(
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
         pictureLabel = pictureLabel,
+        changeStyle = changeStyle,
     ) { VideoFrame(surface, aspect, viewModel.cues, captionsHidden = guideOpen) }
 }
 
@@ -163,6 +168,7 @@ internal fun LiveKeysRoot(
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
+    changeStyle: ChannelChange = ChannelChange.Stan,
     video: @Composable () -> Unit,
 ) {
     val command by rememberUpdatedState(onCommand)
@@ -218,7 +224,7 @@ internal fun LiveKeysRoot(
             }.focusable(),
     ) {
         val shown: (@Composable (DpRect) -> Unit)? = if (guideOpen) ({ hole -> guide(hole, tune) }) else null
-        LiveScreen(state, info, onCommand, shown, transport, nowMs, pictureLabel, overview, video)
+        LiveScreen(state, info, onCommand, shown, transport, nowMs, pictureLabel, overview, changeStyle, video)
     }
 }
 

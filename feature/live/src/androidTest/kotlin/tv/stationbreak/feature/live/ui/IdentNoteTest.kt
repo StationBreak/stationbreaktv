@@ -18,8 +18,9 @@ import kotlin.math.hypot
 import kotlin.math.min
 
 /**
- * The ident card's reason (spec 26, #633), and the no-libraries card's line: at most three lines, and the whole box
- * inside the centre disc.
+ * The off-air screen's reason (spec 26, #633): Stan's detail line, in two lines at most, inside the safe area, never
+ * under the 10 sp floor. And the no-libraries card's line, which stays on the test card: at most three lines, and the
+ * whole box inside the centre disc.
  */
 @RunWith(AndroidJUnit4::class)
 class IdentNoteTest {
@@ -27,11 +28,23 @@ class IdentNoteTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun theNoteIsThreeLinesAtMostAndInsideTheDisc() {
+    fun theNoteIsTwoLinesAtMostInsideTheSafeAreaAndNotUnderTheFloor() {
         compose.setContent { StationBreakTheme { LiveScreen(LiveState.Ident(null, null, CardNote.NotInLibrary)) {} } }
         compose.waitForIdle()
 
-        assertThreeLinesAtMostInsideTheDisc(LiveTags.IDENT_NOTE)
+        val note = compose.onNodeWithTag(LiveTags.IDENT_NOTE)
+        val results = mutableListOf<TextLayoutResult>()
+        val action = note.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action
+        assertTrue("the line has a text layout", action != null && action(results))
+        val laid = results.first()
+        assertTrue("at most two lines, was ${laid.lineCount}", laid.lineCount <= 2)
+        assertTrue("nothing is cut off", !laid.hasVisualOverflow)
+        assertTrue("not under 10 sp", laid.layoutInput.style.fontSize.value >= 10f)
+        // The text is placed at its baseline, so its right edge is what to hold to the safe area.
+        val screen = compose.onNodeWithTag(LiveTags.IDENT).fetchSemanticsNode().boundsInRoot
+        val safeRight = screen.left + screen.width * (1f - 0.05f)
+        val box = note.fetchSemanticsNode().boundsInRoot
+        assertTrue("the line ends at ${box.right}, past the safe area's $safeRight", box.right <= safeRight + 1f)
     }
 
     // The no-libraries card's line (spec 26) is set as the reason is, under the same rule.

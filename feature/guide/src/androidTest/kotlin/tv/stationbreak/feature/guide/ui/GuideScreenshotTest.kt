@@ -497,7 +497,7 @@ class GuideScreenshotTest {
         return bitmap.asImageBitmap()
     }
 
-    /** The Settings panel with its five rows: the last (Even out volume) must end above the grid's clock strip. */
+    /** The Settings panel with its six rows: the last (Changing channel) must end above the grid's clock strip. */
     @Test
     fun theSettingsPanel() = shootSettings(GuideTheme.Dark, suffix = "")
 
@@ -505,7 +505,7 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
 
-    // All five rows clear of the grid at both screen fits and at the font scales a TV is set to, with the Sync now
+    // All six rows clear of the grid at both screen fits and at the font scales a TV is set to, with the Sync now
     // line as long as it gets (and room for it on two lines).
     @Test
     fun theSettingsPanelFitsAtSafeAndFontScale1() = shootSettings(GuideTheme.Dark, "-safe-1", ScreenFit.Safe, 1f)
@@ -947,6 +947,7 @@ class GuideScreenshotTest {
                 GuideTags.SETTINGS_SYNC_NOW,
                 GuideTags.SETTINGS_SYNC_STATUS,
                 GuideTags.LEVELLING_ON,
+                GuideTags.CHANNEL_CHANGE_SNOW,
             )
         const val SETTINGS_FRAME = "guide-settings"
         const val TITLE_SLACK_PX = 2f

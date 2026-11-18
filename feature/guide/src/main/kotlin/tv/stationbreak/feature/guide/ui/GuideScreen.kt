@@ -61,6 +61,7 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.ChannelChange
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
@@ -176,7 +177,7 @@ internal class GuideGeometry(
  * the two cells it touched and the panel. [info] is the overlay Select opened on a later program; the panel is not
  * shown under it.
  */
-@Suppress("LongParameterList") // The guide's flows, the overlay, the channel playing and the picture's hole.
+@Suppress("LongParameterList", "LongMethod") // The guide's flows, the overlay, the channel and the picture's hole.
 @Composable
 internal fun GuideScreen(
     snapshot: StateFlow<GuideSnapshot>,
@@ -188,6 +189,7 @@ internal fun GuideScreen(
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
+    channelChange: ChannelChange = ChannelChange.Stan,
     channelBox: ChannelBoxReaders = ChannelBoxReaders(),
     onNarrowBreakBelow: (Long) -> Unit = {},
     firstVisitNote: Boolean = false,
@@ -240,7 +242,18 @@ internal fun GuideScreen(
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
                 val kind = guidePanelOf(settings != null, noLibraries, onChannel, firstVisitNote)
                 val parts =
-                    TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, channelBox)
+                    TopPanelParts(
+                        panel,
+                        nowOf,
+                        snapshotOf,
+                        settings,
+                        themeChoice,
+                        fit,
+                        syncNow,
+                        levelling,
+                        channelChange,
+                        channelBox,
+                    )
                 TopPanel(kind, parts, panelSize, current)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(

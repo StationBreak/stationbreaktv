@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.live.ui
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -22,21 +25,15 @@ import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.CardNote
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.R
+import java.util.Date
 
 // Card units, from board E2 and the icon: where the TV sits and where the lines start on the disc.
-private const val DIFFICULTIES_TV_Y = 202f
 private const val IDENT_TV_Y = 212f
-private const val DIFFICULTIES_TOP = 272f
 
 // The wordmark sits 4 units above board E2 so its foot clears a three-line note (#831 frames).
 private const val IDENT_TOP = 274f
 private const val NO_CHANNELS_TOP = 396f
-private const val DISC_TEXT_WIDTH = 280f
 private const val NO_CHANNELS_WIDTH = 230f
-private const val TITLE_SIZE = 34f
-private const val TITLE_LINE = 36f
-private const val STANDBY_SIZE = 15f
-private const val STANDBY_GAP = 10f
 private const val WORDMARK_SIZE = 50f
 private const val NO_CHANNELS_SIZE = 13f
 private const val SPACING_EM = 0.13f
@@ -52,56 +49,40 @@ private const val NOTE_LINE_HEIGHT = 1.2f
 /** The project's text floor: the note is the only instruction on the no-libraries slate, so it never goes below it. */
 private val NOTE_FLOOR = 10.sp
 
-/** The slate for a show that is missing or will not play (design: board E2), with the "Up next" banner when known. */
+/**
+ * Stan's screen for a show that is missing or will not play ("Technical difficulties"), with the "Up next" banner when
+ * known. [full] is false in the guide's corner, which has no sign-off or clock.
+ */
 @Composable
 internal fun DifficultiesSlate(
     upNext: Banner?,
     channel: ChannelTag?,
+    nowMs: () -> Long,
+    full: Boolean = true,
 ) {
     Box(Modifier.fillMaxSize()) {
-        TestCard(tvY = DIFFICULTIES_TV_Y) { card ->
-            Column(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = card.dp(DIFFICULTIES_TOP))
-                    .width(card.dp(DISC_TEXT_WIDTH))
-                    .testTag(LiveTags.DIFFICULTIES),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = stringResource(R.string.live_difficulties_title),
-                    style = display(card.sp(TITLE_SIZE), card.sp(TITLE_LINE)),
-                    color = BroadcastColors.Ink,
-                    textAlign = TextAlign.Center,
-                )
-                Box(Modifier.offset(y = card.dp(STANDBY_GAP)))
-                Text(
-                    text = stringResource(R.string.live_difficulties_standby),
-                    style = mono(card.sp(STANDBY_SIZE)),
-                    color = BroadcastColors.Ink,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
+        StanScreen(difficultiesSpec(), nowMs, full = full)
         CardBanner(upNext, channel)
     }
 }
 
 /**
- * The StationBreak ident card: the test card with the icon's wordmark, for a gap in the schedule or a show that ended
- * early, with the "Up next" banner when known. F3.1's bumpers replace it later.
+ * Stan's off-air screen, for a gap in the schedule or a show that ended early (and the cards of [note]), with the "Up
+ * next" banner when known. F3.1's bumpers replace it later.
  */
 @Composable
 internal fun IdentSlate(
     upNext: Banner?,
     channel: ChannelTag?,
+    nowMs: () -> Long,
     note: CardNote? = null,
+    full: Boolean = true,
 ) {
+    val context = LocalContext.current
+    val format = remember(context) { DateFormat.getTimeFormat(context) }
+    val spec = remember(upNext, note, format) { offAirSpec(upNext, note) { format.format(Date(it)) } }
     Box(Modifier.fillMaxSize()) {
-        TestCard(tvY = IDENT_TV_Y) { card ->
-            Wordmark(card, LiveTags.IDENT)
-            if (note != null) NoteLine(card, noteText(note))
-        }
+        StanScreen(spec, nowMs, full = full)
         CardBanner(upNext, channel)
     }
 }
@@ -118,13 +99,6 @@ private fun CardBanner(
         ChannelBanner(channel)
     }
 }
-
-@Composable
-private fun noteText(note: CardNote): String =
-    when (note) {
-        CardNote.NotInLibrary -> stringResource(R.string.live_card_not_in_library)
-        is CardNote.OffTheAir -> stringResource(R.string.live_card_off_air, note.channelName, note.nowOn)
-    }
 
 /** Signed in, but no channel is on the air: the ident card with one line, and nothing else. */
 @Composable

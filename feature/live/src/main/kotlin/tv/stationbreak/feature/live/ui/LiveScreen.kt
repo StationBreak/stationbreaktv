@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.ChannelChange
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramInfoOverlay
@@ -61,6 +62,8 @@ import java.time.ZoneId
  * and the info overlay make way for the guide, which says the same. [pictureLabel] is the one thing drawn over that
  * picture for the guide: a bar along its top edge that says which channel it is and what is on (#722), since the
  * guide's panel describes whatever is highlighted, not what plays. Captions stay hidden in the corner.
+ *
+ * [changeStyle] is the viewer's choice of what shows while the channel changes: Stan's standby screen, or snow.
  */
 @Suppress("LongParameterList") // The state, its overlays, the transport and its clock, and the surface.
 @Composable
@@ -73,6 +76,7 @@ internal fun LiveScreen(
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
     overviewScroll: ScrollState = rememberScrollState(),
+    changeStyle: ChannelChange = ChannelChange.Stan,
     surface: @Composable () -> Unit,
 ) {
     // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
@@ -83,12 +87,12 @@ internal fun LiveScreen(
         Box(if (guide != null) Modifier.inRect(corner) else Modifier.fillMaxSize()) { surface() }
         if (guide != null) {
             Box(Modifier.inRect(corner).clipToBounds()) {
-                PictureLayers(state)
+                PictureLayers(state, changeStyle, nowMs)
                 pictureLabel?.let { PictureLabelBar(it, Modifier.align(Alignment.TopStart)) }
             }
             guide(corner)
         } else {
-            LiveLayers(state, info, onCommand, behind = transport != null, overviewScroll)
+            LiveLayers(state, info, onCommand, behind = transport != null, overviewScroll, changeStyle, nowMs)
             TransportStrip(transport, nowMs)
         }
     }
@@ -147,12 +151,16 @@ private class InRectNode(
  * without their banners. Nothing over a picture (the guide says what is on), nor while signed out.
  */
 @Composable
-private fun PictureLayers(state: LiveState) {
+private fun PictureLayers(
+    state: LiveState,
+    changeStyle: ChannelChange,
+    nowMs: () -> Long,
+) {
     when (state) {
-        is LiveState.Tuning -> Snow()
-        is LiveState.Choosing -> if (!state.overPicture) Snow()
-        is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null)
-        is LiveState.Ident -> IdentSlate(upNext = null, channel = null)
+        is LiveState.Tuning -> ChangingGround(state, changeStyle, nowMs, full = false)
+        is LiveState.Choosing -> if (!state.overPicture) ChangingGround(state, changeStyle, nowMs, full = false)
+        is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null, nowMs, full = false)
+        is LiveState.Ident -> IdentSlate(upNext = null, channel = null, nowMs, full = false)
         LiveState.NoChannels -> NoChannelsSlate()
         LiveState.NoLibraries -> NoLibrariesSlate()
         is LiveState.Watching, LiveState.SignedOut -> Unit
@@ -160,6 +168,7 @@ private fun PictureLayers(state: LiveState) {
 }
 
 /** What live TV draws over its picture for [state]: snow, the banners, the slates and the info overlay. */
+@Suppress("LongParameterList") // The state, its overlays and the viewer's choice of what a channel change shows.
 @Composable
 private fun LiveLayers(
     state: LiveState,
@@ -167,11 +176,13 @@ private fun LiveLayers(
     onCommand: (LiveCommand) -> Unit,
     behind: Boolean,
     overviewScroll: ScrollState,
+    changeStyle: ChannelChange,
+    nowMs: () -> Long,
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
             is LiveState.Tuning -> {
-                Snow()
+                ChangingGround(state, changeStyle, nowMs)
                 CableBanner(state.banner)
             }
 
@@ -191,16 +202,16 @@ private fun LiveLayers(
 
             is LiveState.Choosing -> {
                 // The number moving (spec 15): the old picture shows through untouched, or snow when there is none.
-                if (!state.overPicture) Snow()
+                if (!state.overPicture) ChangingGround(state, changeStyle, nowMs)
                 Box(Modifier.fillMaxSize().testTag(LiveTags.BANNER_CHOOSING)) { ChannelBanner(state.target) }
             }
 
             is LiveState.TechnicalDifficulties -> {
-                DifficultiesSlate(state.upNext, state.channel)
+                DifficultiesSlate(state.upNext, state.channel, nowMs)
             }
 
             is LiveState.Ident -> {
-                IdentSlate(state.upNext, state.channel, state.note)
+                IdentSlate(state.upNext, state.channel, nowMs, state.note)
             }
 
             LiveState.NoChannels -> {
@@ -218,6 +229,19 @@ private fun LiveLayers(
         }
         info?.let { InfoPanel(it, overviewScroll) }
     }
+}
+
+/** What fills the screen while the channel changes: Stan's standby screen, or snow when the viewer chose it. */
+@Composable
+private fun ChangingGround(
+    state: LiveState,
+    changeStyle: ChannelChange,
+    nowMs: () -> Long,
+    full: Boolean = true,
+) {
+    // The standby screen has no time in its copy, so none is written here.
+    val spec = stanSpecOf(state, changeStyle) { "" }
+    if (spec == null) Snow() else StanScreen(spec, nowMs, full = full)
 }
 
 /** [info] as the shared overlay: the banner's own words, and what the server added once it has. */

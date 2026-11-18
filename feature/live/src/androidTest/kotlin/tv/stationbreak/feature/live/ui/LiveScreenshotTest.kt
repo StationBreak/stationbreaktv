@@ -55,6 +55,7 @@ import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
+import tv.stationbreak.feature.live.CardNote
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.NextProgram
@@ -281,12 +282,26 @@ class LiveScreenshotTest {
             ),
         )
 
-    /** The station-break card full screen. Live TV has no light theme: the card is the same in both. */
+    /** The station-break screen (Stan off the air) full screen. Live TV has no light theme: it is the same in both. */
     @Test
     fun theStationBreakCard() {
         shoot("live-break.png", breakCard)
         compose.onNodeWithText("Up next", substring = true, ignoreCase = true).assertIsDisplayed()
         compose.onNodeWithText("Roman Holiday", substring = true).assertIsDisplayed()
+    }
+
+    /** Stan's other station screens, full screen: tuning, technical difficulties and an off-air card with a reason. */
+    @Test
+    fun stansStandbyScreen() = shoot("live-stan-standby.png", LiveState.Tuning(banner(actions = false)))
+
+    @Test
+    fun stansTechnicalDifficultiesScreen() {
+        shoot("live-stan-difficulties.png", LiveState.TechnicalDifficulties(breakCard.upNext))
+    }
+
+    @Test
+    fun stansOffAirScreenWithAReason() {
+        shoot("live-stan-offair-note.png", LiveState.Ident(null, null, CardNote.OffTheAir("Laughs", 12)))
     }
 
     /** The station-break card in the guide's picture, with the picture label's "Up next:", dark then light. */
@@ -372,14 +387,14 @@ class LiveScreenshotTest {
         )
 
     @Test
-    fun switchingVersionUnderTheSnow() =
+    fun switchingVersionOnStansStandbyScreen() =
         shoot(
             "live-switching-version.png",
             LiveState.Tuning(banner(actions = false, stream = twoVersions, label = BannerLabel.SwitchingVersion)),
         )
 
     @Test
-    fun switchingAudioUnderTheSnow() =
+    fun switchingAudioOnStansStandbyScreen() =
         shoot(
             "live-switching.png",
             LiveState.Tuning(banner(actions = false, label = BannerLabel.SwitchingAudio)),
