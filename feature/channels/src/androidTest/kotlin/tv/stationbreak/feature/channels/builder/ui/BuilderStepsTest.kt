@@ -18,7 +18,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performImeAction
@@ -107,6 +107,9 @@ private object NoChannels : ChannelRepository {
 /** The channel builder's three steps on screen (spec 22): the pages, the D-pad that drives them and the text entry. */
 @RunWith(AndroidJUnit4::class)
 class BuilderStepsTest {
+    // The v2 rule: its effects run on a standard test dispatcher. Under v1 a state this test's ViewModel set on its own
+    // thread resumed the screen's collector there, and the recomposition ran off the main thread, which corrupted
+    // the composition and crashed the run when the activity was destroyed (#783).
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
