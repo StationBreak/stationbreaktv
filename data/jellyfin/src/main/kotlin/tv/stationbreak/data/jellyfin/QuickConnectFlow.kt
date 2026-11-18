@@ -4,6 +4,7 @@ package tv.stationbreak.data.jellyfin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import tv.stationbreak.core.domain.CleartextGate
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.ResolvedServer
@@ -59,8 +60,19 @@ internal class QuickConnectFlow(
             val reached = authenticator.reach(address, acknowledgement)
             val terminal =
                 when (reached) {
-                    is ServerResult.Failure -> QuickConnectState.Failed(reached.error)
-                    is ServerResult.Success -> issueAndPoll(reached.value, acknowledgement) { emit(it) }
+                    is ServerResult.Failure -> {
+                        QuickConnectState.Failed(reached.error)
+                    }
+
+                    // The gate again on the address the probe settled on, before a secret is asked for (#209).
+                    is ServerResult.Success -> {
+                        val blocked = CleartextGate.check(reached.value.address, acknowledgement)
+                        if (blocked != null) {
+                            QuickConnectState.Failed(blocked)
+                        } else {
+                            issueAndPoll(reached.value, acknowledgement) { emit(it) }
+                        }
+                    }
                 }
             log.log("quickConnect ended: ${terminal.javaClass.logName()}")
             emit(terminal)

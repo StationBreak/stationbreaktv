@@ -57,7 +57,8 @@ class SecretLeakTest {
                 jellyfin.json("{\"Authenticated\":true,\"Secret\":\"$secret\",\"Code\":\"123456\"}")
             }
             jellyfin.on("POST", "/Users/AuthenticateWithQuickConnect") { jellyfin.json(authResult(token)) }
-            jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(401) }
+            // A failed logout, so its error is checked too. (A 401 there now counts as revoked, #209.)
+            jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(500) }
 
             val request = SignInRequest(jellyfin.address, "alice", password.toCharArray(), null)
             val requestText = request.toString()

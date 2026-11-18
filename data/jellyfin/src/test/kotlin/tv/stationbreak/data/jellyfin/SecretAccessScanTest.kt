@@ -22,6 +22,24 @@ class SecretAccessScanTest {
     // main, commonMain, jvmMain and so on; not test or androidTest.
     private val mainSourceSet = Regex("/src/[A-Za-z]*[Mm]ain/")
 
+    // #209: a module-wide opt-in (`-opt-in=...SecretAccess` or `optIn.add(...)` in a build script, or a Kotlin
+    // compiler property) would let every file read secrets without naming the opt-in, past the scan above.
+    @Test
+    fun noBuildScriptOrPropertyOptsAModuleIntoSecretAccess() {
+        val root =
+            generateSequence(File("").absoluteFile) { it.parentFile }
+                .first { File(it, "settings.gradle.kts").exists() }
+        val users =
+            root
+                .walkTopDown()
+                .onEnter { it.name !in setOf("build", ".git", ".gradle", ".claude") }
+                .filter { it.isFile && (it.extension in setOf("kts", "gradle") || it.name == "gradle.properties") }
+                .filter { "SecretAccess" in it.readText() }
+                .map { it.relativeTo(root).path.replace('\\', '/') }
+                .toSortedSet()
+        assertEquals(emptySet(), users, "a build script or property mentions SecretAccess")
+    }
+
     @Test
     fun theOptInAppearsOnlyInTheAllowedMainSourceFiles() {
         val root =

@@ -39,9 +39,12 @@ internal class Authenticator(
         return try {
             reach(request.address, request.acknowledgement)
                 .flatMap { resolved ->
-                    transport
-                        .send(resolved.address, Endpoint.post("Users/AuthenticateByName", body))
-                        .flatMap { sessionFrom(it, resolved, request.acknowledgement) }
+                    // Again on the address the probe settled on, before the password goes: the probe follows no
+                    // redirect today, and this keeps a later change to that from sending it in cleartext (#209).
+                    CleartextGate.check(resolved.address, request.acknowledgement)?.let { ServerResult.Failure(it) }
+                        ?: transport
+                            .send(resolved.address, Endpoint.post("Users/AuthenticateByName", body))
+                            .flatMap { sessionFrom(it, resolved, request.acknowledgement) }
                 }.also { logOutcome("signIn", it) }
         } finally {
             body.fill(0)
