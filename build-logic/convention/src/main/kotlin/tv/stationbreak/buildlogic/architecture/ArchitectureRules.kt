@@ -90,6 +90,11 @@ enum class Rule(
         "no module may declare com.squareup.okhttp3:logging-interceptor, in any configuration: its " +
             "HttpLoggingInterceptor prints URLs, headers and tokens (F0.3 R18)",
     ),
+    BENCHMARK_FOR_PROFILE_ONLY(
+        "benchmark-for-profile-only",
+        "benchmark (the Baseline Profile generator, #416) may be named only by app's baselineProfile configuration: " +
+            "nothing that ships depends on it",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }
@@ -118,6 +123,7 @@ object ArchitectureRules {
     )
 
     private const val APP = ":app"
+    private const val BENCHMARK = ":benchmark"
     private const val FEATURE_PREFIX = ":feature:"
     private const val DATA_PREFIX = ":data:"
 
@@ -127,6 +133,9 @@ object ArchitectureRules {
     private val MODULES =
         mapOf(
             APP to ModuleSpec(Platform.ANDROID, null),
+            // A test module that drives the app on a device; it depends on no other project module (it targets :app
+            // through targetProjectPath, which is not a dependency edge).
+            BENCHMARK to ModuleSpec(Platform.ANDROID, emptySet()),
             ":core:model" to ModuleSpec(Platform.PURE, emptySet()),
             ":core:rules" to ModuleSpec(Platform.PURE, setOf(":core:model")),
             ":core:engine" to ModuleSpec(Platform.PURE, setOf(":core:rules", ":core:model")),
@@ -171,6 +180,9 @@ object ArchitectureRules {
     // commonTest*, jvmTest*, linuxX64Test*, test*, androidTest* and their variant forms (testDebug…,
     // githubDebugAndroidTest…). testFixtures* is not a test configuration.
     private val TEST_CONFIGURATION = Regex("^test(?!Fixtures)|[a-z0-9]Test(?!Fixtures)(?=[A-Z]|$)")
+
+    // `baselineProfile`, and its per-variant forms such as `githubReleaseBaselineProfile`.
+    private fun isProfileConfiguration(name: String): Boolean = name == "baselineProfile" || name.endsWith("BaselineProfile")
 
     fun isTestConfiguration(name: String): Boolean = TEST_CONFIGURATION.containsMatchIn(name)
 
@@ -255,6 +267,15 @@ object ArchitectureRules {
 
             target == module -> {
                 null
+            }
+
+            // AGP records a test module's targetProjectPath as a `testedApks` edge: the app it drives, not a dependency.
+            module == BENCHMARK && target == APP && configuration == "testedApks" -> {
+                null
+            }
+
+            target == BENCHMARK && !(module == APP && isProfileConfiguration(configuration)) -> {
+                Rule.BENCHMARK_FOR_PROFILE_ONLY
             }
 
             target == ":core:testing" -> {

@@ -13,6 +13,8 @@ plugins {
     id("stationbreak.hilt")
     // Typed navigation routes (`@Serializable` route objects).
     alias(libs.plugins.kotlin.serialization)
+    // Generates the Baseline Profile into src/main from the benchmark/ module (#416); never runs in a normal build.
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 // CI gives its debug and benchmark builds a rising versionCode (#146), so each one installs over the last on a test
@@ -32,6 +34,10 @@ val ciVersionCode: Int =
 // which fails the build on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1.
 val releaseVersion: ReleaseVersion? =
     providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
+
+// The build types the Baseline Profile plugin generates (#416): (nonMinified, benchmark) x (release, benchmark).
+val profileBuildTypes: Set<String> =
+    setOf("nonMinifiedRelease", "benchmarkRelease", "nonMinifiedBenchmark", "benchmarkBenchmark")
 
 // Whether StationBreak Pro is unlocked, by (build type, flavor) (#793). Debug and benchmark builds keep it open, so
 // dogfood and device runs see no gate. Release ships closed in both flavors: any pair not listed is closed. What the
@@ -54,7 +60,10 @@ androidComponents {
     beforeVariants { variant ->
         val amazonBenchmark =
             variant.buildType == "benchmark" && variant.productFlavors.contains("distribution" to "amazon")
-        if (!amazonBenchmark) variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+        // The profile build types are measured on a device, never unit-tested: they share every source set with release.
+        if (!amazonBenchmark && variant.buildType !in profileBuildTypes) {
+            variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+        }
     }
     // kotlinx-coroutines' debug-agent file is for a JVM debugger attaching to the process; a non-debuggable build has no
     // use for it.
@@ -69,6 +78,18 @@ androidComponents {
             "PRO_UNLOCKED",
             BuildConfigField("boolean", proUnlocked, "StationBreak Pro unlocked (#793); see app/build.gradle.kts"),
         )
+        // Fail closed on the application ID (#416). The Baseline Profile plugin adds a nonMinified* and a benchmark* build
+        // type for every non-debuggable one (release and benchmark), four in all. They are release code signed with the
+        // debug key: under the production ID they could not install over a store build, so they get their own ID.
+        // Names are matched exactly, so any other build type, or a plugin upgrade that adds one, fails the build until
+        // its application ID is decided.
+        val buildType = checkNotNull(variant.buildType) { "${variant.name} has no build type" }
+        if (buildType in profileBuildTypes) {
+            // A literal, not a map of the property: a property mapped from itself is a circular evaluation.
+            variant.applicationId.set("tv.stationbreak.app.baseline")
+        } else if (buildType !in setOf("debug", "release", "benchmark")) {
+            throw GradleException("Unknown build type '$buildType' (${variant.name}): decide its application ID first")
+        }
         if (variant.buildType != "debug") {
             variant.packaging.resources.excludes
                 .add("DebugProbesKt.bin")
@@ -220,6 +241,15 @@ dependencies {
     // The benchmark's JSON lines (src/benchmark/.../JsonLine.kt) are encoded by kotlinx.serialization (#822). It is
     // already on every variant's runtime classpath through data:jellyfin; this only lets the benchmark compile against it.
     "benchmarkImplementation"(libs.kotlinx.serialization.json)
+    // The module whose scenarios record the profile (#416).
+    baselineProfile(project(":benchmark"))
+}
+
+baselineProfile {
+    // Never in a normal build: the profile is recorded on a device by hand and committed (docs/MODULES.md, benchmark).
+    automaticGenerationDuringBuild = false
+    // The profile merges into the one hand-written file's place; the app has one src/main profile for both flavors.
+    mergeIntoMain = true
 }
 
 // The manifest and XML-rule tests (BackupRulesTest, NetworkSecurityConfigTest) read these files straight off disk, so

@@ -83,9 +83,30 @@ stationbreaktv/
     ├── channels/       [Android] Channel list + custom channel builder
     └── settings/       [Android] Settings: Libraries (spec 26); later diagnostics, about/licenses
 
-Deferred: `benchmark/` (Macrobenchmark + Baseline Profiles) is added in F2.5. `core:common` is not created
-until something genuinely needs sharing.
+`benchmark/` (Macrobenchmark + Baseline Profile generation, F2.5, [#416](https://github.com/StationBreak/stationbreaktv/issues/416))
+is a `com.android.test` module that only the app's `baselineProfile` configuration points at; nothing ships from it and no
+module depends on it. `core:common` is not created until something genuinely needs sharing.
 ```
+
+**Baseline Profile (#416).** `benchmark/GuideBaselineProfile` drives the guide on a real TV with the ADR-0008 scenarios
+(open, Down stepping and held, Left/Right sweep stepping and held, mixed). The `benchmark` module applies
+`stationbreak.architecture` and `stationbreak.quality`, so `checkArchitecture` (it may depend on no project module), Spotless
+and detekt run on it. The Baseline Profile Gradle plugin adds four build types to `app`, one pair for each non-debuggable
+type: `nonMinifiedRelease`, `benchmarkRelease`, `nonMinifiedBenchmark` and `benchmarkBenchmark`. They are release code
+signed with the debug key, so `app/build.gradle.kts` gives them the application ID `tv.stationbreak.app.baseline`, matched
+by exact name: any other build type fails the build until its ID is decided. They take no unit tests, and they do not pick
+up `src/benchmark` (the exported `PlaybackTestActivity`) or `src/nonRelease`, which belong to the `benchmark` and `debug`
+build types by name.
+
+The profile is recorded by hand, on a connected TV that has **the `tv.stationbreak.app.baseline` build installed, signed in,
+with libraries chosen**:
+`./gradlew :app:generateGithubBaselineProfile -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`.
+Without the flag the Gradle run uninstalls the app and the test APK afterwards, and with them the sign-in. Install the build
+from the machine that runs the generation (a different debug key makes the install fail). Collecting a profile needs Android
+13 (API 33) or later, so the older Fire TVs cannot record it: record on a newer TV and commit the file. The result lands in
+`app/src/main/generated/baselineProfiles` (merged into `src/main`) beside the hand-written `baseline-prof.txt` rules.
+`automaticGenerationDuringBuild` is off, so no normal build or CI job needs a device. Rules for the `j$.time` desugaring
+backport (the #416 comment on `classes2.dex`) are measured then.
 
 **Day-one set (decided 2026-10-11):** F0.2 creates only `app`, `build-logic`, `core:model`, `core:rules`,
 `core:engine`, `core:scheduler`, `core:testing`, `core:domain`, `data:jellyfin`, and `core:ui` (theme only).
@@ -545,7 +566,8 @@ app ──► feature:* ──► core:domain, core:ui, core:playback
 ```
 
 Also allowed (not drawn above):
-- `app` → any module. It's the composition root: it wires `core:rules`, `core:engine` and `core:scheduler`
+- `app` → any module, except `benchmark` (the Baseline Profile generator, #416), which `app` names only in its
+  `baselineProfile` configuration, never in a shipped or test configuration. It's the composition root: it wires `core:rules`, `core:engine` and `core:scheduler`
   with `@Provides` (they hold no `javax.inject`; see "Hilt in pure modules"), and implements the flavor-specific
   `ProEntitlement` from `core:domain`.
 - `feature:*` → `core:model`, because screens show domain entities.
@@ -586,6 +608,8 @@ Together they fail the build if
   `core:domain`),
 - any module declares `com.squareup.okhttp3:logging-interceptor`, in any configuration (F0.3 R18; a detekt
   `ForbiddenImport` on `okhttp3.logging.HttpLoggingInterceptor` is the second guard),
+- any module other than `app`, or `app` outside its `baselineProfile` configuration, depends on `benchmark`
+  (`benchmark-for-profile-only`, #416),
 - any manifest uses `tools:overrideLibrary`.
 
 ### Hilt in pure modules

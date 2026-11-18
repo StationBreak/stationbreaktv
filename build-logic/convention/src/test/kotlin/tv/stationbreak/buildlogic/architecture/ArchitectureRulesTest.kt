@@ -24,6 +24,71 @@ class ArchitectureRulesTest {
         vararg edges: DeclaredEdge,
     ): List<Rule> = ArchitectureRules.violations(module, edges.toList()).map { it.rule }
 
+    // The Baseline Profile generator (#416): only the app's profile configuration names it.
+
+    @Test
+    fun appMayNameBenchmarkInItsBaselineProfileConfiguration() {
+        assertEquals(emptyList(), rulesBroken(":app", project("baselineProfile", ":benchmark")))
+    }
+
+    @Test
+    fun appMayNotShipBenchmark() {
+        assertEquals(
+            listOf(Rule.BENCHMARK_FOR_PROFILE_ONLY),
+            rulesBroken(":app", project("implementation", ":benchmark")),
+        )
+    }
+
+    @Test
+    fun benchmarkMayTargetTheAppAsItsTestedApk() {
+        assertEquals(emptyList(), rulesBroken(":benchmark", project("testedApks", ":app")))
+    }
+
+    @Test
+    fun benchmarkMayNotDependOnTheAppOtherwise() {
+        assertEquals(
+            listOf(Rule.NOT_ALLOWLISTED),
+            rulesBroken(":benchmark", project("implementation", ":app")),
+        )
+    }
+
+    @Test
+    fun aFeatureMayNotDependOnBenchmark() {
+        assertEquals(
+            listOf(Rule.BENCHMARK_FOR_PROFILE_ONLY),
+            rulesBroken(":feature:guide", project("implementation", ":benchmark")),
+        )
+    }
+
+    @Test
+    fun aFeatureMayNotUseBenchmarkAsItsProfileEither() {
+        assertEquals(
+            listOf(Rule.BENCHMARK_FOR_PROFILE_ONLY),
+            rulesBroken(":feature:guide", project("baselineProfile", ":benchmark")),
+        )
+    }
+
+    @Test
+    fun appMayNameBenchmarkInAVariantProfileConfiguration() {
+        assertEquals(emptyList(), rulesBroken(":app", project("githubReleaseBaselineProfile", ":benchmark")))
+    }
+
+    @Test
+    fun aTestConfigurationMayNotNameBenchmark() {
+        assertEquals(
+            listOf(Rule.BENCHMARK_FOR_PROFILE_ONLY),
+            rulesBroken(":app", project("androidTestImplementation", ":benchmark")),
+        )
+    }
+
+    @Test
+    fun aConfigurationOnlyContainingTheWordDoesNotCount() {
+        assertEquals(
+            listOf(Rule.BENCHMARK_FOR_PROFILE_ONLY),
+            rulesBroken(":app", project("notABaselineProfileThing", ":benchmark")),
+        )
+    }
+
     // [KMP]/[JVM] modules: no Android dependencies.
 
     @Test
