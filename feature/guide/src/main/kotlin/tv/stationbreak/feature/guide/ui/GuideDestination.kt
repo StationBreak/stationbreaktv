@@ -39,12 +39,14 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.core.ui.rememberChannelChangeStore
 import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.core.ui.rememberVolumeLevellingStore
+import tv.stationbreak.core.ui.remoteKeyToAct
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.GuideEvent
 import tv.stationbreak.feature.guide.GuideState
@@ -459,24 +461,30 @@ internal fun guideKey(
     back: (() -> Unit)? = null,
     menu: (() -> Unit)? = null,
 ): Boolean {
-    val down = event.type == KeyEventType.KeyDown
-    val direction = directionOf(event.key)
+    val repeatCount = event.nativeKeyEvent.repeatCount
     val handled = event.key.let { if (it == Key.Back) back != null else keyIsTheGuides(it, menu != null) }
     when {
-        !handled -> Unit
+        !handled -> {
+            Unit
+        }
 
-        // Any release, even one whose down the guide never saw. The Back that opened the guide never reaches here
-        // (live's root holds that press to its release), so a release here is always a later press. A fast double
-        // Back is such a press: its down can arrive in the frame before the guide has the focus, going to live's root,
-        // which passes it, and only the release lands here. Waiting for a down the guide saw would swallow that press.
-        event.key == Key.Back -> if (event.type == KeyEventType.KeyUp) back?.invoke()
+        // The Menu key opens the menu sheet, or closes it: once per press, on the down. It is the guide's own.
+        event.key == Key.Menu -> {
+            if (event.type == KeyEventType.KeyDown && repeatCount == 0) menu?.invoke()
+        }
 
-        // The Menu key opens the menu sheet, or closes it: once per press, on the down.
-        event.key == Key.Menu -> if (down && event.nativeKeyEvent.repeatCount == 0) menu?.invoke()
-
-        direction != null -> if (down) with(event.nativeKeyEvent) { move(direction, repeatCount > 0, eventTime) }
-
-        down && event.nativeKeyEvent.repeatCount == 0 -> select()
+        // The rest is the policy every TV screen shares (#823). Back acts on any release, even one whose down the
+        // guide never saw: the Back that opened the guide never reaches here (live's root holds that press to its
+        // release), so a release here is always a later press, and a fast double Back can land here as a release
+        // alone, its down having gone to live's root in the frame before the guide had the focus.
+        else -> {
+            when (remoteKeyToAct(event.key, event.type, repeatCount)) {
+                RemoteKey.Back -> back?.invoke()
+                RemoteKey.Select -> select()
+                null -> Unit
+                else -> directionOf(event.key)?.let { move(it, repeatCount > 0, event.nativeKeyEvent.eventTime) }
+            }
+        }
     }
     return handled
 }

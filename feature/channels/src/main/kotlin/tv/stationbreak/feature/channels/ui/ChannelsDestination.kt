@@ -31,6 +31,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.RemoteKey
+import tv.stationbreak.core.ui.remoteKeyOf
+import tv.stationbreak.core.ui.remoteKeyToAct
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import tv.stationbreak.feature.channels.PanelMove
@@ -192,19 +195,8 @@ internal fun openBuilder(
 /** How far one Up or Down at the end of the sheet's actions scrolls its info column. */
 private val SHEET_SCROLL_STEP = 48.dp
 
-/** A key the screen takes. */
-internal enum class Pad { Up, Down, Left, Right, Select, Back }
-
-private fun padOf(key: Key): Pad? =
-    when (key) {
-        Key.DirectionUp -> Pad.Up
-        Key.DirectionDown -> Pad.Down
-        Key.DirectionLeft -> Pad.Left
-        Key.DirectionRight -> Pad.Right
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> Pad.Select
-        Key.Back -> Pad.Back
-        else -> null
-    }
+/** A key the screen takes: the remote key every TV screen shares (#823). */
+internal typealias Pad = RemoteKey
 
 /**
  * The screen's keys, all consumed so the focus never leaves it: the D-pad (auto-repeat included, so holding Up or Down
@@ -216,28 +208,20 @@ internal fun channelsKey(
     event: KeyEvent,
     pad: (Pad) -> Unit,
 ): Boolean {
-    if (padOf(event.key) == null) return false
+    if (remoteKeyOf(event.key) == null) return false
     padToAct(event.key, event.type, event.nativeKeyEvent.repeatCount)?.let(pad)
     return true
 }
 
 /**
- * The pad to act on for a key event, or null when the event is only consumed: Back on its release, Select on its first
- * press (never its auto-repeat), the other pads on every press (so holding one scrolls).
+ * The pad to act on for a key event, or null when the event is only consumed: the shared remote policy (#823), with
+ * every direction a pad here (Left and Right move between the sheet's columns and the builder's panels).
  */
 internal fun padToAct(
     key: Key,
     type: KeyEventType,
     repeatCount: Int,
-): Pad? {
-    val which = padOf(key) ?: return null
-    val down = type == KeyEventType.KeyDown
-    return when (which) {
-        Pad.Back -> which.takeIf { type == KeyEventType.KeyUp }
-        Pad.Select -> which.takeIf { down && repeatCount == 0 }
-        else -> which.takeIf { down }
-    }
-}
+): Pad? = remoteKeyToAct(key, type, repeatCount)
 
 /**
  * What a key does, given what is open. Every decision is the ViewModel's, taken on its state at that moment, so a key
