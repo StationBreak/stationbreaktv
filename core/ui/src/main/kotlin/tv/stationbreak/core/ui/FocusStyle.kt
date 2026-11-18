@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ButtonBorder
+import androidx.tv.material3.ButtonColors
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.ButtonScale
 import androidx.tv.material3.ClickableSurfaceBorder
@@ -19,40 +20,72 @@ import androidx.tv.material3.ClickableSurfaceScale
 import androidx.tv.material3.MaterialTheme
 
 /**
- * The tv-material focus treatment still used by onboarding and the banner (spec 05): a scale-up plus an outline. A
- * button inverts its fill when focused, so its ring is the theme's mid-tone `border` colour; a surface that keeps its
- * fill (the address field) uses `primary`. The guide paints its own focus instead; the channel screens draw it with
- * [drawnFocus] in the guide's ring colour and without the scale. `ContrastTest` pins both rings at 3:1 or better
- * against what they touch.
+ * The setup focus treatment (onboarding, spec 05): colour, not scale. Every resting control has an edge: a 1 dp
+ * `borderVariant` line, or a 2 dp orange one for a screen's main button. A focused button fills orange with ink text;
+ * a focused surface (a text field, a collection row) keeps its fill and gets a 4 dp orange ring. Nothing grows, so a
+ * focused row never pushes into its neighbour. The guide paints its own focus; the channel screens draw it with
+ * [drawnFocus]. `ContrastTest` pins the ring and the label at 3:1 and 4.5:1 or better against what they touch.
  */
 object FocusStyle {
     internal val OutlineWidth = 3.dp
     internal val OutlineRadius = 4.dp
-    private const val BUTTON_SCALE = 1.08f
+    private val RingWidth = 4.dp
+    private val EmphasisWidth = 2.dp
+    private val RestingWidth = 1.dp
 
-    // A full-width surface grows far more in pixels than a button does, so it scales less.
+    // [drawnFocus] still grows a full-width row a little; setup's own focus does not.
     internal const val SURFACE_SCALE = 1.02f
 
+    /**
+     * A button's colours: panel at rest, orange with ink text when focused. What tells the main action of a screen
+     * from the rest is its border at rest, which is a border, not a colour: see [buttonBorder].
+     */
     @Composable
-    fun buttonBorder(): ButtonBorder = ButtonDefaults.border(focusedBorder = outline(MaterialTheme.colorScheme.border))
+    fun buttonColors(): ButtonColors {
+        val colors = MaterialTheme.colorScheme
+        return ButtonDefaults.colors(
+            containerColor = colors.surfaceVariant,
+            contentColor = colors.onSurface,
+            focusedContainerColor = colors.primary,
+            focusedContentColor = colors.onPrimary,
+            pressedContainerColor = colors.primary,
+            pressedContentColor = colors.onPrimary,
+        )
+    }
 
     @Composable
-    fun buttonScale(): ButtonScale = ButtonDefaults.scale(focusedScale = BUTTON_SCALE)
+    fun buttonBorder(emphasis: Boolean = false): ButtonBorder {
+        val colors = MaterialTheme.colorScheme
+        return ButtonDefaults.border(
+            border =
+                if (emphasis) {
+                    Border(BorderStroke(EmphasisWidth, colors.border))
+                } else {
+                    Border(BorderStroke(RestingWidth, colors.borderVariant))
+                },
+            focusedBorder = Border.None,
+        )
+    }
+
+    @Composable
+    fun buttonScale(): ButtonScale = ButtonDefaults.scale(focusedScale = 1f)
 
     @Composable
     fun surfaceBorder(): ClickableSurfaceBorder =
-        ClickableSurfaceDefaults.border(focusedBorder = outline(MaterialTheme.colorScheme.primary))
+        ClickableSurfaceDefaults.border(
+            border = Border(BorderStroke(RestingWidth, MaterialTheme.colorScheme.borderVariant)),
+            focusedBorder = Border(BorderStroke(RingWidth, MaterialTheme.colorScheme.border)),
+        )
 
     @Composable
-    fun surfaceScale(): ClickableSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = SURFACE_SCALE)
-
-    private fun outline(color: Color) = Border(BorderStroke(OutlineWidth, color))
+    fun surfaceScale(): ClickableSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
 }
 
 /**
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
- * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
- * [FocusStyle.surfaceScale], without a Compose focus target. A screen on a ground other than the theme's passes its
+ * focus, ADR-0008 addendum): a 3 dp ring (`primary`) and, unless [scaled] is false, a small growth
+ * ([FocusStyle.SURFACE_SCALE]), without a Compose focus target. It is not setup's focus ([FocusStyle.surfaceBorder]
+ * is a 4 dp ring and does not scale). A screen on a ground other than the theme's passes its
  * own [ring]. A row inside the guide family uses [panelFocus] instead (the panel's ring, no scale).
  */
 @Composable

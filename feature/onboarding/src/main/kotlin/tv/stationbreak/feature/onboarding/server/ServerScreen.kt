@@ -129,8 +129,7 @@ internal fun ServerScreen(
     BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         // A 5% safe area on every side (overscan). The content starts at a fixed height, so the headline and the field
         // don't move when a result appears below them.
-        // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area, so a
-        // focused, scaled button can grow into it instead of being clipped.
+        // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area.
         Column(
             modifier =
                 Modifier

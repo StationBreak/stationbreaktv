@@ -144,7 +144,7 @@ internal fun LibrariesScreen(
     BoxWithConstraints(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(LibrariesTags.SCREEN),
     ) {
-        // A 5% safe area on every side, inside the scroll area so a focused, scaled row isn't clipped.
+        // A 5% safe area on every side, inside the scroll area.
         Column(
             modifier =
                 Modifier

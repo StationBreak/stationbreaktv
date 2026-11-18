@@ -28,16 +28,36 @@ class ContrastTest {
     }
 
     @Test
-    fun theButtonRingShowsAgainstThePageAndTheInvertedFocusedFill() {
-        // A focused button fills with onSurface; the ring sits between that fill and the page.
-        assertAtLeast(3.0, colors.border, colors.surface, "ring on the page")
-        assertAtLeast(3.0, colors.border, colors.onSurface, "ring on the focused fill")
+    fun inkOnFocusFillIsReadable() {
+        assertAtLeast(4.5, BrandColors.Ink, BrandColors.Orange, "ink label on the orange focus fill")
+        assertAtLeast(4.5, colors.onPrimary, colors.primary, "onPrimary on primary")
     }
 
     @Test
-    fun theFieldRingShowsAgainstThePageAndTheFieldFill() {
-        assertAtLeast(3.0, colors.primary, colors.surface, "field ring on the page")
-        assertAtLeast(3.0, colors.primary, colors.surfaceVariant, "field ring on the field fill")
+    fun creamOnGroundIsReadable() {
+        assertAtLeast(4.5, colors.onSurface, colors.surface, "cream on the ground")
+    }
+
+    @Test
+    fun greyOnGroundIsReadable() {
+        assertAtLeast(4.5, colors.onSurfaceVariant, colors.surface, "grey on the ground")
+    }
+
+    @Test
+    fun focusRingStandsOut() {
+        assertAtLeast(3.0, colors.border, colors.surface, "ring on the ground")
+        assertAtLeast(3.0, colors.border, colors.surfaceVariant, "ring on the panel")
+    }
+
+    @Test
+    fun restingEdgeShowsOnTheGround() {
+        assertAtLeast(3.0, colors.borderVariant, BrandColors.Ink, "resting edge on ink")
+        assertAtLeast(3.0, colors.borderVariant, BrandColors.ScreenLiftTop, "resting edge on the lift's lightest point")
+    }
+
+    @Test
+    fun errorIsReadable() {
+        assertAtLeast(4.5, colors.error, colors.surface, "error on the ground")
     }
 
     @Test
@@ -52,24 +72,6 @@ class ContrastTest {
         assertAtLeast(4.5, colors.onSurfaceVariant, colors.surface, "details line on the page")
         assertAtLeast(4.5, colors.onSurface, colors.surfaceVariant, "typed text on the field fill")
         assertAtLeast(4.5, colors.onSurfaceVariant, colors.surfaceVariant, "full-strength hint on the field fill")
-    }
-
-    @Test
-    fun theErrorIconShowsOnThePage() {
-        assertAtLeast(3.0, colors.error, colors.surface, "error colour on the page")
-    }
-
-    @Test
-    fun theErrorColourAlsoReadsAsTextOnThePage() {
-        // "Not encrypted (http)" is small text in the error colour, so it needs the text ratio, not the icon's.
-        assertAtLeast(4.5, colors.error, colors.surface, "error text on the page")
-    }
-
-    @Test
-    fun buttonLabelsReadOnTheirFills() {
-        assertAtLeast(4.5, colors.onPrimary, colors.primary, "label on the Sign in (primary) fill")
-        assertAtLeast(4.5, colors.surface, colors.onSurface, "label on the focused (inverted) fill")
-        assertAtLeast(4.5, colors.onSurfaceVariant, colors.surface, "label on the page-coloured resting fill")
     }
 
     @Test
