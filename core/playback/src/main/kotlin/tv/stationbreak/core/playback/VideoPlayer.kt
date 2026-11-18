@@ -222,6 +222,10 @@ interface VideoPlayer {
     /**
      * The live, exact position of [generation], read on the player's looper whatever the caller's thread; null when
      * it is not the play on the player (a newer play, or after [stop]) or the player cannot say.
+     *
+     * On the player's looper (the app's main looper) it reads at once. From any other thread it posts the read to that
+     * looper and suspends until it runs, so never await it while the looper is blocked: for example from inside
+     * `runBlocking` on the main thread, which deadlocks. The same holds for [PlayControl.position], which calls it.
      */
     suspend fun currentPosition(generation: Long): Duration?
 
