@@ -82,14 +82,16 @@ internal fun lockOf(
     }
 
 /**
- * The Swap panel's yes is marked (#804) when the swap would renumber a starter and the viewer is not Pro: only
- * swapping two of the viewer's own custom channels is free. Null when it is free or no swap is open.
+ * The Swap panel's yes is marked (#804) when the swap would touch a starter and the viewer is not Pro: only swapping
+ * two of the viewer's own custom channels is free, the channel being renumbered and the one holding the number both
+ * (the domain's rule, `ChannelManager.touchesBuiltIn`). A row that is not listed counts as not the viewer's. Null
+ * when it is free or no swap is open.
  */
-internal fun swapLockOf(ui: ChannelsUi): ChannelsMessage? =
-    ChannelsMessage.NeedsPro.takeIf {
-        ui.panel is ChannelsPanel.Swap && !ui.isPro &&
-            ui.rows.firstOrNull { row -> row.id == ui.holder }?.viewerMade != true
-    }
+internal fun swapLockOf(ui: ChannelsUi): ChannelsMessage? {
+    val swap = ui.panel as? ChannelsPanel.Swap ?: return null
+    val bothOwn = listOf(swap.id, ui.holder).all { id -> ui.rows.firstOrNull { it.id == id }?.viewerMade == true }
+    return ChannelsMessage.NeedsPro.takeIf { !ui.isPro && !bothOwn }
+}
 
 /** What the properties sheet offers for [row]: the actions panel's choices, without the one that opened the sheet. */
 internal fun sheetActionsOf(

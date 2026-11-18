@@ -182,6 +182,42 @@ class ChannelsChoicesTest {
         }
     }
 
+    private fun swapUi(
+        renumbered: ChannelRow,
+        holder: ChannelRow,
+        isPro: Boolean = false,
+    ) = ChannelsUi.Empty.copy(
+        rows = listOf(renumbered, holder),
+        panel = ChannelsPanel.Swap(renumbered.id, 5, holder.name, toDefault = false),
+        holder = holder.id,
+        isPro = isPro,
+    )
+
+    private fun owned(id: String) = row(ChannelGroup.On, ChannelKind.Custom).copy(id = ChannelId(id), viewerMade = true)
+
+    @Test
+    fun aSwapOfTwoOwnChannelsIsFree() {
+        assertEquals(null, swapLockOf(swapUi(owned("a"), owned("b"))))
+    }
+
+    @Test
+    fun aSwapIsMarkedWhenEitherChannelIsNotTheViewers() {
+        val starter = row(ChannelGroup.On).copy(id = ChannelId("s"))
+        val retired = row(ChannelGroup.On, ChannelKind.Custom).copy(id = ChannelId("r"), viewerMade = false)
+        val unreadable = row(ChannelGroup.On, ChannelKind.Unusable).copy(id = ChannelId("u"))
+        listOf(starter, retired, unreadable).forEach { other ->
+            assertEquals("holder ${other.id}", ChannelsMessage.NeedsPro, swapLockOf(swapUi(owned("a"), other)))
+            assertEquals("renumbered ${other.id}", ChannelsMessage.NeedsPro, swapLockOf(swapUi(other, owned("a"))))
+        }
+    }
+
+    @Test
+    fun aSwapIsNeverMarkedForProOrWithNoSwapOpen() {
+        val starter = row(ChannelGroup.On).copy(id = ChannelId("s"))
+        assertEquals(null, swapLockOf(swapUi(owned("a"), starter, isPro = true)))
+        assertEquals(null, swapLockOf(swapUi(owned("a"), starter).copy(panel = null)))
+    }
+
     @Test
     fun copyToCustomiseIsMarkedOnlyAtTheCap() {
         val starter = row(ChannelGroup.On)
