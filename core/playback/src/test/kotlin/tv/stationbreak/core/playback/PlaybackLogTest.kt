@@ -92,6 +92,15 @@ class PlaybackLogTest {
     }
 
     @Test
+    fun `an error under a loader exception logs its top frames, not its message`() {
+        val oom = OutOfMemoryError("host nas.home.lan")
+        oom.stackTrace = arrayOf(StackTraceElement("androidx.media3.extractor.Foo", "alloc", "F.java", 7))
+        val text = PlaybackLog.failureText(playbackError(oom))
+        assertFalse(text, text.contains("nas.home.lan"))
+        assertTrue(text, text.endsWith("java.lang.OutOfMemoryError at=androidx.media3.extractor.Foo.alloc:7"))
+    }
+
+    @Test
     fun `stops at eight throwables even when the chain loops`() {
         val a = RuntimeException("a")
         val b = RuntimeException("b", a)
