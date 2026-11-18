@@ -137,47 +137,15 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun withARankedCatalogKeptOnChannelsCountTowardTheCapAndTheBestRankedStartersStayOn() {
-        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
-        val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
-        val mine = (0 until 40).map { kept("m$it", 600 + it) }
-        // The later the key, the more it fills, so the best-ranked starters are the last eight.
-        val fill = keys.mapIndexed { i, k -> k to QUALIFYING_ITEMS + i }.toMap()
-
-        val lineup = plan(mine, many, fill)
-
-        val on = lineup.channels.filter { it.state == ChannelState.On }
-        assertEquals(LineupDefaults.CAP, on.size)
-        assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On })
-        // 2 leftovers + 40 kept leave room for 8 starters.
-        val starters = on.filter { it.source is ChannelSource.Starter }.map { it.id.value.substringAfter(':') }
-        assertEquals(keys.takeLast(8).toSet(), starters.toSet())
-    }
-
-    @Test
-    fun withARankedCatalogTheLeftoversChannelsAreExemptFromTheCapAndKeptChannelsAreNeverShelved() {
-        val keys = List(60) { "r" + it.toString().padStart(2, '0') }
-        val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
-        val mine = (0 until 50).map { kept("m$it", 600 + it) }
-
-        val lineup = plan(mine, many, keys.associateWith { QUALIFYING_ITEMS })
-
-        assertTrue(mine.all { it in lineup.channels && it.state == ChannelState.On }, "kept all On")
-        assertEquals(0, lineup.channels.count { it.state == ChannelState.On && it.source is ChannelSource.Starter })
-        assertEquals(ChannelState.On, lineup.channel("kids-odds").state)
-        assertEquals(ChannelState.On, lineup.channel("odds").state)
-        assertEquals(LineupDefaults.CAP + 2, lineup.channels.count { it.state == ChannelState.On })
-    }
-
-    @Test
-    fun withARankedCatalogKeptOffChannelsDoNotCount() {
+    fun keptOffChannelsDoNotCount() {
         val mine = (0 until 10).map { kept("m$it", 600 + it, ChannelState.UserHidden) }
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
 
         val lineup = plan(mine, many, keys.associateWith { QUALIFYING_ITEMS })
 
-        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        // The planner's own picks, and the two leftovers, which cost no seat.
+        assertEquals(LineupDefaults.PLANNER_PICKS + 2, lineup.channels.count { it.state == ChannelState.On })
         assertTrue(mine.all { it in lineup.channels })
     }
 
@@ -209,12 +177,10 @@ class LineupPlannerKeptTest {
                     theme = Theme(emptyList(), emptyList(), null, false),
                 )
             },
-            selectsByIdentity = true,
         )
 
-    // The seat rule (#785), a catalog that selects by identity: the kept channels and the leftovers sit on top and
-    // cost the planner no place, so a reset keeps its 48 picks whatever it keeps. (A ranked catalog keeps the cap of
-    // 50 with everything counted: the tests above.)
+    // The seat rule (#785): the kept channels and the leftovers sit on top and cost the planner no place, so a reset
+    // keeps its 48 picks whatever it keeps.
     @Test
     fun withASelectingCatalogKeptChannelsCostThePlannerNoPlace() {
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }

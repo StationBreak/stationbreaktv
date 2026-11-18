@@ -337,24 +337,6 @@ class LineupPlannerTest {
         assertEquals(ChannelState.Shelf, again.channel("late").state)
     }
 
-    @Test
-    fun newQualifierTurnsOnAtItsNumber() {
-        val catalog = TestCatalog(base.recipes + recipeOf("scifi", 330))
-        val lineup = firstLineup(catalog, mapOf("scifi" to QUALIFYING_ITEMS - 1))
-        assertEquals(ChannelState.Shelf, lineup.channel("scifi").state)
-        assertEquals(330, lineup.channel("scifi").number)
-
-        val next = planOf(lineup, libraryOf(fills(catalog = catalog)), catalog, nowMs = 5_000L)
-        val scifi = next.channel("scifi")
-        assertEquals(ChannelState.On, scifi.state)
-        assertEquals(330, scifi.number)
-        assertEquals(5_000L, scifi.onSinceMs)
-        val expected = RecipeResolver.resolve(catalog.recipes.last(), SERVER, 0, NO_NAMES, NO_LIBRARY)
-        assertEquals(expected, scifi.starter.rules)
-        // Nothing else moved.
-        assertEquals(lineup.channels.filter { it.id != scifi.id }, next.channels.filter { it.id != scifi.id })
-    }
-
     // ADR-0026 and Task 6: a shelved studio starter is switched on at 5 (the resolver's floor), whether it was stored
     // at 4 or at 3: never lower than the 4 it said.
     @Test
@@ -375,23 +357,6 @@ class LineupPlannerTest {
     }
 
     @Test
-    fun atCapNewQualifierWaitsOnShelf() {
-        // The ranked rule, for a catalog that does not select by identity: it keeps the cap of 50 with the leftovers
-        // counted. The seat rule (`LineupPlannerSeatRuleTest`) governs a selecting catalog.
-        // 50 recipes: r00 falls short, the other 49 qualify and 48 of them fit beside the two leftovers channels.
-        val keys = List(50) { "r" + it.toString().padStart(2, '0') }
-        val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
-        val fill = keys.mapIndexed { i, k -> k to if (i == 0) 1 else QUALIFYING_ITEMS + i }.toMap()
-        val lineup = planOf(null, libraryOf(fill), catalog)
-        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
-        assertEquals(ChannelState.Shelf, lineup.channel("r01").state)
-
-        val next = planOf(lineup, libraryOf(fill + ("r00" to 500)), catalog, nowMs = 9_000L)
-        assertEquals(ChannelState.Shelf, next.channel("r00").state)
-        assertEquals(lineup, next)
-    }
-
-    @Test
     fun userHiddenNeverReturns() {
         val catalog = TestCatalog(base.recipes + recipeOf("scifi", 330))
         val lineup =
@@ -403,14 +368,6 @@ class LineupPlannerTest {
         assertEquals(ChannelState.UserHidden, next.channel("alpha").state)
         assertEquals(ChannelState.UserHidden, next.channel("scifi").state)
         assertEquals(ChannelState.UserHidden, next.channel("odds").state)
-    }
-
-    @Test
-    fun channelThatEmptiesStaysOn() {
-        val lineup = firstLineup()
-        val next = planOf(lineup, libraryOf(fills(mapOf("alpha" to 0, "bravo" to 0))), base, nowMs = 9_000L)
-        assertEquals(ChannelState.On, next.channel("alpha").state)
-        assertEquals(lineup, next)
     }
 
     @Test
@@ -506,7 +463,7 @@ class LineupPlannerTest {
         val mars = next.channel("mars")
         assertEquals(ChannelState.On, mars.state, "a new recipe at a free number that fills turns on")
         assertEquals(160, mars.number)
-        assertEquals(9_000L, mars.onSinceMs)
+        assertEquals(nextDayStart(9_000L), mars.onSinceMs, "from the boundary")
         assertIs<ChannelSource.Starter>(nova.source)
     }
 
@@ -533,7 +490,7 @@ class LineupPlannerTest {
                 .starter.rules.sources,
         )
         assertEquals(ChannelState.On, synced.channel("mars").state)
-        assertEquals(10_000L, synced.channel("mars").onSinceMs)
+        assertEquals(nextDayStart(10_000L), synced.channel("mars").onSinceMs, "from the boundary")
     }
 
     @Test

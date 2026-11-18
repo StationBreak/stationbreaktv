@@ -7,9 +7,9 @@ object LineupDefaults {
     const val MIN_AIRABLE_RUNTIME_MS: Long = 43_200_000L
 
     /**
-     * The legacy rule's cap: the most channels switched on at once, the leftovers included. It stays for the ranked
-     * paths (a catalog that does not select by identity) and the inference of an older file's choices; a catalog that
-     * selects by identity caps the planner's own picks at [PLANNER_PICKS] instead.
+     * The older planner's cap: the most channels switched on at once, the leftovers included. It stays only for
+     * `withInferredChoices`, which rebuilds that planner's choices from a stored file; the planner's own picks are
+     * capped at [PLANNER_PICKS].
      */
     const val CAP: Int = 50
 

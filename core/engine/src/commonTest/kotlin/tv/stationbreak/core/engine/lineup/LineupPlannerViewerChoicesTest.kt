@@ -91,7 +91,7 @@ class LineupPlannerViewerChoicesTest {
         val themed = Theme(emptyList(), emptyList(), null, false)
         val recipes =
             keys.mapIndexed { i, k -> recipeOf(k, 200 + i).copy(ordering = OrderingMode.Curated, theme = themed) }
-        val catalog = TestCatalog(recipes, selectsByIdentity = true)
+        val catalog = TestCatalog(recipes)
         var lineup = firstLineup(catalog)
         val picks = lineup.channels.filter { it.state == ChannelState.On && it.source is ChannelSource.Starter }
         assertEquals(LineupDefaults.PLANNER_PICKS, picks.size)

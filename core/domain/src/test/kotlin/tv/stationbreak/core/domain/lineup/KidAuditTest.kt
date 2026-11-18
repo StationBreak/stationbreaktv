@@ -244,7 +244,6 @@ class KidAuditTest {
             val catalogTwo =
                 object : StarterCatalogView by StarterCatalog {
                     override val version = 2
-                    override val selectsByIdentity = false
                     override val recipes =
                         StarterCatalog.recipes.map { it.copy(theme = null, ordering = null, filters = null) }
                 }

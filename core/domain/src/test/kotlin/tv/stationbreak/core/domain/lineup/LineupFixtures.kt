@@ -109,11 +109,13 @@ internal fun movie(
     tags = tags,
 )
 
-/** A small catalog: five grown-up recipes, one kids' recipe, the opt-in one and both leftovers. */
+/**
+ * A small catalog: five grown-up recipes, one kids' recipe, the opt-in one and both leftovers. Its recipes are
+ * unthemed and the planner selects over them anyway: a test-only shape. Production catalogs are themed throughout,
+ * which `StarterCatalogTest.theShippedCatalogIsThemedThroughout` guards.
+ */
 internal object TestCatalog : StarterCatalogView {
     override val version: Int = 1
-
-    override val selectsByIdentity: Boolean = false
 
     override val recipes: List<Recipe> =
         listOf(

@@ -11,7 +11,9 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 
 /**
- * A small catalog for planner tests. One that [selectsByIdentity] holds only themed recipes, as a shipped one must.
+ * A small catalog for planner tests. Its recipes are unthemed unless a test themes them, and the planner selects over
+ * them anyway: that is a test-only shape. Production catalogs are themed throughout, which
+ * `StarterCatalogTest.theShippedCatalogIsThemedThroughout` guards.
  */
 internal class TestCatalog(
     override val recipes: List<Recipe>,
@@ -19,12 +21,7 @@ internal class TestCatalog(
     override val leftovers: List<LeftoversRecipe> = TEST_LEFTOVERS,
     override val retiredNumbers: Set<Int> = emptySet(),
     override val retiredKeys: Set<String> = emptySet(),
-    override val selectsByIdentity: Boolean = false,
-) : StarterCatalogView {
-    init {
-        require(!selectsByIdentity || recipes.all { it.theme != null }) { "A selecting catalog is themed throughout" }
-    }
-}
+) : StarterCatalogView
 
 internal val TEST_LEFTOVERS: List<LeftoversRecipe> =
     listOf(
