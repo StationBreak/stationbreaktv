@@ -29,14 +29,14 @@ object FocusStyle {
     internal val OutlineWidth = 3.dp
     internal val OutlineRadius = 4.dp
     private val RingWidth = 4.dp
-    private val EmphasisWidth = 1.dp
+    private val EmphasisWidth = 2.dp
 
     // [drawnFocus] still grows a full-width row a little; setup's own focus does not.
     internal const val SURFACE_SCALE = 1.02f
 
     /**
      * A button's colours: panel at rest, orange with ink text when focused. The main action of a screen differs only
-     * by its orange 1 dp border at rest, which is a border, not a colour: see [buttonBorder].
+     * by its orange 2 dp border at rest, which is a border, not a colour: see [buttonBorder].
      */
     @Composable
     fun buttonColors(): ButtonColors {

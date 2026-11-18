@@ -209,11 +209,19 @@ class TrustScreenTest {
         assertFalse("$tag must not have the orange border", topEdgeOf(tag).isCloseTo(primary))
     }
 
-    // A pixel on the button's top edge at its horizontal centre, 1 px inside the bounds: the emphasis border if any.
+    // The border is about 2 px thick at tvdpi and may be antialiased, so scan the rows around the top edge at the
+    // horizontal centre and return the pixel nearest to the primary colour.
     private fun topEdgeOf(tag: String): Int {
         val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
         val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        return screen.getPixel(bounds.center.x.toInt(), bounds.top.toInt() + 1)
+        val x = bounds.center.x.toInt()
+        val top = bounds.top.toInt()
+        return (top - 1..top + EDGE_ROWS_BELOW).map { screen.getPixel(x, it) }.minBy { it.distanceTo(primary) }
+    }
+
+    private fun Int.distanceTo(color: Color): Int {
+        val expected = color.toArgb()
+        return listOf(0, 8, 16).sumOf { kotlin.math.abs(((this shr it) and 0xFF) - ((expected shr it) and 0xFF)) }
     }
 
     // The dialog is a window of its own and captureToImage can't capture one below API 28, so read the screen. The
@@ -291,5 +299,6 @@ class TrustScreenTest {
         const val SETTLE_STEP_MS = 100L
         const val PADDING_DIVISOR = 10
         const val COLOUR_SLACK = 6
+        const val EDGE_ROWS_BELOW = 3
     }
 }
