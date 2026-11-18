@@ -297,7 +297,9 @@ internal fun GuideRoot(
                     .then(if (covered) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
                     .onKeyEvent {
-                        if (firstVisitNote && it.type == KeyEventType.KeyDown) firstVisitNote = false
+                        if (firstVisitNote && dismissesFirstVisitNote(it.type, it.nativeKeyEvent.repeatCount)) {
+                            firstVisitNote = false
+                        }
                         guideRootKey(
                             it,
                             covered = covered,

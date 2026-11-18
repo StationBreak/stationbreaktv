@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -43,3 +44,9 @@ internal fun FirstVisitNote(modifier: Modifier) {
         )
     }
 }
+
+/** A fresh press dismisses the note; a held key's repeats (a held OK from onboarding, say) do not. */
+internal fun dismissesFirstVisitNote(
+    type: KeyEventType,
+    repeatCount: Int,
+): Boolean = type == KeyEventType.KeyDown && repeatCount == 0

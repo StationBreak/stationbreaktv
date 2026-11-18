@@ -29,6 +29,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
@@ -457,3 +458,6 @@ private suspend fun keepChoice(
         is Remembered.Version -> store.saveVersion(account, what.item, what.source)
     }
 }
+
+/** What the guide is handed for its opening at [openedAt]: channel, airing, first-visit flag. */
+internal fun LiveViewModel.guideOpening(at: Long) = GuideOpening(guideChannel, guidePlaying, at, guideFirstVisit)

@@ -132,16 +132,7 @@ internal fun LiveRoot(
         upNow = viewModel::overlayUpNow,
         onGuide = { open -> if (open) viewModel.openGuide(System.nanoTime()) else viewModel.closeGuide() },
         guide = { pictureHole, onTune ->
-            guide(
-                GuideOpening(
-                    viewModel.guideChannel,
-                    viewModel.guidePlaying,
-                    guideOpenedAt,
-                    viewModel.guideFirstVisit,
-                ),
-                pictureHole,
-                onTune,
-            )
+            guide(viewModel.guideOpening(guideOpenedAt), pictureHole, onTune)
         },
         // The machine's own clock, which the transport view's times are in.
         nowMs = viewModel::nowMs,
