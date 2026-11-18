@@ -168,13 +168,17 @@ class SignInNavigationTest {
      * A key for the screen, handed to the activity's window, so it does not pass the input method first. After the
      * programmatic Go (`performImeAction`) the keyboard still holds the field's session, and on a slow emulator it
      * took a Select sent right after (Continue's) before the app saw it: the key never reached Compose, and sign-in
-     * never opened. The keyboard is not what these tests are about.
+     * never opened. The keyboard is not what these tests are about. The key goes to whichever window has input focus,
+     * so a dialog (its own window) gets it as it would from the remote.
      */
     private fun press(keyCode: Int) {
         compose.awaitWindowFocus()
+        val roots = compose.onAllNodes(isRoot()).fetchSemanticsNodes(false)
         compose.runOnUiThread {
-            compose.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-            compose.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+            val focused = roots.mapNotNull { (it.root as? ViewRootForTest)?.view }.firstOrNull { it.hasWindowFocus() }
+            val target = focused?.rootView ?: compose.activity.window.decorView
+            target.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+            target.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
         }
         compose.waitForIdle()
     }
