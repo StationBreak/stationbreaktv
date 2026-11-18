@@ -47,14 +47,14 @@ internal class StanPainter(
     /**
      * Draws the ground: the lift and the halftone dots of the stage, and, if the canvas is not the stage's aspect,
      * the ground's edge colour in the bars either side. Nothing here depends on the frame but [bg], so the stage
-     * caches it (see StanStage).
+     * caches it (see StanStage). [StanBackground.None] draws nothing, not even the bars.
      */
     fun drawGround(
         scope: DrawScope,
         tf: StanStageTransform,
         bg: StanBackground,
     ) = with(scope) {
-        if (tf.scale > 0f) {
+        if (tf.scale > 0f && bg != StanBackground.None) {
             if (!tf.fillsCanvas) drawRect(palette.groundEdge)
             withTransform({
                 translate(tf.offsetX, tf.offsetY)
@@ -82,7 +82,7 @@ internal class StanPainter(
                 translate(tf.offsetX, tf.offsetY)
                 scale(tf.scale, tf.scale, Offset.Zero)
             }) {
-                faded(frame.fade) { drawStage(frame) }
+                faded(frame.fade, tf.stageBounds) { drawStage(frame) }
             }
         }
     }
@@ -90,13 +90,14 @@ internal class StanPainter(
     /** Draws [block], at [fade] (0..1) as one piece: Stan and his shadow fade together, not each on its own. */
     private inline fun DrawScope.faded(
         fade: Double,
+        bounds: Rect,
         block: DrawScope.() -> Unit,
     ) {
         if (fade >= 1.0) {
             block()
         } else if (fade > 0.0) {
             layerPaint.alpha = fade.toFloat()
-            drawContext.canvas.saveLayer(STAGE, layerPaint)
+            drawContext.canvas.saveLayer(bounds, layerPaint)
             block()
             drawContext.canvas.restore()
         }
@@ -271,7 +272,6 @@ internal class StanPainter(
 
     private companion object {
         const val STROKE_SLOTS = 16
-        val STAGE = Rect(0f, 0f, STAGE_W, STAGE_H)
         val SCREEN_BOUNDS = Rect(-100f, -70f, 44f, 66f)
         val SCREEN = RoundRect(-100f, -70f, 44f, 66f, CornerRadius(30f))
     }

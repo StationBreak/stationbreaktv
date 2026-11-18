@@ -6,7 +6,6 @@
 
 package tv.stationbreak.core.ui.stan
 
-import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
@@ -67,8 +66,11 @@ enum class StanScene(
         }
 }
 
-/** Which ground a scene stands on: [Left] lifts toward the left (copy beside Stan), [Centre] toward the middle. */
-internal enum class StanBackground { Left, Centre }
+/**
+ * Which ground a scene stands on: [Left] lifts toward the left (copy beside Stan), [Centre] toward the middle. [None]
+ * draws no ground at all, for Stan standing on a screen's own background (the host, [StanHost]).
+ */
+internal enum class StanBackground { Left, Centre, None }
 
 /** The ellipse under Stan's feet, in stage space. */
 internal data class StanShadow(
@@ -125,7 +127,9 @@ internal const val OPENING_TITLE_IN = 2.6
 
 private val SLATE_SHADOW = StanShadow(560.0, 862.0, 330.0, 34.0)
 private const val SLATE_X = 560.0
-private const val SLATE_SCALE = 1.72
+
+/** Stan's size on the slates (the scenes Stan stands beside copy in), in stage units per Stan unit. */
+internal const val SLATE_SCALE = 1.72
 private const val TILES = 6
 
 private fun clamp(v: Double) = max(0.0, min(1.0, v))
@@ -158,23 +162,15 @@ private fun standby(t: Double): StanFrame {
         }
     val busy = if (snow > .05) 1.0 else .25
     val look = p > 2.3 && p < 3.5
-    val s =
-        StanState(
-            arms = Arms.Tune,
-            earR = busy * (6 * sin(t * 9) + 3 * sin(t * 2.3)),
-            earL = busy * 3.5 * sin(t * 9 + 1.4),
-            snow = snow,
-            tile = tile(t),
-            roll = roll(t),
-            face =
-                StanFace(
-                    eyes = Eyes.Open,
-                    px = if (look) 0.0 else 4.0,
-                    py = if (look) 1.0 else -8.0,
-                    mouth = if (look) Mouth.Smile else Mouth.Tongue,
-                    cheeks = look,
-                ),
+    val face =
+        StanFace(
+            eyes = Eyes.Open,
+            px = if (look) 0.0 else 4.0,
+            py = if (look) 1.0 else -8.0,
+            mouth = if (look) Mouth.Smile else Mouth.Tongue,
+            cheeks = look,
         )
+    val s = tuning(t, busy, face).copy(snow = snow, tile = tile(t), roll = roll(t))
     return StanFrame(
         bg = StanBackground.Left,
         back = emptyList(),
@@ -201,22 +197,10 @@ private val STARS =
     )
 
 private fun offAir(t: Double): StanFrame {
-    val b = sin(t * 1.5)
-    val sy = 1 + .014 * b
-    val s =
-        StanState(
-            legs = Legs.Sit,
-            arms = Arms.Bear,
-            bear = true,
-            cap = 3 * b,
-            earR = 1.5 * b,
-            face = StanFace(eyes = Eyes.Sleep, mouth = Mouth.O, r = 6.5 + 1.5 * b, cheeks = true),
-        )
-    val shapes = stanShapes(s)
-    for (i in 0 until 3) {
-        val ph = ((t / 3.6) + i / 3.0) % 1
-        shapes.add(glyph("Z", 112 + ph * 110, -112 - ph * 150, 34 + ph * 50, StanColor.Accent, sin(PI * ph)))
-    }
+    val b = sleepBreath(t)
+    val sy = sleepSquash(b)
+    val shapes = stanShapes(asleep(b, bear = true))
+    addSleepZs(shapes, t)
     val back = ArrayList<StanShape>()
     back.add(StanCrescent(1640.0, 200.0, 70.0, 1668.0, 176.0, 62.0, StanColor.Cream))
     STARS.forEachIndexed { i, (x, y, r) ->
@@ -227,10 +211,10 @@ private fun offAir(t: Double): StanFrame {
         back = back,
         shadow = SLATE_SHADOW,
         x = SLATE_X,
-        y = r1(606 - (sy - 1) * 230),
+        y = r1(606 - (sy - 1) * SLEEP_LIFT),
         sc = SLATE_SCALE,
         rot = 4.0,
-        sy = roundTo(sy, 10000.0),
+        sy = roundTo(sy, SQUASH_ROUNDING),
         stan = shapes,
         blocks = null,
         title = null,
@@ -241,18 +225,7 @@ private fun offAir(t: Double): StanFrame {
 private fun noSignal(t: Double): StanFrame {
     val p = t % 6
     val snow = if (p > 5.3) (if (sin(p * 60) > 0) .7 else .2) else 0.0
-    val s =
-        StanState(
-            ears = Ears.Droop,
-            droop = 3 * sin(t * 1.6),
-            arms = Arms.Shrug,
-            armBob = 5 * sin(t * 2.2),
-            snow = snow,
-            tile = tile(t),
-            roll = roll(t),
-            face = StanFace(eyes = Eyes.Open, px = 6 * sin(t * 1.1), mouth = Mouth.Flat, brows = true),
-        )
-    val shapes = stanShapes(s)
+    val shapes = stanShapes(shrugging(t).copy(snow = snow, tile = tile(t), roll = roll(t)))
     shapes.add(
         glyph("?", 0.0, -150 + 4 * sin(t * 3), 96 * (1 + .05 * sin(t * 3)), StanColor.Accent, 1.0, true),
     )

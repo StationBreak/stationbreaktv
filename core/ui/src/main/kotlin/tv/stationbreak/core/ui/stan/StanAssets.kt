@@ -48,7 +48,12 @@ internal class StanGround(
     /** 12 x 12 dots of radius 1.6 at 4.5%, laid on a lattice turned 30 degrees (the study's pattern). */
     val halftone: Brush = dots(palette)
 
-    fun lift(bg: StanBackground): Brush = if (bg == StanBackground.Left) left else centre
+    fun lift(bg: StanBackground): Brush =
+        when (bg) {
+            StanBackground.Left -> left
+            StanBackground.Centre -> centre
+            StanBackground.None -> error("StanBackground.None has no ground; drawGround draws nothing for it")
+        }
 
     private fun lift(
         palette: StanPalette,
