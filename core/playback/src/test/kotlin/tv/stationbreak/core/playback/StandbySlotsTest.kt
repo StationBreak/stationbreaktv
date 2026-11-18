@@ -29,7 +29,10 @@ import kotlin.time.Duration.Companion.seconds
  */
 @UnstableApi
 class StandbySlotsTest {
-    /** One fake ExoPlayer: records the calls that matter and keeps a playback state. */
+    /**
+     * One fake ExoPlayer: records the calls that matter in the shared `calls` and keeps a playback state. [invoked]
+     * records every method called on it, by name, whatever the method.
+     */
     private class FakeExo(
         val name: String,
         val calls: MutableList<String>,
@@ -37,9 +40,11 @@ class StandbySlotsTest {
         var state = Player.STATE_IDLE
         var parameters: TrackSelectionParameters = TrackSelectionParameters.Builder().build()
         val listeners = mutableListOf<AnalyticsListener>()
+        val invoked = mutableListOf<String>()
 
         val exo: ExoPlayer =
             Proxy.newProxyInstance(LOADER, arrayOf(ExoPlayer::class.java)) { _, method, args ->
+                invoked += method.name
                 when (method.name) {
                     "getPlaybackState" -> {
                         state
@@ -140,9 +145,11 @@ class StandbySlotsTest {
 
     @Test
     fun theFrontIsNeverTouchedByAWarm() {
+        front.invoked.clear() // building the slots may read the front; the warms are what must leave it alone
         slots.warm("w1", source("a.mp4"))
         slots.warm("w2", source("b.mp4"))
         assertTrue("the front was driven: $calls", calls.none { it.startsWith("front.") })
+        assertEquals("the front was called: ${front.invoked}", emptyList<String>(), front.invoked)
     }
 
     /** An event of the standby's item for the start [epoch] (its media id is `warm-<epoch>`). */
