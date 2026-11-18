@@ -89,10 +89,13 @@ data class PlayingAiring(
 /**
  * One opening of the program guide over live TV: the channel playing ([current], null before the first), what is
  * playing on it ([playing], null while no picture is up or it is not known), and when it opened ([openedAtNanos], in
- * `System.nanoTime` units, which keys the guide's session: a new value is a new opening).
+ * `System.nanoTime` units, which keys the guide's session: a new value is a new opening). [firstVisit] is true for the
+ * opening live makes on an account's first sitting with channels (#94): the guide shows its welcome note in the info
+ * panel's place until the first key.
  */
 data class GuideOpening(
     val current: ChannelId?,
     val playing: PlayingAiring?,
     val openedAtNanos: Long,
+    val firstVisit: Boolean = false,
 )

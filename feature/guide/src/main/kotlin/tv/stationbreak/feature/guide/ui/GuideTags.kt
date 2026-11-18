@@ -10,6 +10,10 @@ object GuideTags {
     const val GRID = "guide:grid"
     const val CLOCK = "guide:clock"
     const val PANEL = "guide:panel"
+
+    /** The first visit's note, in the panel's place until the first key (#94), and its body line. */
+    const val FIRST_VISIT = "guide:firstVisit"
+    const val FIRST_VISIT_BODY = "guide:firstVisit:body"
     const val PANEL_CHANNEL = "guide:panel:channel"
 
     /** The station bug (Stan's head and "Station Break" in Ranchers) at the start of the panel's top line. */

@@ -16,6 +16,9 @@ import tv.stationbreak.feature.guide.ShownHoldings
 
 /** What the top-left panel shows. */
 internal enum class GuidePanelKind {
+    /** The first visit's note (#94), until the first key. */
+    FirstVisit,
+
     /** Nothing, its place kept: no grid is shown. */
     Empty,
 
@@ -37,8 +40,10 @@ internal fun guidePanelOf(
     settings: Boolean,
     noLibraries: Boolean,
     onChannel: Boolean,
+    firstVisit: Boolean = false,
 ): GuidePanelKind =
     when {
+        firstVisit -> GuidePanelKind.FirstVisit
         settings -> GuidePanelKind.Settings
         noLibraries -> GuidePanelKind.Empty
         onChannel -> GuidePanelKind.Channel
@@ -79,6 +84,10 @@ internal fun TopPanel(
     when (kind) {
         GuidePanelKind.Empty -> {
             Spacer(modifier)
+        }
+
+        GuidePanelKind.FirstVisit -> {
+            FirstVisitNote(modifier)
         }
 
         GuidePanelKind.Settings -> {

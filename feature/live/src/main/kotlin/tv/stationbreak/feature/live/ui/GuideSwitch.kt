@@ -39,12 +39,19 @@ internal class GuideSwitch {
     var playing: PlayingAiring? = null
         private set
 
+    /** True when the last opening was the first visit's (#94): the guide shows its note until the first key. */
+    @Volatile
+    var firstVisit: Boolean = false
+        private set
+
     /** Opens the guide over [channel] (playing [playing]), at [atNanos]. */
     fun open(
         atNanos: Long,
         channel: ChannelId?,
         playing: PlayingAiring? = null,
+        firstVisit: Boolean = false,
     ) {
+        this.firstVisit = firstVisit
         this.channel = channel
         this.playing = playing
         opened.value = atNanos

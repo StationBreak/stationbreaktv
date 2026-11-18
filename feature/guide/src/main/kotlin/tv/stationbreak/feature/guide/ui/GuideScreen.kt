@@ -190,6 +190,7 @@ internal fun GuideScreen(
     levelling: Boolean = true,
     channelBox: ChannelBoxReaders = ChannelBoxReaders(),
     onNarrowBreakBelow: (Long) -> Unit = {},
+    firstVisitNote: Boolean = false,
 ) {
     val shown = snapshot.collectAsStateWithLifecycle()
     // The snapshot is read inside the parts that draw it, never here, so this level does not recompose on a move.
@@ -237,7 +238,7 @@ internal fun GuideScreen(
             ) {
                 // The panel takes the whole band: the description has the lines the menu row used to take (#756).
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
-                val kind = guidePanelOf(settings != null, noLibraries, onChannel)
+                val kind = guidePanelOf(settings != null, noLibraries, onChannel, firstVisitNote)
                 val parts =
                     TopPanelParts(panel, nowOf, snapshotOf, settings, themeChoice, fit, syncNow, levelling, channelBox)
                 TopPanel(kind, parts, panelSize, current)

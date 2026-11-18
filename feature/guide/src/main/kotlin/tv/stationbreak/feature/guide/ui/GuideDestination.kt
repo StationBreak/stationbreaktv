@@ -263,6 +263,8 @@ internal fun GuideRoot(
             )
         }
     }
+    // The first visit's note stands in the panel until the first key press, which dismisses it and then does its job.
+    var firstVisitNote by remember(viewModel, openedAtNanos) { mutableStateOf(opening.firstVisit) }
     val syncNow by viewModel.syncNowState.collectAsStateWithLifecycle()
     // Back walks the focus outwards (to what is playing, then to the menu sheet, which it closes), and from the guide
     // with nothing to go to it is the activity's and leaves live TV. While a screen covers the guide (channel
@@ -286,6 +288,7 @@ internal fun GuideRoot(
             themeChoice = themeChoice,
             syncNow = syncNow,
             levelling = levelling,
+            firstVisitNote = firstVisitNote,
             onNarrowBreakBelow = { viewModel.narrowBreakBelowMs = it },
             modifier =
                 Modifier
@@ -294,6 +297,9 @@ internal fun GuideRoot(
                     .then(if (covered) Modifier.clearAndSetSemantics {} else Modifier)
                     .focusRequester(keys)
                     .onKeyEvent {
+                        if (firstVisitNote && dismissesFirstVisitNote(it.type, it.nativeKeyEvent.repeatCount)) {
+                            firstVisitNote = false
+                        }
                         guideRootKey(
                             it,
                             covered = covered,
