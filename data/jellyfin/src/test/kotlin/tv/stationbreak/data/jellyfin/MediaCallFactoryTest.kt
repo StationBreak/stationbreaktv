@@ -277,6 +277,52 @@ class MediaCallFactoryTest {
         assertEquals("http://localhost:${jellyfin.server.port}/x.ts?b=2", recorder.seen.last().first)
     }
 
+    // #898: a value that stays keeps its raw bytes, so a CDN or proxy URL signed over the query still validates.
+    @Test
+    fun keptQueryValuesKeepTheirRawBytesWhenATokenIsStripped() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+        val kept = "Signature=a%2Cb,c/d:e&p=1+2&bad=%zz&x=%41"
+
+        factory.get("$origin/x.ts?$kept&api_key=SECRET&e=")
+
+        assertEquals("$origin/x.ts?$kept&e=", recorder.seen.last().first)
+    }
+
+    @Test
+    fun aPercentEncodedTokenNameIsStrippedToo() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        factory.get("$origin/x.ts?api%5Fkey=SECRET&a=1&Api%4Bey=SECRET&X-Emby-Token=SECRET&b=2")
+
+        assertEquals("$origin/x.ts?a=1&b=2", recorder.seen.last().first)
+    }
+
+    @Test
+    fun emptyPairsAndBareNamesStayWhereTheyWere() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        factory.get("$origin/x.ts?a=1&&api_key=SECRET&flag&=v&")
+
+        assertEquals("$origin/x.ts?a=1&&flag&=v&", recorder.seen.last().first)
+    }
+
+    @Test
+    fun aQueryOfOnlyTokensLeavesNoQuery() {
+        val adapter = adapter()
+        val session = signedIn(adapter)
+        val factory = adapter.mediaCallFactory { session }
+
+        factory.get("$origin/x.ts?api_key=SECRET&ApiKey=SECRET")
+
+        assertEquals("$origin/x.ts", recorder.seen.last().first)
+    }
+
     @Test
     fun anEncodedSeparatorInThePathGetsNoHeader() {
         val adapter = adapter()
