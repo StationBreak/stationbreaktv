@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+
+  The launch window: shown by the system before Compose draws its first frame, and under the opening screen. Ink
+  (BrandColors.Ink), so a cold start never flashes white or the platform's grey before Stan's opening.
+-->
+<resources>
+    <color name="launch_window_background">#1C1B19</color>
+
+    <style name="Theme.StationBreak.Launch" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/launch_window_background</item>
+    </style>
+</resources>

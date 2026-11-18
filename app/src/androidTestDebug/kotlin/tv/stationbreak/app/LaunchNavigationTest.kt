@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isOff
@@ -207,9 +208,10 @@ class LaunchNavigationTest {
         runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
     }
 
-    private fun launchApp() {
+    // [opening] is a cold launch's: the other tests start on launch routing itself, with no opening over it.
+    private fun launchApp(opening: Boolean = false) {
         selection.resume()
-        compose.setContent { StationBreakTheme { AppNavHost() } }
+        compose.setContent { StationBreakTheme { AppNavHost(opening) } }
         compose.waitForIdle()
     }
 
@@ -375,6 +377,20 @@ class LaunchNavigationTest {
     }
 
     // Routes
+
+    @Test
+    fun aColdLaunchShowsTheOpeningUntilAKeyThenOpensWelcomeAndBackLeavesTheApp() {
+        launchApp(opening = true)
+        // The opening is over everything, and says the name once. The progress screen is not drawn beneath it.
+        compose.onNode(hasContentDescription("Station Break")).assertExists()
+        compose.onNodeWithTag(LaunchTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithText("Get started").assertDoesNotExist()
+        // Any key skips it (here a D-pad press); with nothing stored the app is ready, so Welcome follows at once.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitFocused(WelcomeTags.GET_STARTED)
+        // The opening is not in the back stack: Back leaves the app.
+        assertBackLeavesTheApp()
+    }
 
     @Test
     fun noStoredServerOpensWelcomeWithGetStartedFocusedAndBackLeavesTheApp() {

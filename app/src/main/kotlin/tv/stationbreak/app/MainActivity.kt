@@ -22,12 +22,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleLine("onCreate restored=${savedInstanceState != null}")
+        // A cold launch only: not a restore after process death. A rotation or other configuration change never
+        // recreates the activity (the manifest handles it), and coming back from the background keeps it.
+        val opening = savedInstanceState == null
         setContent {
             // The viewer's screen fit (Settings, Appearance): live TV's picture and every screen lay out with it.
             val fit by ScreenFits.get(this).fit.collectAsState()
             CompositionLocalProvider(LocalScreenFit provides fit) {
                 StationBreakTheme {
-                    AppNavHost()
+                    AppNavHost(opening)
                 }
             }
         }

@@ -15,7 +15,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -28,9 +31,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
+import tv.stationbreak.core.ui.stan.StanOpening
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
@@ -63,6 +68,8 @@ fun LaunchDestination(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
+    opening: Boolean = false,
+    onOpeningShown: () -> Unit = {},
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
     LaunchRoot(
@@ -74,6 +81,8 @@ fun LaunchDestination(
         onFirstSync,
         onSetupComplete,
         onChangeServer,
+        opening,
+        onOpeningShown,
     )
 }
 
@@ -89,10 +98,21 @@ internal fun LaunchRoot(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
+    opening: Boolean = false,
+    onOpeningShown: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // The opening (Stan, the name) covers the progress screen on a cold launch only: the caller says so with
+    // [opening] and is told when it has been shown, so a later launch routing (a lost session) doesn't replay it.
+    var showOpening by remember { mutableStateOf(opening) }
+    // Ready is what launch routing already decides: a destination chosen, or a problem to show here. Nothing is added.
+    var routed by remember { mutableStateOf(false) }
+    val ready = routed || state is LaunchPhase.Unavailable || state is LaunchPhase.Trust
     LaunchedEffect(viewModel) {
         viewModel.targets.collect {
+            routed = true
+            // The destination waits for the opening to hand over, which it does by the name's moment at the latest.
+            snapshotFlow { showOpening }.first { shown -> !shown }
             when (it) {
                 LaunchTarget.Welcome -> onWelcome()
                 LaunchTarget.ConfirmAddress -> onConfirmAddress()
@@ -103,13 +123,23 @@ internal fun LaunchRoot(
             }
         }
     }
-    LaunchScreen(
-        state,
-        onRetry = viewModel::onRetry,
-        onTrust = viewModel::onTrust,
-        onDontTrust = viewModel::onDontTrust,
-        onChangeServer = onChangeServer,
-    )
+    if (showOpening) {
+        StanOpening(
+            appReady = ready,
+            onFinished = {
+                showOpening = false
+                onOpeningShown()
+            },
+        )
+    } else {
+        LaunchScreen(
+            state,
+            onRetry = viewModel::onRetry,
+            onTrust = viewModel::onTrust,
+            onDontTrust = viewModel::onDontTrust,
+            onChangeServer = onChangeServer,
+        )
+    }
 }
 
 /** The stateless screen: everything it shows comes from [state], and every action goes back out as a callback. */

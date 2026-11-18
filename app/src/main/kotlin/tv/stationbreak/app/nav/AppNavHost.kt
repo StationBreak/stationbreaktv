@@ -4,6 +4,10 @@ package tv.stationbreak.app.nav
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.DpRect
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -32,21 +36,28 @@ import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibra
  * replaces itself with the screen the setup calls for, so onboarding never flashes and Back never returns to launch.
  */
 @Composable
-fun AppNavHost() = AppNavGraph(LaunchRoute)
+fun AppNavHost(opening: Boolean = false) = AppNavGraph(LaunchRoute, coldLaunch = opening)
 
 /**
  * The graph, with a start destination and a [navController] a test can choose: starting on [SignInRoute] is what a
  * restored back stack looks like after process death, when the in-memory server hand-off is gone.
+ *
+ * [coldLaunch] is true on a cold launch only (the first start of the activity, not a restore): launch shows Stan's
+ * opening once, over its progress, and no later visit to launch (a lost session) shows it again.
  */
 @Suppress("LongMethod") // The graph: one block for each route.
 @Composable
 internal fun AppNavGraph(
     startDestination: Any,
     navController: NavHostController = rememberNavController(),
+    coldLaunch: Boolean = false,
 ) {
+    var openingPending by remember { mutableStateOf(coldLaunch) }
     NavHost(navController = navController, startDestination = startDestination) {
         composable<LaunchRoute> {
             LaunchDestination(
+                opening = openingPending,
+                onOpeningShown = { openingPending = false },
                 // Nothing stored: Welcome, with nothing beneath it, so Back exits.
                 onWelcome = { navController.replaceAll(WelcomeRoute) },
                 // A stored http address to confirm again: the server screen, outside the first-run flow (no markers).

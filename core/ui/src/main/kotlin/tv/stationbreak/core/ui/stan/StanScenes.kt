@@ -120,6 +120,9 @@ class StanFrame internal constructor(
 private const val OPENING_FADE_START = 5.6
 private const val OPENING_END = 6.2
 
+/** When the last of the title (the tagline) reaches full opacity: the name is fully in. */
+internal const val OPENING_TITLE_IN = 2.6
+
 private val SLATE_SHADOW = StanShadow(560.0, 862.0, 330.0, 34.0)
 private const val SLATE_X = 560.0
 private const val SLATE_SCALE = 1.72
@@ -364,7 +367,7 @@ private fun opening(t: Double): StanFrame {
         sy = 1.0,
         stan = stanShapes(s),
         blocks = null,
-        title = StanTitle(r2(a1), r2(ramp(p, 1.6, 2.0)), r2(ramp(p, 2.2, 2.6)), r1(18 * (1 - a1))),
+        title = StanTitle(r2(a1), r2(ramp(p, 1.6, 2.0)), r2(ramp(p, 2.2, OPENING_TITLE_IN)), r1(18 * (1 - a1))),
         fade = r2(1 - ramp(p, OPENING_FADE_START, OPENING_END)),
     )
 }
