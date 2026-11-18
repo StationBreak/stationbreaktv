@@ -9,6 +9,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupEdit
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
@@ -147,6 +148,32 @@ class LineupServiceSwitchOnTest {
 
             assertEquals(3, peek().fileVersion)
             assertTrue(peek().lineup.channels.none { it.viewerChoice == ViewerChoice.Added })
+        }
+
+    // A replan that gives an untouched starter with no number its NoNumber reason (#798) needs version 6: the
+    // version-5 file on disk is kept under `v5-to6` before the save, as for any upgrade (#942).
+    @Test
+    fun aRefreshThatAddsNoNumberToAVersion5FileKeepsV5To6() =
+        runBlocking<Unit> {
+            val rockets = LineupIds.starter("rockets")
+            val scienceFiction = rules("Rockets", Source.Genre("Science Fiction"))
+            val numberless = starter("rockets", null, ChannelState.Shelf, scienceFiction)
+            seed(LineupCodec.encode(lineupOf(*withShelved().channels.toTypedArray(), numberless)))
+            assertIs<Saved.Ok<*>>(switchOnFrights())
+            assertEquals(5, peek().fileVersion)
+            val v5 = checkNotNull(store.inner.peek(ACCOUNT))
+
+            service.refresh(ACCOUNT, LIBRARIES)
+
+            assertEquals(6, peek().fileVersion)
+            assertEquals(
+                ShelfReason.NoNumber,
+                peek()
+                    .lineup.channels
+                    .first { it.id == rockets }
+                    .shelfReason,
+            )
+            assertContentEquals(v5, store.inner.keptCopy(ACCOUNT, "v5-to6"))
         }
 
     // Every pair of versions a first save can skip over has a tag the stores take: v1, v2 and v3 as files already on
