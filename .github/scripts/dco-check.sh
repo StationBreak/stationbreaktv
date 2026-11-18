@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
 # DCO check. Reads a PR's commits on stdin, as a JSON array shaped like
-# GET /repos/{owner}/{repo}/pulls/{n}/commits, and fails if any commit lacks a Signed-off-by: trailer.
+# GET /repos/{owner}/{repo}/pulls/{n}/commits, and fails if any commit lacks a Signed-off-by: trailer by its author.
 #
 # The only exemption is a Renovate commit, and only when all of these hold:
 # - the PR was opened by renovate[bot] (PR_AUTHOR), which only the Renovate app can do;
@@ -40,11 +40,18 @@ if [ "$count" -ge "$MAX_COMMITS" ]; then
   exit 1
 fi
 
+# A commit is signed off when its final paragraph (git's trailer block) has a Signed-off-by: whose email is the commit
+# author's, compared case-insensitively, as the DCO GitHub app requires: A can't sign off for B. CR is stripped first,
+# so a CRLF message isn't failed for its line endings. Trailing blank lines don't start a new paragraph.
+# shortcut: the last paragraph stands in for git's trailer rules (which also accept a mixed block); upgrade to
+# `git interpret-trailers --parse` if a real sign-off is ever refused.
 failing="$(jq -r --arg pr_author "$pr_author" '
+  def trailer_lines:
+    (.commit.message // "") | gsub("\r"; "") | sub("[ \t\n]+$"; "")
+    | [splits("\n[ \t]*\n")] | last // "" | split("\n");
+  def signoff_emails:
+    [trailer_lines[] | capture("^Signed-off-by: .+ <(?<email>[^<>]+)>$") | .email | ascii_downcase];
   .[]
-  | select(
-      ((.commit.message // "") | split("\n") | any(test("^Signed-off-by: .+ <.+>$"))) | not
-    )
   | select(
       ($pr_author == "renovate[bot]"
         and .author.login == "renovate[bot]"
@@ -52,12 +59,20 @@ failing="$(jq -r --arg pr_author "$pr_author" '
         and .committer.login == "web-flow"
         and .commit.verification.verified == true) | not
     )
-  | .sha
+  | ((.commit.author.email // "") | ascii_downcase) as $author
+  | signoff_emails as $emails
+  | if ($emails | length) == 0 then "\(.sha)\tnone"
+    elif ($author == "" or ($emails | index($author)) == null) then "\(.sha)\tmismatch"
+    else empty end
 ' <<<"$commits")"
 
 if [ -n "$failing" ]; then
-  while read -r sha; do
-    echo "::error::DCO: commit $sha has no Signed-off-by: trailer. Sign off with 'git commit -s' (see CONTRIBUTING.md)."
+  while IFS=$'\t' read -r sha why; do
+    if [ "$why" = none ]; then
+      echo "::error::DCO: commit $sha has no Signed-off-by: trailer. Sign off with 'git commit -s' (see CONTRIBUTING.md)."
+    else
+      echo "::error::DCO: commit $sha has a Signed-off-by: trailer, but its email doesn't match the commit author's. Sign off as the commit's author with 'git commit -s' (see CONTRIBUTING.md)."
+    fi
   done <<<"$failing"
   exit 1
 fi

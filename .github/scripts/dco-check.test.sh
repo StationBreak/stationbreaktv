@@ -36,6 +36,15 @@ expect one-unsigned.json 1 3333333333333333333333333333333333333333
 expect wrong-case.json 1 9999999999999999999999999999999999999999
 expect malformed-trailer.json 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 expect null-author.json 1 7777777777777777777777777777777777777777
+# Only the final trailer paragraph counts, as git reads trailers; CRLF is stripped; and one sign-off's email must be
+# the commit author's (case-insensitive), as the DCO GitHub app requires, so A can't sign off as B.
+expect signoff-not-in-trailers.json 1 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+expect crlf.json 0
+expect signoff-other-email.json 1 "doesn't match the commit author"
+expect two-signoffs.json 0
+expect email-case.json 0
+expect trailing-blank-lines.json 0
+expect no-author-email.json 1 1111111111111111111111111111111111111111
 # A PR always has at least one commit, so an empty list or a non-list means the API call went wrong.
 expect empty.json 1
 expect not-an-array.json 1
