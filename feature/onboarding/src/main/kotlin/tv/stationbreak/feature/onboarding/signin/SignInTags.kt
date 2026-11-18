@@ -3,6 +3,7 @@ package tv.stationbreak.feature.onboarding.signin
 
 /** Test tags for the sign-in screen, public so `app`'s instrumented tests can find its parts. */
 object SignInTags {
+    const val TIP = "signin:tip"
     const val USERNAME = "signin:username"
     const val USERNAME_INPUT = "signin:usernameInput"
     const val PASSWORD = "signin:password"

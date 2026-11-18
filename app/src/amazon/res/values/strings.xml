@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides feature/onboarding's wording: on Fire TV the phone keyboard is in the Fire TV app. -->
+    <string name="remote_app_tip">Tip: you can type with your phone, using the keyboard in the Fire TV app.</string>
+</resources>

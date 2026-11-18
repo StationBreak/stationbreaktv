@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.password
@@ -50,9 +51,39 @@ private val FieldHeight = 56.dp
 private const val MASK_CHARACTER = '•'
 
 /**
+ * The keyboard each onboarding field asks for. A remote app's phone keyboard (#810) is an IME like any other, so these
+ * decide what it offers and which action key it shows: Go on the address runs Test, Next on the username moves to the
+ * password, Done on the password runs Sign in.
+ */
+internal object FieldKeyboard {
+    val Address =
+        KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Uri,
+            imeAction = ImeAction.Go,
+        )
+    val Username =
+        KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Next,
+        )
+    val Password =
+        KeyboardOptions(
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            keyboardType = KeyboardType.Password,
+            imeAction = ImeAction.Done,
+        )
+}
+
+/**
  * A text field for a remote (spec 05, the 10-foot rules). It is focusable like a button; Select starts editing and
- * opens the system keyboard, which never opens by itself. The IME action ([imeAction], run through [onImeAction]) ends
- * editing, so the caller can move focus on (Next on a username, Done on a password or an address).
+ * opens the system keyboard, which never opens by itself. The IME action (from [keyboardOptions], run through
+ * [onImeAction]) ends editing, then the caller moves on (Next on a username) or acts (Go on an address, Done on a
+ * password).
  *
  * [label] is the field's name for a screen reader ("Username"); the hint is only a hint and goes when text is typed.
  * An unmasked field also says its value as its state. With [masked] the text is shown as dots while it is edited and
@@ -69,8 +100,7 @@ internal fun TvTextField(
     hint: String,
     fieldTag: String,
     inputTag: String,
-    keyboardType: KeyboardType,
-    imeAction: ImeAction,
+    keyboardOptions: KeyboardOptions,
     onImeAction: () -> Unit,
     modifier: Modifier = Modifier,
     masked: Boolean = false,
@@ -119,8 +149,7 @@ internal fun TvTextField(
                     onValueChange = onValueChange,
                     inner = inner,
                     inputTag = inputTag,
-                    keyboardType = keyboardType,
-                    imeAction = imeAction,
+                    keyboardOptions = keyboardOptions,
                     masked = masked,
                     onImeAction = {
                         editing = false
@@ -153,8 +182,7 @@ private fun TextInput(
     onValueChange: (String) -> Unit,
     inner: FocusRequester,
     inputTag: String,
-    keyboardType: KeyboardType,
-    imeAction: ImeAction,
+    keyboardOptions: KeyboardOptions,
     masked: Boolean,
     onImeAction: () -> Unit,
     onLeave: () -> Unit,
@@ -176,14 +204,9 @@ private fun TextInput(
         textStyle = MaterialTheme.typography.screenBody.copy(color = colors.onSurface),
         cursorBrush = SolidColor(colors.onSurface),
         visualTransformation = if (masked) PasswordVisualTransformation(MASK_CHARACTER) else VisualTransformation.None,
-        keyboardOptions =
-            KeyboardOptions(
-                capitalization = KeyboardCapitalization.None,
-                autoCorrectEnabled = false,
-                keyboardType = keyboardType,
-                imeAction = imeAction,
-            ),
-        keyboardActions = KeyboardActions(onDone = { onImeAction() }, onNext = { onImeAction() }),
+        keyboardOptions = keyboardOptions,
+        keyboardActions =
+            KeyboardActions(onDone = { onImeAction() }, onNext = { onImeAction() }, onGo = { onImeAction() }),
         modifier =
             base
                 .focusRequester(inner)
@@ -196,3 +219,13 @@ private fun TextInput(
                 }.testTag(inputTag),
     )
 }
+
+/** The tip under a step's help line: type with the phone's keyboard through the TV's remote app (#810). Plain text. */
+@Composable
+internal fun RemoteAppTip(tag: String) =
+    Text(
+        text = stringResource(R.string.remote_app_tip),
+        style = MaterialTheme.typography.screenBody,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag(tag),
+    )

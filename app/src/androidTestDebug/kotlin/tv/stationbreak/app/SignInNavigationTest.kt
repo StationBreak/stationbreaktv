@@ -8,7 +8,6 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performImeAction
 import androidx.navigation.NavDestination
@@ -177,34 +176,11 @@ class SignInNavigationTest {
         awaitFocused(ServerTags.FIELD)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         typeIntoField(address)
+        // Go on the keyboard runs Test.
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
-        awaitFocused(ServerTags.TEST)
-        pressTestUntilItRuns()
         awaitFocused(ServerTags.CONTINUE)
     }
-
-    /**
-     * On a cold emulator the soft keyboard can still hold the window after the field's action and swallow the first
-     * select key, leaving Test focused and never run. Press again only while that is still so: no Cancel (Test is not
-     * running) and Continue not focused (it has not finished), so a retry can never land on Cancel. A click is no
-     * substitute, because it puts the emulator in touch mode, where focus cannot move to Continue.
-     */
-    private fun pressTestUntilItRuns() {
-        repeat(TYPE_ATTEMPTS) {
-            press(KeyEvent.KEYCODE_DPAD_CENTER)
-            val ran =
-                runCatching {
-                    compose.waitUntil(TYPE_TIMEOUT_MS) {
-                        isFocused(ServerTags.CONTINUE) ||
-                            compose.onAllNodesWithTag(ServerTags.CANCEL).fetchSemanticsNodes().isNotEmpty()
-                    }
-                }.isSuccess
-            if (ran || !isFocused(ServerTags.TEST)) return
-        }
-    }
-
-    private fun isFocused(tag: String): Boolean = runCatching { compose.onNodeWithTag(tag).assertIsFocused() }.isSuccess
 
     /** Types the address with [typeWhenReady], which waits out a cold emulator's IME. */
     private fun typeIntoField(address: String) = compose.typeWhenReady(ServerTags.FIELD_INPUT, address)
@@ -254,10 +230,7 @@ class SignInNavigationTest {
         compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
-        compose.onNodeWithTag(SignInTags.SIGN_IN).assertIsFocused()
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitForIdle()
+        // Done on the password signs in.
 
         // The library picker asked the server about the session that signed in (the admin flag recorded, not acted on),
         // the session reached the store, and Continue stored the server as the configured one.
@@ -286,7 +259,6 @@ class SignInNavigationTest {
         compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
 
         awaitFocused(LibrariesTags.row("movies"))
         // The same stack however the picker was reached: neither the server screen nor sign-in is left beneath it.
@@ -317,7 +289,6 @@ class SignInNavigationTest {
         compose.typeWhenReady(SignInTags.PASSWORD_INPUT, "dummy-pass-0001")
         compose.onNodeWithTag(SignInTags.PASSWORD_INPUT).performImeAction()
         compose.waitForIdle()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
 
         awaitFocused(LibrariesTags.row("movies"))
         assertHeading("Step 3 of 3", "Choose your libraries")
@@ -353,8 +324,7 @@ class SignInNavigationTest {
         compose.typeWhenReady(ServerTags.FIELD_INPUT, "http://jellyfin.example.test:8096")
         compose.onNodeWithTag(ServerTags.FIELD_INPUT).performImeAction()
         compose.waitForIdle()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        // The cleartext dialog opens on Cancel; Right reaches "Connect anyway".
+        // Go ran Test; the cleartext dialog opens on Cancel; Right reaches "Connect anyway".
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitFocused(ServerTags.CONTINUE)
@@ -421,8 +391,6 @@ class SignInNavigationTest {
 
     private companion object {
         const val BACK_TIMEOUT_MS = 5_000L
-        const val TYPE_ATTEMPTS = 3
-        const val TYPE_TIMEOUT_MS = 2_000L
         const val POLL_MS = 50L
     }
 }
