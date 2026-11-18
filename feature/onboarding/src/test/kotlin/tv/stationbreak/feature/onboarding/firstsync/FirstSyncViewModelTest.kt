@@ -148,6 +148,25 @@ class FirstSyncViewModelTest {
         }
 
     @Test
+    fun anAccountLostDuringTheCheerStillLeavesOnlyOnce() =
+        runTest(dispatcher) {
+            val firstSync = InMemoryFirstSync(running)
+            val vm = FirstSyncViewModel(firstSync)
+            val seen = events(vm)
+            runCurrent()
+            firstSync.current = finished
+            runCurrent()
+
+            // Signed out mid-cheer: the screen is already on its way out, so it leaves once, to live TV.
+            firstSync.current = null
+            runCurrent()
+            advanceTimeBy(CHEER_HOLD_MS * 2)
+            runCurrent()
+
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+        }
+
+    @Test
     fun withNothingToWaitForThereIsNoCheer() =
         runTest(dispatcher) {
             // The account's first sync had ended before the screen opened: it never shows, so nothing to cheer.

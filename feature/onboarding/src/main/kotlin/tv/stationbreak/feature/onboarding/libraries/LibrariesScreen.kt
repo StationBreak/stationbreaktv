@@ -142,7 +142,7 @@ internal fun LibrariesScreen(
 ) {
     val focus = remember { LibrariesFocus() }
     FocusFollowsPhase(state.phase, focus)
-    val justArrived = rememberJustArrived()
+    val justArrived = rememberJustArrived(state.phase)
     SetupScaffold(librariesCue(state.phase, justArrived), modifier) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LibrariesTags.SCREEN)) {
             // A 5% safe area on every side, inside the scroll area.

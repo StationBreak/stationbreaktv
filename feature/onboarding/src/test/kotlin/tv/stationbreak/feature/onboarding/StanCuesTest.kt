@@ -21,7 +21,9 @@ import tv.stationbreak.feature.onboarding.firstsync.firstSyncCue
 import tv.stationbreak.feature.onboarding.launch.LaunchPhase
 import tv.stationbreak.feature.onboarding.launch.launchCovered
 import tv.stationbreak.feature.onboarding.launch.launchCue
+import tv.stationbreak.feature.onboarding.libraries.LIBRARIES_CHEER_MS
 import tv.stationbreak.feature.onboarding.libraries.LibrariesPhase
+import tv.stationbreak.feature.onboarding.libraries.cheeringAt
 import tv.stationbreak.feature.onboarding.libraries.librariesCue
 import tv.stationbreak.feature.onboarding.libraries.signedInCue
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -145,6 +147,15 @@ class StanCuesTest {
             StanCue(StanMood.Idle, R.string.stan_libraries_choosing),
             librariesCue(LibrariesPhase.Choosing, justArrived = false),
         )
+    }
+
+    @Test
+    fun theCheerClockStartsWhenTheListFirstShows() {
+        // Still loading: no list yet, so the cheer has not started, however long it takes.
+        assertFalse(cheeringAt(choosingSince = null, now = 60_000L))
+        assertTrue(cheeringAt(choosingSince = 10_000L, now = 10_000L))
+        assertTrue(cheeringAt(choosingSince = 10_000L, now = 10_000L + LIBRARIES_CHEER_MS - 1))
+        assertFalse(cheeringAt(choosingSince = 10_000L, now = 10_000L + LIBRARIES_CHEER_MS))
     }
 
     @Test

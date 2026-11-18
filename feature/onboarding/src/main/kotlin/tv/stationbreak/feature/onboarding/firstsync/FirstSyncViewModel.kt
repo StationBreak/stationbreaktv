@@ -85,13 +85,25 @@ internal class FirstSyncViewModel
                 wait.value = Wait.None
             }
             when {
-                // Nobody is signed in at the start: nothing to wait for. Nobody after an account was: it was forgotten.
-                status == null -> if (first) finish(cheer = false) else results.send(FirstSyncEvent.SessionLost)
+                // Nobody is signed in at the start: nothing to wait for. Nobody after an account was: it was forgotten,
+                // unless the screen has already finished (the cheer is up): one way out only, and live TV deals with a
+                // lost session as it does for any.
+                status == null -> {
+                    if (first) {
+                        finish(cheer = false)
+                    } else if (!finished) {
+                        results.send(FirstSyncEvent.SessionLost)
+                    }
+                }
 
                 // Ended before the screen saw it run: nothing was shown, so there is nothing to cheer.
-                status.lastSuccess != null -> finish(cheer = !first)
+                status.lastSuccess != null -> {
+                    finish(cheer = !first)
+                }
 
-                status.state is SyncState.NeverSynced || status.state is SyncState.FirstSyncRunning -> ask()
+                status.state is SyncState.NeverSynced || status.state is SyncState.FirstSyncRunning -> {
+                    ask()
+                }
             }
         }
 

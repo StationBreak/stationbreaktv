@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.libraries
 import android.os.SystemClock
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,17 +50,29 @@ internal fun librariesCue(
     }
 
 /**
- * True for the first [LIBRARIES_CHEER_MS] after the picker first opened, then false. The start is saved with the
- * screen, so coming back to the picker (Continue on "Signed in as") or a restore does not cheer again.
+ * Whether the picker still cheers at [now]: for [LIBRARIES_CHEER_MS] from [choosingSince], when its list first showed.
+ * Null (still loading, or nothing to choose from) has not started the clock, so a slow load keeps the whole moment.
+ */
+internal fun cheeringAt(
+    choosingSince: Long?,
+    now: Long,
+): Boolean = choosingSince != null && now - choosingSince < LIBRARIES_CHEER_MS
+
+/**
+ * True for the first [LIBRARIES_CHEER_MS] after [phase] is first [LibrariesPhase.Choosing], then false. That start is
+ * saved with the screen, so coming back to the picker (Continue on "Signed in as") or a restore does not cheer again.
  */
 @Composable
-internal fun rememberJustArrived(): Boolean {
-    val openedAt = rememberSaveable { SystemClock.elapsedRealtime() }
-    var justArrived by remember { mutableStateOf(SystemClock.elapsedRealtime() - openedAt < LIBRARIES_CHEER_MS) }
-    LaunchedEffect(openedAt) {
-        val left = LIBRARIES_CHEER_MS - (SystemClock.elapsedRealtime() - openedAt)
-        if (left > 0) delay(left)
-        justArrived = false
+internal fun rememberJustArrived(phase: LibrariesPhase): Boolean {
+    var saved by rememberSaveable { mutableStateOf<Long?>(null) }
+    // The first frame of the list already counts, so it never shows the plain line for a frame before the cheer.
+    val since = saved ?: SystemClock.elapsedRealtime().takeIf { phase == LibrariesPhase.Choosing }
+    SideEffect { if (saved == null) saved = since }
+    var cheering by remember(since) { mutableStateOf(cheeringAt(since, SystemClock.elapsedRealtime())) }
+    LaunchedEffect(since) {
+        if (since == null) return@LaunchedEffect
+        delay(LIBRARIES_CHEER_MS - (SystemClock.elapsedRealtime() - since))
+        cheering = false
     }
-    return justArrived
+    return cheering
 }
