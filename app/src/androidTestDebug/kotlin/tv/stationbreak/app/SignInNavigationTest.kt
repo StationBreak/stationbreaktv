@@ -5,7 +5,6 @@ import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -204,7 +203,8 @@ class SignInNavigationTest {
         compose.waitForIdle()
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
 
         compose.runOnUiThread { nav.afterSignOut() }
         compose.waitForIdle()
@@ -221,7 +221,8 @@ class SignInNavigationTest {
         launchApp()
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
         compose.onNodeWithTag(SignInTags.NOT_ENCRYPTED).assertDoesNotExist()
     }
 
@@ -230,7 +231,8 @@ class SignInNavigationTest {
         launchApp()
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
 
         press(KeyEvent.KEYCODE_BACK)
 
@@ -247,7 +249,8 @@ class SignInNavigationTest {
         launchApp()
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
         compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
@@ -276,7 +279,8 @@ class SignInNavigationTest {
         launchRestored(navController, ServerRoute())
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
         compose.onNodeWithTag(SignInTags.USERNAME_INPUT).performImeAction()
@@ -305,7 +309,8 @@ class SignInNavigationTest {
 
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
         assertHeading("Step 2 of 3", "Sign in to")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.typeWhenReady(SignInTags.USERNAME_INPUT, "sam")
@@ -329,7 +334,8 @@ class SignInNavigationTest {
         compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
         testAddressAndContinue()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+        // Sign-in opens after a navigation; on a cold emulator its first focus can land after the key returns.
+        awaitFocused(SignInTags.USERNAME)
         compose.onNode(hasText("Step", substring = true)).assertDoesNotExist()
     }
 
