@@ -3,6 +3,7 @@ package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +18,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.stan.StanOpening
 import tv.stationbreak.feature.channels.ui.ChannelPropertiesDestination
 import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
@@ -42,22 +44,46 @@ fun AppNavHost(opening: Boolean = false) = AppNavGraph(LaunchRoute, coldLaunch =
  * The graph, with a start destination and a [navController] a test can choose: starting on [SignInRoute] is what a
  * restored back stack looks like after process death, when the in-memory server hand-off is gone.
  *
- * [coldLaunch] is true on a cold launch only (the first start of the activity, not a restore): launch shows Stan's
- * opening once, over its progress, and no later visit to launch (a lost session) shows it again.
+ * [coldLaunch] is true on a cold launch only (the first start of the activity, not a restore): Stan's opening is
+ * drawn once over the whole graph, hands over to the first real destination (which gets input at once) and dissolves
+ * away over it. It lives here, above the host, so it outlasts the launch screen's replacement; no later visit to
+ * launch (a lost session) shows it again.
  */
-@Suppress("LongMethod") // The graph: one block for each route.
 @Composable
 internal fun AppNavGraph(
     startDestination: Any,
     navController: NavHostController = rememberNavController(),
     coldLaunch: Boolean = false,
 ) {
-    var openingPending by remember { mutableStateOf(coldLaunch) }
+    var opening by remember { mutableStateOf(if (coldLaunch) OpeningPhase.Playing else OpeningPhase.Gone) }
+    var launchReady by remember { mutableStateOf(false) }
+    Box {
+        AppNavHostContent(navController, startDestination, opening == OpeningPhase.Playing) { launchReady = true }
+        if (opening != OpeningPhase.Gone) {
+            StanOpening(
+                appReady = launchReady,
+                onHandOver = { opening = OpeningPhase.Dissolving },
+                onDissolved = { opening = OpeningPhase.Gone },
+            )
+        }
+    }
+}
+
+private enum class OpeningPhase { Playing, Dissolving, Gone }
+
+@Suppress("LongMethod") // The graph: one block for each route.
+@Composable
+private fun AppNavHostContent(
+    navController: NavHostController,
+    startDestination: Any,
+    openingPlaying: Boolean,
+    onLaunchReady: () -> Unit,
+) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable<LaunchRoute> {
             LaunchDestination(
-                opening = openingPending,
-                onOpeningShown = { openingPending = false },
+                openingPlaying = openingPlaying,
+                onReady = onLaunchReady,
                 // Nothing stored: Welcome, with nothing beneath it, so Back exits.
                 onWelcome = { navController.replaceAll(WelcomeRoute) },
                 // A stored http address to confirm again: the server screen, outside the first-run flow (no markers).

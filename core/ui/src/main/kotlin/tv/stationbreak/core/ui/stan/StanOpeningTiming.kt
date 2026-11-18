@@ -7,6 +7,11 @@ import kotlin.math.min
 /** How long the opening screen stays with reduced motion: the still frame, then on as soon as the app is ready. */
 internal const val OPENING_REDUCED_DWELL_SECONDS = 1.0
 
+/** How long the opening fades out over the next screen once it has handed over (none with reduced motion). */
+internal const val OPENING_DISSOLVE_MILLIS = 300
+
+internal fun openingDissolveMillis(reducedMotion: Boolean): Int = if (reducedMotion) 0 else OPENING_DISSOLVE_MILLIS
+
 /**
  * The seconds at which a ready app leaves the opening: the moment the name is fully in ([OPENING_TITLE_IN], from the
  * scene's own title ramps), and never later than the scene's run ([StanScene.runSeconds]). With reduced motion there

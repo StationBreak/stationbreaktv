@@ -74,4 +74,12 @@ class StanOpeningTimingTest {
         assertNotNull(StanScene.Opening.frame(STILL_FRAME_SECONDS))
         assertEquals(1.0, StanScene.Opening.frame(STILL_FRAME_SECONDS).fade, 0.0)
     }
+
+    @Test
+    fun theHandoverDissolvesForAThirdOfASecondAndNotWithReducedMotion() {
+        assertEquals(300, openingDissolveMillis(reducedMotion = false))
+        assertEquals(0, openingDissolveMillis(reducedMotion = true))
+        // It adds nothing to the wait for the name: the dissolve starts as the destination is handed the app.
+        assertEquals(0.0, openingRemainingSeconds(openingDwellSeconds(false), true, false, false)!!, 0.0)
+    }
 }

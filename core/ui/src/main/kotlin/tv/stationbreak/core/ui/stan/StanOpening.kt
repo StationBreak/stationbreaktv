@@ -4,6 +4,9 @@
 package tv.stationbreak.core.ui.stan
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -62,9 +66,10 @@ private val MinTextSize = 10.sp
 
 /**
  * The opening screen: Stan dozing, waking, standing and waving as the name comes in ([StanScene.Opening]), drawn on
- * the stage with the title and tagline as real text over it. It dissolves with the scene's own fade.
+ * the stage with the title and tagline as real text over it. Draw it over the screen that follows: it dissolves away
+ * from the top of it.
  *
- * It calls [onFinished] once, and the caller then shows what comes next:
+ * It calls [onHandOver] once, and the caller then shows (and gives input to) what comes next:
  * - when [appReady] and the name has been fully in ([OPENING_TITLE_IN] seconds into the scene), never later, so a
  *   ready app is never held for longer than that; an app that is late leaves the moment it is ready, and until then
  *   the scene keeps looping;
@@ -73,43 +78,62 @@ private val MinTextSize = 10.sp
  * - with reduced motion ("Remove animations"), the still frame, [OPENING_REDUCED_DWELL_SECONDS] after it appeared,
  *   or when the app is ready if later.
  *
+ * From the hand-over the opening takes no key and gives its focus up, so input is the next screen's at once, and
+ * it fades its layer out over [OPENING_DISSOLVE_MILLIS] (none with reduced motion), then calls [onDissolved]: the
+ * caller removes it from composition. The fade is one animated layer alpha, with no recomposition per frame.
+ *
  * Accessibility: one polite live region says "Station Break", once; the drawn pieces are hidden from the screen
- * reader. Focus is only taken to see the keys, and goes with this screen.
+ * reader.
  */
 @Composable
 fun StanOpening(
     appReady: Boolean,
-    onFinished: () -> Unit,
+    onHandOver: () -> Unit,
+    onDissolved: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reduced = LocalMotionReduced.current
     val frame = rememberStanFrame(StanScene.Opening)
     val startedAt = remember { System.nanoTime() }
     var skipped by remember { mutableStateOf(false) }
-    val finished = rememberUpdatedState(onFinished)
+    var leaving by remember { mutableStateOf(false) }
+    val handOver = rememberUpdatedState(onHandOver)
+    val dissolved = rememberUpdatedState(onDissolved)
     val focus = remember { FocusRequester() }
+    val alpha = remember { Animatable(1f) }
 
     LaunchedEffect(appReady, reduced, skipped) {
         val elapsed = (System.nanoTime() - startedAt) / NANOS_PER_SECOND
         val remaining = openingRemainingSeconds(elapsed, appReady, reduced, skipped)
         if (remaining != null) {
             delay((remaining * MILLIS_PER_SECOND).toLong())
-            finished.value()
+            leaving = true
+            handOver.value()
+            val millis = openingDissolveMillis(reduced)
+            if (millis > 0) alpha.animateTo(0f, tween(millis, easing = LinearEasing))
+            dissolved.value()
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    BackHandler { skipped = true }
+    BackHandler(enabled = !leaving) { skipped = true }
 
     val announcement = stringResource(R.string.stan_opening_announcement)
     Box(
         modifier
             .fillMaxSize()
-            .focusRequester(focus)
-            .onPreviewKeyEvent {
-                if (it.type == KeyEventType.KeyDown) skipped = true
-                true
-            }.focusable()
-            .clearAndSetSemantics {
+            .graphicsLayer { this.alpha = alpha.value }
+            .then(
+                if (leaving) {
+                    Modifier
+                } else {
+                    Modifier
+                        .focusRequester(focus)
+                        .onPreviewKeyEvent {
+                            if (it.type == KeyEventType.KeyDown) skipped = true
+                            true
+                        }.focusable()
+                },
+            ).clearAndSetSemantics {
                 liveRegion = LiveRegionMode.Polite
                 contentDescription = announcement
             },
