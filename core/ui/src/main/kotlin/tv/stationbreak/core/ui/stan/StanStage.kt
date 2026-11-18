@@ -14,8 +14,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -23,6 +27,8 @@ import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.isActive
 import tv.stationbreak.core.ui.LocalMotionReduced
 import kotlin.math.roundToInt
+
+private const val NANOS_PER_FRAME_NUMERATOR = 1_000_000_000L
 
 /**
  * The clock of a Stan scene: the current [StanFrame] of [scene], one new frame per display frame for as long as this is
@@ -37,28 +43,63 @@ import kotlin.math.roundToInt
  *   set, that time is used instead.
  * - **Reduced motion:** when the TV's "Remove animations" is on ([LocalMotionReduced]), nothing runs: the frame at
  *   t = 3 s (the study does the same), whatever [timeSeconds] says.
- * - **Cost:** the frame is built once per tick, however many places read it.
+ * - **Cost:** the frame is built once per tick, however many places read it. [maxFps], when set, caps the ticks (a
+ *   slow scene on a weak device does not need every display frame): the clock still wakes with each display frame but
+ *   only a tick at least `1/maxFps` s after the last one is published, so nothing is drawn or built in between.
  */
 @Composable
 fun rememberStanFrame(
     scene: StanScene,
     timeSeconds: Double? = null,
+    maxFps: Int? = null,
 ): State<StanFrame> {
     val reduced = LocalMotionReduced.current
     val clock = remember(scene) { mutableLongStateOf(0L) }
     val explicit = rememberUpdatedState(timeSeconds)
     val animate = timeSeconds == null && !reduced
-    LaunchedEffect(clock, animate) {
+    LaunchedEffect(clock, animate, maxFps) {
         if (animate) {
             clock.longValue = 0L
             // The infinite-animation clock, as Snow uses: a Compose test can still go idle while Stan moves.
             val start = withInfiniteAnimationFrameNanos { it }
-            while (isActive) withInfiniteAnimationFrameNanos { clock.longValue = it - start }
+            val gap = if (maxFps == null) 0L else NANOS_PER_FRAME_NUMERATOR / maxFps.coerceAtLeast(1)
+            var last = Long.MIN_VALUE
+            while (isActive) {
+                withInfiniteAnimationFrameNanos {
+                    if (last == Long.MIN_VALUE || it - last >= gap) {
+                        last = it
+                        clock.longValue = it - start
+                    }
+                }
+            }
         }
     }
     return remember(scene, reduced) {
         derivedStateOf { scene.frame(stanTimeSeconds(explicit.value, reduced, clock.longValue)) }
     }
+}
+
+/**
+ * What draws Stan: his painter, with the parsed paths, strokes and measured glyphs it keeps. Make one with
+ * [rememberStanRenderer] where it will outlive the stages (a screen that shows Stan on and off), and hand it to each
+ * stage, so a stage coming back does not parse and measure again. It is made lazily, on the first frame drawn.
+ */
+class StanRenderer internal constructor(
+    palette: StanPalette,
+    density: Density,
+    measurer: TextMeasurer,
+) {
+    internal val painter: StanPainter by lazy {
+        StanPainter(palette, StanGround(palette), StanGlyphs(measurer, density))
+    }
+}
+
+/** A [StanRenderer] for [palette], kept for as long as this is composed. */
+@Composable
+fun rememberStanRenderer(palette: StanPalette = StanPalette.Dark): StanRenderer {
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    return remember(palette, density, measurer) { StanRenderer(palette, density, measurer) }
 }
 
 /**
@@ -85,7 +126,8 @@ fun StanStage(
  * semantics from outside if a screen wants Stan described.
  *
  * [palette]: [StanPalette.Dark] (the default) is the warm ink ground with cream Stan; [StanPalette.Paper] is the light
- * mode, ink and cream traded, on the paper ground.
+ * mode, ink and cream traded, on the paper ground. [renderer] must be for the same palette; the default is made here
+ * and lives and dies with the stage.
  *
  * Cost, for a 1.5 GB Fire TV: a frame is about 60 small shape objects plus some path strings (the ones with a moving
  * number in them), built by the scene function, and drawn straight to the canvas. The path strings are parsed once and
@@ -98,13 +140,9 @@ fun StanStage(
     frame: State<StanFrame>,
     modifier: Modifier = Modifier,
     palette: StanPalette = StanPalette.Dark,
+    renderer: StanRenderer = rememberStanRenderer(palette),
 ) {
-    val density = LocalDensity.current
-    val measurer = rememberTextMeasurer()
-    val painter =
-        remember(palette, density, measurer) {
-            StanPainter(palette, StanGround(palette), StanGlyphs(measurer, density))
-        }
+    val painter = renderer.painter
     // Only changes when the scene's ground does, so the cache below is rebuilt on a resize or a new ground, not a tick.
     val ground = remember(frame) { derivedStateOf { frame.value.bg } }
     Spacer(
@@ -150,11 +188,12 @@ fun StanStageLayout(
     frame: State<StanFrame>,
     modifier: Modifier = Modifier,
     palette: StanPalette = StanPalette.Dark,
+    renderer: StanRenderer = rememberStanRenderer(palette),
     content: @Composable StanStageScope.() -> Unit,
 ) {
     val density = LocalDensity.current
     BoxWithConstraints(modifier) {
-        StanStage(frame, Modifier.matchParentSize(), palette)
+        StanStage(frame, Modifier.matchParentSize(), palette, renderer)
         if (constraints.hasBoundedWidth && constraints.hasBoundedHeight) {
             val scope =
                 remember(constraints.maxWidth, constraints.maxHeight, density) {
@@ -177,6 +216,26 @@ class StanStageScope internal constructor(
         x: Double,
         y: Double,
     ): Modifier = offset { IntOffset(transform.x(x).roundToInt(), transform.y(y).roundToInt()) }
+
+    /**
+     * Puts the first text baseline of this element at the stage y [y] and its left edge at the stage x [x] (its right
+     * edge, with [alignEnd]), measured no wider than [width] stage units when given: the study gives baselines, not
+     * tops. The element takes the layout's whole size and places its content, so it can be used on a `Text` directly.
+     */
+    fun Modifier.atStageBaseline(
+        x: Double,
+        y: Double,
+        width: Double? = null,
+        alignEnd: Boolean = false,
+    ): Modifier =
+        layout { measurable, constraints ->
+            val limit = width?.let { transform.length(it).roundToInt().coerceAtLeast(0) } ?: constraints.maxWidth
+            val placeable = measurable.measure(Constraints(maxWidth = limit))
+            val edge = transform.x(x).roundToInt()
+            val left = if (alignEnd) edge - placeable.width else edge
+            val top = transform.y(y).roundToInt() - placeable[FirstBaseline]
+            layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(left, top) }
+        }
 
     /** A stage length as [Dp]. */
     fun stageDp(length: Double): Dp = with(density) { transform.length(length).toDp() }

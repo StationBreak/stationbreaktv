@@ -6,7 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 
 class GuideSettingsKeysTest {
@@ -82,8 +82,14 @@ class GuideSettingsKeysTest {
     @Test
     fun channelChange_leftPicksStan_rightPicksSnow_selectClosesKeepingThePick_andNothingElsePicksIt() {
         val onChange = SettingsPanel(SettingsRow.ChannelChange)
-        assertEquals(SettingsStep(onChange, channelChange = ChannelChange.Stan), onChange.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(onChange, channelChange = ChannelChange.Snow), onChange.press(Key.DirectionRight))
+        assertEquals(
+            SettingsStep(onChange, channelChange = ChannelChangeStyle.Stan, channelChangeFrom = "settingsLeft"),
+            onChange.press(Key.DirectionLeft),
+        )
+        assertEquals(
+            SettingsStep(onChange, channelChange = ChannelChangeStyle.Snow, channelChangeFrom = "settingsRight"),
+            onChange.press(Key.DirectionRight),
+        )
         assertEquals(SettingsStep(null), onChange.press(Key.DirectionCenter))
         assertEquals(SettingsStep(onChange), onChange.press(Key.DirectionCenter, repeat = 1))
         assertNull(SettingsPanel(SettingsRow.VolumeLevelling).press(Key.DirectionRight).channelChange)

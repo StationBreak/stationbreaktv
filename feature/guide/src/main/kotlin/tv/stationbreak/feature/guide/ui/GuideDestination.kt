@@ -36,7 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.ScreenFit
@@ -91,7 +91,7 @@ fun GuideDestination(
     val levelling by levellings.enabled.collectAsStateWithLifecycle()
     // What live TV shows while the channel changes: the guide only sets it.
     val changes = rememberChannelChangeStore()
-    val channelChange by changes.change.collectAsStateWithLifecycle()
+    val channelChange by changes.style.collectAsStateWithLifecycle()
     CompositionLocalProvider(
         LocalGuideColors provides theme.colors,
         LocalPanelColors provides theme.colors.panel,
@@ -113,7 +113,7 @@ fun GuideDestination(
             levelling = levelling,
             onLevelling = { enabled, from -> levellings.choose(enabled, from) },
             channelChange = channelChange,
-            onChannelChange = changes::choose,
+            onChannelChange = { style, from -> changes.choose(style, from) },
         )
     }
 }
@@ -177,8 +177,8 @@ internal fun GuideRoot(
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
     levelling: Boolean = true,
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
-    channelChange: ChannelChange = ChannelChange.Stan,
-    onChannelChange: (ChannelChange) -> Unit = {},
+    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
+    onChannelChange: (ChannelChangeStyle, String) -> Unit = { _, _ -> },
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -324,7 +324,9 @@ internal fun GuideRoot(
                                 step.levelling?.let { next ->
                                     chooseLevelling.value(next, step.levellingFrom.orEmpty())
                                 }
-                                step.channelChange?.let { next -> chooseChannelChange.value(next) }
+                                step.channelChange?.let { next ->
+                                    chooseChannelChange.value(next, step.channelChangeFrom.orEmpty())
+                                }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
                             },

@@ -26,7 +26,7 @@ import tv.stationbreak.core.playback.Route
 import tv.stationbreak.core.playback.SourceFacts
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.VideoFacts
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
@@ -76,7 +76,7 @@ class LiveScreenTest {
 
     private fun show(
         state: LiveState,
-        change: ChannelChange = ChannelChange.Stan,
+        change: ChannelChangeStyle = ChannelChangeStyle.Stan,
     ) {
         compose.setContent { StationBreakTheme { LiveScreen(state, changeStyle = change) {} } }
         compose.waitForIdle()
@@ -97,7 +97,7 @@ class LiveScreenTest {
 
     @Test
     fun tuningShowsSnowAndBannerWhenTheViewerChoseSnow() {
-        show(LiveState.Tuning(banner(BannerLabel.TuningIn)), ChannelChange.Snow)
+        show(LiveState.Tuning(banner(BannerLabel.TuningIn)), ChannelChangeStyle.Snow)
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STANDBY).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
@@ -260,7 +260,7 @@ class LiveScreenTest {
     @Test
     fun anIdentWithoutAnUpNextStillNamesTheChannel() {
         show(LiveState.Ident(null, ChannelTag(7, "Laughs")))
-        compose.onNodeWithTag(LiveTags.IDENT).assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_OFF_AIR).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
         compose.onNodeWithText("Laughs").assertExists()
         compose.onNodeWithText("07").assertExists()
@@ -280,7 +280,7 @@ class LiveScreenTest {
     fun identShowsStansOffAirScreenWithUpNext() {
         show(LiveState.Ident(banner(BannerLabel.UpNext, joinedMs = null)))
         compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.IDENT).assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_OFF_AIR).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("OFF THE AIR")
         compose.onNodeWithText("UP NEXT").assertExists()
         compose.onNodeWithTag(LiveTags.DIFFICULTIES).assertDoesNotExist()
@@ -322,7 +322,7 @@ class LiveScreenTest {
 
     @Test
     fun choosingOverSnowShowsSnowAndTheBanner() {
-        show(LiveState.Choosing(ChannelTag(12, "Westerns"), overPicture = false), ChannelChange.Snow)
+        show(LiveState.Choosing(ChannelTag(12, "Westerns"), overPicture = false), ChannelChangeStyle.Snow)
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_CHOOSING).assertExists()
         compose.onNodeWithText("12").assertExists()

@@ -10,18 +10,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.guide.GuideDirection
 import tv.stationbreak.feature.guide.R
 
+/** The log name of the path that picked [direction] on the row: Left saves Stan, Right saves Snow. */
+internal fun SettingsPanel.channelChangeSourceFor(direction: GuideDirection): String? =
+    when {
+        channelChangeFor(direction) == null -> null
+        direction == GuideDirection.Left -> "settingsLeft"
+        else -> "settingsRight"
+    }
+
 // On Changing channel, Left picks Stan and Right picks Snow; nothing else picks one.
-internal fun SettingsPanel.channelChangeFor(direction: GuideDirection): ChannelChange? =
+internal fun SettingsPanel.channelChangeFor(direction: GuideDirection): ChannelChangeStyle? =
     when {
         row != SettingsRow.ChannelChange -> null
-        direction == GuideDirection.Left -> ChannelChange.Stan
-        direction == GuideDirection.Right -> ChannelChange.Snow
+        direction == GuideDirection.Left -> ChannelChangeStyle.Stan
+        direction == GuideDirection.Right -> ChannelChangeStyle.Snow
         else -> null
     }
 
@@ -29,7 +37,7 @@ internal fun SettingsPanel.channelChangeFor(direction: GuideDirection): ChannelC
 // has the D-pad.
 @Composable
 internal fun ChannelChangeRow(
-    change: ChannelChange,
+    change: ChannelChangeStyle,
     focused: Boolean,
 ) {
     val colors = LocalGuideColors.current
@@ -40,8 +48,8 @@ internal fun ChannelChangeRow(
             color = if (focused) colors.textPrimary else colors.textSecondary,
             maxLines = 1,
         )
-        val stan = change == ChannelChange.Stan
-        val snow = change == ChannelChange.Snow
+        val stan = change == ChannelChangeStyle.Stan
+        val snow = change == ChannelChangeStyle.Snow
         PanelTab(
             R.string.guide_channel_change_stan,
             GuideTags.CHANNEL_CHANGE_STAN,

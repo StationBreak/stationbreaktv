@@ -49,47 +49,9 @@ private const val NOTE_LINE_HEIGHT = 1.2f
 /** The project's text floor: the note is the only instruction on the no-libraries slate, so it never goes below it. */
 private val NOTE_FLOOR = 10.sp
 
-/**
- * Stan's screen for a show that is missing or will not play ("Technical difficulties"), with the "Up next" banner when
- * known. [full] is false in the guide's corner, which has no sign-off or clock.
- */
-@Composable
-internal fun DifficultiesSlate(
-    upNext: Banner?,
-    channel: ChannelTag?,
-    nowMs: () -> Long,
-    full: Boolean = true,
-) {
-    Box(Modifier.fillMaxSize()) {
-        StanScreen(difficultiesSpec(), nowMs, full = full)
-        CardBanner(upNext, channel)
-    }
-}
-
-/**
- * Stan's off-air screen, for a gap in the schedule or a show that ended early (and the cards of [note]), with the "Up
- * next" banner when known. F3.1's bumpers replace it later.
- */
-@Composable
-internal fun IdentSlate(
-    upNext: Banner?,
-    channel: ChannelTag?,
-    nowMs: () -> Long,
-    note: CardNote? = null,
-    full: Boolean = true,
-) {
-    val context = LocalContext.current
-    val format = remember(context) { DateFormat.getTimeFormat(context) }
-    val spec = remember(upNext, note, format) { offAirSpec(upNext, note) { format.format(Date(it)) } }
-    Box(Modifier.fillMaxSize()) {
-        StanScreen(spec, nowMs, full = full)
-        CardBanner(upNext, channel)
-    }
-}
-
 /** The "up next" banner when known, else the channel's own strip (design: "the card shows the channel only"). */
 @Composable
-private fun CardBanner(
+internal fun CardBanner(
     upNext: Banner?,
     channel: ChannelTag?,
 ) {

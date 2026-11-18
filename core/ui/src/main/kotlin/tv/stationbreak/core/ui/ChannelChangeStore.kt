@@ -2,6 +2,7 @@
 package tv.stationbreak.core.ui
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -12,39 +13,65 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
 
 /** What live TV shows while the channel changes: Stan on his standby screen (the default), or the old snow. */
-enum class ChannelChange {
+enum class ChannelChangeStyle {
     Stan,
     Snow,
     ;
 
     companion object {
-        /** Stan unless the stored value is Snow: a missing or unknown value is the default. */
-        fun decode(stored: String?): ChannelChange = if (stored == encode(Snow)) Snow else Stan
+        // The stored words are literals of their own: renaming a constant must not change what is on a TV's disk.
+        private const val STORED_STAN = "stan"
+        private const val STORED_SNOW = "snow"
 
-        fun encode(change: ChannelChange): String = change.name
+        /** Stan unless the stored value is Snow: a missing or unknown value is the default. */
+        fun decode(stored: String?): ChannelChangeStyle = if (stored == STORED_SNOW) Snow else Stan
+
+        fun encode(style: ChannelChangeStyle): String =
+            when (style) {
+                Stan -> STORED_STAN
+                Snow -> STORED_SNOW
+            }
     }
 }
 
-/** The viewer's saved [ChannelChange], on this TV only. */
+/** The viewer's saved [ChannelChangeStyle], on this TV only. */
 interface ChannelChangeStore {
-    val change: StateFlow<ChannelChange>
+    val style: StateFlow<ChannelChangeStyle>
 
-    fun choose(change: ChannelChange)
+    /** Saves the choice; [from] names the path that made it (a short word such as `settingsLeft`), for the log. */
+    fun choose(
+        style: ChannelChangeStyle,
+        from: String,
+    )
 }
 
 /** A preference file of its own, next to the screen fit one. */
 internal class DataStoreChannelChangeStore(
     data: DataStore<Preferences>,
     scope: CoroutineScope,
+    private val log: (String) -> Unit = { Log.i(TAG, it) },
 ) : ChannelChangeStore {
-    private val preference = ViewerPreference(data, KEY, ChannelChange::decode, ChannelChange::encode, scope)
+    private val preference =
+        ViewerPreference(data, KEY, ChannelChangeStyle::decode, ChannelChangeStyle::encode, scope)
 
-    override val change: StateFlow<ChannelChange> = preference.value
+    init {
+        log("channel change store read style=${preference.value.value} stored=${preference.stored ?: "absent"}")
+    }
 
-    override fun choose(change: ChannelChange) = preference.choose(change)
+    override val style: StateFlow<ChannelChangeStyle> = preference.value
+
+    // Always logged, as the levelling store's are: only the viewer's own setting and its source.
+    override fun choose(
+        style: ChannelChangeStyle,
+        from: String,
+    ) {
+        log("channel change choose style=$style was=${preference.value.value} from=$from")
+        preference.choose(style)
+    }
 
     private companion object {
-        val KEY = stringPreferencesKey("change")
+        const val TAG = "SBLIVE"
+        val KEY = stringPreferencesKey("style")
     }
 }
 

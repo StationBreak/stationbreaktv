@@ -50,6 +50,7 @@ import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.SwitchCost
 import tv.stationbreak.core.playback.VideoFacts
+import tv.stationbreak.core.ui.ChannelChangeStyle.Stan
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.core.ui.mark.MarkCaches
@@ -210,7 +211,7 @@ class LiveScreenshotTest {
         compose.setContent {
             StationBreakTheme {
                 Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp)) {
-                    LiveScreen(state = state, transport = transport, nowMs = { now }) { Backdrop() }
+                    LiveScreen(state = state, transport = transport, nowMs = { now }, changeStyle = Stan) { Backdrop() }
                 }
             }
         }
@@ -238,6 +239,7 @@ class LiveScreenshotTest {
                     LiveScreen(
                         state = state,
                         nowMs = { now },
+                        changeStyle = Stan,
                         guide = { hole -> GuideStandIn(hole, colors.page) },
                         pictureLabel = title?.let { PictureLabel(162, "Date Night", MARK_KEY, lead, it) },
                     ) { BrightPicture() }

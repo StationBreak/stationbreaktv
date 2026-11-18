@@ -17,9 +17,6 @@ object BroadcastColors {
 
     /** Banner text on [Ink]. */
     val Cream = BrandColors.Cream
-
-    /** A station screen's detail line on [Ink]. */
-    val Grey = BrandColors.Grey
 }
 
 /**

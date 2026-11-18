@@ -13,33 +13,46 @@ import org.junit.rules.TemporaryFolder
 class ChannelChangeStoreTest {
     @get:Rule val folder = TemporaryFolder()
     private val files by lazy { PreferenceFiles(folder.root) }
-    private val key = stringPreferencesKey("change")
+    private val key = stringPreferencesKey("style")
+    private val lines = mutableListOf<String>()
 
     @After fun close() = files.close()
 
+    private fun store(data: androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences>) =
+        DataStoreChannelChangeStore(data, files.writes) { lines += it }
+
     @Test
     fun aMissingValueIsStan() {
-        assertEquals(ChannelChange.Stan, DataStoreChannelChangeStore(files.data, files.writes).change.value)
+        assertEquals(ChannelChangeStyle.Stan, store(files.data).style.value)
+        assertEquals(listOf("channel change store read style=Stan stored=absent"), lines)
     }
 
     @Test
     fun anUnknownStoredValueIsStan() {
-        runBlocking { files.data.edit { it[key] = "Static" } }
-        assertEquals(ChannelChange.Stan, DataStoreChannelChangeStore(files.reopen(), files.writes).change.value)
+        runBlocking { files.data.edit { it[key] = "static" } }
+        assertEquals(ChannelChangeStyle.Stan, store(files.reopen()).style.value)
     }
 
     @Test
     fun aStoredSnowIsRead() {
-        runBlocking { files.data.edit { it[key] = "Snow" } }
-        assertEquals(ChannelChange.Snow, DataStoreChannelChangeStore(files.reopen(), files.writes).change.value)
+        runBlocking { files.data.edit { it[key] = "snow" } }
+        assertEquals(ChannelChangeStyle.Snow, store(files.reopen()).style.value)
+        assertEquals(listOf("channel change store read style=Snow stored=snow"), lines)
     }
 
     @Test
-    fun aChoiceShowsAtOnceAndTheNextReadSeesIt() {
-        val store = DataStoreChannelChangeStore(files.data, files.writes)
-        store.choose(ChannelChange.Snow)
-        assertEquals(ChannelChange.Snow, store.change.value)
-        files.awaitStored(key, "Snow")
-        assertEquals(ChannelChange.Snow, DataStoreChannelChangeStore(files.reopen(), files.writes).change.value)
+    fun theStoredWordsAreFixedLiteralsNotConstantNames() {
+        assertEquals("stan", ChannelChangeStyle.encode(ChannelChangeStyle.Stan))
+        assertEquals("snow", ChannelChangeStyle.encode(ChannelChangeStyle.Snow))
+    }
+
+    @Test
+    fun aChoiceShowsAtOnceIsLoggedAndTheNextReadSeesIt() {
+        val first = store(files.data)
+        first.choose(ChannelChangeStyle.Snow, "settingsRight")
+        assertEquals(ChannelChangeStyle.Snow, first.style.value)
+        files.awaitStored(key, "snow")
+        assertEquals(ChannelChangeStyle.Snow, store(files.reopen()).style.value)
+        assertEquals("channel change choose style=Snow was=Stan from=settingsRight", lines[1])
     }
 }

@@ -34,6 +34,7 @@ import tv.stationbreak.core.playback.SubtitleFacts
 import tv.stationbreak.core.playback.SubtitleForm
 import tv.stationbreak.core.playback.SwitchCost
 import tv.stationbreak.core.playback.VideoFacts
+import tv.stationbreak.core.ui.ChannelChangeStyle.Stan
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
@@ -76,7 +77,7 @@ class LiveBannerOverflowTest {
     )
 
     private fun show(state: LiveState) {
-        compose.setContent { StationBreakTheme { LiveScreen(state) {} } }
+        compose.setContent { StationBreakTheme { LiveScreen(state, changeStyle = Stan) {} } }
         compose.waitForIdle()
     }
 
@@ -202,7 +203,7 @@ class LiveBannerOverflowTest {
     @Test
     fun theChipsRowAfterAFailedSwitchFitsAtTheSafeScreenFitWithLiveAndTheLongestVersion() {
         val state = LiveState.Watching(failedChipBanner())
-        compose.setContent { StationBreakTheme { LiveScreen(state, transport = behindView()) {} } }
+        compose.setContent { StationBreakTheme { LiveScreen(state, transport = behindView(), changeStyle = Stan) {} } }
         compose.waitForIdle()
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
         for (tag in WIDE_ROW) assertInside(tag)

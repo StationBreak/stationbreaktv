@@ -31,6 +31,7 @@
     <string name="live_stan_spoken_offair_next">Off the air. Back with the next programme.</string>
     <string name="live_stan_spoken_offair_returns">Off the air. %1$s returns at %2$s.</string>
     <string name="live_stan_spoken_offair_now_on">%1$s is off the air. Now on %2$d.</string>
+    <string name="live_stan_spoken_trouble_status">Technical difficulties.</string>
     <string name="live_stan_spoken_trouble">Technical difficulties. We\'ll be right back.</string>
 
     <string name="live_no_channels">No channels on the air yet</string>

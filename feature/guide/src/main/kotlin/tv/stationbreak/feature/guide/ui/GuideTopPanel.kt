@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.GuideSnapshot
@@ -62,7 +62,7 @@ internal class TopPanelParts(
     val fit: ScreenFit,
     val syncNow: SyncNowState,
     val levelling: Boolean = true,
-    val channelChange: ChannelChange = ChannelChange.Stan,
+    val channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     val channelBox: ChannelBoxReaders = ChannelBoxReaders(),
 )
 

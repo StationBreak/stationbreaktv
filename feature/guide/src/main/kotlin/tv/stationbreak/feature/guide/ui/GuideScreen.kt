@@ -61,7 +61,7 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
@@ -189,7 +189,7 @@ internal fun GuideScreen(
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
-    channelChange: ChannelChange = ChannelChange.Stan,
+    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     channelBox: ChannelBoxReaders = ChannelBoxReaders(),
     onNarrowBreakBelow: (Long) -> Unit = {},
     firstVisitNote: Boolean = false,

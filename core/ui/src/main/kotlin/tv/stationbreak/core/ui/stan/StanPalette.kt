@@ -12,9 +12,10 @@ import tv.stationbreak.core.ui.BrandColors
  */
 @Suppress("LongParameterList") // One field per colour role of a ground; each ground is one value of the enum.
 enum class StanPalette(
-    internal val cream: Color,
+    /** The text colours of this ground: Stan's cream, the grey of a detail line, and the accent of a status. */
+    val cream: Color,
     internal val ink: Color,
-    internal val grey: Color,
+    val grey: Color,
     /** The ground at its lift (the middle) and at its edge. */
     internal val groundLift: Color,
     internal val groundEdge: Color,
@@ -47,6 +48,9 @@ enum class StanPalette(
         shadowAlpha = .13f,
     ),
     ;
+
+    /** The orange of Stan's details and of a status line; the same on every ground. */
+    val accent: Color get() = BrandColors.Orange
 
     /** The colour of a token on this ground. */
     internal fun color(token: StanColor): Color =

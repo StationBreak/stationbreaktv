@@ -42,6 +42,7 @@ object LiveTags {
 
     /** Stan's station screens: standby while a channel tunes (the difficulties and ident roots are tagged below). */
     const val STAN_STANDBY = "live:stan:standby"
+    const val STAN_OFF_AIR = "live:stan:offAir"
     const val STAN_STAGE = "live:stan:stage"
     const val STAN_HEADLINE = "live:stan:headline"
     const val STAN_STATUS = "live:stan:status"

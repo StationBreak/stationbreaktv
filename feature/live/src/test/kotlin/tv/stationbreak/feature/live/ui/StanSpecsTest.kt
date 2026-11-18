@@ -7,7 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.stan.StanScene
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
@@ -28,8 +28,9 @@ class StanSpecsTest {
 
     private fun spec(
         state: LiveState,
-        change: ChannelChange = ChannelChange.Stan,
-    ) = stanSpecOf(state, change, time)
+        change: ChannelChangeStyle = ChannelChangeStyle.Stan,
+        withBanner: Boolean = true,
+    ) = stanSpecOf(state, change, withBanner, time)
 
     @Test
     fun tuningIsTheStandbyScreenWithTheChannelAndTheProgramme() {
@@ -72,7 +73,8 @@ class StanSpecsTest {
         assertEquals(Phrase(R.string.live_stan_trouble_headline), spec.headline)
         assertEquals(Phrase(R.string.live_stan_trouble_status), spec.status)
         assertEquals(Phrase(R.string.live_stan_trouble_detail), spec.detail)
-        assertEquals(Phrase(R.string.live_stan_spoken_trouble), spec.spoken)
+        // With the up-next banner over it, Stan says only the plain status.
+        assertEquals(Phrase(R.string.live_stan_spoken_trouble_status), spec.spoken)
         assertEquals(LiveTags.DIFFICULTIES, spec.tag)
     }
 
@@ -83,9 +85,21 @@ class StanSpecsTest {
         assertEquals(Phrase(R.string.live_stan_offair_headline), spec.headline)
         assertEquals(Phrase(R.string.live_stan_offair_status), spec.status)
         assertEquals(Phrase(R.string.live_stan_offair_returns, listOf("Test Channel", "t1000")), spec.detail)
-        assertEquals(Phrase(R.string.live_stan_spoken_offair_returns, listOf("Test Channel", "t1000")), spec.spoken)
-        assertEquals(LiveTags.IDENT, spec.tag)
-        assertEquals(LiveTags.STAN_DETAIL, spec.detailTag)
+        // The banner over the screen says the rest, so Stan says only the plain status.
+        assertEquals(Phrase(R.string.live_stan_spoken_offair), spec.spoken)
+        assertEquals(LiveTags.STAN_OFF_AIR, spec.tag)
+    }
+
+    @Test
+    fun withNoBannerStanSpeaksTheWholeLine() {
+        // In the guide's corner no banner is drawn, so the plain status is followed by what the banner would say.
+        val trouble = checkNotNull(spec(LiveState.TechnicalDifficulties(banner()), withBanner = false))
+        assertEquals(Phrase(R.string.live_stan_spoken_trouble), trouble.spoken)
+        val returns = checkNotNull(spec(LiveState.Ident(banner(), ChannelTag(7, "Test Channel")), withBanner = false))
+        assertEquals(Phrase(R.string.live_stan_spoken_offair_returns, listOf("Test Channel", "t1000")), returns.spoken)
+        // And a card with no banner at all speaks the whole line even on the full screen.
+        val bare = checkNotNull(spec(LiveState.TechnicalDifficulties(null)))
+        assertEquals(Phrase(R.string.live_stan_spoken_trouble), bare.spoken)
     }
 
     @Test
@@ -100,7 +114,6 @@ class StanSpecsTest {
         val spec = checkNotNull(spec(LiveState.Ident(null, null, CardNote.NotInLibrary)))
         assertEquals(Phrase(R.string.live_stan_offair_next), spec.detail)
         assertEquals(Phrase(R.string.live_stan_spoken_offair_next), spec.spoken)
-        assertEquals(LiveTags.IDENT_NOTE, spec.detailTag)
     }
 
     @Test
@@ -108,7 +121,6 @@ class StanSpecsTest {
         val spec = checkNotNull(spec(LiveState.Ident(banner(), null, CardNote.OffTheAir("Test Channel", 12))))
         assertEquals(Phrase(R.string.live_stan_offair_now_on, listOf(12)), spec.detail)
         assertEquals(Phrase(R.string.live_stan_spoken_offair_now_on, listOf("Test Channel", 12)), spec.spoken)
-        assertEquals(LiveTags.IDENT_NOTE, spec.detailTag)
     }
 
     @Test
@@ -126,8 +138,8 @@ class StanSpecsTest {
         val flipping = LiveState.Choosing(ChannelTag(12, "Test Channel"), overPicture = false)
         for (state in listOf(tuning, flipping)) {
             assertTrue(isChangingChannel(state))
-            assertNotNull(spec(state, ChannelChange.Stan))
-            assertNull(spec(state, ChannelChange.Snow))
+            assertNotNull(spec(state, ChannelChangeStyle.Stan))
+            assertNull(spec(state, ChannelChangeStyle.Snow))
         }
         assertFalse(isChangingChannel(LiveState.Choosing(ChannelTag(12, "Test Channel"), overPicture = true)))
         assertFalse(isChangingChannel(LiveState.Watching(null)))
@@ -136,8 +148,8 @@ class StanSpecsTest {
     @Test
     fun theChoiceOnlyConcernsTheChangeOfChannel() {
         // Technical difficulties and the off-air screen are Stan's whichever the viewer chose for the change.
-        assertNotNull(spec(LiveState.TechnicalDifficulties(null), ChannelChange.Snow))
-        assertNotNull(spec(LiveState.Ident(null), ChannelChange.Snow))
+        assertNotNull(spec(LiveState.TechnicalDifficulties(null), ChannelChangeStyle.Snow))
+        assertNotNull(spec(LiveState.Ident(null), ChannelChangeStyle.Snow))
     }
 
     @Test

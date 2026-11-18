@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.guideProse
@@ -82,7 +82,8 @@ internal data class SettingsStep(
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
     val levellingFrom: String? = null,
-    val channelChange: ChannelChange? = null,
+    val channelChange: ChannelChangeStyle? = null,
+    val channelChangeFrom: String? = null,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -177,6 +178,7 @@ internal fun settingsStep(
                 levelling = panel.levellingFor(direction),
                 levellingFrom = panel.levellingSourceFor(direction),
                 channelChange = panel.channelChangeFor(direction),
+                channelChangeFrom = panel.channelChangeSourceFor(direction),
             )
         }
 
@@ -246,7 +248,7 @@ internal fun GuideSettingsPanel(
     modifier: Modifier = Modifier,
     sync: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
-    channelChange: ChannelChange = ChannelChange.Stan,
+    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
 ) {
     val colors = LocalGuideColors.current
     val onAppearance = row == SettingsRow.Appearance

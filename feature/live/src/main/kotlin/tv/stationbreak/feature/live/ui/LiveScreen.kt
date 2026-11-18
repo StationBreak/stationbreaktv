@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import tv.stationbreak.core.ui.BroadcastColors
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramInfoOverlay
@@ -76,11 +76,32 @@ internal fun LiveScreen(
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
     overviewScroll: ScrollState = rememberScrollState(),
-    changeStyle: ChannelChange = ChannelChange.Stan,
+    changeStyle: ChannelChangeStyle,
     surface: @Composable () -> Unit,
 ) {
-    // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
-    LaunchedEffect(Unit) { SnowFrames.get() }
+    // The snow's frames are made off the main thread when the screen comes up, ready before the first tune needs them:
+    // only when the viewer chose snow, so Stan's viewers do not hold two megabytes of noise for nothing.
+    LaunchedEffect(changeStyle) { if (changeStyle == ChannelChangeStyle.Snow) SnowFrames.get() }
+    // One renderer for the screen's life: Stan's paths and glyphs are parsed once, not at each tune.
+    ProvideStanRenderer {
+        LiveSurface(state, info, onCommand, guide, transport, nowMs, pictureLabel, overviewScroll, changeStyle, surface)
+    }
+}
+
+@Suppress("LongParameterList") // LiveScreen's own parameters, past the renderer it provides.
+@Composable
+private fun LiveSurface(
+    state: LiveState,
+    info: LiveInfo?,
+    onCommand: (LiveCommand) -> Unit,
+    guide: (@Composable (pictureHole: DpRect) -> Unit)?,
+    transport: TransportView?,
+    nowMs: () -> Long,
+    pictureLabel: PictureLabel?,
+    overviewScroll: ScrollState,
+    changeStyle: ChannelChangeStyle,
+    surface: @Composable () -> Unit,
+) {
     BoxWithConstraints(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
         val fit = LocalScreenFit.current
         val corner = remember(maxWidth, maxHeight, fit) { pictureCorner(DpSize(maxWidth, maxHeight), fit) }
@@ -153,14 +174,13 @@ private class InRectNode(
 @Composable
 private fun PictureLayers(
     state: LiveState,
-    changeStyle: ChannelChange,
+    changeStyle: ChannelChangeStyle,
     nowMs: () -> Long,
 ) {
     when (state) {
-        is LiveState.Tuning -> ChangingGround(state, changeStyle, nowMs, full = false)
-        is LiveState.Choosing -> if (!state.overPicture) ChangingGround(state, changeStyle, nowMs, full = false)
-        is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null, nowMs, full = false)
-        is LiveState.Ident -> IdentSlate(upNext = null, channel = null, nowMs, full = false)
+        is LiveState.Tuning -> StationGround(state, changeStyle, nowMs, full = false)
+        is LiveState.Choosing -> if (!state.overPicture) StationGround(state, changeStyle, nowMs, full = false)
+        is LiveState.TechnicalDifficulties, is LiveState.Ident -> StationGround(state, changeStyle, nowMs, full = false)
         LiveState.NoChannels -> NoChannelsSlate()
         LiveState.NoLibraries -> NoLibrariesSlate()
         is LiveState.Watching, LiveState.SignedOut -> Unit
@@ -176,13 +196,13 @@ private fun LiveLayers(
     onCommand: (LiveCommand) -> Unit,
     behind: Boolean,
     overviewScroll: ScrollState,
-    changeStyle: ChannelChange,
+    changeStyle: ChannelChangeStyle,
     nowMs: () -> Long,
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
             is LiveState.Tuning -> {
-                ChangingGround(state, changeStyle, nowMs)
+                StationGround(state, changeStyle, nowMs)
                 CableBanner(state.banner)
             }
 
@@ -202,16 +222,18 @@ private fun LiveLayers(
 
             is LiveState.Choosing -> {
                 // The number moving (spec 15): the old picture shows through untouched, or snow when there is none.
-                if (!state.overPicture) ChangingGround(state, changeStyle, nowMs)
+                if (!state.overPicture) StationGround(state, changeStyle, nowMs)
                 Box(Modifier.fillMaxSize().testTag(LiveTags.BANNER_CHOOSING)) { ChannelBanner(state.target) }
             }
 
             is LiveState.TechnicalDifficulties -> {
-                DifficultiesSlate(state.upNext, state.channel, nowMs)
+                StationGround(state, changeStyle, nowMs)
+                CardBanner(state.upNext, state.channel)
             }
 
             is LiveState.Ident -> {
-                IdentSlate(state.upNext, state.channel, nowMs, state.note)
+                StationGround(state, changeStyle, nowMs)
+                CardBanner(state.upNext, state.channel)
             }
 
             LiveState.NoChannels -> {
@@ -229,19 +251,6 @@ private fun LiveLayers(
         }
         info?.let { InfoPanel(it, overviewScroll) }
     }
-}
-
-/** What fills the screen while the channel changes: Stan's standby screen, or snow when the viewer chose it. */
-@Composable
-private fun ChangingGround(
-    state: LiveState,
-    changeStyle: ChannelChange,
-    nowMs: () -> Long,
-    full: Boolean = true,
-) {
-    // The standby screen has no time in its copy, so none is written here.
-    val spec = stanSpecOf(state, changeStyle) { "" }
-    if (spec == null) Snow() else StanScreen(spec, nowMs, full = full)
 }
 
 /** [info] as the shared overlay: the banner's own words, and what the server added once it has. */

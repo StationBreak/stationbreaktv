@@ -23,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.ui.ChannelChangeStyle.Stan
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.LiveState
@@ -53,7 +54,7 @@ class VideoFrameTest {
                 density = LocalDensity.current.density
                 surface = remember { SurfaceView(compose.activity) }
                 Box(hostBox()) {
-                    LiveScreen(LiveState.Watching(null)) { VideoFrame(surface, aspect.value) }
+                    LiveScreen(LiveState.Watching(null), changeStyle = Stan) { VideoFrame(surface, aspect.value) }
                 }
             }
         }
@@ -65,7 +66,7 @@ class VideoFrameTest {
                 density = LocalDensity.current.density
                 surface = remember { SurfaceView(compose.activity) }
                 Box(hostBox()) {
-                    LiveScreen(LiveState.Watching(null), guide = { Box(Modifier.fillMaxSize()) }) {
+                    LiveScreen(LiveState.Watching(null), guide = { Box(Modifier.fillMaxSize()) }, changeStyle = Stan) {
                         VideoFrame(surface, aspect.value)
                     }
                 }
@@ -177,6 +178,7 @@ class VideoFrameTest {
                     LiveScreen(
                         LiveState.Watching(null),
                         guide = if (guideOpen.value) ({ Box(Modifier.fillMaxSize()) }) else null,
+                        changeStyle = Stan,
                     ) { VideoFrame(view, aspect.value) }
                 }
             }

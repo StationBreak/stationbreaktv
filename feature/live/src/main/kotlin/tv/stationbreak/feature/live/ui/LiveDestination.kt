@@ -41,7 +41,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChange
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.rememberChannelChangeStore
 import tv.stationbreak.core.ui.stepOverview
 import tv.stationbreak.feature.live.LiveCommand
@@ -101,7 +101,7 @@ internal fun LiveRoot(
     val aspect by viewModel.videoAspect.collectAsStateWithLifecycle()
     val pictureLabel by viewModel.pictureLabel.collectAsStateWithLifecycle()
     // What shows while the channel changes is the viewer's choice, made in the guide's Settings.
-    val changeStyle by rememberChannelChangeStore().change.collectAsStateWithLifecycle()
+    val changeStyle by rememberChannelChangeStore().style.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     // One surface view for the screen's life; each period's player attaches to it and detaches on the way out.
@@ -168,7 +168,7 @@ internal fun LiveKeysRoot(
     guide: @Composable (pictureHole: DpRect, onTune: (ChannelId) -> Unit) -> Unit = { _, _ -> },
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
-    changeStyle: ChannelChange = ChannelChange.Stan,
+    changeStyle: ChannelChangeStyle,
     video: @Composable () -> Unit,
 ) {
     val command by rememberUpdatedState(onCommand)
