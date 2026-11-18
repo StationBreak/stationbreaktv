@@ -291,7 +291,8 @@ private fun AppNavHostContent(
         }
         composable<FirstSyncRoute> {
             FirstSyncDestination(
-                // No button: when the first sync ends the app moves on, to the live channel.
+                // No button: when the first sync ends, and Stan has cheered us on the air (any key, Back included,
+                // skips that), the app moves on to the live channel.
                 onFinished = { navController.replaceAll(LiveRoute) },
                 // The server no longer accepts the sign-in: launch routing explains and asks the user to sign in again.
                 onSessionLost = { navController.replaceAll(LaunchRoute) },

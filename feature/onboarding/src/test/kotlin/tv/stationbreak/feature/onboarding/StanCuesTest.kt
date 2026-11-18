@@ -16,9 +16,16 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.stan.StanMood
+import tv.stationbreak.feature.onboarding.firstsync.FirstSyncPhase
+import tv.stationbreak.feature.onboarding.firstsync.firstSyncCue
 import tv.stationbreak.feature.onboarding.launch.LaunchPhase
 import tv.stationbreak.feature.onboarding.launch.launchCovered
 import tv.stationbreak.feature.onboarding.launch.launchCue
+import tv.stationbreak.feature.onboarding.libraries.LIBRARIES_CHEER_MS
+import tv.stationbreak.feature.onboarding.libraries.LibrariesPhase
+import tv.stationbreak.feature.onboarding.libraries.cheeringAt
+import tv.stationbreak.feature.onboarding.libraries.librariesCue
+import tv.stationbreak.feature.onboarding.libraries.signedInCue
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.ServerPhase
 import tv.stationbreak.feature.onboarding.server.serverCovered
@@ -131,5 +138,63 @@ class StanCuesTest {
         assertFalse(launchCovered(LaunchPhase.Routing))
         assertFalse(launchCovered(LaunchPhase.Trusting))
         assertFalse(launchCovered(LaunchPhase.Unavailable(error, copy)))
+    }
+
+    @Test
+    fun thePickerCheersAsItOpensThenAsksWhatToShow() {
+        assertEquals(StanCue(StanMood.Cheer, R.string.stan_libraries_in), librariesCue(LibrariesPhase.Choosing, true))
+        assertEquals(
+            StanCue(StanMood.Idle, R.string.stan_libraries_choosing),
+            librariesCue(LibrariesPhase.Choosing, justArrived = false),
+        )
+    }
+
+    @Test
+    fun theCheerClockStartsWhenTheListFirstShows() {
+        // Still loading: no list yet, so the cheer has not started, however long it takes.
+        assertFalse(cheeringAt(choosingSince = null, now = 60_000L))
+        assertTrue(cheeringAt(choosingSince = 10_000L, now = 10_000L))
+        assertTrue(cheeringAt(choosingSince = 10_000L, now = 10_000L + LIBRARIES_CHEER_MS - 1))
+        assertFalse(cheeringAt(choosingSince = 10_000L, now = 10_000L + LIBRARIES_CHEER_MS))
+    }
+
+    @Test
+    fun thePickerFollowsItsPhase() {
+        val busy = StanCue(StanMood.Busy, R.string.stan_libraries_busy)
+        val empty = StanCue(StanMood.Shrug, R.string.stan_libraries_empty)
+        val expected =
+            mapOf(
+                LibrariesPhase.Loading to busy,
+                LibrariesPhase.Saving to busy,
+                LibrariesPhase.LoadFailed(error, copy) to empty,
+                LibrariesPhase.NoLibraries to empty,
+                // The list is on screen: "nothing on the shelf" would be untrue, so a shrug with no bubble.
+                LibrariesPhase.SaveFailed to StanCue(StanMood.Shrug, null),
+            )
+        for ((phase, cue) in expected) {
+            // Only the picker's first moments cheer: being just arrived changes nothing else.
+            assertEquals(phase.toString(), cue, librariesCue(phase, justArrived = false))
+            assertEquals(phase.toString(), cue, librariesCue(phase, justArrived = true))
+        }
+    }
+
+    @Test
+    fun signedInIsStillHere() {
+        assertEquals(StanCue(StanMood.Idle, R.string.stan_signed_in), signedInCue)
+    }
+
+    @Test
+    fun theFirstSyncWorksTheAerialThenCheersUsOnTheAir() {
+        val busy = StanCue(StanMood.Busy, R.string.stan_first_sync_busy)
+        val expected =
+            mapOf(
+                FirstSyncPhase.Starting to busy,
+                FirstSyncPhase.Syncing(copied = 10, total = 100) to busy,
+                FirstSyncPhase.WaitingForNetwork to StanCue(StanMood.Shrug, R.string.stan_first_sync_waiting),
+                FirstSyncPhase.Failed(error, copy, sessionLost = false) to
+                    StanCue(StanMood.Shrug, R.string.stan_first_sync_failed),
+                FirstSyncPhase.Done to StanCue(StanMood.Cheer, R.string.stan_first_sync_done),
+            )
+        for ((phase, cue) in expected) assertEquals(phase.toString(), cue, firstSyncCue(phase))
     }
 }

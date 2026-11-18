@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.ui.stan.StanMood
 
 /** Stan dozes after a minute with no key, and any key wakes him (spec, "Dozing"), on virtual time. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -89,4 +90,24 @@ class DozeTimerTest {
             started(timer, enabled = false)
             assertFalse(timer.dozing.value)
         }
+
+    @Test
+    fun aBusyStanNeverDozes() =
+        runTest {
+            // The first sync runs for minutes with no key while he works the aerial: dozing then would read wrong.
+            val timer = DozeTimer()
+            started(timer, enabled = dozes(StanCue(StanMood.Busy, R.string.stan_first_sync_busy), covered = false))
+            advanceTimeBy(90_000)
+            runCurrent()
+            assertFalse(timer.dozing.value)
+        }
+
+    @Test
+    fun onlyAnUncoveredStanWhoIsNotBusyDozes() {
+        val idle = StanCue(StanMood.Idle, R.string.stan_server_idle)
+        assertTrue(dozes(idle, covered = false))
+        assertTrue(dozes(StanCue(StanMood.Shrug, null), covered = false))
+        assertFalse("a dialog has the keys", dozes(idle, covered = true))
+        assertFalse(dozes(StanCue(StanMood.Busy, R.string.stan_server_testing), covered = false))
+    }
 }

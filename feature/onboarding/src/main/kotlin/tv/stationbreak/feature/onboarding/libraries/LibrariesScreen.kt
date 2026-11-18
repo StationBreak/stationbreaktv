@@ -54,8 +54,8 @@ import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
-import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ProblemIcon
 import tv.stationbreak.feature.onboarding.server.ProgressSpinner
@@ -64,6 +64,7 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
+import tv.stationbreak.feature.onboarding.withTop
 
 private val ContentWidth = 640.dp
 private val RowHeight = 64.dp
@@ -141,32 +142,33 @@ internal fun LibrariesScreen(
 ) {
     val focus = remember { LibrariesFocus() }
     FocusFollowsPhase(state.phase, focus)
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).testTag(LibrariesTags.SCREEN),
-    ) {
-        // A 5% safe area on every side, inside the scroll area.
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+    val justArrived = rememberJustArrived(state.phase)
+    SetupScaffold(librariesCue(state.phase, justArrived), modifier) { contentPadding ->
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LibrariesTags.SCREEN)) {
+            // A 5% safe area on every side, inside the scroll area.
             Column(
-                modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Gap),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                StepHeadline(
-                    headline = stringResource(R.string.libraries_headline),
-                    step = if (showStep) 3 else null,
-                )
-                Text(
-                    text = stringResource(R.string.libraries_subtitle),
-                    style = MaterialTheme.typography.screenBody,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Content(state, focus, onToggle, onToggleCollections, onDone, onRetry)
+                Column(
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Gap),
+                ) {
+                    StepHeadline(
+                        headline = stringResource(R.string.libraries_headline),
+                        step = if (showStep) 3 else null,
+                    )
+                    Text(
+                        text = stringResource(R.string.libraries_subtitle),
+                        style = MaterialTheme.typography.screenBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Content(state, focus, onToggle, onToggleCollections, onDone, onRetry)
+                }
             }
         }
     }

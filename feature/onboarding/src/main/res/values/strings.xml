@@ -227,6 +227,9 @@
     <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
     <string name="first_sync_waiting_for_network">Waiting for your network…</string>
     <string name="first_sync_sign_in_again">Sign in again</string>
+    <!-- The moment between the end of the first sync and live TV (about a second and a half). -->
+    <string name="first_sync_done_headline">Your library is ready</string>
+    <string name="first_sync_done_second_line">Starting live TV…</string>
     <!-- Said by TalkBack at each quarter: 25, 50, 75 and 100. -->
     <string name="first_sync_announce">%1$d percent</string>
 
@@ -243,4 +246,13 @@
     <string name="stan_signin_failed">DIDN\'T TAKE. AGAIN?</string>
     <string name="stan_quick_connect">TAKE YOUR TIME</string>
     <string name="stan_launch_unavailable">CAN\'T FIND THE STATION</string>
+    <string name="stan_libraries_in">YOU\'RE IN!</string>
+    <string name="stan_libraries_choosing">WHAT ARE WE SHOWING?</string>
+    <string name="stan_libraries_busy">STAND BY…</string>
+    <string name="stan_libraries_empty">NOTHING ON THE SHELF</string>
+    <string name="stan_signed_in">STILL HERE.</string>
+    <string name="stan_first_sync_busy">WARMING UP THE CHANNELS</string>
+    <string name="stan_first_sync_waiting">NO SIGNAL. STILL TRYING.</string>
+    <string name="stan_first_sync_failed">BIT OF TROUBLE</string>
+    <string name="stan_first_sync_done">WE\'RE ON THE AIR!</string>
 </resources>

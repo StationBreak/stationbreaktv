@@ -260,7 +260,7 @@ Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The gr
 A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's.
 
 ### Setup (onboarding)
-Setup is a station screen too: Stan in Awake or Tuning, the reading face at 20sp for fields and buttons, and focus in orange. PROVISIONAL: it still ships tv-material's default dark scheme with a lavender ring and scaled focus (see Migration).
+Setup is a station screen too: the reading face at 20sp for fields and buttons, and focus in orange. Stan hosts each step from the bottom-right corner, reacting to what happens (pleased, shrug, busy, cheer, dozing).
 
 ## Do's and Don'ts
 
@@ -290,5 +290,4 @@ These tokens and components are the brand's target. The app reaches them in step
 - **Faces:** the test card uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
 - **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`. Stan's moods and the animated station screens come in the next step.
 - **Station screens:** the test-card slates (ident, difficulties, no channels, no libraries) and the snow are to be replaced by Stan station screens.
-- **Setup:** tv-material's default dark scheme, lavender ring and scaled focus are to move to the station's ink and orange.
 - **Words:** "Sync now", "First sync" and loading states are to move toward broadcast words (stand by, tune, signal, returns at).

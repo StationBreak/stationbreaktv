@@ -813,9 +813,11 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.COLLECTIONS)
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
 
-        // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would).
+        // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would),
+        // after Stan's moment of cheer.
         awaitExists(FirstSyncTags.HEADLINE)
         runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
+        awaitExists(FirstSyncTags.DONE)
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(setOf(movies.id), Launched.settings.currentLibraries)
         assertBackOpensTheGuideThenLeavesTheApp()

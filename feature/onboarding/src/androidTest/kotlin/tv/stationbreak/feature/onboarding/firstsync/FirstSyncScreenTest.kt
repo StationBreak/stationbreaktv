@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocusable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -17,12 +18,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import java.text.NumberFormat
@@ -39,10 +42,13 @@ class FirstSyncScreenTest {
 
     private val phase = mutableStateOf<FirstSyncPhase>(FirstSyncPhase.Starting)
     private var retried = 0
+    private var skipped = 0
 
     private fun show(initial: FirstSyncPhase) {
         phase.value = initial
-        compose.setContent { StationBreakTheme { FirstSyncScreen(phase.value, onRetry = { retried++ }) } }
+        compose.setContent {
+            StationBreakTheme { FirstSyncScreen(phase.value, onRetry = { retried++ }, onSkipCheer = { skipped++ }) }
+        }
         compose.waitForIdle()
     }
 
@@ -209,6 +215,50 @@ class FirstSyncScreenTest {
         phase.value = FirstSyncPhase.Syncing(copied = 10_000, total = 20_000)
         compose.waitForIdle()
         assertEquals("50 percent", announced().first)
+    }
+
+    // Done: Stan cheers us on the air, and any key skips to live TV (spec 2026-11-18, Review Focus 5).
+
+    @Test
+    fun whenItIsDoneTheScreenSaysSoAndTakesTheKeys() {
+        show(FirstSyncPhase.Done)
+
+        compose.onNodeWithText("Your library is ready").assertExists()
+        compose.awaitFocusedForKeys(FirstSyncTags.DONE, FOCUS_TIMEOUT_MS)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        assertEquals(1, skipped)
+    }
+
+    @Test
+    fun whenItIsDoneTalkBackHearsThatItIsReadyOnce() {
+        show(FirstSyncPhase.Done)
+
+        val ready = "Your library is ready"
+        compose
+            .onAllNodes(hasText(ready, substring = true) or hasContentDescription(ready, substring = true))
+            .assertCountEquals(1)
+        compose.onNodeWithTag(FirstSyncTags.BAR).assert(hasContentDescription("100 percent"))
+    }
+
+    @Test
+    fun backDuringTheCheerSkipsItAndStaysInTheApp() {
+        show(FirstSyncPhase.Done)
+        compose.awaitFocusedForKeys(FirstSyncTags.DONE, FOCUS_TIMEOUT_MS)
+
+        press(KeyEvent.KEYCODE_BACK)
+
+        assertEquals(1, skipped)
+        assertFalse("Back skips the cheer; it never leaves the app", compose.activity.isFinishing)
+    }
+
+    @Test
+    fun keysWhileItSyncsSkipNothing() {
+        show(FirstSyncPhase.Syncing(copied = 5, total = 10))
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        assertEquals(0, skipped)
     }
 
     private companion object {
