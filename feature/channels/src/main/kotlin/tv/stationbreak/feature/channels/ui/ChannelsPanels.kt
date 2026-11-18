@@ -34,6 +34,7 @@ import tv.stationbreak.feature.channels.Choice
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.choicesOf
 import tv.stationbreak.feature.channels.lockOf
+import tv.stationbreak.feature.channels.swapLockOf
 
 /** The dialog over the list: [ui]'s panel, or the reset question. */
 @Composable
@@ -162,7 +163,12 @@ internal fun isLocked(
     choice: Choice,
     row: ChannelRow?,
     ui: ChannelsUi,
-): Boolean = row != null && lockOf(choice, row, ui.isPro, ui.canAddCustom) != null
+): Boolean =
+    if (choice == Choice.Confirm) {
+        swapLockOf(ui) != null
+    } else {
+        row != null && lockOf(choice, row, ui.isPro, ui.canAddCustom) != null
+    }
 
 /** The choice's words; a marked one (#793) ends with the Pro mark and shows a note when picked instead of acting. */
 @Composable

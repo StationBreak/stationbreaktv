@@ -465,7 +465,13 @@ internal class ChannelsViewModel
                 }
 
                 choice == Choice.Confirm -> {
-                    confirm(panel)
+                    // A marked swap shows the note and makes no change (#804).
+                    val locked = swapLockOf(ui)
+                    if (locked != null) {
+                        synchronized(lock) { apply { it.copy(panel = null, holder = null, message = locked) } }
+                    } else {
+                        confirm(panel)
+                    }
                     null
                 }
 
@@ -574,6 +580,7 @@ internal class ChannelsViewModel
                 useMyCollections = m.householdWant ?: m.useMyCollections,
                 isPro = m.isPro,
                 canAddCustom = m.canAddCustom,
+                holder = m.holder,
                 about = m.about,
                 properties = m.properties,
                 listed = m.listed,
