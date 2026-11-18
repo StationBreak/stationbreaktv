@@ -124,7 +124,10 @@ fun StanHost(
             .clearAndSetSemantics {},
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StanBubble(shown, palette)
+        // The root's clearing hides the bubble from the merged tree (what a screen reader reads), but the unmerged tree
+        // still lists replaced nodes. Clearing on the text itself also drops the text BasicText sets further in on the
+        // same node, so no tree has the line.
+        StanBubble(shown, palette, textModifier = Modifier.clearAndSetSemantics {})
         Crossfade(
             targetState = mood,
             animationSpec = if (reduced) snap() else tween(FADE_MILLIS),
@@ -164,19 +167,22 @@ private fun StanFigure(
  * Stan's speech bubble: [line] in ink Ranchers on a cream rounded box, with a tail pointing down at him; nothing when
  * [line] is null. A new line replaces the old at once and pops in (from 90%, over 160 ms, unless motion is reduced).
  * The colours are [palette]'s, so on paper the bubble is ink with cream lettering.
+ *
+ * [textModifier] goes first on the text: by default the test tag that the bubble's own tests read; [StanHost] passes
+ * a semantics clearing instead, so the line is in no semantics tree at all.
  */
 @Composable
 internal fun StanBubble(
     line: String?,
     palette: StanPalette,
-    modifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier.testTag(StanHostTags.BUBBLE),
 ) {
     if (line == null) return
     val reduced = LocalMotionReduced.current
     val pop = remember(line) { Animatable(if (reduced) 1f else POP_FROM) }
     LaunchedEffect(pop) { pop.animateTo(1f, tween(POP_MILLIS)) }
     Column(
-        modifier
+        Modifier
             .widthIn(max = BUBBLE_MAX_W)
             .graphicsLayer {
                 scaleX = pop.value
@@ -187,8 +193,7 @@ internal fun StanBubble(
     ) {
         Text(
             line,
-            Modifier
-                .testTag(StanHostTags.BUBBLE)
+            textModifier
                 .background(palette.cream, RoundedCornerShape(BUBBLE_CORNER))
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             color = palette.ink,
