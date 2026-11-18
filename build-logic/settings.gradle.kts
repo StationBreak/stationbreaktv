@@ -3,7 +3,7 @@
 pluginManagement {
     // The same repositories, in the same order, as the root build's. A plugin marker can differ between Maven
     // Central and the Plugin Portal (Spotless's does), and the dependency verification file holds one checksum
-    // per artifact (ADR-0013): both builds must resolve it from the same place.
+    // per artifact (ADR-0013): both builds must resolve it from the same place. RepositoryListsTest checks it (#182).
     repositories {
         google()
         mavenCentral()
@@ -13,7 +13,8 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    // The same repositories as the root build's; the plugin artifacts it compiles against are all on these.
+    // The same repositories as the root build's (RepositoryListsTest, #182); the plugin artifacts it compiles against
+    // are all on these.
     repositories {
         google()
         mavenCentral()

@@ -3,6 +3,7 @@
 pluginManagement {
     // Convention plugins (tv.stationbreak.*): shared module setup, one place to change it.
     includeBuild("build-logic")
+    // build-logic/settings.gradle.kts lists the same repositories in the same order (RepositoryListsTest, #182).
     repositories {
         google()
         mavenCentral()
@@ -12,6 +13,7 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Kept in step with build-logic/settings.gradle.kts (RepositoryListsTest, #182).
     repositories {
         google()
         mavenCentral()
