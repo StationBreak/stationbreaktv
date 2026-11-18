@@ -481,7 +481,7 @@ class LineupPlannerCurationTest {
 
         val shelved = next.channels.filter { it.state == ChannelState.Shelf && it.source is ChannelSource.Starter }
         for (channel in shelved) assertNotNull(channel.shelfReason, channel.id.value)
-        assertEquals(ShelfReason.BelowCap, next.channel("golf").shelfReason, "no number, so no room to air")
+        assertEquals(ShelfReason.NoNumber, next.channel("golf").shelfReason, "no number, so no room to air")
         assertEquals(ShelfReason.BelowCap, next.channel("echo").shelfReason, "it would qualify")
         assertEquals(ShelfReason.TooThin, next.channel("dup").shelfReason)
         assertEquals(ShelfReason.Empty, next.channel("foxtrot").shelfReason)

@@ -27,10 +27,13 @@ enum class ShelfReason {
     TooThin,
 
     /**
-     * It fits but is not on: the planner's own picks (`LineupDefaults.PLANNER_PICKS`) are stronger, it has no free
-     * number, or it is one the viewer chose and switched off.
+     * It fits but is not on: the planner's own picks (`LineupDefaults.PLANNER_PICKS`) are stronger, or it is one the
+     * viewer chose and switched off.
      */
     BelowCap,
+
+    /** It has no free channel number, so it has no room to air (whether anything fits is not checked). */
+    NoNumber,
 
     /** An opt-in channel: on only if the viewer switches it on. */
     OptIn,

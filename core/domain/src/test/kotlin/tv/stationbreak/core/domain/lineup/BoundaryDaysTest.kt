@@ -233,6 +233,10 @@ class BoundaryDaysTest {
         assertEquals(ShelfReason.BelowCap, reasonAt(leaving, boundary - 1), "leaving at the boundary")
         assertEquals(ShelfReason.BelowCap, reasonAt(leaving, boundary), "shelved once due")
         assertEquals(
+            ShelfReason.NoNumber,
+            reasonAt(laughs.copy(state = ChannelState.Shelf, shelfReason = EngineReason.NoNumber), noon),
+        )
+        assertEquals(
             ShelfReason.OptIn,
             reasonAt(laughs.copy(state = ChannelState.Shelf, shelfReason = EngineReason.OptIn), noon),
         )

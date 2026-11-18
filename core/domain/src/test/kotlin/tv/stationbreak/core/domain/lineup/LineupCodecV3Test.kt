@@ -156,7 +156,13 @@ class LineupCodecV3Test {
         assertEquals(LineupCodec.Decoded.Loaded(lineup), decode(LineupCodec.encode(lineup).decodeToString()))
         for (reason in ShelfReason.entries) {
             val one = lineupOf(b.copy(shelfReason = reason))
-            assertEquals(LineupCodec.Decoded.Loaded(one), LineupCodec.decode(LineupCodec.encode(one)))
+            // NoNumber is the one reason that needs a newer file version than the default.
+            val noNumber = reason == ShelfReason.NoNumber
+            val fileVersion = if (noNumber) LineupCodec.NO_NUMBER_VERSION else LineupCodec.BASE_VERSION
+            assertEquals(
+                LineupCodec.Decoded.Loaded(one, fileVersion = fileVersion),
+                LineupCodec.decode(LineupCodec.encode(one)),
+            )
         }
         val plain = lineupOf(starterChannel("c", 110))
         assertEquals(LineupCodec.Decoded.Loaded(plain), LineupCodec.decode(LineupCodec.encode(plain)))
@@ -484,8 +490,9 @@ class LineupCodecV3Test {
     // A new ShelfReason value (or any schema change) is a new file version: older apps must see NewerVersion.
     @Test
     fun theShelfReasonsArePinnedToTheFileVersion() {
-        assertEquals(listOf("Empty", "TooThin", "BelowCap", "OptIn"), ShelfReason.entries.map { it.name }, GUARD)
-        assertEquals(5, LineupCodec.VERSION, GUARD)
+        val names = listOf("Empty", "TooThin", "BelowCap", "NoNumber", "OptIn")
+        assertEquals(names, ShelfReason.entries.map { it.name }, GUARD)
+        assertEquals(6, LineupCodec.VERSION, GUARD)
     }
 
     @Test
