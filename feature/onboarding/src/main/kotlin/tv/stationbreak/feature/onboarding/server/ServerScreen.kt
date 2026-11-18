@@ -62,9 +62,8 @@ import tv.stationbreak.feature.onboarding.RemoteAppTip
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
-import tv.stationbreak.feature.onboarding.safeAreaPadding
-import tv.stationbreak.feature.onboarding.serverCue
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
+import tv.stationbreak.feature.onboarding.withTop
 
 // Sizes only this screen uses.
 private val ContentWidth = 640.dp
@@ -127,9 +126,7 @@ internal fun ServerScreen(
         onTest()
     }
 
-    // The cleartext and trust questions are windows of their own: their keys never pass through here.
-    val dialogUp = phase is ServerPhase.ConfirmCleartext || phase is ServerPhase.TrustRequired
-    SetupScaffold(serverCue(phase), modifier, dozeEnabled = !dialogUp) {
+    SetupScaffold(serverCue(phase), modifier, covered = serverCovered(phase)) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             // The safe area (overscan), Stan's column taking the end side. The content starts at a fixed height, so
             // the headline and the field don't move when a result appears below them.
@@ -140,7 +137,7 @@ internal fun ServerScreen(
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(

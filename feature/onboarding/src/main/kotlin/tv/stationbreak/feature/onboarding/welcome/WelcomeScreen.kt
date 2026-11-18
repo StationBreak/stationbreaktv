@@ -26,10 +26,9 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
-import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ServerButton
-import tv.stationbreak.feature.onboarding.welcomeCue
+import tv.stationbreak.feature.onboarding.withTop
 
 private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
@@ -45,14 +44,14 @@ fun WelcomeDestination(
 ) {
     val getStarted = remember { FocusRequester() }
     LaunchedEffect(Unit) { getStarted.requestFocus() }
-    SetupScaffold(welcomeCue(), modifier) {
+    SetupScaffold(welcomeCue, modifier) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(WelcomeTags.SCREEN)) {
             Column(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(

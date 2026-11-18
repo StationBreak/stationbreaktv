@@ -49,14 +49,13 @@ import tv.stationbreak.feature.onboarding.RemoteAppTip
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
-import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.FieldError
 import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.detailsText
-import tv.stationbreak.feature.onboarding.signInCue
+import tv.stationbreak.feature.onboarding.withTop
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
 private val ContentWidth = 640.dp
@@ -147,14 +146,14 @@ internal fun SignInScreen(
     FocusFollowsPhase(phase, focus)
     BackHandler(enabled = phase is SignInPhase.QuickConnect, onBack = onCancelQuickConnect)
 
-    SetupScaffold(signInCue(phase), modifier) {
+    SetupScaffold(signInCue(phase), modifier) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(

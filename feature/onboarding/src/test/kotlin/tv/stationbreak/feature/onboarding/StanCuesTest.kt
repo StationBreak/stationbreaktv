@@ -2,7 +2,9 @@
 package tv.stationbreak.feature.onboarding
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ResolvedServer
@@ -15,15 +17,26 @@ import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.core.ui.stan.StanMood
 import tv.stationbreak.feature.onboarding.launch.LaunchPhase
+import tv.stationbreak.feature.onboarding.launch.launchCovered
+import tv.stationbreak.feature.onboarding.launch.launchCue
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.ServerPhase
+import tv.stationbreak.feature.onboarding.server.serverCovered
+import tv.stationbreak.feature.onboarding.server.serverCue
 import tv.stationbreak.feature.onboarding.signin.QuickConnectEnd
 import tv.stationbreak.feature.onboarding.signin.SignInPhase
+import tv.stationbreak.feature.onboarding.signin.signInCue
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.TrustReason
+import tv.stationbreak.feature.onboarding.trust.trustCue
+import tv.stationbreak.feature.onboarding.welcome.welcomeCue
 
-/** Each setup phase's mood and line for Stan: the spec's mapping table (2026-11-18), errors as a shrug. */
+/**
+ * Each setup phase's mood and line for Stan: the spec's mapping table (2026-11-18), errors as a shrug. And which phases
+ * put a dialog window over their screen, so Stan stands down there (Review Focus 3).
+ */
 class StanCuesTest {
+    private val input = "https://jellyfin.example.test"
     private val address = ServerAddress(Scheme.Https, "jellyfin.example.test", 443)
     private val resolved = ResolvedServer(address, ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0)))
     private val evidence =
@@ -37,10 +50,11 @@ class StanCuesTest {
     private val error = MediaServerError.Timeout()
     private val copy = ErrorCopyTable.copyFor(error)
     private val trust = StanCue(StanMood.Idle, R.string.stan_trust)
+    private val launchTrust = LaunchPhase.Trust(input, prompt, error, address)
 
     @Test
     fun welcomeGreets() {
-        assertEquals(StanCue(StanMood.Idle, R.string.stan_welcome), welcomeCue())
+        assertEquals(StanCue(StanMood.Idle, R.string.stan_welcome), welcomeCue)
     }
 
     @Test
@@ -55,14 +69,14 @@ class StanCuesTest {
                 ServerPhase.InvalidInput(copy) to StanCue(StanMood.Shrug, R.string.stan_server_failed),
                 ServerPhase.NotTrusted to trust,
                 ServerPhase.ConfirmCleartext(resolved) to trust,
-                ServerPhase.TrustRequired("https://jellyfin.example.test", prompt) to trust,
+                ServerPhase.TrustRequired(input, prompt) to trust,
             )
         for ((phase, cue) in expected) assertEquals(phase.toString(), cue, serverCue(phase))
     }
 
     @Test
-    fun theTrustScreenLeavesItToTheViewer() {
-        assertEquals(trust, trustCue())
+    fun theTrustCueLeavesItToTheViewer() {
+        assertEquals(trust, trustCue)
     }
 
     @Test
@@ -94,6 +108,30 @@ class StanCuesTest {
             StanCue(StanMood.Shrug, R.string.stan_launch_unavailable),
             launchCue(LaunchPhase.Unavailable(error, copy)),
         )
-        assertEquals(trust, launchCue(LaunchPhase.Trust("https://jellyfin.example.test", prompt, error, address)))
+        assertEquals(trust, launchCue(launchTrust))
+    }
+
+    @Test
+    fun onlyTheServerScreensDialogPhasesCoverIt() {
+        val covered = listOf(ServerPhase.ConfirmCleartext(resolved), ServerPhase.TrustRequired(input, prompt))
+        val open =
+            listOf(
+                ServerPhase.Idle,
+                ServerPhase.NotTrusted,
+                ServerPhase.Testing,
+                ServerPhase.InvalidInput(copy),
+                ServerPhase.Failed(error, copy),
+                ServerPhase.Connected(resolved, acknowledgement = null),
+            )
+        for (phase in covered) assertTrue(phase.toString(), serverCovered(phase))
+        for (phase in open) assertFalse(phase.toString(), serverCovered(phase))
+    }
+
+    @Test
+    fun onlyTheTrustQuestionCoversTheLaunchScreen() {
+        assertTrue(launchCovered(launchTrust))
+        assertFalse(launchCovered(LaunchPhase.Routing))
+        assertFalse(launchCovered(LaunchPhase.Trusting))
+        assertFalse(launchCovered(LaunchPhase.Unavailable(error, copy)))
     }
 }

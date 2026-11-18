@@ -37,8 +37,6 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.SetupScaffold
-import tv.stationbreak.feature.onboarding.launchCue
-import tv.stationbreak.feature.onboarding.safeAreaPadding
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -50,6 +48,7 @@ import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
+import tv.stationbreak.feature.onboarding.withTop
 
 private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
@@ -195,15 +194,14 @@ internal fun LaunchScreen(
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The trust question is a window of its own over this screen: its keys never pass through here.
-    SetupScaffold(launchCue(state), modifier, dozeEnabled = state !is LaunchPhase.Trust) {
+    SetupScaffold(launchCue(state), modifier, covered = launchCovered(state)) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LaunchTags.SCREEN)) {
             Column(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(safeAreaPadding(top = maxHeight * TOP_OFFSET)),
+                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(

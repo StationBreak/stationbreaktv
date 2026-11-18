@@ -5,8 +5,8 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -32,7 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.Text
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,8 +45,8 @@ import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.ServerButton
 
 /**
- * Where [SetupScaffold] puts Stan, and that he never takes a key or crowds the form (Review Focus 1 and 2). Stan has
- * no semantics, so his mood is not visible here: the doze is [DozeTimerTest]'s, on virtual time.
+ * Where [SetupScaffold] puts Stan, and that he never takes a key, crowds the form or moves it (Review Focus 1 and 2).
+ * Stan has no semantics, so his mood is not visible here: the doze is [DozeTimerTest]'s, on virtual time.
  */
 @RunWith(AndroidJUnit4::class)
 class SetupScaffoldTest {
@@ -55,7 +58,8 @@ class SetupScaffoldTest {
     private fun show(
         width: Dp,
         height: Dp,
-        cue: StanCue? = this.cue,
+        cue: MutableState<StanCue?> = mutableStateOf(this.cue),
+        covered: MutableState<Boolean> = mutableStateOf(false),
         fontScale: Float? = null,
     ) {
         compose.setContent {
@@ -65,7 +69,7 @@ class SetupScaffoldTest {
             ) {
                 StationBreakTheme {
                     Box(Modifier.requiredSize(width, height)) {
-                        SetupScaffold(cue) { Form() }
+                        SetupScaffold(cue.value, covered = covered.value) { padding -> Form(padding) }
                     }
                 }
             }
@@ -97,38 +101,61 @@ class SetupScaffoldTest {
     }
 
     @Test
-    fun formNeverUnderStan() {
+    fun theFormAndTheScaledFocusedButtonClearStanAtLargeFont() {
         show(960.dp, 540.dp, fontScale = 1.3f)
-        val form = compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot()
+        compose.onNodeWithTag(FIRST).assertIsFocused()
         val host = compose.onNodeWithTag(SetupScaffoldTags.HOST).getUnclippedBoundsInRoot()
-        assertTrue("form $form and Stan $host overlap", !form.overlaps(host))
+        val form = compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot()
+        // A focused button is drawn scaled about its centre, past its layout bounds.
+        val focused = compose.onNodeWithTag(FIRST).getUnclippedBoundsInRoot().scaled(FOCUS_SCALE)
+        assertFalse("form $form and Stan $host overlap", form.overlaps(host))
+        assertFalse("focused button $focused and Stan $host overlap", focused.overlaps(host))
     }
 
     @Test
     fun nullCueShowsNoStan() {
-        show(960.dp, 540.dp, cue = null)
+        show(960.dp, 540.dp, cue = mutableStateOf(null))
         compose.onNodeWithTag(SetupScaffoldTags.HOST).assertDoesNotExist()
     }
 
-    /** A setup screen's shape: its own safe-area padding, a wide column of text and two buttons. */
+    @Test
+    fun coveredShowsNoStan() {
+        show(960.dp, 540.dp, covered = mutableStateOf(true))
+        compose.onNodeWithTag(SetupScaffoldTags.HOST).assertDoesNotExist()
+    }
+
+    @Test
+    fun theFormStaysPutWhetherStanIsThereOrNot() {
+        val cue = mutableStateOf<StanCue?>(null)
+        val covered = mutableStateOf(false)
+        show(960.dp, 540.dp, cue = cue, covered = covered)
+        val empty = compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot()
+        cue.value = this.cue
+        compose.waitForIdle()
+        compose.onNodeWithTag(SetupScaffoldTags.HOST).assertExists()
+        assertEquals(empty, compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot())
+        covered.value = true
+        compose.waitForIdle()
+        assertEquals(empty, compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot())
+    }
+
+    /** A setup screen's shape: the scaffold's padding, a wide column of text and two buttons. */
     @Composable
-    private fun Form() {
+    private fun Form(padding: PaddingValues) {
         val first = remember { FocusRequester() }
         LaunchedEffect(Unit) { first.requestFocus() }
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(safeAreaPadding(top = 40.dp))) {
-                Column(
-                    Modifier.widthIn(max = 640.dp).fillMaxWidth().testTag(FORM),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    Text(LONG_TEXT)
-                    ServerButton(
-                        label = R.string.server_test,
-                        onClick = {},
-                        modifier = Modifier.focusRequester(first).testTag(FIRST),
-                    )
-                    ServerButton(label = R.string.server_cancel, onClick = {}, modifier = Modifier.testTag(SECOND))
-                }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                Modifier.widthIn(max = 640.dp).fillMaxWidth().testTag(FORM),
+                verticalArrangement = Arrangement.spacedBy(Gap),
+            ) {
+                Text(LONG_TEXT)
+                ServerButton(
+                    label = R.string.server_test,
+                    onClick = {},
+                    modifier = Modifier.focusRequester(first).testTag(FIRST),
+                )
+                ServerButton(label = R.string.server_cancel, onClick = {}, modifier = Modifier.testTag(SECOND))
             }
         }
     }
@@ -136,11 +163,20 @@ class SetupScaffoldTest {
     private fun DpRect.overlaps(other: DpRect): Boolean =
         left < other.right && other.left < right && top < other.bottom && other.top < bottom
 
+    private fun DpRect.scaled(factor: Float): DpRect {
+        val dx = (right - left) * (factor - 1) / 2
+        val dy = (bottom - top) * (factor - 1) / 2
+        return DpRect(left - dx, top - dy, right + dx, bottom + dy)
+    }
+
     private companion object {
         const val FORM = "setupScaffoldTest.form"
         const val FIRST = "setupScaffoldTest.first"
         const val SECOND = "setupScaffoldTest.second"
         const val KEY_TIMEOUT_MS = 10_000L
+
+        /** FocusStyle's button scale (private there): what a focused setup button is drawn at. */
+        const val FOCUS_SCALE = 1.08f
         const val LONG_TEXT =
             "Type the address you use to open your server in a browser, then test it. A long line, so a large " +
                 "font fills the form's width."
