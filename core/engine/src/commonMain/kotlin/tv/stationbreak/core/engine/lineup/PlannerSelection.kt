@@ -43,7 +43,7 @@ internal object PlannerSelection {
      * [LineupDefaults.PLANNER_PICKS] places: the channels kept around it (a reset's custom channels) and the leftovers
      * take no place, as at the next boundary, so a reset and the boundary after it agree. [shelf] holds the reason of
      * every recipe left off: an opt-in one is off for being opt-in (N12), one with no number has no room to air
-     * (BelowCap). [qualifying] counts the candidates that would be on with room enough, for
+     * (NoNumber). [qualifying] counts the candidates that would be on with room enough, for
      * the finalise threshold.
      */
     class Choice(
@@ -76,7 +76,7 @@ internal object PlannerSelection {
             if (recipe.optIn) {
                 shelf[id] = ShelfReason.OptIn
             } else if (numbers.getValue(id) == null) {
-                shelf[id] = ShelfReason.BelowCap
+                shelf[id] = ShelfReason.NoNumber
             }
         }
         return Choice(selected.on, shelf, selected.on.size + belowCap)
@@ -96,8 +96,8 @@ internal object PlannerSelection {
      *   always the planner's own [LineupDefaults.PLANNER_PICKS] free picks, short only when too few starters qualify.
      *   Switched off, it is a kept starter (shelf) or hidden, and is no candidate.
      * - Every starter left on the shelf gets its current reason: the selection's; opt-in (N12); no room to air for
-     *   one with no number; and for one the viewer chose or edited (never switched on by the planner) what the homing
-     *   alongside the selected channels gives it.
+     *   one with no number (NoNumber); and for one the viewer chose or edited (never switched on by the planner) what
+     *   the homing alongside the selected channels gives it.
      * Every other channel is left as it is.
      */
     fun refreshed(
@@ -118,7 +118,7 @@ internal object PlannerSelection {
                 null -> channel
                 Role.Pinned, Role.Added -> pinned(channel)
                 Role.OptIn -> leftOut(channel, ShelfReason.OptIn, p)
-                Role.Numberless -> leftOut(channel, ShelfReason.BelowCap, p)
+                Role.Numberless -> leftOut(channel, ShelfReason.NoNumber, p)
                 Role.Kept -> leftOut(channel, kept.getValue(channel.id), p)
                 Role.Free -> applied(channel, atBoundary.selected, p)
             }

@@ -32,7 +32,7 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3, 4 or 5 ([VERSION] is the newest). Only
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3, 4, 5 or 6 ([VERSION] is the newest). Only
  * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
  * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
  * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
@@ -62,6 +62,13 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * encoder writes the key only where the mark can be held, so a lineup is version 5 only then. A version-5 file whose
  * marks are all gone loads and the next save writes version 3 or 4. Before the first save of a higher version the
  * service keeps a copy of the file it replaces (`LineupStore.keepCopy`, tag `v{from}-to{to}`).
+ *
+ * Version 6 (the `noNumber` shelf reason, #798) adds the wire name `"noNumber"` for a starter that fits but has no free
+ * channel number. It is written only while some channel holds it (the same [AddedMark.versionFor] max: the highest any
+ * feature needs), so a lineup without one is still 3, 4 or 5. An older build reads a version-6 file as
+ * [Decoded.NewerVersion]: unusable, never wrongly read, never written over; `"noNumber"` in a file below version 6 is
+ * [Decoded.Unreadable]. A file that only says `"belowCap"` reads as before. The service keeps the usual copy
+ * (`keepCopy`, tag `v{from}-to6`) before the first version-6 save.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -113,8 +120,11 @@ internal object LineupCodec {
     /** The version that holds the per-channel `addedByViewer` mark. */
     const val SWITCH_ONS_VERSION = 5
 
-    /** The newest schema version this app reads and writes (5: the viewer's added channels). */
-    const val VERSION = SWITCH_ONS_VERSION
+    /** The version that holds the `noNumber` shelf reason. */
+    const val NO_NUMBER_VERSION = 6
+
+    /** The newest schema version this app reads and writes (6: the `noNumber` shelf reason). */
+    const val VERSION = NO_NUMBER_VERSION
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -150,7 +160,8 @@ internal object LineupCodec {
     /**
      * The bytes to store for [lineup], its [meta] and its [repairs]: the lowest version that holds all of it
      * ([BASE_VERSION], [REPAIRS_VERSION] when there are repairs, [SWITCH_ONS_VERSION] when a channel holds the added
-     * mark). A mark on a channel that cannot hold it ([canHoldAddedMark]) is written as an ordinary choice.
+     * mark, [NO_NUMBER_VERSION] when one holds the `noNumber` reason). A mark on a channel that cannot hold it
+     * ([canHoldAddedMark]) is written as an ordinary choice.
      */
     fun encode(
         lineup: Lineup,
@@ -291,6 +302,7 @@ internal object LineupCodec {
         rawAdded: List<JsonElement?>,
     ): Boolean =
         AddedMark.stray(rawAdded, fileVersion) ||
+            (fileVersion < NO_NUMBER_VERSION && file.channels.any { it.shelfReason == NO_NUMBER_JSON }) ||
             (fileVersion < 2 && meta.extrasFromMs != null) ||
             (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
             (fileVersion < REPAIRS_VERSION && hasRepairs)
@@ -440,7 +452,12 @@ private object AddedMark {
             LineupCodec.BASE_VERSION,
             if (repairs.isEmpty) 0 else LineupCodec.REPAIRS_VERSION,
             if (lineup.channels.any { holds(it) }) LineupCodec.SWITCH_ONS_VERSION else 0,
+            if (lineup.channels.any { storesNoNumber(it) }) LineupCodec.NO_NUMBER_VERSION else 0,
         )
+
+    // Whether the channel's stored reason is NoNumber: [channelOf] writes a reason on a starter only.
+    private fun storesNoNumber(channel: LineupChannel) =
+        channel.shelfReason == ShelfReason.NoNumber && channel.source is ChannelSource.Starter
 
     // Each channel's key as the file wrote it, in file order: null when it is absent. Read from the raw JSON, where a
     // key written as `null` stays a value (it is not the same as an absent key).
@@ -717,12 +734,16 @@ private class ChannelV1(
     val shelfReason: JsonElement? = null,
 )
 
+private const val NO_NUMBER_NAME = "noNumber"
+private val NO_NUMBER_JSON = JsonPrimitive(NO_NUMBER_NAME)
+
 // The wire names of the shelf reasons. A new value is a new version (see the class comment).
 private val REASON_NAMES =
     mapOf(
         ShelfReason.Empty to "empty",
         ShelfReason.TooThin to "tooThin",
         ShelfReason.BelowCap to "belowCap",
+        ShelfReason.NoNumber to NO_NUMBER_NAME,
         ShelfReason.OptIn to "optIn",
     )
 

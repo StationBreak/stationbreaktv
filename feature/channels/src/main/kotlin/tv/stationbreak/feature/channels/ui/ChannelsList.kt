@@ -218,6 +218,7 @@ internal fun shelfReasonText(reason: ShelfReason): Int =
         ShelfReason.Empty -> R.string.channels_shelf_empty
         ShelfReason.TooThin -> R.string.channels_shelf_thin
         ShelfReason.BelowCap -> R.string.channels_shelf_below_cap
+        ShelfReason.NoNumber -> R.string.channels_shelf_no_number
         ShelfReason.OptIn -> R.string.channels_shelf_opt_in
     }
 

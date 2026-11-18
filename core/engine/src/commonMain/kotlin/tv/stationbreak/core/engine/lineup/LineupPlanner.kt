@@ -126,7 +126,7 @@ object LineupPlanner {
      * Otherwise the leftovers channels are switched on, and the best [LineupDefaults.PLANNER_PICKS] recipes are chosen
      * by identity (`Selection.select`; the leftovers and the kept channels cost no place): "filling" means qualifying
      * once every title has its home. Every other recipe goes on the shelf at its default number, carrying its
-     * [ShelfReason] (BelowCap for one without a number).
+     * [ShelfReason] (NoNumber for one without a number).
      *
      * A finalised lineup keeps its offset, its numbers and every switched-on or hidden channel's state. A shelved,
      * unedited starter is selected again ([PlannerSelection]): the candidates are the unedited, numbered starters

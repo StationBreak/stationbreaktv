@@ -71,6 +71,7 @@ private fun LineupChannel.shownShelfReason(nowMs: Long): ShelfReason? {
                 EngineReason.Empty -> ShelfReason.Empty
                 EngineReason.TooThin -> ShelfReason.TooThin
                 EngineReason.BelowCap -> ShelfReason.BelowCap
+                EngineReason.NoNumber -> ShelfReason.NoNumber
                 EngineReason.OptIn -> ShelfReason.OptIn
             }
         }
