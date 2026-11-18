@@ -136,11 +136,6 @@ android {
             initWith(getByName("release"))
             // The instrumented-test APK's own rules, for the security tests run against this build (#436).
             testProguardFiles("proguard-androidtest.pro")
-            // Only when the security tests run against this build: what the test APK needs to find in the app APK
-            // (Hilt's runtime and the classes the tests call). The benchmark APK the device runs measure never has it.
-            if (providers.gradleProperty("stationbreak.testBuildType").orNull == "benchmark") {
-                proguardFile("proguard-benchmark-tests.pro")
-            }
             isDebuggable = false
             // Release code, but measured on a device: the warm switches are read here (like debug).
             buildConfigField("boolean", "WARM_SWITCHES", "true")
