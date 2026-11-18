@@ -162,6 +162,28 @@ class ChannelsFreeTierTest {
         }
 
     @Test
+    fun newWaitsForTheCapBeforeOpeningTheBuilder() =
+        channelsTest(lineup) { rig ->
+            rig.free()
+            rig.builder.capKnown.value = false
+            rig.builder.canAdd.value = false
+            rig.open(this)
+
+            rig.vm.select()
+            runCurrent()
+
+            // No builder, and no note, on a cap that is not known yet.
+            assertNull(rig.ui.builder)
+            assertNull(rig.ui.message)
+
+            rig.builder.capKnown.value = true
+            runCurrent()
+
+            assertNull(rig.ui.builder)
+            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+        }
+
+    @Test
     fun newUnderTheCapOpensTheBuilder() =
         channelsTest(lineup) { rig ->
             rig.free()

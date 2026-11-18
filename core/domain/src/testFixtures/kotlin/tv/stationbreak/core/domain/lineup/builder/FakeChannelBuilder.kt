@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.model.ChannelId
@@ -35,6 +38,9 @@ class FakeChannelBuilder : ChannelBuilder {
 
     /** What [canAddCustom] answers; true (no cap in the way) by default. */
     val canAdd = MutableStateFlow(true)
+
+    /** False until the cap is "known": [canAddCustom] emits nothing while it is false, as the real one does at first. */
+    val capKnown = MutableStateFlow(true)
 
     /** The `forChannel` of each [freeNumbers] call, in order. */
     val freeFor = mutableListOf<ChannelId?>()
@@ -101,7 +107,8 @@ class FakeChannelBuilder : ChannelBuilder {
         return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
     }
 
-    override fun canAddCustom(account: LibraryAccount): Flow<Boolean> = canAdd
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun canAddCustom(account: LibraryAccount): Flow<Boolean> = capKnown.filter { it }.flatMapLatest { canAdd }
 
     private companion object {
         const val FIRST_NUMBER = 600

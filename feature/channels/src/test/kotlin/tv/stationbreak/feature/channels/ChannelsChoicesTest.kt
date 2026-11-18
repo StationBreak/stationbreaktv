@@ -174,6 +174,15 @@ class ChannelsChoicesTest {
     }
 
     @Test
+    fun aRetiredStarterIsMarkedLikeAPlannerChannel() {
+        // A starter whose recipe left the catalog is kind Custom but not the viewer's own (#805).
+        val retired = row(ChannelGroup.On, ChannelKind.Custom).copy(viewerMade = false)
+        listOf(Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber).forEach {
+            assertEquals(ChannelsMessage.NeedsPro, lockOf(it, retired, isPro = false, canAddCustom = true))
+        }
+    }
+
+    @Test
     fun copyToCustomiseIsMarkedOnlyAtTheCap() {
         val starter = row(ChannelGroup.On)
         val atCap = lockOf(Choice.CopyToCustomise, starter, isPro = false, canAddCustom = false)

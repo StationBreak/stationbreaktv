@@ -69,7 +69,7 @@ internal fun lockOf(
 ): ChannelsMessage? =
     when (choice) {
         Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber -> {
-            ChannelsMessage.NeedsPro.takeIf { !isPro && row.kind != ChannelKind.Custom }
+            ChannelsMessage.NeedsPro.takeIf { !isPro && !row.viewerMade }
         }
 
         Choice.CopyToCustomise -> {
@@ -88,7 +88,7 @@ internal fun lockOf(
 internal fun swapLockOf(ui: ChannelsUi): ChannelsMessage? =
     ChannelsMessage.NeedsPro.takeIf {
         ui.panel is ChannelsPanel.Swap && !ui.isPro &&
-            ui.rows.firstOrNull { row -> row.id == ui.holder }?.kind != ChannelKind.Custom
+            ui.rows.firstOrNull { row -> row.id == ui.holder }?.viewerMade != true
     }
 
 /** What the properties sheet offers for [row]: the actions panel's choices, without the one that opened the sheet. */

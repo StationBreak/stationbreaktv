@@ -31,6 +31,8 @@ internal data class ChannelRow(
     val gettingReady: Boolean = false,
     /** The catalog key of the channel's logo; null for a channel with none, which shows its initials. */
     val markKey: String? = null,
+    /** The viewer made this channel, so the free tier may change it; a retired starter is Custom and is not (#805). */
+    val viewerMade: Boolean = kind == ChannelKind.Custom,
 )
 
 /** The small dialog open over the list, about one channel. */

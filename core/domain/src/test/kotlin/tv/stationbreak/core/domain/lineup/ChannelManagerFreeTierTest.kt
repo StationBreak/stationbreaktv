@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.engine.lineup.ChannelSource
@@ -12,6 +13,8 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -173,6 +176,22 @@ class ChannelManagerFreeTierTest {
             store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(base, retired)))
 
             assertEquals(needsPro, free(ChannelChange.SwitchOff(ChannelId("starter:old"))))
+        }
+
+    @Test
+    fun aRetiredStarterIsKindCustomButNotMadeByTheViewer() =
+        runBlocking<Unit> {
+            val oldRules = rules("Old", Source.Genre("Comedy"))
+            val retired = channel("starter:old", 311, ChannelState.On, ChannelSource.Custom(oldRules))
+            val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(base, retired, customOf("custom:mine", 600))))
+
+            val byId = service.channels(ACCOUNT).first().associateBy { it.id }
+
+            assertEquals(ChannelKind.Custom, byId.getValue(ChannelId("starter:old")).kind)
+            assertFalse(byId.getValue(ChannelId("starter:old")).viewerMade)
+            assertTrue(byId.getValue(mine).viewerMade)
+            assertFalse(byId.getValue(laughs).viewerMade)
         }
 
     @Test

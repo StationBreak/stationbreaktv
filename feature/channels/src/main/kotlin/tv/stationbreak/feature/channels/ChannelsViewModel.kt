@@ -124,7 +124,8 @@ internal class ChannelsViewModel
             val useMyCollections: Boolean = true,
             /** The entitlement and the custom-channel cap, as last seen (#793). */
             val isPro: Boolean = true,
-            val canAddCustom: Boolean = true,
+            /** Null until the cap's flow has emitted: a new channel is not opened on a guess (#805). */
+            val canAddCustom: Boolean? = null,
             /** The value the viewer last asked "Use my collections" to take, until the change that sends it is done. */
             val householdWant: Boolean? = null,
             val focus: ChannelsFocus? = null,
@@ -158,7 +159,12 @@ internal class ChannelsViewModel
             /** The channel whose properties sheet is open, and what was read for it (null while being read). */
             val about: ChannelId? = null,
             val properties: ChannelProperties? = null,
-        )
+        ) {
+            /** Whether [want] can be decided: the access is known and, for a new channel, so is the cap (#805). */
+            fun settledFor(want: BuilderMode): Boolean =
+                access != LineupAccess.Loading &&
+                    (access != LineupAccess.Editable || want is BuilderMode.Edit || canAddCustom != null)
+        }
 
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
         private val lock = Any()
@@ -397,10 +403,10 @@ internal class ChannelsViewModel
 
         // A builder asked for while the access loaded opens when it is Editable, or says so when it is ReadOnly.
         private fun builderWhenKnown(m: Model): Model {
-            val want = m.wantBuilder ?: return m
+            val want = m.wantBuilder?.takeIf { m.settledFor(it) } ?: return m
             return when (m.access) {
                 LineupAccess.Editable -> {
-                    if (want !is BuilderMode.Edit && !m.canAddCustom) {
+                    if (want !is BuilderMode.Edit && m.canAddCustom != true) {
                         m.copy(wantBuilder = null, message = ChannelsMessage.CustomLimit)
                     } else {
                         m.copy(builder = want, wantBuilder = null)
@@ -579,7 +585,8 @@ internal class ChannelsViewModel
                 gettingReady = m.wantBuilder != null,
                 useMyCollections = m.householdWant ?: m.useMyCollections,
                 isPro = m.isPro,
-                canAddCustom = m.canAddCustom,
+                // The list marks New only for a known "no"; the builder itself waits for the answer (#805).
+                canAddCustom = m.canAddCustom != false,
                 holder = m.holder,
                 about = m.about,
                 properties = m.properties,
@@ -652,8 +659,9 @@ internal class ChannelsViewModel
         // Shows the builder for [mode] when the lineup can be written; the focus stays on what it left from.
         private fun openBuilder(mode: BuilderMode) {
             synchronized(lock) {
-                if (model.access == LineupAccess.Loading) {
-                    // Not known yet whether the lineup can be written: ask again when it is, but not for ever.
+                if (!model.settledFor(mode)) {
+                    // Not known yet whether the lineup can be written, or whether another channel fits: ask again when
+                    // it is, but not for ever.
                     apply { it.copy(wantBuilder = mode, panel = null, holder = null, message = null) }
                     giveUpWaitingLater(model.generation, mode)
                     return
@@ -666,7 +674,7 @@ internal class ChannelsViewModel
         // A new channel (made or copied) is refused with a note while the free allowance is used up; an edit is free
         // (#793). The domain's create is the binding check. Under [lock].
         private fun atCustomCap(mode: BuilderMode): Boolean {
-            if (mode is BuilderMode.Edit || model.canAddCustom) return false
+            if (mode is BuilderMode.Edit || model.canAddCustom != false) return false
             apply { it.copy(panel = null, holder = null, message = ChannelsMessage.CustomLimit) }
             return true
         }
@@ -682,7 +690,7 @@ internal class ChannelsViewModel
                 scope.launch {
                     delay(ACCESS_WAIT)
                     change(generation) {
-                        if (it.wantBuilder == mode && it.access == LineupAccess.Loading) {
+                        if (it.wantBuilder == mode && !it.settledFor(mode)) {
                             it.copy(wantBuilder = null, message = ChannelsMessage.NotReady)
                         } else {
                             it
