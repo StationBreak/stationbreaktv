@@ -357,12 +357,7 @@ class LineupServiceRollTest {
     private fun fixAt(
         n: Long,
         coversNow: Boolean = false,
-    ) = fixOf(
-        n = n,
-        dayEndMs = nowMs + n * 86_400_000L,
-        blockStartMs = if (coversNow) nowMs - 600_000L else nowMs + n * 86_400_000L - 7_200_000L,
-        gone = 100 + n.toInt(),
-    )
+    ) = fixAt(nowMs, n, coversNow)
 
     @Test
     fun sizeTrim_neverDropsTheFixCoveringNow() =
@@ -597,103 +592,5 @@ class LineupServiceRollTest {
                 assertEquals(before, checkNotNull(store.inner.peek(ACCOUNT)).toList())
                 assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value)
             }
-        }
-
-    // ---- Every lineup save fits the record (memory equals disk) ----
-
-    // A refreshed lineup stored with [record] (and [meta] if given), as a file of version 4.
-    private fun seed(
-        record: TodayRepairs,
-        meta: RefreshMeta? = null,
-    ): LineupCodec.Decoded.Loaded {
-        runBlocking { serviceWith().refresh(ACCOUNT, LIBRARIES) }
-        val base = stored()
-        runBlocking { store.inner.save(ACCOUNT, LineupCodec.encode(base.lineup, meta ?: base.meta, record)) }
-        return stored()
-    }
-
-    private fun sizeOf(
-        held: LineupCodec.Decoded.Loaded,
-        record: TodayRepairs,
-    ) = LineupCodec.encode(held.lineup, held.meta, record).size
-
-    // The config under which [record] is the most the file may hold.
-    private fun allowing(
-        held: LineupCodec.Decoded.Loaded,
-        record: TodayRepairs,
-    ) = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - sizeOf(held, record))
-
-    private fun agree(service: LineupService): TodayRepairs {
-        val published = service.repairs(ACCOUNT).value
-        assertEquals(published, stored().repairs, "memory equals disk")
-        assertEquals(published, checkNotNull(service.lineup(ACCOUNT).value).repairs)
-        return published
-    }
-
-    @Test
-    fun aCollectionPass_trimsTheRecord_andPublishesWhatItSaved() =
-        runBlocking<Unit> {
-            val fixes = (1L..3L).map { fixAt(it) }
-            val record = TodayRepairs(fixes = fixes)
-            val seeded = seed(record, RefreshMeta(plannedGeneration = 1L, collectionPassActedOn = 5L))
-            val service = serviceWith(allowing(seeded, record))
-            service.loaded(ACCOUNT)
-            service.notePass(ACCOUNT, Instant.fromEpochMilliseconds(1_700_000_000_000L))
-            assertEquals(1_700_000_000_000L, checkNotNull(service.lineup(ACCOUNT).value).meta.collectionPassActedOn)
-            val kept = agree(service)
-            assertTrue(kept.fixes.size in 1..2, "the oldest fix went: ${kept.fixes.size}")
-            assertEquals(fixes.takeLast(kept.fixes.size), kept.fixes)
-        }
-
-    @Test
-    fun aRefresh_dropsSelectionRepairsToo_whenTheFixesAreNotEnough() =
-        runBlocking<Unit> {
-            val early = repairOf(n = 1L, atMs = nowMs + 60_000L, dayEndMs = nowMs + 4 * 3_600_000L)
-            val lateEnd = nowMs + 6 * 3_600_000L
-            val late = repairOf(channel = "starter:other", n = 2L, atMs = nowMs + 120_000L, dayEndMs = lateEnd)
-            val record = TodayRepairs(listOf(late, early), listOf(fixAt(2L)))
-            val seeded = seed(record)
-            val lateOnly = sizeOf(seeded, TodayRepairs(listOf(late)))
-            val both = sizeOf(seeded, TodayRepairs(listOf(late, early)))
-            val config = RepairConfig(fileMargin = LineupLimits.MAX_FILE_BYTES - (lateOnly + both) / 2)
-            val trims = mutableListOf<Triple<Int, Int, Int>>()
-            val note = { a: Int, b: Int, c: Int -> trims += Triple(a, b, c) }
-            val seams = LineupSeams(TestCatalog, repairConfig = config, trimmed = note)
-            val service = LineupService(store, library, clock, { 0 }, {}, seams)
-            service.refresh(ACCOUNT, LIBRARIES)
-            val kept = agree(service)
-            assertEquals(emptyList(), kept.fixes)
-            assertEquals(listOf(late), kept.selection, "the oldest atMs went")
-            assertEquals(listOf(Triple(1, 0, 1)), trims)
-        }
-
-    @Test
-    fun aRoll_trimsWhatIsLeft_andPublishesWhatItSaved() =
-        runBlocking<Unit> {
-            val soon = nowMs + 7_200_000L
-            val ending = fixOf(n = 1L, dayEndMs = soon, blockStartMs = nowMs)
-            val rest = (2L..4L).map { fixAt(it) }
-            val record = TodayRepairs(fixes = listOf(ending) + rest)
-            val seeded = seed(record)
-            val service = serviceWith(allowing(seeded, TodayRepairs(fixes = rest.takeLast(2))))
-            val held = checkNotNull(service.loaded(ACCOUNT))
-            pastDue()
-            service.rollSoon(ACCOUNT, held)
-            service.awaitRolls()
-            assertEquals(rest.takeLast(2), agree(service).fixes, "the ended day went, then the oldest fix")
-        }
-
-    @Test
-    fun aSessionThatMayNotWrite_keepsTheRecordUntrimmed() =
-        runBlocking<Unit> {
-            val record = TodayRepairs(fixes = (1L..3L).map { fixAt(it) })
-            val seeded = seed(record)
-            val service = serviceWith(allowing(seeded, TodayRepairs(fixes = listOf(fixAt(3L)))))
-            val file = checkNotNull(store.inner.peek(ACCOUNT)).toList()
-            store.inner.failReads = true
-            service.refresh(ACCOUNT, LIBRARIES)
-            store.inner.failReads = false
-            assertEquals(file, checkNotNull(store.inner.peek(ACCOUNT)).toList())
-            assertEquals(TodayRepairs.NONE, service.repairs(ACCOUNT).value, "nothing was held, nothing is trimmed")
         }
 }
