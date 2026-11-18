@@ -241,6 +241,86 @@ class ChannelsFreeTierTest {
             assertFalse(rig.ui.gettingReady)
         }
 
+    private val swapLineup =
+        listOf(summary(A, 5), summary(B, 7, kind = ChannelKind.Custom), summary(C, 9, kind = ChannelKind.Custom))
+
+    /** B (the viewer's custom) asks for [holder]'s number and the domain offers the swap. */
+    private suspend fun TestScope.openSwap(
+        rig: ChannelsRig,
+        holder: tv.stationbreak.core.model.ChannelId,
+    ) {
+        rig.open(this)
+        rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NumberTaken(holder))
+        rig.vm.setNumber(B, 5)
+        runCurrent()
+        rig.editor.changeResult = ChangeResult.Done
+        assertTrue(rig.ui.panel is ChannelsPanel.Swap)
+    }
+
+    @Test
+    fun aSwapWithAStarterIsMarkedAndShowsTheNoteWhenFree() =
+        channelsTest(swapLineup) { rig ->
+            rig.free()
+            openSwap(rig, A)
+            val calls = rig.editor.changes.size
+            assertTrue(isLocked(Choice.Confirm, null, rig.ui))
+
+            rig.pick(Choice.Confirm)
+            runCurrent()
+
+            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertNull(rig.ui.panel)
+            assertEquals(calls, rig.editor.changes.size)
+        }
+
+    @Test
+    fun aSwapWithAnOwnCustomChannelIsFreeWhenFree() =
+        channelsTest(swapLineup) { rig ->
+            rig.free()
+            openSwap(rig, C)
+            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
+
+            rig.pick(Choice.Confirm)
+            runCurrent()
+
+            assertEquals(
+                ChannelChange.SetNumber(B, 5, C),
+                rig.editor.changes
+                    .last()
+                    .second,
+            )
+        }
+
+    @Test
+    fun aSwapWithAStarterIsUnmarkedForPro() =
+        channelsTest(swapLineup) { rig ->
+            openSwap(rig, A)
+            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
+
+            rig.pick(Choice.Confirm)
+            runCurrent()
+
+            assertEquals(
+                ChannelChange.SetNumber(B, 5, A),
+                rig.editor.changes
+                    .last()
+                    .second,
+            )
+        }
+
+    @Test
+    fun theSwapMarkFollowsTheEntitlementLive() =
+        channelsTest(swapLineup) { rig ->
+            rig.free()
+            openSwap(rig, A)
+            assertTrue(isLocked(Choice.Confirm, null, rig.ui))
+
+            rig.pro.set(true)
+            runCurrent()
+
+            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
+        }
+
     @Test
     fun theProMarkFollowsTheEntitlementAndTheCap() {
         val ui = ChannelsUi.Empty.copy(rows = listOf(starterRow()))

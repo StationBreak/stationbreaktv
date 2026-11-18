@@ -131,6 +131,8 @@ internal data class ChannelsUi(
     val isPro: Boolean = true,
     /** Another custom channel may be made now (#793): when it may not, New and Copy to customise are marked. */
     val canAddCustom: Boolean = true,
+    /** The channel holding the number an open Swap panel offers to take (#804). */
+    val holder: ChannelId? = null,
 ) {
     companion object {
         val Empty =
