@@ -35,6 +35,12 @@ tasks.test {
     val fixtures = layout.projectDirectory.dir("src/test/fixtures")
     inputs.dir(fixtures).withPropertyName("fixtures")
     systemProperty("fixtures", fixtures.asFile.path)
+    // RepositoryListsTest compares the root build's repository lists with build-logic's own (#182).
+    val rootSettings = layout.projectDirectory.file("../../settings.gradle.kts")
+    val buildLogicSettings = layout.projectDirectory.file("../settings.gradle.kts")
+    inputs.files(rootSettings, buildLogicSettings).withPropertyName("settingsFiles")
+    systemProperty("rootSettings", rootSettings.asFile.path)
+    systemProperty("buildLogicSettings", buildLogicSettings.asFile.path)
 }
 
 spotless {
