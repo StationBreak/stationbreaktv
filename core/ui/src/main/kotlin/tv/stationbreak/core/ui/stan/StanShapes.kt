@@ -22,7 +22,8 @@ internal enum class Legs { Stand, Sit, Kick }
 
 internal enum class Ears { Rabbit, Droop, Zig }
 
-internal enum class Arms { None, Tune, Rest, Bear, Wave, Shrug, Flail }
+/** [Cheer] is the host's own (both arms up), not the study's; the rest are the study's. */
+internal enum class Arms { None, Tune, Rest, Bear, Wave, Shrug, Flail, Cheer }
 
 internal enum class Eyes { Open, Happy, Sleep, X }
 
@@ -320,6 +321,11 @@ private fun arms(
         Arms.Flail -> {
             arm(o, "M-116 0 Q-170 -30 -160 ${num(r1(-82 + b))}", -160.0, -86 + b)
             arm(o, "M116 10 Q160 44 178 ${num(r1(2 - b))}", 179.0, -2 - b)
+        }
+
+        Arms.Cheer -> {
+            arm(o, "M-116 0 Q-156 -36 -150 ${num(r1(-98 + b))}", -150.0, -102 + b)
+            arm(o, "M116 0 Q156 -36 150 ${num(r1(-98 + b))}", 150.0, -102 + b)
         }
 
         Arms.None -> {}

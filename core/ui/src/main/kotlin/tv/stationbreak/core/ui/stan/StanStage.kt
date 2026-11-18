@@ -70,8 +70,30 @@ internal fun rememberStanPlayback(
     maxFps: Int? = null,
 ): StanPlayback {
     val reduced = LocalMotionReduced.current
-    val clock = remember(scene) { mutableLongStateOf(0L) }
+    val clock = rememberStanClock(scene, timeSeconds, maxFps)
     val explicit = rememberUpdatedState(timeSeconds)
+    return remember(scene, reduced) {
+        StanPlayback(
+            derivedStateOf { scene.frame(stanTimeSeconds(explicit.value, reduced, clock.longValue)) },
+            clock,
+        )
+    }
+}
+
+/**
+ * Stan's clock: nanoseconds on the frame clock since [key] was last changed (a scene, a host mood), restarting at 0 on
+ * each change. It stays at 0 when [timeSeconds] is given or motion is reduced ([LocalMotionReduced]): the caller
+ * then draws that time or the still frame (see [stanTimeSeconds]). [maxFps] caps the ticks as [rememberStanFrame]
+ * describes. Read it in the draw phase, so a tick redraws without recomposing.
+ */
+@Composable
+internal fun rememberStanClock(
+    key: Any,
+    timeSeconds: Double?,
+    maxFps: Int?,
+): LongState {
+    val reduced = LocalMotionReduced.current
+    val clock = remember(key) { mutableLongStateOf(0L) }
     val animate = timeSeconds == null && !reduced
     LaunchedEffect(clock, animate, maxFps) {
         if (animate) {
@@ -90,12 +112,7 @@ internal fun rememberStanPlayback(
             }
         }
     }
-    return remember(scene, reduced) {
-        StanPlayback(
-            derivedStateOf { scene.frame(stanTimeSeconds(explicit.value, reduced, clock.longValue)) },
-            clock,
-        )
-    }
+    return clock
 }
 
 /**

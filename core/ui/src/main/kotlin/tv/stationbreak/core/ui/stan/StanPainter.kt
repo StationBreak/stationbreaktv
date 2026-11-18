@@ -47,14 +47,14 @@ internal class StanPainter(
     /**
      * Draws the ground: the lift and the halftone dots of the stage, and, if the canvas is not the stage's aspect,
      * the ground's edge colour in the bars either side. Nothing here depends on the frame but [bg], so the stage
-     * caches it (see StanStage).
+     * caches it (see StanStage). [StanBackground.None] draws nothing, not even the bars.
      */
     fun drawGround(
         scope: DrawScope,
         tf: StanStageTransform,
         bg: StanBackground,
     ) = with(scope) {
-        if (tf.scale > 0f) {
+        if (tf.scale > 0f && bg != StanBackground.None) {
             if (!tf.fillsCanvas) drawRect(palette.groundEdge)
             withTransform({
                 translate(tf.offsetX, tf.offsetY)
