@@ -13,6 +13,15 @@ internal object BrandColors {
     val Muted = Color(0xFFB3AB9D)
     val Orange = Color(0xFFE8642C)
 
+    /** Pure black: Stan's shadow on the ink ground (the study's `black` token, at 40%). */
+    val Black = Color(0xFF000000)
+
+    /** The ink ground's soft lift (#2E2A25), toward the middle of a full-screen ground. */
+    val ScreenLift = Color(0xFF2E2A25)
+
+    /** The ink ground toward the edges (#151412), the far end of the lift. */
+    val ScreenEdge = Color(0xFF151412)
+
     /** The light mode (paper): ink and cream trade places. The light ground (#F5F1E7), flat in the guide. */
     val Paper = Color(0xFFF5F1E7)
 

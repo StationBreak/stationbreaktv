@@ -18,6 +18,8 @@ dependencies {
     api(libs.androidx.datastore.preferences)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    // StanFixtureTest reads the motion study's output, a JSON file.
+    testImplementation(libs.kotlinx.serialization.json)
 
     // The instrumented tests' ComponentActivity and test manifest would otherwise resolve androidx.activity,
     // lifecycle and core to old versions that have no entry in gradle/verification-metadata.xml; these pin them
