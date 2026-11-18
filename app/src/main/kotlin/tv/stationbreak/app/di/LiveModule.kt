@@ -9,7 +9,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.app.HdmiOutput
+import tv.stationbreak.app.captions.AndroidSystemCaptions
 import tv.stationbreak.core.domain.LastChannelStore
+import tv.stationbreak.core.domain.tracks.SystemCaptionSeededChoices
 import tv.stationbreak.core.domain.tracks.TrackChoiceStore
 import tv.stationbreak.data.settings.lastchannel.FileLastChannelStore
 import tv.stationbreak.data.settings.tracks.FileTrackChoiceStore
@@ -39,12 +41,15 @@ internal object LiveModule {
         @ApplicationContext context: Context,
     ): DisplayOutput = HdmiOutput(context)
 
-    /** What the viewer chose for audio, subtitles and version, kept on the device only (never sent to the server). */
+    /**
+     * What the viewer chose for audio, subtitles and version, kept on the device only (never sent to the server). The
+     * TV's caption setting seeds the subtitle choice while the viewer has made none, and never overrides one (#725).
+     */
     @Provides
     @Singleton
     fun trackChoiceStore(
         @ApplicationContext context: Context,
-    ): TrackChoiceStore = FileTrackChoiceStore(context)
+    ): TrackChoiceStore = SystemCaptionSeededChoices(FileTrackChoiceStore(context), AndroidSystemCaptions(context))
 
     /**
      * The live screen's tunables (`LiveTimings`), built around this device's own key-repeat timeout, so a held flip
