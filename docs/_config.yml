@@ -11,6 +11,7 @@ exclude:
   - legal
   - rules-format
   - specs
+  - store
   - superpowers
   - testing
   - ASSUMPTIONS.md
