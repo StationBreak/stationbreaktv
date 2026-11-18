@@ -30,6 +30,7 @@ import tv.stationbreak.core.playback.VideoPlayerFactory
 import tv.stationbreak.core.playback.WarmConfig
 import tv.stationbreak.core.playback.WarmSwitches
 import tv.stationbreak.feature.live.Call
+import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.FakeTune
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveTimings
@@ -87,6 +88,7 @@ class LiveViewModelKeptPlaceTest {
                 r.details,
                 LiveTimings(),
                 FakeLibraryChoices(null),
+                DisplayOutput.Present,
             )
         return Setup(r, server, vm)
     }

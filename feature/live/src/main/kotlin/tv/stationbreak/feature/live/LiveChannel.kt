@@ -83,6 +83,11 @@ class LiveChannel(
      * null leaves it unwatched.
      */
     private val selection: StateFlow<ChoiceView?>? = null,
+    /**
+     * Whether the TV's output is there (#423). While it is not, nothing is tuned, retried or reported, and the screen
+     * holds the StationBreak card; the output coming back tunes once, as at any start. Null leaves it unwatched.
+     */
+    private val output: StateFlow<Boolean>? = null,
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
     private val onFirstVisit: () -> Unit = {},
 ) {
@@ -323,6 +328,7 @@ class LiveChannel(
     ) {
         launch { followLineup { flipper.lineupChanged() } }
         launch { followLibrariesGone { send(requests, SitRequest(null, null)) } }
+        launch { followOutputGone { send(requests, SitRequest(null, null)) } }
     }
 
     /** Queues a commit's sitting; a commit still waiting for its sitting is replaced, and its flip is logged so. */
@@ -667,7 +673,10 @@ class LiveChannel(
      */
     private suspend fun land(request: SitRequest?): Landing {
         // No libraries: nothing is tuned until one is chosen again, and then the channel is chosen afresh.
-        val asked = if (awaitLibraries()) null else request
+        val noLibraries = awaitLibraries()
+        // No output: nothing is tuned until it is back, and then the channel is chosen afresh, as for a first start.
+        val noOutput = awaitOutput()
+        val asked = if (noLibraries || noOutput) null else request
         val kept = asked?.resume
         // A kept place goes with the first sitting of its run only: any other landing settles it.
         if (kept == null) pendingResume = null
@@ -750,6 +759,28 @@ class LiveChannel(
             .distinctUntilChanged()
             .drop(1)
             .collect { if (it) gone() }
+    }
+
+    /**
+     * While the TV's output is gone (#423), shows the StationBreak card and waits until it is back. True when it
+     * waited: whatever the sitting was asked to land on is out of date then. The card is the one a start shows, so the
+     * screen needs no state of its own for a picture nobody can see.
+     */
+    private suspend fun awaitOutput(): Boolean {
+        val present = output?.takeIf { !it.value } ?: return false
+        screen.value = LiveState.Ident(null)
+        present.first { it }
+        return true
+    }
+
+    /**
+     * Calls [gone] each time the output goes from there to gone (#423): [run] then ends the sitting that plays, which
+     * stops the tuner and ends its reporting, and the next one waits for the output.
+     */
+    private suspend fun followOutputGone(gone: () -> Unit) {
+        val present = output ?: return
+        // A state flow only emits a change, so every value after the first is a going or a coming back.
+        present.drop(1).collect { if (!it) gone() }
     }
 
     /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */

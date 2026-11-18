@@ -123,6 +123,7 @@ a third slot, `LibrariesSlot`, which `app` fills with `feature:settings`' `Libra
 `SyncNow` for a sync (a press while one runs does nothing) and shows its state on the row. The guide and live both read
 `LibrarySelectionView.selection` (the guide carries it as one flag on its snapshot). When the stored selection is gone (no library of this TV's is available), the guide shows a
 message in place of the grid (and no programme in the details panel) and keeps its menu sheet open, and live shows `LiveState.NoLibraries` and tunes nothing.
+Live also holds still while the TV's output is gone ([#423](https://github.com/StationBreak/stationbreaktv/issues/423)): `feature:live`'s `DisplayOutput` port (read-only: whether the HDMI sink is there) is bound in `app` by `HdmiOutput`, from the platform's `ACTION_HDMI_AUDIO_PLUG` broadcast. While it is gone `LiveChannel` shows the StationBreak card, tunes, retries and reports nothing, and tunes once when it returns.
 The guide's ViewModel reads `ChannelRepository.activeChannels()` (and
 `onGuide()`: `onLineup()` plus each channel's `PlayKey`, the days-input digest) to see the lineup change under it
 while that screen shows and just after. It needs the key because it shows the days: a new play order or a reshuffle

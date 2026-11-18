@@ -508,6 +508,9 @@ class Rig(
     /** The stored library selection live reads (spec 26); none stored by default. */
     val choices = FakeLibraryChoices(null)
 
+    /** Whether the TV's output is there (#423); there by default. */
+    val output = MutableStateFlow(true)
+
     /** The details the info overlay fetches: asks [media], which a test scripts with `itemDetailsResult`. */
     val details = ProgramDetailsCache(media, sessions, scope.backgroundScope)
 
@@ -531,6 +534,7 @@ class Rig(
             server,
             details = details,
             selection = choices.selection,
+            output = output,
             onFirstVisit = { firstVisits++ },
         )
 
