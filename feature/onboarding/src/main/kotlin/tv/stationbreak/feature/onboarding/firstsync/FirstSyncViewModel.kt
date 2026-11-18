@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
@@ -144,7 +145,9 @@ internal class FirstSyncViewModel
                 viewModelScope.launch {
                     val decided =
                         withTimeoutOrNull(FIRST_LINEUP_WAIT) {
-                            combine(firstLineup.firstLineup(), channels.activeChannels()) { state, _ -> state }
+                            // The channel list only says when to look again: with none yet, the state alone decides.
+                            val lineupChanges = channels.activeChannels().onStart { emit(emptyList()) }
+                            combine(firstLineup.firstLineup(), lineupChanges) { state, _ -> state }
                                 .map { state -> onTheAir() to state }
                                 .first { (onAir, state) -> onAir || state == FirstLineupState.Settled }
                                 .first

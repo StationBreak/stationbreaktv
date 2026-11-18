@@ -25,6 +25,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.app.di.FirstLineupModule
 import tv.stationbreak.app.di.LibraryWorkModule
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
@@ -47,6 +48,9 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.FakeFirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineupState
 import tv.stationbreak.core.domain.selection.AddLandings
 import tv.stationbreak.core.domain.selection.FirstSyncLibraries
 import tv.stationbreak.core.domain.selection.LibraryPasses
@@ -82,6 +86,10 @@ private object Syncing {
     val store = InMemorySecretStore()
     var settings = InMemoryServerSettings()
     var firstSync = InMemoryFirstSync()
+
+    // The first lineup, scripted like the sync: nothing plans it here (no refresher runs under HiltTestApplication),
+    // so a test says when it settles. The library is empty, so a settled lineup has nothing on the air.
+    var firstLineup = FakeFirstLineup()
 }
 
 /**
@@ -91,7 +99,7 @@ private object Syncing {
  * focus while it syncs, and that Back leaves the app with the sync still going.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class, LibraryWorkModule::class, PlayerModule::class)
+@UninstallModules(MediaServerModule::class, LibraryWorkModule::class, PlayerModule::class, FirstLineupModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class FirstSyncNavigationTest {
@@ -142,6 +150,9 @@ class FirstSyncNavigationTest {
         @Provides
         @Singleton
         fun firstSync(): FirstSync = Syncing.firstSync
+
+        @Provides
+        fun firstLineup(): FirstLineup = Syncing.firstLineup
 
         // The saved library itself is real (LibraryModule's); only its first-sync status is scripted.
         // The Application's entry point asks for it; the worker is not run in this test.
@@ -194,6 +205,7 @@ class FirstSyncNavigationTest {
         Syncing.settings = choiceOf(ServerRecord(https), setOf(movies.id), session.account())
         // A fresh one for each test, so the calls it counts are this test's.
         Syncing.firstSync = InMemoryFirstSync()
+        Syncing.firstLineup = FakeFirstLineup()
         with(Syncing.server) {
             resumeResult = ServerResult.Success(session)
             connectResult = ServerResult.Success(ResolvedServer(https, info))
@@ -289,8 +301,8 @@ class FirstSyncNavigationTest {
 
         Syncing.firstSync.current = finished
 
-        // Stan cheers us on the air for a moment and live TV follows by itself, with no key.
-        awaitExists(FirstSyncTags.DONE)
+        // The lineup is already settled, and the library is empty: nothing is on the air, so there is no cheer, and
+        // live TV follows by itself, with no key, and says there are no channels.
         awaitExists(LiveTags.NO_CHANNELS)
         assertEquals(0, count(FirstSyncTags.HEADLINE))
         assertEquals(0, count(FirstSyncTags.DONE))
@@ -298,21 +310,37 @@ class FirstSyncNavigationTest {
     }
 
     @Test
-    fun backDuringTheCheerGoesLive() {
+    fun theProgressScreenBuildsTheChannelsAfterTheSyncThenLiveTvOpens() {
+        // Stan keeps working after the library is in, until the first lineup settles. The cheer needs a channel on
+        // the air, which this empty library never has: it and Back during it are proven by FirstSyncViewModelTest and
+        // FirstSyncScreenTest.
+        Syncing.firstLineup.state.value = FirstLineupState.Building
+        Syncing.firstSync.current = running(900, 1_000)
+        launchApp()
+        awaitExists(FirstSyncTags.HEADLINE)
+
+        Syncing.firstSync.current = finished
+        awaitExists(FirstSyncTags.BUILDING)
+        assertEquals(0, count(FirstSyncTags.COUNT))
+        assertEquals(0, count(LiveTags.NO_CHANNELS))
+
+        Syncing.firstLineup.state.value = FirstLineupState.Settled
+        awaitExists(LiveTags.NO_CHANNELS)
+        assertEquals(0, count(FirstSyncTags.BUILDING))
+        assertEquals(0, count(FirstSyncTags.DONE))
+    }
+
+    @Test
+    fun backWhileTheChannelsAreBuiltLeavesTheApp() {
+        // Back is the platform's until the cheer: the screen has nothing beneath it, so Back leaves the app.
+        Syncing.firstLineup.state.value = FirstLineupState.Building
         Syncing.firstSync.current = running(900, 1_000)
         launchApp()
         awaitExists(FirstSyncTags.HEADLINE)
         Syncing.firstSync.current = finished
-        awaitFocused(FirstSyncTags.DONE)
+        awaitExists(FirstSyncTags.BUILDING)
 
-        // Back during the cheer: on to live TV, not out of the app, and not back into setup.
-        press(KeyEvent.KEYCODE_BACK)
-
-        // That Back cuts the hold short is proven on virtual time (FirstSyncViewModelTest) and by FirstSyncScreenTest.
-        awaitExists(LiveTags.NO_CHANNELS)
-        assertFalse("Back during the cheer must not leave the app", compose.activity.isFinishing)
-        assertEquals(0, count(FirstSyncTags.DONE))
-        assertEquals(0, count(LibrariesTags.SCREEN))
+        assertBackLeavesTheApp()
     }
 
     @Test

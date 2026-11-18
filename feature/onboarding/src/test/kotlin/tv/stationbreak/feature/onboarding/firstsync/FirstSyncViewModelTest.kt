@@ -3,6 +3,8 @@ package tv.stationbreak.feature.onboarding.firstsync
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -16,8 +18,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryFirstSync
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
 import tv.stationbreak.core.domain.lineup.FakeFirstLineup
 import tv.stationbreak.core.domain.lineup.FakeSchedule
@@ -285,6 +290,27 @@ class FirstSyncViewModelTest {
             runCurrent()
             assertEquals("once", listOf(FirstSyncEvent.Finished), b.seen)
             assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+        }
+
+    @Test
+    fun aSettledLineupDecidesBeforeAnyChannelListArrives() =
+        runTest(dispatcher) {
+            // The channel list has said nothing yet (no active account in it, say): the lineup's state alone decides.
+            val silent =
+                object : ChannelRepository {
+                    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = emptyFlow()
+
+                    override fun activeChannels(): Flow<List<ChannelSummary>> = emptyFlow()
+                }
+            val firstSync = InMemoryFirstSync(running)
+            val vm = firstSyncViewModel(firstSync, FakeFirstLineup(), FakeSchedule(), silent)
+            val seen = events(vm)
+            runCurrent()
+
+            firstSync.current = finished
+            runCurrent()
+
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
         }
 
     @Test
