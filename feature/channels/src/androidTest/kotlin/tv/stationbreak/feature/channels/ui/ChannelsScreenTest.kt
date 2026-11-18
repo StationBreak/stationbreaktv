@@ -1012,6 +1012,22 @@ class ChannelsScreenTest {
     }
 
     @Test
+    fun free_aSwapOntoAStartersNumberIsMarked_andSendsNothing() {
+        pro.set(false)
+        show(ECHO, extra = listOf(summary(ECHO, 5, "Echo", kind = ChannelKind.Custom)))
+        press(Pad.Select, Pad.Down, Pad.Down, Pad.Down, Pad.Select)
+        until { exists(ChannelsTags.PICKER) }
+        // 005 to 006: the starter Alpha has it, so the swap would renumber a built-in channel (#876).
+        press(Pad.Right, Pad.Right, Pad.Up, Pad.Select)
+        until { exists(ChannelsTags.ACTION_CONFIRM) }
+        compose.onNodeWithTag(ChannelsTags.ACTION_CONFIRM).assert(hasPro())
+
+        press(Pad.Select)
+        messageIs("Pro coming soon.")
+        assertTrue("nothing is sent while the gate is closed", lineup.changes.isEmpty())
+    }
+
+    @Test
     fun free_atTheCustomChannelLimit_newIsMarkedAndShowsTheLimitNote() {
         pro.set(false)
         builder.canAdd.value = false
