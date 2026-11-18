@@ -5,9 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -20,6 +22,73 @@ class ServerRecordCodecTest {
     fun aRecordWithAPinRoundTrips() {
         val record = ServerRecord(address, pin)
         assertEquals(record, ServerRecordCodec.decode(ServerRecordCodec.encode(record)))
+    }
+
+    // #223: a CA pin round-trips under a key of its own, so an older app reads no pin at all from it.
+    @Test
+    fun aRecordWithAnAuthorityPinRoundTripsUnderItsOwnKey() {
+        val record = ServerRecord(address, pin, PinKind.Authority)
+        val text = ServerRecordCodec.encode(record)
+        assertTrue("caPin=${pin.hex}" in text)
+        assertFalse(text.lines().any { it.startsWith("pin=") })
+        assertEquals(record, ServerRecordCodec.decode(text))
+    }
+
+    @Test
+    fun aRecordWithBothKindsOfPinKeepsItsAddressAndTrustsNeither() {
+        val other = SpkiPin(ByteArray(SpkiPin.SIZE) { 7 })
+        val text = ServerRecordCodec.encode(ServerRecord(address, pin)) + "\ncaPin=${other.hex}\nlibraries=lib-a"
+        assertEquals(ServerRecord(address), ServerRecordCodec.decode(text))
+        assertEquals(setOf(ItemId("lib-a")), ServerRecordCodec.decodeStored(text)?.libraries)
+    }
+
+    @Test
+    fun anAuthorityPinOverHttpIsNeverRead() {
+        val text =
+            ServerRecordCodec
+                .encode(ServerRecord(address, pin, PinKind.Authority))
+                .replace("scheme=https", "scheme=http")
+        assertNull(ServerRecordCodec.decode(text))
+    }
+
+    @Test
+    fun aTruncatedAuthorityPinIsRefused() {
+        val text = ServerRecordCodec.encode(ServerRecord(address)) + "\ncaPin=${pin.hex.dropLast(2)}"
+        assertNull(ServerRecordCodec.decode(text))
+    }
+
+    // The format as it was before #223, written out by hand: it still reads as a leaf pin with its selection.
+    @Test
+    fun aRecordWrittenBeforeCaPinsStillReadsAsALeafPin() {
+        val text =
+            listOf(
+                "version=1",
+                "scheme=https",
+                "host=nas.example.test",
+                "port=8920",
+                "subpath=/jellyfin",
+                "viaFallback=false",
+                "pin=${pin.hex}",
+                "libraries=lib-a,lib-b",
+            ).joinToString("\n")
+        val stored = ServerRecordCodec.decodeStored(text)
+        assertEquals(ServerRecord(address, pin, PinKind.Leaf), stored?.record)
+        assertEquals(setOf(ItemId("lib-a"), ItemId("lib-b")), stored?.libraries)
+        assertFalse("caPin=" in ServerRecordCodec.encode(ServerRecord(address, pin)))
+    }
+
+    @Test
+    fun anAuthorityRecordKeepsItsSelection() {
+        val stored = StoredSettings(ServerRecord(address, pin, PinKind.Authority), libraries = setOf(ItemId("lib-a")))
+        val back = ServerRecordCodec.decodeStored(ServerRecordCodec.encode(stored))
+        assertEquals(stored.record, back?.record)
+        assertEquals(stored.libraries, back?.libraries)
+    }
+
+    @Test
+    fun aGarbledAuthorityPinIsRefusedNotReadAsNoPin() {
+        val text = ServerRecordCodec.encode(ServerRecord(address)) + "\ncaPin=not-hex"
+        assertNull(ServerRecordCodec.decode(text))
     }
 
     @Test

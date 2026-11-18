@@ -42,7 +42,7 @@ class PinPolicyTest {
         policy: PinPolicy = policy(),
         key: PinKey? = this.key,
         host: String? = this.host,
-    ) = policy.judge(cert.certificate, key, host, System.currentTimeMillis())
+    ) = policy.judge(listOf(cert.certificate), key, host, System.currentTimeMillis())
 
     // --- the key ---
 

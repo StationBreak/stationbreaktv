@@ -25,6 +25,7 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.StoredSelection
 import tv.stationbreak.core.domain.storeChoice
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -52,6 +53,15 @@ class PinSyncingServerSettingsTest {
             assertTrue(settings.save(ServerRecord(address, pin)))
             assertNotSame(before, clients.current())
             assertEquals(ServerRecord(address, pin), stored.current)
+        }
+
+    // #223: a stored CA pin reaches the client as a CA pin, never as a leaf pin.
+    @Test
+    fun aSavedAuthorityPinReachesTheClientAsAnAuthorityPin() =
+        runBlocking {
+            assertTrue(settings.save(ServerRecord(address, pin, PinKind.Authority)))
+            assertEquals(pin to PinKind.Authority, clients.pinnedTo(address))
+            assertEquals(null, clients.pinFor(address))
         }
 
     @Test

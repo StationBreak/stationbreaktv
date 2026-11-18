@@ -5,6 +5,7 @@ import tv.stationbreak.core.model.CleartextAcknowledgement
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.Library
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.PlaybackReport
 import tv.stationbreak.core.model.PlaybackRequest
 import tv.stationbreak.core.model.Scheme
@@ -98,6 +99,8 @@ class CleartextGateTest {
                 kotlin.time.Instant::class.java,
                 // trust() takes the pin a failed TLS handshake carried: https only, never an acknowledgement.
                 SpkiPin::class.java,
+                // ...and what the pin is on, a leaf or a private CA (#223): an enum, never an acknowledgement.
+                PinKind::class.java,
                 Int::class.javaPrimitiveType,
                 // reportStopped takes whether the end was a failure: a plain flag, never an acknowledgement.
                 Boolean::class.javaPrimitiveType,

@@ -90,7 +90,7 @@ internal class PinningTrustManager(
             // Not trusted by the system: only an exact pin can still accept it.
         }
         val key = if (port in VALID_PORTS) PinKey.https(host, port) else null
-        when (val verdict = policy.judge(chain[0], key, host, clock())) {
+        when (val verdict = policy.judge(chain.toList(), key, host, clock())) {
             PinVerdict.Accepted -> Unit
             is PinVerdict.Rejected -> throw CertificateRejectedException(verdict.kind, verdict.evidence)
         }

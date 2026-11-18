@@ -39,6 +39,10 @@ internal class CertificateRejectedException(
 internal class PinPolicy(
     private val pins: Map<PinKey, SpkiPin>,
     private val nameMatches: (String, X509Certificate) -> Boolean = OkHostnameVerifier::verify,
+    /** CA pins (#223): a private certificate authority trusted for exactly one scheme, host and port. */
+    private val authorities: Map<PinKey, SpkiPin> = emptyMap(),
+    /** The CAs the system trusts, so a chain that reaches one is never offered a CA pin. */
+    private val systemIssuers: () -> List<X509Certificate> = { emptyList() },
 ) {
     /** True when [leaf]'s SPKI equals the pin for exactly [key]. With no [key] nothing matches. */
     fun pinMatches(
@@ -55,21 +59,59 @@ internal class PinPolicy(
      * place is a change; then expiry, then a name that doesn't fit, then plain "not trusted".
      */
     fun judge(
-        leaf: X509Certificate,
+        chain: List<X509Certificate>,
         key: PinKey?,
         host: String?,
         nowMillis: Long,
     ): PinVerdict {
-        if (pinMatches(leaf, key)) return PinVerdict.Accepted
-        val evidence = CertificateFacts.evidence(leaf)
+        val leaf = chain.first()
+        if (pinMatches(leaf, key) || authorityAccepts(chain, key, host, nowMillis)) return PinVerdict.Accepted
+        val evidence = evidenceOf(chain, host, nowMillis)
         val kind =
             when {
-                key?.let(pins::get) != null -> Rejection.Changed
+                key?.let(pins::get) != null || changedAuthority(chain, key) -> Rejection.Changed
                 CertificateFacts.validity(leaf, nowMillis) == Validity.Expired -> Rejection.Expired
                 CertificateFacts.validity(leaf, nowMillis) == Validity.NotYetValid -> Rejection.NotYetValid
                 host == null || !nameMatches(host, leaf) -> Rejection.HostnameMismatch
                 else -> Rejection.Untrusted
             }
         return PinVerdict.Rejected(kind, evidence)
+    }
+
+    // Under a CA pin, "changed" only when the path no longer reaches the pinned CA. A renewal that went wrong (an
+    // expired leaf, a wrong name) under the same CA says what it is, not "someone may be intercepting".
+    private fun changedAuthority(
+        chain: List<X509Certificate>,
+        key: PinKey?,
+    ): Boolean {
+        val pinned = key?.let(authorities::get) ?: return false
+        return AuthorityChain.path(chain).drop(1).none { pinned.matches(CertificateFacts.spki(it)) }
+    }
+
+    // A CA pin for exactly [key] accepts the chain only through [AuthorityChain]'s checks, the leaf's name included.
+    private fun authorityAccepts(
+        chain: List<X509Certificate>,
+        key: PinKey?,
+        host: String?,
+        nowMillis: Long,
+    ): Boolean {
+        val pinned = key?.let(authorities::get) ?: return false
+        return host != null && AuthorityChain.accepts(chain, pinned, host, nowMillis)
+    }
+
+    // What the failed handshake saw, with the private CA that could be pinned instead of the leaf, if any (#223).
+    private fun evidenceOf(
+        chain: List<X509Certificate>,
+        host: String?,
+        nowMillis: Long,
+    ): CertificateEvidence {
+        val leafOnly = CertificateFacts.evidence(chain.first())
+        if (host == null || leafOnly.selfSigned) return leafOnly
+        val issuers = runCatching(systemIssuers).getOrDefault(emptyList())
+        return when (val offer = AuthorityChain.candidate(chain, host, nowMillis, issuers)) {
+            AuthorityChain.Candidate.None -> leafOnly
+            AuthorityChain.Candidate.TooShortLived -> leafOnly.copy(authorityTooShortLived = true)
+            is AuthorityChain.Candidate.Pinnable -> leafOnly.copy(authority = offer.evidence)
+        }
     }
 }

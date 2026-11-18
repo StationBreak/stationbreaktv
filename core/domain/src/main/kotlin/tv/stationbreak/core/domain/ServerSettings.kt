@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain
 
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
@@ -14,10 +15,16 @@ import tv.stationbreak.core.model.SpkiPin
 data class ServerRecord(
     val address: ServerAddress,
     val pin: SpkiPin? = null,
+    /** What [pin] is on: the server's self-signed certificate, or a private CA that issues its certificates (#223). */
+    val pinKind: PinKind = PinKind.Leaf,
 ) {
     init {
         require(pin == null || address.scheme == Scheme.Https) { "A pin is never made over http" }
+        require(pin != null || pinKind == PinKind.Leaf) { "A pin kind needs a pin" }
     }
+
+    /** The same address with no pin of either kind. */
+    fun withoutPin(): ServerRecord = ServerRecord(address)
 }
 
 /**

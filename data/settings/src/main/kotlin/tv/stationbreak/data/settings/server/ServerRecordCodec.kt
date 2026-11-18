@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.Missing
 import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.model.ItemId
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -51,6 +52,12 @@ internal data class StoredSettings(
  * raises a stored seq that is behind (spec 26 Part 4 contract, §2), so no seq still in use is taken again. The edge
  * that remains: a downgrade with no repair in the lineup record and no stamp in Room, then repairs written by another
  * path before a resume raises the seq; until that resume, those repairs are judged against a seq of 0.
+ *
+ * A pin on a private certificate authority (#223) is `caPin=` beside the leaf's `pin=`, never both. An older app
+ * ignores `caPin=`, so it trusts no pin from that record (the handshake then fails rather than misreading the CA key as
+ * a leaf's), and its next save drops the key. Accepted edge: its `clearPin` sees no pin and writes nothing, so a CA
+ * pin it meant to withdraw comes back if the app is upgraded again before any save. A file holding both keys keeps
+ * its address and selection and trusts neither pin; a garbled `caPin` refuses the record, as a garbled `pin` does.
  */
 internal object ServerRecordCodec {
     private const val VERSION = "1"
@@ -76,7 +83,14 @@ internal object ServerRecordCodec {
             add("port=${record.address.port}")
             add("subpath=${checked(record.address.subpath)}")
             add("viaFallback=${record.address.viaFallback}")
-            record.pin?.let { add("pin=${it.hex}") }
+            // A CA pin has a key of its own (#223): an older app reads no pin at all, never a leaf pin, and so trusts
+            // nothing it would misread.
+            record.pin?.let { pin ->
+                when (record.pinKind) {
+                    PinKind.Leaf -> add("pin=${pin.hex}")
+                    PinKind.Authority -> add("caPin=${pin.hex}")
+                }
+            }
             stored.libraries?.let { ids -> add("libraries=${ids.joinToString(",") { checked(it.value) }}") }
             addAll(selectionLines(stored))
         }.joinToString("\n")
@@ -202,8 +216,17 @@ internal object ServerRecordCodec {
                     subpath = values["subpath"].orEmpty(),
                     viaFallback = values["viaFallback"] == "true",
                 )
-            val pin = values["pin"]?.let { SpkiPin.fromHex(it) ?: return null }
-            ServerRecord(address, pin)
+            val leaf = values["pin"]?.let { SpkiPin.fromHex(it) ?: return null }
+            val authority = values["caPin"]?.let { SpkiPin.fromHex(it) ?: return null }
+            when {
+                // Both at once is not a record this app writes: the address and the selection are kept, and no pin
+                // is trusted, as an older app trusts none from a `caPin=` record.
+                leaf != null && authority != null -> ServerRecord(address)
+
+                authority != null -> ServerRecord(address, authority, PinKind.Authority)
+
+                else -> ServerRecord(address, leaf)
+            }
         } catch (_: NoSuchElementException) {
             null
         } catch (_: IllegalArgumentException) {

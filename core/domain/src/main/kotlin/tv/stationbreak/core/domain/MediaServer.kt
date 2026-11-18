@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.ItemLogo
 import tv.stationbreak.core.model.ItemPage
 import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryItemsPage
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.PlaySessionId
 import tv.stationbreak.core.model.PlaybackInfo
 import tv.stationbreak.core.model.PlaybackReport
@@ -76,11 +77,13 @@ interface MediaServer {
      * the pin stays in force for every later request to that exact scheme, host and port, and the result's address is
      * the one to store with it. On any failure, including a different certificate than [pin]
      * (`TlsCertificateChanged`), or when the caller is cancelled, the pin is removed again. An `http` [input] or one
-     * that isn't an address is `InvalidAddress`: a pin is never made over cleartext.
+     * that isn't an address is `InvalidAddress`: a pin is never made over cleartext. [kind] says whether [pin] is the
+     * leaf's (a self-signed certificate) or a private CA's (`CertificateEvidence.authority`, #223).
      */
     suspend fun trust(
         input: String,
         pin: SpkiPin,
+        kind: PinKind = PinKind.Leaf,
     ): ServerResult<ResolvedServer>
 
     /**

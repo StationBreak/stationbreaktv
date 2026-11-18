@@ -88,6 +88,9 @@
     <!-- Error table: TLS. A dead end: a self-signed certificate gets the trust screen instead, so no trust option is offered here. -->
     <string name="error_tls_untrusted_message">This TV doesn’t trust the server’s security certificate.</string>
     <string name="error_tls_untrusted_details">Certificate not trusted</string>
+    <!-- #223: a private CA that renews too often to trust (default Caddy renews its intermediate every week). -->
+    <string name="error_tls_short_lived_ca_message">This server’s certificates come from a private certificate authority that changes every few days, so this TV can’t trust it for long. Give the server a longer-lived authority (in Caddy, a longer intermediate lifetime), then try again.</string>
+    <string name="error_tls_short_lived_ca_details">Private certificate authority too short-lived</string>
     <string name="error_tls_hostname_message">The server’s security certificate is for a different name than the one you typed.</string>
     <string name="error_tls_hostname_details">Certificate name mismatch</string>
     <string name="error_tls_expired_message">The server’s security certificate has expired, or this TV’s date and time are wrong. Renew the certificate on the server, or check the TV’s date and time.</string>
@@ -149,6 +152,9 @@
     <!-- The trust screen (spec 05, Unit 3, Angua): the warning, then the fingerprint, then the buttons. Don't trust has default focus and is what Back means. -->
     <string name="trust_title">Trust this server’s certificate?</string>
     <string name="trust_title_changed">This server’s certificate has changed</string>
+    <!-- #223: the server's certificates come from a private certificate authority (a home lab's or Caddy's). -->
+    <string name="trust_warning_authority">This TV can’t verify this server’s security certificate. It was issued by a private certificate authority, not a public one. Trusting it trusts every certificate that authority issues for this address. Only trust it if you set up this server yourself.</string>
+    <string name="trust_warning_authority_changed">This server’s certificate has changed since you last trusted it, and it was issued by a private certificate authority. Trusting it trusts every certificate that authority issues for this address. Someone may be intercepting your connection. Only trust it if you changed the server yourself.</string>
     <string name="trust_warning_untrusted">This TV can’t verify this server’s security certificate. The server signed it itself. Only trust it if you set up this server yourself.</string>
     <string name="trust_warning_hostname">This certificate is for a different name than the address you typed, and the server signed it itself. Only trust it if you set up this server yourself.</string>
     <string name="trust_warning_expired">This certificate expired on %1$s, or this TV’s date and time are wrong. The server signed it itself. Check the TV’s date and time first. Only trust it if you set up this server yourself.</string>

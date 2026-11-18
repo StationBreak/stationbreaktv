@@ -5,25 +5,34 @@ import okhttp3.Call
 import okhttp3.ConnectionPool
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.HttpClientSource
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import javax.net.ssl.SSLContext
 
 /** Where pins are added and removed. The adapter's `trust` uses it; the app's settings keep it in step with storage. */
 interface PinRegistry {
-    /** Trusts [pin] for exactly [address]'s scheme, host and port, in a new client. A no-op for `http`. */
+    /**
+     * Trusts [pin] for exactly [address]'s scheme, host and port, in a new client, replacing any pin there: a leaf's
+     * SPKI ([PinKind.Leaf]) or a private CA's ([PinKind.Authority], #223). A no-op for `http`.
+     */
     fun pin(
         address: ServerAddress,
         pin: SpkiPin,
+        kind: PinKind = PinKind.Leaf,
     )
 
-    /** Removes the pin for [address], in a new client. A no-op when there is none. */
+    /** Removes the pin (of either kind) for [address], in a new client. A no-op when there is none. */
     fun unpin(address: ServerAddress)
 
-    /** The pin in force for exactly [address], or null (always for `http`). */
+    /** The leaf pin in force for exactly [address], or null (always for `http`). */
     fun pinFor(address: ServerAddress): SpkiPin?
+
+    /** The pin of either kind in force for exactly [address], with its kind, or null. */
+    fun pinnedTo(address: ServerAddress): Pair<SpkiPin, PinKind>?
 
     companion object {
         /** A registry that holds nothing: for an adapter on a client that does no pinning. */
@@ -32,11 +41,14 @@ interface PinRegistry {
                 override fun pin(
                     address: ServerAddress,
                     pin: SpkiPin,
+                    kind: PinKind,
                 ) = Unit
 
                 override fun unpin(address: ServerAddress) = Unit
 
                 override fun pinFor(address: ServerAddress): SpkiPin? = null
+
+                override fun pinnedTo(address: ServerAddress): Pair<SpkiPin, PinKind>? = null
             }
     }
 }
@@ -54,15 +66,25 @@ interface PinRegistry {
 class PinnedHttpClients(
     private val system: SystemTrust,
     private val template: OkHttpClient = OkHttpClient(),
+    // The CAs the system trusts, read once: a chain that reaches one is never offered a CA pin (#223).
+    systemIssuers: () -> List<X509Certificate> = { SystemTrust.defaultX509TrustManager().acceptedIssuers.toList() },
 ) : HttpClientSource,
     PinRegistry {
     private class Built(
-        val pins: Map<PinKey, SpkiPin>,
+        val pins: Pins,
         val client: OkHttpClient,
     )
 
+    // Leaf pins and CA pins, one key in one map at most: pinning either kind replaces the other.
+    private data class Pins(
+        val leaves: Map<PinKey, SpkiPin> = emptyMap(),
+        val authorities: Map<PinKey, SpkiPin> = emptyMap(),
+    )
+
+    private val issuers by lazy(systemIssuers)
+
     @Volatile
-    private var built = build(emptyMap())
+    private var built = build(Pins())
 
     override fun current(): OkHttpClient = built.client
 
@@ -77,28 +99,48 @@ class PinnedHttpClients(
     override fun pin(
         address: ServerAddress,
         pin: SpkiPin,
+        kind: PinKind,
     ) {
         val key = PinKey.of(address) ?: return
-        replace(built.pins + (key to pin))
+        val now = built.pins
+        replace(
+            when (kind) {
+                PinKind.Leaf -> Pins(now.leaves + (key to pin), now.authorities - key)
+                PinKind.Authority -> Pins(now.leaves - key, now.authorities + (key to pin))
+            },
+        )
     }
 
     @Synchronized
     override fun unpin(address: ServerAddress) {
         val key = PinKey.of(address) ?: return
-        replace(built.pins - key)
+        replace(Pins(built.pins.leaves - key, built.pins.authorities - key))
     }
 
-    override fun pinFor(address: ServerAddress): SpkiPin? = PinKey.of(address)?.let { built.pins[it] }
+    override fun pinFor(address: ServerAddress): SpkiPin? = PinKey.of(address)?.let { built.pins.leaves[it] }
 
-    /** Makes [pins] exactly the pins in force: a stored record applied at launch, or a cleared one. */
+    override fun pinnedTo(address: ServerAddress): Pair<SpkiPin, PinKind>? {
+        val key = PinKey.of(address) ?: return null
+        val pins = built.pins
+        return pins.leaves[key]?.let { it to PinKind.Leaf } ?: pins.authorities[key]?.let { it to PinKind.Authority }
+    }
+
+    /** Makes [pins] (each with its kind) exactly the pins in force: a stored record applied at launch, or none. */
     @Synchronized
-    fun setPins(pins: Map<ServerAddress, SpkiPin>) {
-        replace(pins.mapNotNull { (address, pin) -> PinKey.of(address)?.let { it to pin } }.toMap())
+    fun setPins(pins: Map<ServerAddress, Pair<SpkiPin, PinKind>>) {
+        val keyed = pins.mapNotNull { (address, pin) -> PinKey.of(address)?.let { it to pin } }
+        replace(
+            Pins(
+                leaves = keyed.filter { it.second.second == PinKind.Leaf }.associate { it.first to it.second.first },
+                authorities =
+                    keyed.filter { it.second.second == PinKind.Authority }.associate { it.first to it.second.first },
+            ),
+        )
     }
 
     // Callers hold the monitor. A call created on the old client but not yet executed when cancelAll() runs can still
     // go ahead under the old trust: a window of microseconds that is accepted, not closed.
-    private fun replace(pins: Map<PinKey, SpkiPin>) {
+    private fun replace(pins: Pins) {
         if (pins == built.pins) return
         val old = built
         built = build(pins)
@@ -108,8 +150,8 @@ class PinnedHttpClients(
         old.client.dispatcher.cancelAll()
     }
 
-    private fun build(pins: Map<PinKey, SpkiPin>): Built {
-        val policy = PinPolicy(pins)
+    private fun build(pins: Pins): Built {
+        val policy = PinPolicy(pins.leaves, authorities = pins.authorities, systemIssuers = { issuers })
         val trustManager = PinningTrustManager(system, policy)
         val context = SSLContext.getInstance("TLS")
         context.init(null, arrayOf(trustManager), SecureRandom())

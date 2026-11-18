@@ -11,6 +11,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.errorOrNull
 import tv.stationbreak.core.domain.getOrNull
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.TlsFixture
 import java.io.IOException
@@ -295,9 +296,9 @@ class PinnedClientsTest {
             tv.stationbreak.core.model
                 .ServerAddress(tv.stationbreak.core.model.Scheme.Https, NAS, 8920)
         val pin = SpkiPin(ByteArray(SpkiPin.SIZE) { 4 })
-        clients.setPins(mapOf(address to pin))
+        clients.setPins(mapOf(address to (pin to PinKind.Leaf)))
         val built = clients.current()
-        clients.setPins(mapOf(address to pin))
+        clients.setPins(mapOf(address to (pin to PinKind.Leaf)))
         assertSame(built, clients.current())
     }
 

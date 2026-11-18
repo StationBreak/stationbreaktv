@@ -7,7 +7,9 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.model.AuthorityEvidence
 import tv.stationbreak.core.model.CertificateEvidence
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.SpkiPin
 
 /** When a TLS error becomes a question for the user, and how the answer's fingerprint is written (spec 05, Unit 3). */
@@ -42,6 +44,22 @@ class TrustPromptTest {
                 MediaServerError.TlsCertificateChanged(certificate = chained),
             )
         for (error in errors) assertNull(error.toString(), error.toTrustPrompt())
+    }
+
+    // #223: a CA-issued chain the adapter found pinnable is a question about its private CA, not the leaf.
+    @Test
+    fun aPinnablePrivateCaIsAQuestionAboutTheAuthority() {
+        val ca = AuthorityEvidence(SpkiPin(ByteArray(SpkiPin.SIZE) { 9 }), notBeforeMillis = 10L, notAfterMillis = 20L)
+        val prompt = MediaServerError.TlsUntrusted(certificate = chained.copy(authority = ca)).toTrustPrompt()
+        assertEquals(PinKind.Authority, prompt?.kind)
+        assertEquals(ca.spki, prompt?.pin)
+        assertEquals(20L, prompt?.notAfterMillis)
+    }
+
+    @Test
+    fun aTooShortLivedPrivateCaIsNotAQuestion() {
+        val shortLived = chained.copy(authorityTooShortLived = true)
+        assertNull(MediaServerError.TlsUntrusted(certificate = shortLived).toTrustPrompt())
     }
 
     @Test

@@ -22,7 +22,9 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.model.AuthorityEvidence
 import tv.stationbreak.core.model.CertificateEvidence
+import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -61,6 +63,22 @@ class CertificateTrustTest {
             val outcome = trust.confirm("nas.example.test:8920", prompt())
             assertEquals(TrustOutcome.Trusted(resolved), outcome)
             assertEquals(listOf(ServerRecord(address, spki)), settings.saved)
+        }
+
+    // #223: a yes to a private CA trusts and stores the CA's key, with its kind.
+    @Test
+    fun aYesToAPrivateCaTrustsAndStoresTheAuthoritysKey() =
+        runBlocking {
+            val caPin = SpkiPin(ByteArray(SpkiPin.SIZE) { 8 })
+            val ca = AuthorityEvidence(caPin, notBeforeMillis = 1L, notAfterMillis = 3L)
+            val chained = certificate.copy(selfSigned = false, authority = ca)
+            server.trustResult = ServerResult.Success(resolved)
+
+            trust.confirm("nas.example.test:8920", TrustPrompt(TrustReason.Untrusted, chained, PinKind.Authority))
+
+            assertEquals(listOf("nas.example.test:8920" to ca.spki), server.trustCalls)
+            assertEquals(listOf(PinKind.Authority), server.trustKinds)
+            assertEquals(listOf(ServerRecord(address, ca.spki, PinKind.Authority)), settings.saved)
         }
 
     @Test
@@ -106,6 +124,7 @@ class CertificateTrustTest {
                     override suspend fun trust(
                         input: String,
                         pin: SpkiPin,
+                        kind: PinKind,
                     ): ServerResult<ResolvedServer> {
                         sessionWhenTrustRan = store.load(SessionRepository.SESSION_KEY)
                         return ServerResult.Success(resolved)
@@ -160,6 +179,7 @@ class CertificateTrustTest {
         override suspend fun trust(
             input: String,
             pin: SpkiPin,
+            kind: PinKind,
         ): ServerResult<ResolvedServer> = withContext(NonCancellable) { gate.await() }
     }
 }
