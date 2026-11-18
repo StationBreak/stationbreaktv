@@ -54,6 +54,7 @@ class FirstVisitGuideTest {
             LiveTimings(),
             FakeLibraryChoices(null),
             DisplayOutput.Present,
+            r.readiness,
         )
     }
 

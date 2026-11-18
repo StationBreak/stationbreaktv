@@ -89,6 +89,7 @@ class LiveViewModelKeptPlaceTest {
                 LiveTimings(),
                 FakeLibraryChoices(null),
                 DisplayOutput.Present,
+                r.readiness,
             )
         return Setup(r, server, vm)
     }

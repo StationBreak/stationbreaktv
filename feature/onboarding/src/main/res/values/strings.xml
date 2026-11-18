@@ -227,7 +227,9 @@
     <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
     <string name="first_sync_waiting_for_network">Waiting for your network…</string>
     <string name="first_sync_sign_in_again">Sign in again</string>
-    <!-- The moment between the end of the first sync and live TV (about a second and a half). -->
+    <!-- After the library is in, while the first lineup is built from it (about half a minute on a TV). No count. -->
+    <string name="first_sync_building_headline">Building your channels…</string>
+    <!-- The moment between the first channel on the air and live TV (about a second and a half). -->
     <string name="first_sync_done_headline">Your library is ready</string>
     <string name="first_sync_done_second_line">Starting live TV…</string>
     <!-- Said by TalkBack at each quarter: 25, 50, 75 and 100. -->
@@ -254,5 +256,6 @@
     <string name="stan_first_sync_busy">WARMING UP THE CHANNELS</string>
     <string name="stan_first_sync_waiting">NO SIGNAL. STILL TRYING.</string>
     <string name="stan_first_sync_failed">BIT OF TROUBLE</string>
+    <string name="stan_first_sync_building">BUILDING YOUR CHANNELS</string>
     <string name="stan_first_sync_done">WE\'RE ON THE AIR!</string>
 </resources>

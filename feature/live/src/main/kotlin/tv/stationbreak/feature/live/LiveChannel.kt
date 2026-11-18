@@ -18,12 +18,14 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -41,6 +43,8 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.LineupReadiness
+import tv.stationbreak.core.domain.lineup.LineupState
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.neighbourOf
@@ -88,6 +92,12 @@ class LiveChannel(
      * holds the StationBreak card; the output coming back tunes once, as at any start. Null leaves it unwatched.
      */
     private val output: StateFlow<Boolean>? = null,
+    /**
+     * Whether the lineup is still being built (the first one after setup). While it is and no channel airs,
+     * [LiveState.BuildingChannels] shows, not [LiveState.NoChannels]. Null leaves it unwatched: no channel is no
+     * channels.
+     */
+    private val readiness: LineupReadiness? = null,
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
     private val onFirstVisit: () -> Unit = {},
 ) {
@@ -783,7 +793,11 @@ class LiveChannel(
         present.drop(1).collect { if (!it) gone() }
     }
 
-    /** Waits for a channel on the air. [LiveState.NoChannels] shows meanwhile; a lineup change looks again. */
+    /**
+     * Waits for a channel on the air. Meanwhile [LiveState.BuildingChannels] shows while the lineup is still being
+     * built, and [LiveState.NoChannels] once it is built with none; a change of the lineup or of [readiness] looks
+     * again.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun awaitChannel(): Pair<LibraryAccount, ChannelOnAir> =
         library
@@ -794,11 +808,12 @@ class LiveChannel(
                     screen.value = LiveState.NoChannels
                     emptyFlow()
                 } else {
-                    channels.channels(account).map { account }
+                    val state = readiness?.readiness(account) ?: flowOf(LineupState.Empty)
+                    combine(channels.channels(account), state) { _, lineup -> account to lineup }
                 }
-            }.mapNotNull { account ->
+            }.mapNotNull { (account, lineup) ->
                 val chosen = choose(account)
-                if (chosen == null) screen.value = LiveState.NoChannels
+                if (chosen == null) screen.value = noChannelState(lineup)
                 chosen?.let { account to it }
             }.first()
 
@@ -852,3 +867,13 @@ class LiveChannel(
             else -> 2
         }
 }
+
+/**
+ * What shows while no channel can be tuned: no channels only once the lineup is built with none. A lineup said to be
+ * ready that live TV cannot tune yet (its channel list has not caught up) is still being built, for the viewer.
+ */
+private fun noChannelState(lineup: LineupState): LiveState =
+    when (lineup) {
+        LineupState.Building, LineupState.Ready -> LiveState.BuildingChannels
+        LineupState.Empty -> LiveState.NoChannels
+    }

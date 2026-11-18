@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -15,16 +16,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.FirstSync
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.LineupReadiness
+import tv.stationbreak.core.domain.lineup.LineupState
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import javax.inject.Inject
 import kotlin.time.Duration
@@ -38,6 +44,10 @@ import kotlin.time.Duration.Companion.seconds
  * start, finishes at once. It asks for the sync to be queued (a no-op when it already is), shows the saved library's
  * own count and total, at most twice a second, and on a failure shows the error table's words with Retry.
  *
+ * When the sync it showed ends, the first lineup is still to be built from it ("Stan keeps working"): the screen waits
+ * on [readiness] for the active account. A channel on the air cheers us on it ([FirstSyncPhase.Done]); no channels at
+ * all, or a wait past [LINEUP_WAIT], go on to live TV with no cheer, and live TV says what there is.
+ *
  * Leaving the screen (Back) does not stop the sync: it is WorkManager's, and the port has no way to cancel it. The
  * progress screen is simply back on the next open.
  */
@@ -46,6 +56,8 @@ internal class FirstSyncViewModel
     @Inject
     constructor(
         private val firstSync: FirstSync,
+        private val library: LibraryRepository,
+        private val readiness: LineupReadiness,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow<FirstSyncPhase>(FirstSyncPhase.Starting)
         val state: StateFlow<FirstSyncPhase> = mutableState.asStateFlow()
@@ -62,6 +74,9 @@ internal class FirstSyncViewModel
         private var seenAccount = false
         private var asked = false
         private var finished = false
+
+        // The wait for the first lineup, once the sync it follows has ended; null before.
+        private var building: Job? = null
         private val skipped = CompletableDeferred<Unit>()
 
         init {
@@ -70,8 +85,8 @@ internal class FirstSyncViewModel
                 combine(firstSync.status().onEach(::react), wait) { status, waited -> phaseOf(status, waited) }
                     .filterNotNull()
                     .throttleLatest(UPDATE_INTERVAL)
-                    // A count held back by the throttle never replaces the cheer.
-                    .collect { if (!finished) mutableState.value = it }
+                    // A count held back by the throttle never replaces the building line or the cheer.
+                    .collect { if (!finished && building == null) mutableState.value = it }
             }
         }
 
@@ -87,18 +102,20 @@ internal class FirstSyncViewModel
             when {
                 // Nobody is signed in at the start: nothing to wait for. Nobody after an account was: it was forgotten,
                 // unless the screen has already finished (the cheer is up): one way out only, and live TV deals with a
-                // lost session as it does for any.
+                // lost session as it does for any. The wait for the lineup goes with the account.
                 status == null -> {
                     if (first) {
                         finish(cheer = false)
                     } else if (!finished) {
+                        building?.cancel()
                         results.send(FirstSyncEvent.SessionLost)
                     }
                 }
 
-                // Ended before the screen saw it run: nothing was shown, so there is nothing to cheer.
+                // Ended before the screen saw it run: nothing was shown, so there is nothing to cheer, and live TV
+                // waits for the lineup itself.
                 status.lastSuccess != null -> {
-                    finish(cheer = !first)
+                    if (first) finish(cheer = false) else build()
                 }
 
                 status.state is SyncState.NeverSynced || status.state is SyncState.FirstSyncRunning -> {
@@ -108,9 +125,37 @@ internal class FirstSyncViewModel
         }
 
         /**
-         * The first sync has ended. When the screen showed it, Stan cheers us on the air first: [FirstSyncPhase.Done]
-         * for [CHEER_HOLD_MS] (the same with reduced motion), or until [skipCheer]. With nothing shown there is nothing
-         * to cheer, so the screen finishes at once.
+         * The sync the screen showed has ended: Stan keeps working while the first lineup is built from it. A channel
+         * on the air cheers; no channels, or no answer within [LINEUP_WAIT], finish with no cheer (setup never hangs;
+         * live TV goes on waiting for the channels itself). Once only.
+         */
+        @OptIn(ExperimentalCoroutinesApi::class)
+        private fun build() {
+            if (finished || building != null) return
+            mutableState.value = FirstSyncPhase.Building
+            building =
+                viewModelScope.launch {
+                    val state =
+                        withTimeoutOrNull(LINEUP_WAIT) {
+                            library
+                                .activeAccount()
+                                .filterNotNull()
+                                .flatMapLatest { readiness.readiness(it) }
+                                .first { it != LineupState.Building }
+                        }
+                    val cheer =
+                        when (state) {
+                            LineupState.Ready -> true
+                            LineupState.Empty, LineupState.Building, null -> false
+                        }
+                    finish(cheer)
+                }
+        }
+
+        /**
+         * The screen's work is over. With [cheer] (a channel is on the air after the sync it showed), Stan cheers us on
+         * the air first: [FirstSyncPhase.Done] for [CHEER_HOLD_MS] (the same with reduced motion), or until
+         * [skipCheer]. Without it the screen finishes at once.
          */
         private suspend fun finish(cheer: Boolean) {
             if (finished) return
@@ -214,6 +259,12 @@ internal class FirstSyncViewModel
             val FAILED_AFTER = 5.minutes
         }
     }
+
+/**
+ * How long the screen waits for the first lineup after the sync before going on to live TV anyway (about half a
+ * minute on a TV is usual): setup can never hang on it.
+ */
+internal val LINEUP_WAIT: Duration = 3.minutes
 
 /** How long Stan cheers "WE'RE ON THE AIR!" before live TV, unless a key skips it (spec 2026-11-18, owner choice). */
 internal const val CHEER_HOLD_MS = 1_500L

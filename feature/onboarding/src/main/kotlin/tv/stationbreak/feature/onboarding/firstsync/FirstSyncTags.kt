@@ -12,6 +12,9 @@ object FirstSyncTags {
     const val ERROR_PANEL = "firstSync:errorPanel"
     const val RETRY = "firstSync:retry"
 
+    /** The headline while the first lineup is built, after the library is in. */
+    const val BUILDING = "firstSync:building"
+
     /** The headline of the moment Stan cheers us on the air, before live TV. */
     const val DONE = "firstSync:done"
 }

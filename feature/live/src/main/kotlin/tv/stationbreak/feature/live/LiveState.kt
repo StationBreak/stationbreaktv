@@ -11,6 +11,12 @@ sealed interface LiveState {
     data object NoChannels : LiveState
 
     /**
+     * Signed in, no channel on the air yet, and the lineup is still being built (the first one after setup): Stan
+     * stands by. A channel on the air opens; a lineup built with none turns it into [NoChannels].
+     */
+    data object BuildingChannels : LiveState
+
+    /**
      * None of this TV's chosen libraries is available any more (spec 26): the selection is gone. Nothing plays; the
      * slate says where the libraries are chosen again. A library chosen again ends it.
      */

@@ -35,6 +35,14 @@ internal sealed interface FirstSyncPhase {
         val sessionLost: Boolean,
     ) : FirstSyncPhase
 
+    /**
+     * The library is saved and the first lineup is being built from it: no count, as there is nothing to count. It
+     * ends when a channel is on the air (then [Done]), when there turns out to be none, or after a wait that keeps
+     * setup from hanging.
+     */
+    data object Building : FirstSyncPhase
+
+    /** A channel is on the air: Stan cheers us on it, then live TV. */
     data object Done : FirstSyncPhase
 }
 

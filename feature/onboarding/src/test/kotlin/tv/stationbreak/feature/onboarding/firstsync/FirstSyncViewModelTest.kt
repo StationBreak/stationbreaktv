@@ -18,6 +18,9 @@ import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryFirstSync
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.FakeLineupReadiness
+import tv.stationbreak.core.domain.lineup.LineupState
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -45,7 +48,7 @@ class FirstSyncViewModelTest {
     /** A screen showing a running first sync, which then ends. */
     private fun TestScope.finishing(): Pair<FirstSyncViewModel, List<FirstSyncEvent>> {
         val firstSync = InMemoryFirstSync(running)
-        val vm = FirstSyncViewModel(firstSync)
+        val vm = firstSyncViewModel(firstSync)
         val seen = events(vm)
         runCurrent()
         firstSync.current = finished
@@ -112,7 +115,7 @@ class FirstSyncViewModelTest {
     fun aSkipBeforeTheCheerDoesNothing() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
 
@@ -132,7 +135,7 @@ class FirstSyncViewModelTest {
     fun aStaleCountNeverReplacesTheCheer() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             events(vm)
             runCurrent()
 
@@ -151,7 +154,7 @@ class FirstSyncViewModelTest {
     fun anAccountLostDuringTheCheerStillLeavesOnlyOnce() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
             firstSync.current = finished
@@ -170,12 +173,126 @@ class FirstSyncViewModelTest {
     fun withNothingToWaitForThereIsNoCheer() =
         runTest(dispatcher) {
             // The account's first sync had ended before the screen opened: it never shows, so nothing to cheer.
-            val vm = FirstSyncViewModel(InMemoryFirstSync(finished))
+            val vm = firstSyncViewModel(InMemoryFirstSync(finished))
             val seen = events(vm)
 
             runCurrent()
 
             assertEquals(listOf(FirstSyncEvent.Finished), seen)
             assertEquals(FirstSyncPhase.Starting, vm.state.value)
+        }
+
+    // The first lineup (Stan keeps working until it is built).
+
+    /** A screen showing a running first sync that then ends, with the lineup still [LineupState.Building]. */
+    private fun TestScope.building(): Triple<FirstSyncViewModel, FakeLineupReadiness, List<FirstSyncEvent>> {
+        val firstSync = InMemoryFirstSync(running)
+        val readiness = FakeLineupReadiness(LineupState.Building)
+        val vm = firstSyncViewModel(firstSync, readiness)
+        val seen = events(vm)
+        runCurrent()
+        firstSync.current = finished
+        runCurrent()
+        return Triple(vm, readiness, seen)
+    }
+
+    @Test
+    fun theEndOfTheSyncBuildsTheChannelsBeforeAnyCheer() =
+        runTest(dispatcher) {
+            val (vm, readiness, seen) = building()
+
+            assertEquals(FirstSyncPhase.Building, vm.state.value)
+            assertEquals("the signed-in account's lineup", listOf(SIGNED_IN), readiness.asked.distinct())
+            advanceTimeBy(LINEUP_WAIT - 1.milliseconds)
+            runCurrent()
+            assertEquals(FirstSyncPhase.Building, vm.state.value)
+            assertEquals(emptyList<FirstSyncEvent>(), seen)
+        }
+
+    @Test
+    fun aReadyLineupCheersThenFinishes() =
+        runTest(dispatcher) {
+            val (vm, readiness, seen) = building()
+            advanceTimeBy(30_000)
+
+            readiness.state.value = LineupState.Ready
+            runCurrent()
+            assertEquals(FirstSyncPhase.Done, vm.state.value)
+            assertEquals(emptyList<FirstSyncEvent>(), seen)
+
+            advanceTimeBy(CHEER_HOLD_MS)
+            runCurrent()
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+        }
+
+    @Test
+    fun anEmptyLineupFinishesWithNoCheer() =
+        runTest(dispatcher) {
+            val (vm, readiness, seen) = building()
+
+            readiness.state.value = LineupState.Empty
+            runCurrent()
+
+            // Live TV says there are no channels: nothing to cheer.
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(FirstSyncPhase.Building, vm.state.value)
+            advanceTimeBy(LINEUP_WAIT * 2)
+            runCurrent()
+            assertEquals("once", listOf(FirstSyncEvent.Finished), seen)
+        }
+
+    @Test
+    fun aLineupThatTakesTooLongFinishesWithNoCheer() =
+        runTest(dispatcher) {
+            val (vm, readiness, seen) = building()
+
+            advanceTimeBy(LINEUP_WAIT)
+            runCurrent()
+
+            // Setup never hangs: live TV goes on waiting for the channels itself.
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(FirstSyncPhase.Building, vm.state.value)
+            readiness.state.value = LineupState.Ready
+            runCurrent()
+            advanceTimeBy(CHEER_HOLD_MS * 2)
+            runCurrent()
+            assertEquals("a lineup ready too late does not cheer", FirstSyncPhase.Building, vm.state.value)
+            assertEquals("once", listOf(FirstSyncEvent.Finished), seen)
+        }
+
+    @Test
+    fun aSessionLostWhileBuildingLeavesOnceForSignIn() =
+        runTest(dispatcher) {
+            val firstSync = InMemoryFirstSync(running)
+            val readiness = FakeLineupReadiness(LineupState.Building)
+            val vm = firstSyncViewModel(firstSync, readiness)
+            val seen = events(vm)
+            runCurrent()
+            firstSync.current = finished
+            runCurrent()
+
+            firstSync.current = null
+            runCurrent()
+            readiness.state.value = LineupState.Ready
+            runCurrent()
+            advanceTimeBy(LINEUP_WAIT * 2)
+            runCurrent()
+
+            assertEquals(listOf(FirstSyncEvent.SessionLost), seen)
+            assertEquals(FirstSyncPhase.Building, vm.state.value)
+        }
+
+    @Test
+    fun aKeyWhileBuildingSkipsNothing() =
+        runTest(dispatcher) {
+            val (vm, readiness, seen) = building()
+
+            vm.skipCheer()
+            readiness.state.value = LineupState.Ready
+            runCurrent()
+            advanceTimeBy(CHEER_HOLD_MS - 1)
+            runCurrent()
+
+            assertEquals("the cheer holds in full", emptyList<FirstSyncEvent>(), seen)
         }
 }

@@ -8,11 +8,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -113,6 +114,14 @@ class LineupRefresher(
     private val report: (LineupEvent) -> Unit,
 ) {
     private var started: Job? = null
+    private val work = Work()
+
+    /**
+     * True while the refresher has work it will do for the account it follows: a trigger waiting or in hand, or a sync
+     * run writing the library (its end is a trigger, so a run is work owed). It turns false only once the check a run's
+     * end owes has run, so the lineup that run leads to is published first. False while nobody is followed.
+     */
+    val working: StateFlow<Boolean> = work.state
 
     /**
      * Starts listening in [scope]. A second call does nothing: [started] is never cleared, so this is one-shot, meant
@@ -128,7 +137,14 @@ class LineupRefresher(
                     library
                         .activeAccount()
                         .distinctUntilChanged()
-                        .collectLatest { account -> if (account != null) follow(account) }
+                        .collectLatest { account ->
+                            try {
+                                if (account != null) follow(account)
+                            } finally {
+                                // The triggers still queued go with the follow: nothing is owed for it any more.
+                                work.reset()
+                            }
+                        }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -180,12 +196,15 @@ class LineupRefresher(
         // A run that ends: the first value is where things stand, so only a change to "not running" is news. A known
         // weakness, older than spec 26 and left as it is: the signal is a state, so a run that starts and ends between
         // two values the collector sees (or while it is not listening, as during a backoff) is never seen to end.
+        // A run writing is work owed ([working]) from the first value seen; a first value of "not writing" says no run
+        // is owed, and the end of one is cleared only once its trigger is queued (below), so no gap shows idle.
         val runEnds =
             sync
                 .writing()
                 .distinctUntilChanged()
-                .drop(1)
-                .filter { !it }
+                .withIndex()
+                .onEach { (index, writing) -> if (writing || index == 0) work.writing(writing) }
+                .filter { (index, writing) -> index > 0 && !writing }
                 .map { Trigger.SyncEnded }
         // A household change reached its boundary (said by the background roll): the lineup is behind then.
         val replans = service.replanRequests.filter { it == account }.map { Trigger.Replan }
@@ -208,12 +227,16 @@ class LineupRefresher(
                     delay(backoff.next())
                     true
                 }
-            }
+            }.onEach { trigger -> work.queued(endsRun = trigger == Trigger.SyncEnded) }
             // The triggers are handed over through a buffer, so a trigger source that fails (and is listened to again)
             // never cancels the check in hand: that check runs on in the collector, and its triggers after it.
             .buffer()
             .collect { trigger ->
-                if (owed.take(trigger, selectionChanges.value)) act(account, trigger, owed)
+                try {
+                    if (owed.take(trigger, selectionChanges.value)) act(account, trigger, owed)
+                } finally {
+                    work.done()
+                }
             }
     }
 
@@ -418,6 +441,44 @@ class LineupRefresher(
         /** A trigger got through: the next failure waits the initial time again. */
         fun reset() {
             failures = 0L
+        }
+    }
+
+    /** What [working] is made of: the triggers queued or in hand, and whether a sync run is writing. */
+    private class Work {
+        private var queued = 0
+        private var writing = false
+        val state = MutableStateFlow(false)
+
+        @Synchronized
+        fun writing(now: Boolean) {
+            writing = now
+            publish()
+        }
+
+        /** A trigger is queued; one that [endsRun] takes over the run's writing as the work owed. */
+        @Synchronized
+        fun queued(endsRun: Boolean) {
+            queued++
+            if (endsRun) writing = false
+            publish()
+        }
+
+        @Synchronized
+        fun done() {
+            queued = maxOf(0, queued - 1)
+            publish()
+        }
+
+        @Synchronized
+        fun reset() {
+            queued = 0
+            writing = false
+            publish()
+        }
+
+        private fun publish() {
+            state.value = writing || queued > 0
         }
     }
 

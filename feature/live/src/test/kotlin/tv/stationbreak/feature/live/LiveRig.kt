@@ -29,7 +29,9 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FakeLineupReadiness
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.LineupState
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.MIN
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
@@ -508,6 +510,12 @@ class Rig(
     /** The stored library selection live reads (spec 26); none stored by default. */
     val choices = FakeLibraryChoices(null)
 
+    /**
+     * Whether the lineup is still being built (the first lineup after setup); planned with nothing on the air by
+     * default, so an empty lineup is the no-channels screen.
+     */
+    val readiness = FakeLineupReadiness(LineupState.Empty)
+
     /** Whether the TV's output is there (#423); there by default. */
     val output = MutableStateFlow(true)
 
@@ -535,6 +543,7 @@ class Rig(
             details = details,
             selection = choices.selection,
             output = output,
+            readiness = readiness,
             onFirstVisit = { firstVisits++ },
         )
 
