@@ -789,9 +789,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [main, guide]
-    # Setup 3 + cold build ~10 + attempt 18 (step limit) + retry 18 + cleanup and uploads 3 = 52, plus margin.
+    # Setup 3 + cold build ~10 + attempt 22 (step limit) + retry 22 + cleanup and uploads 3 = 60.
     # Still catches a hang well before the default 6 hours.
-    timeout-minutes: 58
+    timeout-minutes: 60
     # Repeats the workflow default so this job stays read-only if the top level is ever widened for another job.
     permissions:
       contents: read
@@ -904,9 +904,9 @@ jobs:
       - name: Instrumented tests (API 25 Android TV)
         id: tests
         continue-on-error: true
-        # A normal attempt takes 7 to 9 minutes (boot ~1.5, tests ~6 to 8); 18 leaves 100% headroom for a slow runner (12 was
-        # cut off at its end on a runner where unchanged modules ran 1.2 to 2 times slower).
-        timeout-minutes: 18
+        # `main`'s tests took 15 minutes on the first sharded run (#921) and `guide`'s about 6.5, plus ~1.5 of boot;
+        # 22 leaves room for a slow runner (18 cut the unsharded run off in the guide, runs 1350, 1378 and 1388).
+        timeout-minutes: 22
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
@@ -958,9 +958,9 @@ jobs:
       - name: Instrumented tests, retry (API 25 Android TV)
         id: tests-retry
         if: steps.infra.outputs.retry == 'true'
-        # A normal attempt takes 7 to 9 minutes (boot ~1.5, tests ~6 to 8); 18 leaves 100% headroom for a slow runner (12 was
-        # cut off at its end on a runner where unchanged modules ran 1.2 to 2 times slower).
-        timeout-minutes: 18
+        # `main`'s tests took 15 minutes on the first sharded run (#921) and `guide`'s about 6.5, plus ~1.5 of boot;
+        # 22 leaves room for a slow runner (18 cut the unsharded run off in the guide, runs 1350, 1378 and 1388).
+        timeout-minutes: 22
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 25
