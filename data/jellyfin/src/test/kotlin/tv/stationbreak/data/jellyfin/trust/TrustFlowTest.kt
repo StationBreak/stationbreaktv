@@ -16,6 +16,7 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.PlaintextServer
+import tv.stationbreak.data.jellyfin.mediaCallFactory
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.test.AfterTest
@@ -86,7 +87,7 @@ class TrustFlowTest {
         // And a sign-in-style call from the credentialed client is trusted by the same pin.
         val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
         adapter
-            .credentialedHttpClient()
+            .clients.credentialed
             .newCall(request)
             .execute()
             .use { assertEquals(200, it.code) }
@@ -261,12 +262,12 @@ class TrustFlowTest {
         val clients = pinnedClients()
         val adapter = adapterOn(clients)
 
-        val unpinned = adapter.credentialedHttpClient()
+        val unpinned = adapter.clients.credentialed
         assertSame(clients.current().sslSocketFactory, unpinned.sslSocketFactory)
         assertSame(clients.current().hostnameVerifier, unpinned.hostnameVerifier)
 
         clients.pin(server.address(), CertificateFacts.spki(cert.certificate))
-        val pinned = adapter.credentialedHttpClient()
+        val pinned = adapter.clients.credentialed
         assertNotSame(unpinned.sslSocketFactory, pinned.sslSocketFactory)
         assertSame(clients.current().sslSocketFactory, pinned.sslSocketFactory)
         assertSame(clients.current().hostnameVerifier, pinned.hostnameVerifier)
@@ -279,11 +280,11 @@ class TrustFlowTest {
     }
 
     @Test
-    fun aKeptCredentialedCallFactoryFollowsAPinClear() {
+    fun aKeptMediaCallFactoryFollowsAPinClear() {
         val cert = selfSignedFor(NAS)
         val server = TlsJellyfin(cert).closing()
         val clients = pinnedClients()
-        val kept = adapterOn(clients).credentialedCallFactory
+        val kept = adapterOn(clients).mediaCallFactory { null }
         clients.pin(server.address(), CertificateFacts.spki(cert.certificate))
         val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
         assertEquals(200, kept.newCall(request).execute().use { it.code })

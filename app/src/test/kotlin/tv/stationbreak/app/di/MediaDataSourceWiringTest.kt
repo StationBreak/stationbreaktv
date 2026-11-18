@@ -6,7 +6,6 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
 import org.junit.Test
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -18,7 +17,7 @@ import tv.stationbreak.data.jellyfin.JellyfinMediaServer
 /**
  * #214: the player's data source must be Media3's OkHttp source over the adapter's `mediaCallFactory`, the only thing
  * that adds the `Authorization` header to stream requests and strips `api_key`. A `DefaultHttpDataSource`, a bare
- * `OkHttpClient`, the adapter's `credentialedCallFactory` or a `DefaultDataSource` wrapper would each send streams
+ * `OkHttpClient` or a `DefaultDataSource` wrapper would each send streams
  * without the header (or open `file://`), and no other test would notice. Opening a `DataSpec` needs `android.net.Uri`,
  * so the factory's call factory is read by reflection instead.
  */
@@ -36,6 +35,5 @@ class MediaDataSourceWiringTest {
         field.isAccessible = true
         val calls = field.get(factory)
         assertEquals("MediaCallFactory", calls.javaClass.simpleName)
-        assertNotSame(server.credentialedCallFactory, calls)
     }
 }

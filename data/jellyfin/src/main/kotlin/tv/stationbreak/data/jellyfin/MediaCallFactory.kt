@@ -23,8 +23,8 @@ import tv.stationbreak.core.model.Session
  * followed (the credentialed client's rule), so a redirect can't carry the header anywhere either.
  *
  * Also: only `GET` and `HEAD` get the header, a path with an encoded separator (`%2f`, `%5c`) never does, and every
- * `api_key`/`ApiKey` query parameter is removed from every request, on the session's server or any other. The requests
- * go through the media client ([ClientFactory.media]): no call timeout, a 30 s read timeout.
+ * token query parameter ([TOKEN_NAMES]) is removed from every request, on the session's server or any other.
+ * The requests go through the media client ([ClientFactory.media]): no call timeout, a 30 s read timeout.
  */
 fun JellyfinMediaServer.mediaCallFactory(currentSession: () -> Session?): Call.Factory =
     MediaCallFactory(clients, calls, deviceIds, currentSession)
@@ -42,6 +42,7 @@ internal class MediaCallFactory(
                 .url(withoutApiKey(request.url))
                 .removeHeader("Authorization")
                 .tag(AuthTag::class.java, null)
+        TOKEN_HEADERS.forEach(builder::removeHeader)
         val session = currentSession()
         if (session != null && mayCarryToken(request, session) && calls.isCleared(session)) {
             // Cached after its first read, so this blocks at most once per install, on Media3's loader thread.
@@ -61,13 +62,20 @@ internal class MediaCallFactory(
             isForSessionServer(session.address, request.url)
 
     /**
-     * Jellyfin's own playlists can carry an `api_key` in the variant and segment URLs they list. It would be a second
-     * credential on the wire (and in anything that logs a URL), so it never leaves: the header is the only one.
+     * Jellyfin's own playlists can carry a token query parameter in the variant and segment URLs they list. It
+     * would be a second credential on the wire (and in anything that logs a URL), so it never leaves: the header is
+     * the only one.
      */
     private fun withoutApiKey(url: HttpUrl): HttpUrl {
-        val keys = url.queryParameterNames.filter { name -> API_KEY_NAMES.any { it.equals(name, ignoreCase = true) } }
-        if (keys.isEmpty()) return url
-        return url.newBuilder().apply { keys.forEach(::removeAllQueryParameters) }.build()
+        fun isToken(name: String) = TOKEN_NAMES.any { it.equals(name, ignoreCase = true) }
+        if ((0 until url.querySize).none { isToken(url.queryParameterName(it)) }) return url
+        // Rebuilt from decoded pairs: removeAllQueryParameters misses a percent-encoded name like `api%5Fkey`.
+        val builder = url.newBuilder().query(null)
+        for (i in 0 until url.querySize) {
+            val name = url.queryParameterName(i)
+            if (!isToken(name)) builder.addQueryParameter(name, url.queryParameterValue(i))
+        }
+        return builder.build()
     }
 
     private fun isForSessionServer(
@@ -91,6 +99,10 @@ internal class MediaCallFactory(
         /** `%2f` and `%5c` (any case) turn into a path separator on some servers and proxies. */
         val ENCODED_SEPARATOR = Regex("%2f|%5c", RegexOption.IGNORE_CASE)
 
-        val API_KEY_NAMES = listOf("api_key", "ApiKey")
+        /** The headers a caller may not set: Jellyfin reads them as a token or auth. */
+        val TOKEN_HEADERS = listOf("X-Emby-Token", "X-MediaBrowser-Token", "X-Emby-Authorization")
+
+        /** Every query name Jellyfin reads as a token or auth (matched case-insensitively). */
+        val TOKEN_NAMES = listOf("api_key", "ApiKey") + TOKEN_HEADERS
     }
 }

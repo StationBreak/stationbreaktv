@@ -35,6 +35,7 @@ import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.SpkiPin
 import tv.stationbreak.data.jellyfin.AdapterLog
 import tv.stationbreak.data.jellyfin.JellyfinMediaServer
+import tv.stationbreak.data.jellyfin.mediaCallFactory
 import tv.stationbreak.data.jellyfin.trust.PinnedHttpClients
 import java.io.IOException
 import java.net.InetAddress
@@ -407,23 +408,27 @@ class PinnedTrustOnApi25Test {
     // --- Media3, images and subtitles ---
 
     @Test
-    fun theCredentialedClientSharesThePinnedSocketFactoryAndVerifier() {
+    fun theMediaCallFactoryReachesAPinnedServerAndFollowsAPinClear() {
         val cert = selfSignedFor(NAS)
         val server = TlsServer(cert).closing()
         val clients = clients()
-        val adapter = adapter(clients)
+        val media = adapter(clients).mediaCallFactory { null }
+        val request = Request.Builder().url("https://$NAS:${server.port}/System/Info/Public").build()
         clients.pin(server.address(), spkiOf(cert))
 
-        val credentialed = adapter.credentialedHttpClient()
+        assertEquals(200, media.newCall(request).execute().use { it.code })
 
-        assertSame(clients.current().sslSocketFactory, credentialed.sslSocketFactory)
-        assertSame(clients.current().hostnameVerifier, credentialed.hostnameVerifier)
-        assertFalse(credentialed.followRedirects)
-        // An image or player client built from it keeps the pinned trust, and reaches the pinned server.
-        val derived = credentialed.newBuilder().build()
-        assertSame(credentialed.sslSocketFactory, derived.sslSocketFactory)
-        assertSame(credentialed.hostnameVerifier, derived.hostnameVerifier)
-        assertEquals(200, get(derived, NAS, server.port))
+        clients.unpin(server.address())
+        try {
+            media.newCall(request).execute().close()
+            fail("a cleared pin still trusted the server")
+        } catch (expected: IOException) {
+            // The kept factory uses the client in force on every call; the pin policy refused it, not a dead socket.
+            assertTrue(
+                "expected the pin policy's rejection in the cause chain, got ${causeNames(expected)}",
+                generateSequence<Throwable>(expected) { it.cause }.any { it.javaClass.simpleName == REJECTED },
+            )
+        }
     }
 
     // --- the system's own trust is still the first word ---
