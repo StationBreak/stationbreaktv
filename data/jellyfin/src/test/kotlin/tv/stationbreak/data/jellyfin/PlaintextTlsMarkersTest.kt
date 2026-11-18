@@ -44,6 +44,29 @@ class PlaintextTlsMarkersTest {
         for (error in notPlaintext) assertFalse(PlaintextTlsMarkers.indicatesPlaintext(error), error.toString())
     }
 
+    // A server that sent a TLS alert speaks TLS, so a plaintext marker in the same chain is not believed.
+    @Test
+    fun aMarkerBesideAReceivedAlertIsNotPlaintext() {
+        val withAlert =
+            listOf(
+                SSLHandshakeException("Received fatal alert: handshake_failure").apply {
+                    initCause(SSLException("WRONG_VERSION_NUMBER"))
+                },
+                IOException(
+                    "outer",
+                    SSLException("TLSV1_ALERT_PROTOCOL_VERSION", SSLException("wrong version number")),
+                ),
+            )
+        for (error in withAlert) assertFalse(PlaintextTlsMarkers.indicatesPlaintext(error), error.toString())
+    }
+
+    // Only the TLS stack's own words count: "alert" in a non-TLS message does not hide a real plaintext answer.
+    @Test
+    fun theWordAlertOutsideAnSslExceptionDoesNotHideAMarker() {
+        val error = IOException("alert from somewhere else", SSLException("Unsupported or unrecognized SSL message"))
+        assertTrue(PlaintextTlsMarkers.indicatesPlaintext(error))
+    }
+
     @Test
     fun aMarkerInANonSslExceptionDoesNotCount() {
         assertFalse(PlaintextTlsMarkers.indicatesPlaintext(IOException("Unsupported or unrecognized SSL message")))

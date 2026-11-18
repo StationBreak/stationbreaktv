@@ -29,12 +29,23 @@ object PlaintextTlsMarkers {
     val CONSCRYPT: List<String> =
         listOf("WRONG_VERSION_NUMBER", "wrong version number", "Unable to parse TLS packet header")
 
-    /** True when an [SSLException] in [error]'s cause chain carries one of the markers. */
     private val markers: List<String> by lazy { JVM + CONSCRYPT }
 
-    fun indicatesPlaintext(error: Throwable): Boolean =
-        error.causeChain().any { cause ->
-            val message = cause.message
-            cause is SSLException && message != null && markers.any { message.contains(it, ignoreCase = true) }
-        }
+    /**
+     * A TLS alert the server sent, in the wordings observed: the JDK's "Received fatal alert: …" and BoringSSL's
+     * `SSLV3_ALERT_…` / `TLSV1_ALERT_…`. A server that sends one speaks TLS, so a marker in the same chain is not
+     * believed. Defence in depth: BoringSSL reports an alert instead of a version error, not beside it, so this is not
+     * what decides #850's case.
+     */
+    private val alert = Regex("Received fatal alert|_ALERT_", RegexOption.IGNORE_CASE)
+
+    /**
+     * True when an [SSLException] in [error]'s cause chain carries one of the markers and none reports a TLS alert
+     * received from the server.
+     */
+    fun indicatesPlaintext(error: Throwable): Boolean {
+        val messages = error.causeChain().filterIsInstance<SSLException>().mapNotNull { it.message }
+        return messages.none { alert.containsMatchIn(it) } &&
+            messages.any { message -> markers.any { message.contains(it, ignoreCase = true) } }
+    }
 }
