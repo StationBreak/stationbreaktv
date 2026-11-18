@@ -75,8 +75,9 @@ object FocusStyle {
 
 /**
  * The surface treatment for a row whose focus a screen draws itself from its state (the channel screen's model-driven
- * focus, ADR-0008 addendum): the same outline (`primary`, 3 dp) and scale as [FocusStyle.surfaceBorder] and
- * [FocusStyle.surfaceScale], without a Compose focus target. A screen on a ground other than the theme's passes its
+ * focus, ADR-0008 addendum): a 3 dp ring (`primary`) and, unless [scaled] is false, a small growth
+ * ([FocusStyle.SURFACE_SCALE]), without a Compose focus target. It is not setup's focus ([FocusStyle.surfaceBorder]
+ * is a 4 dp ring and does not scale). A screen on a ground other than the theme's passes its
  * own [ring]. A row inside the guide family uses [panelFocus] instead (the panel's ring, no scale).
  */
 @Composable

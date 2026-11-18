@@ -29,8 +29,8 @@ val StationBreakDarkColors =
 const val HINT_ALPHA = 0.9f
 
 /**
- * The app's theme: tv-material's dark scheme, set explicitly (a TV is watched in a dim room), with the app's
- * [StationBreakTypography].
+ * The app's theme: the warm brand dark scheme ([StationBreakDarkColors]), set explicitly (a TV is watched in a dim
+ * room), with the app's [StationBreakTypography].
  */
 @Composable
 fun StationBreakTheme(content: @Composable () -> Unit) {
