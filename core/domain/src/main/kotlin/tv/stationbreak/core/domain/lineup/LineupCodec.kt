@@ -88,6 +88,8 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * (version 3; only a starter has them), a `previousRules` without its `rulesFromMs` or the other way round, or
  * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
+ * A `"noNumber"` reason below version 6 is not one of them: it is a later-version value, so the file is unreadable
+ * even on a channel whose reason would otherwise be dropped.
  *
  * The rules of a starter or custom channel are a rules-format file (version 1 to 5) held as a JSON string; they are
  * read and written by the rules codec, so they keep their extras (the fields this app does not know) but not their

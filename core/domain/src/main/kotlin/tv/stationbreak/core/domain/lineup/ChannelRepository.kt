@@ -32,7 +32,7 @@ enum class ShelfReason {
      */
     BelowCap,
 
-    /** It fits but has no free channel number, so it has no room to air. */
+    /** It has no free channel number, so it has no room to air (whether anything fits is not checked). */
     NoNumber,
 
     /** An opt-in channel: on only if the viewer switches it on. */

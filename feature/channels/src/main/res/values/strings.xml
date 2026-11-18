@@ -46,7 +46,7 @@
     <string name="channels_shelf_empty">Nothing in your libraries fits this channel yet</string>
     <string name="channels_shelf_thin">Too little fits here once every show has its best home</string>
     <string name="channels_shelf_below_cap">Fits, but it isn\'t in your lineup right now</string>
-    <string name="channels_shelf_no_number">Fits, but there is no free channel number</string>
+    <string name="channels_shelf_no_number">There is no free channel number for this channel</string>
     <string name="channels_shelf_opt_in">Only on if you switch it on</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
