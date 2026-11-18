@@ -20,8 +20,8 @@ What the copy describes is the free V1: the planner's lineup and up to 5 custom 
 | Field | Draft | Notes |
 | --- | --- | --- |
 | App title | StationBreak | The app's current label (`app_name`). **Owner** if it should differ |
-| Category | Photos & Video → Video Player | **Owner.** The alternative is Movies & TV → TV Guides. Amazon has asked at least one similar app to move from TV Guides to Video Player ([community thread](https://community.amazondeveloper.com/t/fire-tv-app-disappeared-from-search-results-after-required-category-change/29935)), and the app ships no content of its own |
-| Customer support contact | **Owner** | An email or website Amazon shows on the listing. The issue tracker is the obvious website |
+| Category | Photos & Video → Video Player | Owner decision, 2026-11-18. The app ships no content of its own, and Amazon has moved at least one similar app here from TV Guides ([community thread](https://community.amazondeveloper.com/t/fire-tv-app-disappeared-from-search-results-after-required-category-change/29935)) |
+| Customer support contact | support@stationbreak.tv | Owner decision, 2026-11-18 |
 
 ## Store listing (Step 2)
 
@@ -98,27 +98,28 @@ take them against a test server with a demo library, not a household's.
 | --- | --- | --- |
 | Price | Free | Owner lock 2026-11-04: the free listing ships first |
 | In-app purchasing | None in V1 | Pro (#36) comes in a later update |
-| Countries | **Owner** | Amazon defaults to all. The app's strings are English only |
+| Countries | United States, United Kingdom, Canada, Australia | Owner decision, 2026-11-18. Amazon defaults to all, so the rest are unticked. The app's strings are English only |
 
 ## Policy and compliance (Step 4)
 
 ### Content rating questionnaire
 
 Amazon asks about the app's subject matter (violence, cartoon violence, drugs, nudity, sex, intolerance, profanity,
-academic) and five additional items. **Owner** for every answer: a wrong rating is a listing risk.
+academic) and five additional items (personal information, advertisements, gambling, location, user-generated
+content).
 
-The app ships no media. Everything it plays comes from the viewer's own server, which the app neither supplies nor
-moderates. The recommended answers rate the app's own content, and the testing instructions (Step 5) explain where
-the media comes from. The mature-content stance (#133) is the background for these answers.
+**The owner answers this questionnaire** (decision, 2026-11-18), truthfully, as a player of user-supplied
+media. The facts it rests on:
 
-| Question | Recommended | Why |
-| --- | --- | --- |
-| Subject matter (every category) | None | The app has no content of its own. The adult built-in channel is off until the viewer switches it on, and that's a Pro choice in V1 |
-| Account creation or other personal information collected | No | No account with us. The Jellyfin username and password go only to the viewer's own server, and only the server's token is kept, on the TV |
-| Advertisements | No | None |
-| Gambling | No | None |
-| Location detection or location-based services | No | No location permission (the merged manifest allows only INTERNET, WAKE_LOCK, ACCESS_NETWORK_STATE and RECEIVE_BOOT_COMPLETED; `BackupRulesTest`) |
-| User generated content or user-to-user communication | No | Viewers can't post or message anything |
+- The app has no built-in content. Everything it plays comes from the viewer's own server, which the app neither
+  supplies nor moderates.
+- No advertisements and no purchases in V1.
+- No account with us. The Jellyfin username and password go only to the viewer's own server, and only the server's
+  token is kept, on the TV.
+- No location permission (the merged manifest allows only INTERNET, WAKE_LOCK, ACCESS_NETWORK_STATE and
+  RECEIVE_BOOT_COMPLETED; `BackupRulesTest`), and no user-to-user communication.
+- The adult built-in channel is off until the viewer switches it on (a Pro choice in V1). The mature-content stance
+  is on the docs site (`docs/guide/mature-content.md`).
 
 ### User data privacy
 
@@ -129,8 +130,9 @@ nothing to the developer or anyone else: no analytics, crash reporting or advert
 except to the server the viewer typed in. Data sent there is the viewer's own action, to their own server (see the
 [privacy page](../guide/privacy.md)).
 
-Even with No, give the privacy policy URL so the listing links it. Once GitHub Pages is on (#37), that is
-`https://stationbreak.github.io/stationbreaktv/guide/privacy.html`.
+Even with No, give the privacy policy URL so the listing links it. The policy is hosted on stationbreak.tv (owner
+decision, 2026-11-18), from the text in `docs/guide/privacy.md`. Its exact URL goes in at submission:
+`<PRIVACY POLICY URL on stationbreak.tv>`.
 
 If opt-in crash reporting or telemetry is added later (Q-PRIV-1: manual diagnostics only in V1), this answer changes
 to Yes with Crash logs or Diagnostics for Analytics, and the questionnaire must be updated before that release.
@@ -150,10 +152,12 @@ revoking the TV's device in Jellyfin ends its sign-in.
 
 ### Testing instructions
 
-Amazon rejects an app its testers can't use, and this one does nothing without a server. It needs a test server
-that Amazon's testers can reach from the internet, with a sign-in for them and media that is licensed for that use,
-for example public-domain or Creative Commons films and cartoons. **Owner**: setting it up is a hosting and content
-decision, and the address and credentials must never be committed to this repository.
+Amazon rejects an app its testers can't use, and this one does nothing without a server. The owner is setting up a
+public demo server for Amazon's reviewers (decision, 2026-11-18), reachable from the internet, with a sign-in for them
+and media licensed for that use, such as public-domain or Creative Commons films and cartoons.
+
+**Never commit the demo server's address or sign-in to this repository**, in this file or anywhere else. They are
+typed into the console's Testing instructions field at submission, where the placeholders below are.
 
 Draft text, with the placeholders to fill in at submission:
 
@@ -179,5 +183,6 @@ Not part of this draft, tracked elsewhere:
 - The Phase 2 and Phase 3 gates (owner, 2026-11-06): 14 days of daily use, then outside testers (#31).
 - The final text and review of the app-store GPL exception (#745).
 - Store and launcher art (#572) and branding (#118).
-- GitHub Pages turned on, so the privacy policy URL works (#37).
+- The privacy policy published on stationbreak.tv, so its URL works.
+- The reviewers' demo server running, with its address and sign-in ready for the Testing instructions field.
 - Fire TV certification on a device (F4.2, 📺).
