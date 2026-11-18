@@ -144,7 +144,8 @@ class LineupPlannerKeptTest {
 
         val lineup = plan(mine, many, keys.associateWith { QUALIFYING_ITEMS })
 
-        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        // The planner's own picks, and the two leftovers, which cost no seat.
+        assertEquals(LineupDefaults.PLANNER_PICKS + 2, lineup.channels.count { it.state == ChannelState.On })
         assertTrue(mine.all { it in lineup.channels })
     }
 
