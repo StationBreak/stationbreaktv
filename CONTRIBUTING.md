@@ -60,7 +60,9 @@ Signed-off-by: Your Name <you@example.com>
 
 To sign off commits you've already made on your branch, run `git fetch origin` and `git rebase --signoff origin/main`, then `git push --force-with-lease`.
 
-The `checks` job fails a pull request (at its "Check sign-offs" step) if any of its commits has no `Signed-off-by:` trailer. The only exception is a
+The `checks` job fails a pull request (at its "Check sign-offs" step) if any of its commits has no `Signed-off-by:` trailer
+in its last paragraph whose email is the commit author's email (case aside). `git commit -s` does that when your
+Git config's email is the one you commit with. The only exception is a
 commit from the Renovate dependency bot, on a pull request Renovate opened, that GitHub itself created and signed
 for the `renovate[bot]` account (a bot can't certify the DCO). Don't click "Update branch" on a Renovate pull
 request: the merge commit it makes has no sign-off, so the sign-off check fails. Ask Renovate to rebase instead.
