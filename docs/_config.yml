@@ -4,6 +4,7 @@
 title: StationBreak
 exclude:
   - adr
+  - beta
   - compatibility
   - design
   - dogfood
