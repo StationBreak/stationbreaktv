@@ -66,6 +66,7 @@ class ItemDetailsExtrasTest {
                 .orEmpty()
                 .split(',')
         assertEquals(listOf("Overview", "Genres", "MediaSources"), fields)
+        assertItemFields(fields)
     }
 
     @Test

@@ -552,10 +552,12 @@ internal class MediaCalls(
 
         /**
          * The optional fields the cache needs. `DateLastSaved` is not among them: neither 12.1 nor 12.2 returns it,
-         * even when asked (contract test). The rest (production year, rating, series, season and episode numbers,
-         * runtime) come with every item, so asking for more would only make the answer bigger.
+         * even when asked (contract test). The rest (production year, premiere date, rating, series, season and episode
+         * numbers, runtime) come with every item, so asking for more would only make the answer bigger. Every name here
+         * must be one of Jellyfin's `ItemFields`: `PremiereDate` isn't, and 12.x logged an exception for each call that
+         * asked for it (#775).
          */
-        const val ITEM_FIELDS = "DateCreated,PremiereDate,Genres,Tags,Studios,ParentId,ProviderIds"
+        const val ITEM_FIELDS = "DateCreated,Genres,Tags,Studios,ParentId,ProviderIds"
 
         /** The series calls (spec 10): only Series, never an episode, with the two fields a rule matches on. */
         const val SERIES_TYPE = "Series"
