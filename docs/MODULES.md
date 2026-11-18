@@ -389,7 +389,7 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
 ### The channel lineup (spec 12)
 
 - **`core:engine` `lineup` package** holds product policy as pure code: `StarterCatalog` (95 recipes and two leftovers
-  channels, versioned), `LineupDefaults` (the 12-hour fill minimum, the cap of 50 for ranked catalogs, `PLANNER_PICKS` (48) and `KEEPER_COPIES` (60), the finalise threshold of 5, the 06:00 day
+  channels, versioned), `LineupDefaults` (the 12-hour fill minimum, the cap of 50 for the inference of an older file's choices, `PLANNER_PICKS` (48) and `KEEPER_COPIES` (60), the finalise threshold of 5, the 06:00 day
   start) and `LineupPlanner`, a pure function from the current lineup, the library snapshot and the collection names to the
   next lineup. It never touches storage.
 - **`core:engine` `lineup.curation` package (spec 23, [ADR-0023](adr/0023-lineup-curation.md))** is the cross-channel step

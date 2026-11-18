@@ -24,7 +24,7 @@ internal object PlannerSelection {
      * Hold, not a switch-on, over a lineup the older ranked planner left (the swap from catalog 2 to 3): a switch-on
      * would resolve the newer catalog's programmed recipe and put it on the air at once, a mid-day change of the
      * curated on-set before the swap, and the swap's inference of the viewer's choices (A7) reads the lineup as
-     * catalog 2 left it.
+     * catalog 2 left it. A seat freed during Hold is filled at the swap.
      */
     enum class Mode { Select, Hold }
 

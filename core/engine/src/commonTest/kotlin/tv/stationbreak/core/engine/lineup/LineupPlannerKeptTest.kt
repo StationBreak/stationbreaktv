@@ -137,7 +137,7 @@ class LineupPlannerKeptTest {
     }
 
     @Test
-    fun withARankedCatalogKeptOffChannelsDoNotCount() {
+    fun keptOffChannelsDoNotCount() {
         val mine = (0 until 10).map { kept("m$it", 600 + it, ChannelState.UserHidden) }
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }
         val many = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
@@ -178,9 +178,8 @@ class LineupPlannerKeptTest {
             },
         )
 
-    // The seat rule (#785), a catalog that selects by identity: the kept channels and the leftovers sit on top and
-    // cost the planner no place, so a reset keeps its 48 picks whatever it keeps. (A ranked catalog keeps the cap of
-    // 50 with everything counted: the tests above.)
+    // The seat rule (#785): the kept channels and the leftovers sit on top and cost the planner no place, so a reset
+    // keeps its 48 picks whatever it keeps.
     @Test
     fun withASelectingCatalogKeptChannelsCostThePlannerNoPlace() {
         val keys = List(60) { "r" + it.toString().padStart(2, '0') }

@@ -105,6 +105,13 @@ class HouseholdReplanTest {
         return shelved
     }
 
+    // The re-plan ran, not only cleared its mark: the household starter is on, from the boundary it was planned for.
+    private suspend fun assertPlanned(service: LineupService) {
+        val house = checkNotNull(service.loaded(ACCOUNT)).lineup.channels.first { it.id == houseId }
+        assertEquals(ChannelState.On, house.state)
+        assertEquals(boundary, house.onSinceMs)
+    }
+
     private fun LineupChannel.shelved() = copy(state = ChannelState.Shelf)
 
     private fun Lineup.state(id: ChannelId) = channels.first { it.id == id }.state
@@ -226,6 +233,7 @@ class HouseholdReplanTest {
             val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
             refresherOver(fresh).start(scope)
             until { storedMeta().replanFromMs == null }
+            assertPlanned(fresh)
             job.cancel()
         }
 
@@ -241,6 +249,7 @@ class HouseholdReplanTest {
             fresh.rollSoon(ACCOUNT, checkNotNull(fresh.loaded(ACCOUNT)))
 
             until { storedMeta().replanFromMs == null }
+            assertPlanned(fresh)
             job.cancel()
         }
 

@@ -114,8 +114,8 @@ class LineupPlannerPropertyTest {
                 source?.edited == false && it.state == ChannelState.Shelf && it.number != null &&
                     it.viewerChoice == ViewerChoice.None && it.shelfReason == ShelfReason.BelowCap
             }
-        // A newer catalog waiting for its collection pass holds the on-set (`PlannerSelection.Mode.Hold`): the
-        // seats the viewer's switch-offs free are not filled until it applies.
+        // Deliberate, not a gap: a newer catalog waiting for its collection pass holds the on-set
+        // (`PlannerSelection.Mode`, Hold), so a seat the viewer frees is filled at the swap, not before.
         if (!missed || catalog.version > lineup.catalogVersion) return
         val optIn = optInIds(catalog)
         val touched =

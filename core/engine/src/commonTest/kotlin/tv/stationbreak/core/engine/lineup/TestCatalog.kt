@@ -11,7 +11,9 @@ import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.Source
 
 /**
- * A small catalog for planner tests.
+ * A small catalog for planner tests. Its recipes are unthemed unless a test themes them, and the planner selects over
+ * them anyway: that is a test-only shape. Production catalogs are themed throughout, which
+ * `StarterCatalogTest.theShippedCatalogIsThemedThroughout` guards.
  */
 internal class TestCatalog(
     override val recipes: List<Recipe>,

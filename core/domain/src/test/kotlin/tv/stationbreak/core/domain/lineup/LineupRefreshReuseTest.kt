@@ -30,7 +30,7 @@ class LineupRefreshReuseTest {
     private val now = NOON.toEpochMilliseconds() + 2 * hour
     private val noNames = CollectionNames(emptyMap())
 
-    // Catalog 2 as a ranked catalog (the installed lineup was planned with it); catalog 3 selects by identity, programs
+    // Catalog 2 as the older planner's catalog (the installed lineup was planned with it); catalog 3 programs
     // every recipe, and adds a channel. Every build here is of catalog 3, as after an upgrade: the app's catalog is the
     // new one from its first build, and only the plan under it comes later.
     private val v2 =
@@ -75,7 +75,7 @@ class LineupRefreshReuseTest {
             catalog,
         )
 
-    // The lineup of an installed ranked catalog: starters with rules that are not programmed, a custom channel and
+    // The lineup an installed catalog 2 left: starters with rules that are not programmed, a custom channel and
     // a leftovers.
     private fun rankedLineup(): Lineup =
         lineupOf(
