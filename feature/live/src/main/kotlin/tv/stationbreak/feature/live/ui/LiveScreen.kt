@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import tv.stationbreak.core.ui.BroadcastColors
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramInfoOverlay
@@ -61,6 +62,8 @@ import java.time.ZoneId
  * and the info overlay make way for the guide, which says the same. [pictureLabel] is the one thing drawn over that
  * picture for the guide: a bar along its top edge that says which channel it is and what is on (#722), since the
  * guide's panel describes whatever is highlighted, not what plays. Captions stay hidden in the corner.
+ *
+ * [changeStyle] is the viewer's choice of what shows while the channel changes: Stan's standby screen, or snow.
  */
 @Suppress("LongParameterList") // The state, its overlays, the transport and its clock, and the surface.
 @Composable
@@ -73,22 +76,44 @@ internal fun LiveScreen(
     nowMs: () -> Long = System::currentTimeMillis,
     pictureLabel: PictureLabel? = null,
     overviewScroll: ScrollState = rememberScrollState(),
+    changeStyle: ChannelChangeStyle,
     surface: @Composable () -> Unit,
 ) {
-    // The frames are made off the main thread the first time the screen is up, ready before the first tune needs them.
-    LaunchedEffect(Unit) { SnowFrames.get() }
+    // The snow's frames are made off the main thread when the screen comes up, ready before the first tune needs them:
+    // only when the viewer chose snow, so Stan's viewers do not hold two megabytes of noise for nothing.
+    LaunchedEffect(changeStyle) { if (changeStyle == ChannelChangeStyle.Snow) SnowFrames.get() }
+    // One renderer for the screen's life: Stan's paths and glyphs are parsed once, not at each tune.
+    ProvideStanRenderer {
+        LiveSurface(state, info, onCommand, guide, transport, nowMs, pictureLabel, overviewScroll, changeStyle, surface)
+    }
+}
+
+@Suppress("LongParameterList") // LiveScreen's own parameters, past the renderer it provides.
+@Composable
+private fun LiveSurface(
+    state: LiveState,
+    info: LiveInfo?,
+    onCommand: (LiveCommand) -> Unit,
+    guide: (@Composable (pictureHole: DpRect) -> Unit)?,
+    transport: TransportView?,
+    nowMs: () -> Long,
+    pictureLabel: PictureLabel?,
+    overviewScroll: ScrollState,
+    changeStyle: ChannelChangeStyle,
+    surface: @Composable () -> Unit,
+) {
     BoxWithConstraints(Modifier.fillMaxSize().background(BroadcastColors.Ink)) {
         val fit = LocalScreenFit.current
         val corner = remember(maxWidth, maxHeight, fit) { pictureCorner(DpSize(maxWidth, maxHeight), fit) }
         Box(if (guide != null) Modifier.inRect(corner) else Modifier.fillMaxSize()) { surface() }
         if (guide != null) {
             Box(Modifier.inRect(corner).clipToBounds()) {
-                PictureLayers(state)
+                PictureLayers(state, changeStyle, nowMs)
                 pictureLabel?.let { PictureLabelBar(it, Modifier.align(Alignment.TopStart)) }
             }
             guide(corner)
         } else {
-            LiveLayers(state, info, onCommand, behind = transport != null, overviewScroll)
+            LiveLayers(state, info, onCommand, behind = transport != null, overviewScroll, changeStyle, nowMs)
             TransportStrip(transport, nowMs)
         }
     }
@@ -147,12 +172,15 @@ private class InRectNode(
  * without their banners. Nothing over a picture (the guide says what is on), nor while signed out.
  */
 @Composable
-private fun PictureLayers(state: LiveState) {
+private fun PictureLayers(
+    state: LiveState,
+    changeStyle: ChannelChangeStyle,
+    nowMs: () -> Long,
+) {
     when (state) {
-        is LiveState.Tuning -> Snow()
-        is LiveState.Choosing -> if (!state.overPicture) Snow()
-        is LiveState.TechnicalDifficulties -> DifficultiesSlate(upNext = null, channel = null)
-        is LiveState.Ident -> IdentSlate(upNext = null, channel = null)
+        is LiveState.Tuning -> StationGround(state, changeStyle, nowMs, full = false)
+        is LiveState.Choosing -> if (!state.overPicture) StationGround(state, changeStyle, nowMs, full = false)
+        is LiveState.TechnicalDifficulties, is LiveState.Ident -> StationGround(state, changeStyle, nowMs, full = false)
         LiveState.NoChannels -> NoChannelsSlate()
         LiveState.NoLibraries -> NoLibrariesSlate()
         is LiveState.Watching, LiveState.SignedOut -> Unit
@@ -160,6 +188,7 @@ private fun PictureLayers(state: LiveState) {
 }
 
 /** What live TV draws over its picture for [state]: snow, the banners, the slates and the info overlay. */
+@Suppress("LongParameterList") // The state, its overlays and the viewer's choice of what a channel change shows.
 @Composable
 private fun LiveLayers(
     state: LiveState,
@@ -167,11 +196,13 @@ private fun LiveLayers(
     onCommand: (LiveCommand) -> Unit,
     behind: Boolean,
     overviewScroll: ScrollState,
+    changeStyle: ChannelChangeStyle,
+    nowMs: () -> Long,
 ) {
     Box(Modifier.fillMaxSize()) {
         when (state) {
             is LiveState.Tuning -> {
-                Snow()
+                StationGround(state, changeStyle, nowMs)
                 CableBanner(state.banner)
             }
 
@@ -191,16 +222,18 @@ private fun LiveLayers(
 
             is LiveState.Choosing -> {
                 // The number moving (spec 15): the old picture shows through untouched, or snow when there is none.
-                if (!state.overPicture) Snow()
+                if (!state.overPicture) StationGround(state, changeStyle, nowMs)
                 Box(Modifier.fillMaxSize().testTag(LiveTags.BANNER_CHOOSING)) { ChannelBanner(state.target) }
             }
 
             is LiveState.TechnicalDifficulties -> {
-                DifficultiesSlate(state.upNext, state.channel)
+                StationGround(state, changeStyle, nowMs)
+                CardBanner(state.upNext, state.channel)
             }
 
             is LiveState.Ident -> {
-                IdentSlate(state.upNext, state.channel, state.note)
+                StationGround(state, changeStyle, nowMs)
+                CardBanner(state.upNext, state.channel)
             }
 
             LiveState.NoChannels -> {

@@ -230,7 +230,7 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
     }
 
-    // Even out volume (#498), the panel's last row: Down stops on it, Left and Right pick Off and On,
+    // Even out volume (#498), the row before Changing channel: Left and Right pick Off and On,
     // and the setting the host holds follows. Select closes the panel keeping the pick, as the other choice rows do.
     @Test
     fun evenOutVolumeRow_leftRightPickAndSelectClosesKeepingThePick() {
@@ -239,9 +239,8 @@ class GuideNoLibrariesUiTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
         }
-        // Screen fit, Libraries, Sync now, then the new row; one more Down stays on it.
+        // Screen fit, Libraries, Sync now, then Even out volume (Changing channel is below it now).
         repeat(ROWS_TO_LEVELLING) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
         // On is the default.
         awaitSelected(GuideTags.LEVELLING_ON)
         compose.onNodeWithTag(GuideTags.LEVELLING_OFF).assertIsNotSelected()

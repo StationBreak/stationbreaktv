@@ -25,6 +25,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
@@ -53,12 +54,14 @@ class LiveScreenGuideModeTest {
     private val upNext =
         Banner(4, "Test Channel", BannerLabel.UpNext, "Test Movie A", null, START, START + 30 * MINUTE, null)
 
+    @Suppress("LongParameterList") // The state, the guide, the layout direction, the label and the viewer's choice.
     private fun show(
         state: LiveState,
         info: LiveInfo? = null,
         guideOpen: Boolean = true,
         direction: LayoutDirection = LayoutDirection.Ltr,
         label: PictureLabel? = null,
+        change: ChannelChangeStyle = ChannelChangeStyle.Stan,
     ) {
         shown.value = state
         compose.setContent {
@@ -78,6 +81,7 @@ class LiveScreenGuideModeTest {
                                     null
                                 },
                             pictureLabel = label,
+                            changeStyle = change,
                         ) { Box(Modifier.fillMaxSize().testTag(SURFACE)) }
                     }
                 }
@@ -127,8 +131,18 @@ class LiveScreenGuideModeTest {
     }
 
     @Test
-    fun snowIsInTheCorner() {
+    fun stansStandbyScreenIsInTheCorner() {
         show(LiveState.Tuning(upNext.copy(label = BannerLabel.TuningIn)))
+        assertRect(corner, compose.onNodeWithTag(LiveTags.STAN_STAGE).bounds())
+        compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
+        // The corner has no sign-off or clock: they would be set at the floor size over a picture a third as wide.
+        compose.onNodeWithTag(LiveTags.STAN_SIGN_OFF).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.STAN_CLOCK).assertDoesNotExist()
+    }
+
+    @Test
+    fun snowIsInTheCornerWhenTheViewerChoseSnow() {
+        show(LiveState.Tuning(upNext.copy(label = BannerLabel.TuningIn)), change = ChannelChangeStyle.Snow)
         assertRect(corner, compose.onNodeWithTag(LiveTags.SNOW).bounds())
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
@@ -136,15 +150,15 @@ class LiveScreenGuideModeTest {
     @Test
     fun identAndDifficultiesAreClippedToTheCorner() {
         show(LiveState.Ident(upNext, ChannelTag(4, "Test Channel")))
-        assertRect(corner, compose.onNodeWithTag(LiveTags.TEST_CARD).bounds())
-        compose.onNodeWithTag(LiveTags.IDENT, useUnmergedTree = true).assertExists()
+        assertRect(corner, compose.onNodeWithTag(LiveTags.STAN_STAGE).bounds())
+        compose.onNodeWithTag(LiveTags.STAN_OFF_AIR, useUnmergedTree = true).assertExists()
         // The card's "Up next" banner is a banner: the guide says what is next.
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
         compose.onNodeWithText("UP NEXT").assertDoesNotExist()
 
         compose.runOnIdle { shown.value = LiveState.TechnicalDifficulties(upNext, ChannelTag(4, "Test Channel")) }
         compose.waitForIdle()
-        assertRect(corner, compose.onNodeWithTag(LiveTags.TEST_CARD).bounds())
+        assertRect(corner, compose.onNodeWithTag(LiveTags.STAN_STAGE).bounds())
         compose.onNodeWithTag(LiveTags.DIFFICULTIES, useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }

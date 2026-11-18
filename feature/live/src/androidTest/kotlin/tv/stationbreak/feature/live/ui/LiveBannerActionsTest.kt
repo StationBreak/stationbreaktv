@@ -41,6 +41,7 @@ import tv.stationbreak.core.playback.SourceFacts
 import tv.stationbreak.core.playback.StreamFacts
 import tv.stationbreak.core.playback.SwitchCost
 import tv.stationbreak.core.playback.VideoFacts
+import tv.stationbreak.core.ui.ChannelChangeStyle.Stan
 import tv.stationbreak.core.ui.ProgramInfoTags
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
@@ -87,7 +88,12 @@ class LiveBannerActionsTest {
     ) {
         compose.setContent {
             StationBreakTheme {
-                LiveScreen(LiveState.Watching(banner.takeIf { info == null }), info, { sent += it }) {}
+                LiveScreen(
+                    LiveState.Watching(banner.takeIf { info == null }),
+                    info,
+                    { sent += it },
+                    changeStyle = Stan,
+                ) {}
             }
         }
         compose.waitForIdle()
@@ -154,7 +160,7 @@ class LiveBannerActionsTest {
                     state = LiveState.Watching(banner(actions = true, hasLast = true))
                 }
             }
-            StationBreakTheme { LiveKeysRoot(state, null, machine, transport = transport) {} }
+            StationBreakTheme { LiveKeysRoot(state, null, machine, transport = transport, changeStyle = Stan) {} }
         }
         compose.waitForIdle()
     }
@@ -226,7 +232,14 @@ class LiveBannerActionsTest {
         var transport by mutableStateOf<TransportView?>(null)
         compose.setContent {
             StationBreakTheme {
-                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+                LiveScreen(
+                    LiveState.Watching(banner(actions = true, hasLast = true)),
+                    null,
+                    {},
+                    null,
+                    transport,
+                    changeStyle = Stan,
+                ) {}
             }
         }
         compose.waitForIdle()
@@ -262,7 +275,14 @@ class LiveBannerActionsTest {
         var transport by mutableStateOf<TransportView?>(null)
         compose.setContent {
             StationBreakTheme {
-                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+                LiveScreen(
+                    LiveState.Watching(banner(actions = true, hasLast = true)),
+                    null,
+                    {},
+                    null,
+                    transport,
+                    changeStyle = Stan,
+                ) {}
             }
         }
         compose.waitForIdle()
@@ -277,7 +297,14 @@ class LiveBannerActionsTest {
         var transport by mutableStateOf<TransportView?>(view(paused = true))
         compose.setContent {
             StationBreakTheme {
-                LiveScreen(LiveState.Watching(banner(actions = true, hasLast = true)), null, {}, null, transport) {}
+                LiveScreen(
+                    LiveState.Watching(banner(actions = true, hasLast = true)),
+                    null,
+                    {},
+                    null,
+                    transport,
+                    changeStyle = Stan,
+                ) {}
             }
         }
         compose.waitForIdle()
@@ -294,7 +321,7 @@ class LiveBannerActionsTest {
         compose.setContent {
             StationBreakTheme {
                 val state = LiveState.Watching(selectBanner(Route.DIRECT_PLAY))
-                LiveScreen(state, null, {}, null, transport) {}
+                LiveScreen(state, null, {}, null, transport, changeStyle = Stan) {}
             }
         }
         compose.waitForIdle()

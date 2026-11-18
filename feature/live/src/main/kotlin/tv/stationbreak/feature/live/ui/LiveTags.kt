@@ -39,6 +39,16 @@ object LiveTags {
     const val TRANSPORT_SPINNER = "live:transport:spinner"
     const val INFO = "live:info"
     const val TEST_CARD = "live:testCard"
+
+    /** Stan's station screens: standby while a channel tunes (the difficulties and ident roots are tagged below). */
+    const val STAN_STANDBY = "live:stan:standby"
+    const val STAN_OFF_AIR = "live:stan:offAir"
+    const val STAN_STAGE = "live:stan:stage"
+    const val STAN_HEADLINE = "live:stan:headline"
+    const val STAN_STATUS = "live:stan:status"
+    const val STAN_DETAIL = "live:stan:detail"
+    const val STAN_SIGN_OFF = "live:stan:signOff"
+    const val STAN_CLOCK = "live:stan:clock"
     const val DIFFICULTIES = "live:difficulties"
     const val IDENT = "live:ident"
     const val IDENT_NOTE = "live:identNote"

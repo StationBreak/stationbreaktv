@@ -39,6 +39,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.ui.ChannelChangeStyle.Stan
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
@@ -100,6 +101,7 @@ class LiveGuideFlowTest {
                     upNow = { overlayUpOf(state, null, guideOpen.value) },
                     onGuide = { guideOpen.value = it },
                     guide = { _, onTune -> FakeGuide(onTune) },
+                    changeStyle = Stan,
                     video = video,
                 )
             }

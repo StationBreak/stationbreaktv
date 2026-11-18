@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.guideProse
@@ -53,6 +54,9 @@ internal enum class SettingsRow {
 
     /** Off and On (volume levelling, #498): Left and Right pick one; Select closes the panel keeping the pick. */
     VolumeLevelling,
+
+    /** Stan and Snow (what shows while the channel changes): Left and Right pick one; Select closes the panel. */
+    ChannelChange,
 }
 
 /**
@@ -78,6 +82,8 @@ internal data class SettingsStep(
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
     val levellingFrom: String? = null,
+    val channelChange: ChannelChangeStyle? = null,
+    val channelChangeFrom: String? = null,
 )
 
 /** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
@@ -134,9 +140,10 @@ private fun reasonLine(failure: SyncFailure): Int =
  * Select and Back are all kept, so the grid never moves under the panel.
  *
  * Up and Down move between the rows (on every press, and stop at the ends). On Appearance, Left and Right pick Dark
- * and Light; on Screen fit, Safe and Edge; on Even out volume, Off and On. Select, on its first press: on those three
- * choice rows it closes the panel keeping the pick, on Libraries it shows the Libraries screen, and on Sync now it
- * asks for a sync and leaves the panel open, so the line beside the row can say how it goes.
+ * and Light; on Screen fit, Safe and Edge; on Even out volume, Off and On; on Changing channel, Stan and Snow.
+ * Select, on its first press, closes the panel keeping the pick on those four choice rows, shows the Libraries screen
+ * on Libraries, and on Sync now asks for a sync and leaves the panel open, so the line beside the row can say how it
+ * goes.
  * Back closes the panel at its release, as the guide's own Back does. While the Libraries screen shows, every key is
  * kept and does nothing: that screen has the keys, as channel management has them over the guide.
  */
@@ -170,6 +177,8 @@ internal fun settingsStep(
                 fit = panel.fitFor(direction),
                 levelling = panel.levellingFor(direction),
                 levellingFrom = panel.levellingSourceFor(direction),
+                channelChange = panel.channelChangeFor(direction),
+                channelChangeFrom = panel.channelChangeSourceFor(direction),
             )
         }
 
@@ -186,8 +195,14 @@ internal fun settingsStep(
 // Select on the panel's row, once per press.
 private fun SettingsPanel.selected(): SettingsStep =
     when (row) {
-        SettingsRow.Appearance, SettingsRow.ScreenFit, SettingsRow.VolumeLevelling -> SettingsStep(null)
+        SettingsRow.Appearance,
+        SettingsRow.ScreenFit,
+        SettingsRow.VolumeLevelling,
+        SettingsRow.ChannelChange,
+        -> SettingsStep(null)
+
         SettingsRow.Libraries -> SettingsStep(copy(librariesShown = true))
+
         SettingsRow.SyncNow -> SettingsStep(this, syncNow = true)
     }
 
@@ -212,8 +227,8 @@ private fun SettingsPanel.themeFor(direction: GuideDirection): GuideTheme? =
         else -> null
     }
 
-// The gap between the panel's rows. INTERIM, pending the design pass: the band above the menu row is fixed, and the
-// five rows with their title do not fit it with the 8 dp gaps they had (the last row ran under the menu row). The tabs
+// The gap between the panel's rows. INTERIM, pending the design pass: the band beside the picture is fixed, and the
+// six rows with their title are laid out with no gap (about 160 dp of the 233 dp band at 960 x 540 and Safe). The tabs
 // keep their own 6 dp of underline room, so the rows still read apart.
 private val PanelRowGap = 0.dp
 
@@ -233,6 +248,7 @@ internal fun GuideSettingsPanel(
     modifier: Modifier = Modifier,
     sync: SyncNowState = SyncNowState.Idle,
     levelling: Boolean = true,
+    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
 ) {
     val colors = LocalGuideColors.current
     val onAppearance = row == SettingsRow.Appearance
@@ -282,6 +298,7 @@ internal fun GuideSettingsPanel(
             SyncStatus(sync)
         }
         LevellingRow(levelling, focused = row == SettingsRow.VolumeLevelling)
+        ChannelChangeRow(channelChange, focused = row == SettingsRow.ChannelChange)
     }
 }
 
