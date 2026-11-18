@@ -37,7 +37,21 @@ class EveryRequestAuthTest {
     @AfterTest
     fun tearDown() = jellyfin.close()
 
-    private val credentialNames = listOf("api_key", "apikey", "token", "access_token", "x-emby-token", "password", "pw")
+    /** Mixed-case token names beyond `api_key`, as a server-supplied URL might carry them. */
+    private val other = "x-mediabrowser-TOKEN=$token&x-emby-authorization"
+
+    private val credentialNames =
+        listOf(
+            "api_key",
+            "apikey",
+            "token",
+            "access_token",
+            "x-emby-token",
+            "x-mediabrowser-token",
+            "x-emby-authorization",
+            "password",
+            "pw",
+        )
 
     @Test
     fun everyStreamAndImageRequestCarriesTheHeaderAndNoUrlCarriesACredential() {
@@ -87,7 +101,8 @@ class EveryRequestAuthTest {
                 "hls" to streams.hls(source, null, null, insigniaCapabilities(), false),
                 "subtitle" to streams.subtitle(source.id, vtt)!!,
                 // What a server's own playlist can list: its credential must not leave.
-                "segment" to "$origin/Videos/i1/seg.ts?api_key=$token&ApiKey=$token",
+                "segment" to "$origin/Videos/i1/seg.ts?api_key=$token&ApiKey=$token&keep=1",
+                "segment, other names" to "$origin/Videos/i1/seg.ts?X-EMBY-token=$token&$other=$token",
             )
         for (url in streamUrls.values) media.newCall(Request.Builder().url(url).build()).execute().close()
         runBlocking { adapter.logo(session, ItemLogo(ItemId("i1"), "tag1"), 192) }
