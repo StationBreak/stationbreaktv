@@ -37,5 +37,37 @@ class ReportPositionLogTest {
             rig.at(60_000)
             assertEquals(1, rig.lines.count { it == "report start safePos=7000" })
             assertTrue(rig.lines.contains("report progress safePos=7000"))
+            assertTrue(rig.calls.filter { it.kind == "start" || it.kind == "progress" }.all { it.posMs == 7_000L })
+        }
+
+    @Test
+    fun theStopReportsAndLogsTheResumePointToo() =
+        runTest {
+            val rig = Rig(this)
+            rig.server.set(UserItemState(7.seconds, false))
+            rig.reporter.sittingStarted(1)
+            rig.visit(1, "a")
+            rig.at(60_000)
+            rig.reporter.leave()
+            rig.at(61_000)
+            assertEquals(7_000L, rig.calls.single { it.kind == "stopped" }.posMs)
+            assertEquals(1, rig.lines.count { it == "report stop safePos=7000" })
+        }
+
+    @Test
+    fun aPlayedItemWithAResumePointIsSafePositionZeroEverywhere() =
+        runTest {
+            val rig = Rig(this)
+            rig.server.set(UserItemState(9.seconds, true))
+            rig.reporter.sittingStarted(1)
+            rig.visit(1, "a")
+            rig.at(60_000)
+            rig.reporter.leave()
+            rig.at(61_000)
+            val reported = rig.calls.filter { it.kind == "start" || it.kind == "progress" || it.kind == "stopped" }
+            assertTrue(reported.isNotEmpty() && reported.all { it.posMs == 0L })
+            assertTrue(rig.lines.contains("report start safePos=0"))
+            assertTrue(rig.lines.contains("report stop safePos=0"))
+            assertTrue(rig.lines.none { it.contains("safePos=9000") })
         }
 }
