@@ -1,0 +1,61 @@
+name: Beta report
+description: Tell us how installing, connecting and watching went.
+title: "Beta: "
+labels: ["beta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Please don't include your server address, username, password, or screenshots that show them.
+  - type: input
+    id: device
+    attributes:
+      label: TV model and software version
+      description: Settings > My Fire TV > About (or the Android TV equivalent)
+      placeholder: "Fire TV Stick 4K, Fire OS 7.6.x"
+    validations:
+      required: true
+  - type: input
+    id: jellyfin
+    attributes:
+      label: Jellyfin server version
+      placeholder: "12.0.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How the TV reaches your server
+      options:
+        - http on my home network
+        - https with a public certificate (for example Let's Encrypt)
+        - https with a self-signed certificate
+        - Behind a reverse proxy at a path (for example /jellyfin)
+        - Other or not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Did a channel start playing?
+      options:
+        - Yes, without any help
+        - Yes, after I asked for help or looked something up
+        - "No"
+    validations:
+      required: true
+  - type: input
+    id: minutes
+    attributes:
+      label: About how many minutes from opening the app to the first channel playing?
+  - type: textarea
+    id: stuck
+    attributes:
+      label: Where did you hesitate or get stuck?
+      description: The screen, what you expected, and what happened. "Nothing" is a useful answer.
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else (bugs, things you liked or didn't)
