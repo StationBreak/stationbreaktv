@@ -1048,9 +1048,15 @@ jobs:
   # build's R8 rules, which `emulator` (a debug build, never minified) can't check. Only the five tests that guard
   # the trust and secret-storage paths. On pushes to main and on PRs that can change what R8 produces (the release
   # scope), as `verify` and `assemble` run the release variants then. One attempt: a failure here is re-run by hand.
+  #
+  # OFF (#436, reopened): since #848 it never ran the tests. The instrumentation process crashed at start and AGP
+  # still ended BUILD SUCCESSFUL, so the job was a false green. The test APK runs in the app's process and needs
+  # Hilt's runtime and much of the libraries the minified app no longer carries, so making it run needs a design
+  # choice first (see #436). The results step below now fails unless all five classes ran, so turning it back on
+  # can't be a false green again.
   emulator-minified:
     needs: checks
-    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
+    if: ${{ false && !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     # Setup 3 + cold build ~12 + attempt 18 (step limit) + uploads 2.
     timeout-minutes: 40
