@@ -6,6 +6,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.signin.SignInCopy
 import java.io.File
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
@@ -37,6 +38,30 @@ class ErrorCopyFormatTest {
             if ('%' in message || '%' in details) unformatted += "${type.simpleName}: $message | $details"
         }
         assertEquals(emptyList<String>(), unformatted)
+    }
+
+    /**
+     * `FieldError`, the server address field, and sign-in's username field, Quick Connect disabled notice and session
+     * ended notice show `stringResource(copy.message)` with no arguments (#853). A placeholder in one of these copies
+     * would reach the screen as a literal `%1$s`: route that site through `messageText` before adding one.
+     */
+    @Test
+    fun copiesShownWithoutArgumentsHaveNoPlaceholder() {
+        val shownWithoutArguments =
+            mapOf(
+                "blankAddress" to ErrorCopyTable.blankAddress,
+                "blankUsername" to SignInCopy.blankUsername,
+                "InvalidAddress" to ErrorCopyTable.copyFor(MediaServerError.InvalidAddress()),
+                "QuickConnectDisabled" to ErrorCopyTable.copyFor(MediaServerError.QuickConnectDisabled()),
+                // The only errors launch routing hands sign-in as SessionEnded (SessionRepository's fatal ones).
+                "SessionExpired" to ErrorCopyTable.copyFor(MediaServerError.SessionExpired()),
+                "ServerMismatch" to ErrorCopyTable.copyFor(MediaServerError.ServerMismatch()),
+            )
+        val withPlaceholder =
+            shownWithoutArguments.filterValues { '%' in template(it.message) }.map { (name, copy) ->
+                "$name: ${template(copy.message)}"
+            }
+        assertEquals(emptyList<String>(), withPlaceholder)
     }
 
     private fun errorOf(type: Class<*>): MediaServerError =
