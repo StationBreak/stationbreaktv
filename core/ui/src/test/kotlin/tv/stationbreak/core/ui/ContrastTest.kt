@@ -56,6 +56,13 @@ class ContrastTest {
     }
 
     @Test
+    fun emphasisOutlineShowsOnTheGroundAndThePanel() {
+        assertAtLeast(3.0, colors.onSurface, BrandColors.Ink, "emphasis outline on ink")
+        assertAtLeast(3.0, colors.onSurface, BrandColors.ScreenLiftTop, "emphasis outline on the lift")
+        assertAtLeast(3.0, colors.onSurface, BrandColors.Panel, "emphasis outline on the panel")
+    }
+
+    @Test
     fun errorIsReadable() {
         assertAtLeast(4.5, colors.error, colors.surface, "error on the ground")
     }
