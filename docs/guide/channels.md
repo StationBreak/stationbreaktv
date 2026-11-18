@@ -14,15 +14,24 @@ Open it from the guide's menu: **Channels**. Channels are grouped as **On**, **M
 be switched on) and **Off**. Select a channel to:
 
 - **Watch** it;
+- **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
+  edit freely;
 - **Switch on** or **Switch off**. At least one channel stays on. A channel with adult content asks before it comes
   on;
 - **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
-  back;
-- **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
-  edit freely.
+  back.
 
 Channel numbers and switched-off channels are kept per TV. **Reset channels** puts them back to the defaults on
 this TV.
+
+### Free and Pro
+
+The free app plays the built-in lineup as it is chosen for your library, and you can make up to 5 channels of your
+own (a copy of a built-in channel counts as one). Changing the built-in lineup (switching built-in channels on or off, renumbering them, and **Reset channels**)
+and a sixth channel of your own are part of Pro, which isn't available yet. Those choices stay in their place,
+marked **(Pro)**, with the note "Pro coming soon".
+
+**Use my collections** is free.
 
 ## Build your own channel
 
