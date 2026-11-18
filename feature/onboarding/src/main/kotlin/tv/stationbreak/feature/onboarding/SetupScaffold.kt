@@ -43,8 +43,11 @@ internal const val DOZE_AFTER_MS = 60_000L
  */
 internal val MIN_HOST_HEIGHT = 400.dp
 
-/** Stan's column: the host's 320 dp and a gap, so a focused, scaled control at the form's edge still clears him. */
-private val HOST_COLUMN = 340.dp
+/**
+ * Stan's column: the host's 320 dp and a 24 dp gap, so a full-width control at the form's edge, focused and drawn at
+ * the button focus scale (1.08: about 21 dp more each side at 960 dp), still clears him.
+ */
+private val HOST_COLUMN = 344.dp
 
 /** Test tags for the scaffold. [HOST] is on a wrapper outside Stan's cleared node: Stan himself has no semantics. */
 internal object SetupScaffoldTags {
