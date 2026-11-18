@@ -281,8 +281,8 @@ goldens are the authority; the plan stays as the record of the decision. Work: #
   (AFTJMST12) day build against main at 50 channels, median of 3: +3.2% at 60, +10.7% at 75, +26.8% with every starter on
   (97). The day restore stays within the bar at every count (+5.1% at 97). Guide open and sync-to-lineup-ready were not
   measured (#796). The days file is 1,716 KB at 50 channels and 1,881 KB at 100, against 16 MiB.
-- "Free and Pro (#793)" above says the warning only ever shows on the Pro path. Until #793's check exists, everyone can
-  switch channels on, so the line is accurate; showing it only where switching on is possible is #799.
+- "Free and Pro (#793)" above says the warning only ever shows on the Pro path. Since #799 the line shows only when the
+  viewer can switch channels on (Pro); a free viewer, who can't switch starters on, doesn't see it.
 - The shelf reason for "it fits but is not in the lineup" now reads "Fits, but it isn't in your lineup right now". The
   same reason covers a starter with no free number and a kept starter the viewer turned off, so a `NoNumber` reason is
   #798. The test-only ranked planner paths are #797.

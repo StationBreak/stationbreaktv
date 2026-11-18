@@ -549,4 +549,5 @@ custom channels. On the generated library the planner switched on only 15 channe
 starters on in lineup order.
 
 **The warning is permanent.** The owner chose a heads-up that is always on the Channels panel, with no threshold: "The more
-channels you turn on, the longer the guide takes to get ready." Nothing is shelved to make the guide faster.
+channels you turn on, the longer the guide takes to get ready." Nothing is shelved to make the guide faster. Since #799 it
+shows only to viewers who can switch channels on (Pro); free viewers can't switch starters on, so they don't see it.

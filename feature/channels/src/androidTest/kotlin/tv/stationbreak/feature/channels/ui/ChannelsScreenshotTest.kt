@@ -38,9 +38,9 @@ import java.io.File
 
 /**
  * The Channels panel with a FULL lineup (#785) as PNG files for the PR: 60 channels on, and some on the shelf with
- * their reasons, under the permanent heads-up. Made-up channel names only (no library, no device data, so the frames
- * are safe to publish). The same path as `ReadyScreenshotTest`: UiAutomation's screenshot, written to the folder the
- * emulator job already pulls and uploads. The names start with `channels-`. The Channels list has no light theme.
+ * their reasons, under the heads-up (Pro only, #799). Made-up channel names only (no library, no device data, so the
+ * frames are safe to publish). The same path as `ReadyScreenshotTest`: UiAutomation's screenshot, written to the folder
+ * the emulator job already pulls and uploads. The names start with `channels-`. The Channels list has no light theme.
  */
 @RunWith(AndroidJUnit4::class)
 class ChannelsScreenshotTest {
@@ -81,22 +81,25 @@ class ChannelsScreenshotTest {
         hasOverride = false,
     )
 
-    private fun fullLineup(focus: ChannelsFocus) =
-        ChannelsUi.Empty.copy(
-            rows =
-                (1..ON_COUNT).map { on(it) } +
-                    listOf(
-                        shelved(1, "Fog Lantern", ShelfReason.BelowCap),
-                        shelved(2, "Midnight Ferry", ShelfReason.BelowCap),
-                        shelved(3, "Tin Parade", ShelfReason.TooThin),
-                        shelved(4, "Late Orchard", ShelfReason.Empty),
-                        shelved(5, "Velvet Noir", ShelfReason.OptIn),
-                    ),
-            focus = focus,
-            access = LineupAccess.Editable,
-            listed = true,
-            reasonsRead = true,
-        )
+    private fun fullLineup(
+        focus: ChannelsFocus,
+        isPro: Boolean = true,
+    ) = ChannelsUi.Empty.copy(
+        rows =
+            (1..ON_COUNT).map { on(it) } +
+                listOf(
+                    shelved(1, "Fog Lantern", ShelfReason.BelowCap),
+                    shelved(2, "Midnight Ferry", ShelfReason.BelowCap),
+                    shelved(3, "Tin Parade", ShelfReason.TooThin),
+                    shelved(4, "Late Orchard", ShelfReason.Empty),
+                    shelved(5, "Velvet Noir", ShelfReason.OptIn),
+                ),
+        focus = focus,
+        access = LineupAccess.Editable,
+        listed = true,
+        reasonsRead = true,
+        isPro = isPro,
+    )
 
     private fun shoot(
         name: String,
@@ -115,9 +118,13 @@ class ChannelsScreenshotTest {
         save(name)
     }
 
-    /** The top of a 60-channel lineup, the heads-up under the list. */
+    /** The top of a 60-channel lineup, the heads-up under the list (Pro). */
     @Test
     fun theFullLineupTop() = shoot("channels-full-top.png", fullLineup(ChannelsFocus.Household))
+
+    /** The free viewer's panel: no heads-up under the list (#799). */
+    @Test
+    fun theFreeTop() = shoot("channels-free-top.png", fullLineup(ChannelsFocus.Household, isPro = false))
 
     /** The list scrolled to More channels: the shelf reasons, "Fits, but it isn't in your lineup right now" too. */
     @Test
