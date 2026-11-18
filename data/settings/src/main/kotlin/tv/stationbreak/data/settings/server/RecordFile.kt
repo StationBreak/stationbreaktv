@@ -2,8 +2,8 @@
 package tv.stationbreak.data.settings.server
 
 import tv.stationbreak.data.settings.lineup.syncDirectoryWithOs
+import tv.stationbreak.data.settings.writeStaged
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 
 /** The one record file, behind a seam so tests can inject I/O faults. */
@@ -42,23 +42,8 @@ internal class DiskRecordFile(
     }
 
     override fun write(text: String) {
-        file.parentFile?.let(::ensureDirectory)
         restoreLegacyBackup()
-        try {
-            FileOutputStream(staged).use { out ->
-                out.write(text.toByteArray(Charsets.UTF_8))
-                out.flush()
-                out.fd.sync()
-            }
-            if (!staged.renameTo(file)) throw IOException("cannot replace the settings")
-        } catch (
-            @Suppress("TooGenericExceptionCaught") e: Throwable,
-        ) {
-            // The old file was never touched; just drop the half-written copy.
-            staged.delete()
-            throw e
-        }
-        file.parentFile?.let { syncDirectory(it) }
+        writeStaged(file, text.toByteArray(Charsets.UTF_8), syncDirectory)
     }
 
     // An older build's write was cut off: its backup is the last good copy, and the record beside it is suspect. The
@@ -68,14 +53,6 @@ internal class DiskRecordFile(
         if (!legacyBackup.exists()) return
         if (!legacyBackup.renameTo(file)) throw IOException("cannot restore the settings")
         file.parentFile?.let { syncDirectory(it) }
-    }
-
-    // Creates the directory; each directory that was made is recorded in its parent by syncing that parent.
-    private fun ensureDirectory(directory: File) {
-        val missing = generateSequence(directory) { it.parentFile }.takeWhile { !it.isDirectory }.toList()
-        if (missing.isEmpty()) return
-        if (!directory.mkdirs() && !directory.isDirectory) throw IOException("cannot create the settings directory")
-        missing.mapNotNull { it.parentFile }.forEach(syncDirectory)
     }
 
     private companion object {

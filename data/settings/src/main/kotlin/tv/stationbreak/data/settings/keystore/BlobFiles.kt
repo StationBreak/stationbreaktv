@@ -2,8 +2,8 @@
 package tv.stationbreak.data.settings.keystore
 
 import tv.stationbreak.data.settings.lineup.syncDirectoryWithOs
+import tv.stationbreak.data.settings.writeStaged
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 
 /** The blob files, one per [BlobCodec.fileName], behind a seam so tests can inject I/O faults. */
@@ -55,25 +55,8 @@ internal class DiskBlobFiles(
         name: String,
         bytes: ByteArray,
     ) {
-        ensureDirectory()
         restoreLegacyBackup(name)
-        val file = File(dir, name)
-        val staged = File(dir, name + NEW)
-        try {
-            FileOutputStream(staged).use { out ->
-                out.write(bytes)
-                out.flush()
-                out.fd.sync()
-            }
-            if (!staged.renameTo(file)) throw IOException("cannot replace a blob")
-        } catch (
-            @Suppress("TooGenericExceptionCaught") e: Throwable,
-        ) {
-            // The old blob was never touched; just drop the half-written copy.
-            staged.delete()
-            throw e
-        }
-        syncDirectory(dir)
+        writeStaged(File(dir, name), bytes, syncDirectory)
     }
 
     // The backup goes first and the blob last, so a delete cut short never leaves a backup that the next read would
@@ -99,12 +82,6 @@ internal class DiskBlobFiles(
         if (!backup.exists()) return
         if (!backup.renameTo(File(dir, name))) throw IOException("cannot restore a blob")
         syncDirectory(dir)
-    }
-
-    private fun ensureDirectory() {
-        if (dir.isDirectory) return
-        if (!dir.mkdirs() && !dir.isDirectory) throw IOException("cannot create the blob directory")
-        dir.parentFile?.let(syncDirectory)
     }
 
     private companion object {
