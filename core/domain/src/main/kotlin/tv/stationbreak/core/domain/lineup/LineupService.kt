@@ -78,8 +78,7 @@ import kotlin.time.TimeSource
  * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed. [writable]
  * is whether this session may write the account's file, as it stood when this was published (spec 21). [repairs] is the
  * per-TV repair record (spec 26) that is saved with the lineup; a change of it alone keeps the revision too.
- * [firstChoiceMade] is whether the planner has made the lineup's first choice ([FirstLineup]): it is finalised, or a
- * plan took in a collection pass (a thin library stays unfinalised after it), or a plan gave up waiting for one.
+ * [firstChoiceMade] is whether the planner has made the lineup's first choice ([FirstLineup]).
  */
 internal data class Revisioned(
     val revision: Long,
@@ -87,8 +86,9 @@ internal data class Revisioned(
     val meta: RefreshMeta = RefreshMeta(),
     val repairs: TodayRepairs = TodayRepairs.NONE,
     val writable: Boolean = false,
-    val firstChoiceMade: Boolean = lineup.finalised || meta.collectionPassActedOn != null,
-)
+) {
+    val firstChoiceMade: Boolean get() = firstChoiceMade(lineup, meta)
+}
 
 /**
  * The one owner of each account's channel lineup in memory (spec 12): it loads, plans and saves it, and everything
@@ -216,13 +216,6 @@ class LineupService internal constructor(
 
         /** The boundaries the background roll and the re-plan signal were last made for ([rollSoon]). */
         val boundaries = BoundaryMemo()
-
-        /**
-         * Whether a plan of this session gave up waiting for the collections ([GIVE_UP_AFTER]): its first choice was
-         * made without them, so the lineup is [Revisioned.firstChoiceMade] though it took in no pass. It never goes
-         * back to false: a later plan only adds to a choice once made.
-         */
-        @Volatile var plannedWithoutCollections = false
 
         /** The kept starters' reasons of the last plan, so an unchanged plan skips their homing. Used under [mutex]. */
         val keptReasons = KeptReasonsMemo()
@@ -474,7 +467,6 @@ class LineupService internal constructor(
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )
-        if (read.giveUp) entryOf(owner).plannedWithoutCollections = true
         val planned = if (sinceDayStart) plan.rolled(dayStartMs) else plan
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
@@ -484,6 +476,7 @@ class LineupService internal constructor(
                 plannedLibraries = libraries.map { it.value }.sorted(),
                 extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
                 replanFromMs = planned.replanFromMs(),
+                plannedWithoutCollections = before.plannedWithoutCollections || read.giveUp,
             )
         return planned to meta
     }
@@ -1830,8 +1823,7 @@ class LineupService internal constructor(
         repairs: TodayRepairs,
     ) {
         val revision = synchronized(lock) { ++revisions }
-        val firstChoiceMade = lineup.finalised || meta.collectionPassActedOn != null || entry.plannedWithoutCollections
-        entry.set(Revisioned(revision, lineup, meta, repairs, entry.writable, firstChoiceMade))
+        entry.set(Revisioned(revision, lineup, meta, repairs, entry.writable))
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }

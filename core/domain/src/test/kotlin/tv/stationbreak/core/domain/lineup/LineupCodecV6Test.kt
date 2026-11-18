@@ -78,9 +78,9 @@ class LineupCodecV6Test {
     }
 
     @Test
-    fun version7IsNewer() {
+    fun aVersionAboveTheNewestIsNewer() {
         val six = LineupCodec.encode(lineupOf(shelved(ShelfReason.NoNumber)))
-        assertEquals(LineupCodec.Decoded.NewerVersion(7), LineupCodec.decode(withVersion(six, 7)))
-        assertEquals(6, LineupCodec.VERSION)
+        val newer = LineupCodec.VERSION + 1
+        assertEquals(LineupCodec.Decoded.NewerVersion(newer), LineupCodec.decode(withVersion(six, newer)))
     }
 }

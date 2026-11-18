@@ -128,6 +128,23 @@ class FirstLineupTest {
         }
 
     @Test
+    fun aLineupThatGaveUpIsStillSettledAfterARestart() =
+        runBlocking<Unit> {
+            signIn()
+            seedThin()
+            library.delegate.setCollectionsSynced(ACCOUNT, false)
+            library.delegate.setFailedCollectionPasses(ACCOUNT, GIVE_UP_AFTER)
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(FirstLineupState.Settled, now())
+
+            // A new process over the same file: the choice made without the collections is stored with the lineup.
+            val restarted = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
+
+            assertEquals(false, restarted.loaded(ACCOUNT)?.lineup?.finalised, "the fixture is thin")
+            assertEquals(FirstLineupState.Settled, restarted.firstLineup().first())
+        }
+
+    @Test
     fun aRunWhosePassFailsOnceTooOftenSettlesItThroughTheRefresher() =
         runBlocking<Unit> {
             signIn()

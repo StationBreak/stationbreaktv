@@ -32,7 +32,7 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3, 4, 5 or 6 ([VERSION] is the newest). Only
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3 to 7 ([VERSION] is the newest). Only
  * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
  * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
  * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
@@ -69,6 +69,13 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * [Decoded.NewerVersion]: unusable, never wrongly read, never written over; `"noNumber"` in a file below version 6 is
  * [Decoded.Unreadable]. A file that only says `"belowCap"` reads as before. The service keeps the usual copy
  * (`keepCopy`, tag `v{from}-to6`) before the first version-6 save.
+ *
+ * Version 7 (the first lineup, [FirstLineup]) adds the meta field `plannedWithoutCollections`, written only as `true`
+ * and only while the meta holds it ([RefreshMeta.plannedWithoutCollections]: a plan gave up waiting for the collection
+ * pass). It is in the same [AddedMark.versionFor] max, so a lineup without it is still 3 to 6 and every file written
+ * before it reads as it did (the field absent is false). An older build reads a version-7 file as
+ * [Decoded.NewerVersion]; the key in a file below version 7, or any value but `true`, is [Decoded.Unreadable]. The
+ * service keeps the usual copy (`keepCopy`, tag `v{from}-to7`) before the first version-7 save.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -125,8 +132,11 @@ internal object LineupCodec {
     /** The version that holds the `noNumber` shelf reason. */
     const val NO_NUMBER_VERSION = 6
 
-    /** The newest schema version this app reads and writes (6: the `noNumber` shelf reason). */
-    const val VERSION = NO_NUMBER_VERSION
+    /** The version that holds the meta field `plannedWithoutCollections`. */
+    const val GAVE_UP_VERSION = 7
+
+    /** The newest schema version this app reads and writes (7: the meta field `plannedWithoutCollections`). */
+    const val VERSION = GAVE_UP_VERSION
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -173,7 +183,7 @@ internal object LineupCodec {
         val ids = lineup.channels.mapTo(HashSet()) { it.id }
         val file =
             FileV1(
-                version = AddedMark.versionFor(lineup, repairs),
+                version = AddedMark.versionFor(lineup, repairs, meta),
                 serverId = lineup.serverId.value,
                 userId = lineup.userId.value,
                 catalogVersion = lineup.catalogVersion,
@@ -305,6 +315,7 @@ internal object LineupCodec {
     ): Boolean =
         AddedMark.stray(rawAdded, fileVersion) ||
             (fileVersion < NO_NUMBER_VERSION && file.channels.any { it.shelfReason == NO_NUMBER_JSON }) ||
+            (file.meta?.plannedWithoutCollections?.let { fileVersion < GAVE_UP_VERSION || !it } == true) ||
             (fileVersion < 2 && meta.extrasFromMs != null) ||
             (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
             (fileVersion < REPAIRS_VERSION && hasRepairs)
@@ -449,12 +460,14 @@ private object AddedMark {
     fun versionFor(
         lineup: Lineup,
         repairs: TodayRepairs,
+        meta: RefreshMeta,
     ): Int =
         maxOf(
             LineupCodec.BASE_VERSION,
             if (repairs.isEmpty) 0 else LineupCodec.REPAIRS_VERSION,
             if (lineup.channels.any { holds(it) }) LineupCodec.SWITCH_ONS_VERSION else 0,
             if (lineup.channels.any { storesNoNumber(it) }) LineupCodec.NO_NUMBER_VERSION else 0,
+            if (meta.plannedWithoutCollections) LineupCodec.GAVE_UP_VERSION else 0,
         )
 
     // Whether the channel's stored reason is NoNumber: [channelOf] writes a reason on a starter only.
@@ -699,9 +712,18 @@ private class MetaV1(
     val plannedLibraries: List<String>? = null,
     val extrasFromMs: Long? = null,
     val replanFromMs: Long? = null,
+    val plannedWithoutCollections: Boolean? = null,
 ) {
     val refreshMeta
-        get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs, replanFromMs)
+        get() =
+            RefreshMeta(
+                plannedGeneration,
+                collectionPassActedOn,
+                plannedLibraries,
+                extrasFromMs,
+                replanFromMs,
+                plannedWithoutCollections == true,
+            )
 
     companion object {
         /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
@@ -715,6 +737,8 @@ private class MetaV1(
                     meta.plannedLibraries,
                     meta.extrasFromMs,
                     meta.replanFromMs,
+                    // Written only when true: a file that never gave up stays as it was.
+                    if (meta.plannedWithoutCollections) true else null,
                 )
             }
     }

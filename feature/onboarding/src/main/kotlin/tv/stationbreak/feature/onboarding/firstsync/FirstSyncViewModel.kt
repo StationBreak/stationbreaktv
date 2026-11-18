@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transform
@@ -27,6 +28,7 @@ import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
 import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.FirstLineupState
@@ -46,10 +48,10 @@ import kotlin.time.Duration.Companion.seconds
  * start, finishes at once. It asks for the sync to be queued (a no-op when it already is), shows the saved library's
  * own count and total, at most twice a second, and on a failure shows the error table's words with Retry.
  *
- * When the sync it showed ends, the first lineup is still to be built from it ("Stan keeps working"): the screen waits
- * for [firstLineup] to settle, for [FIRST_LINEUP_WAIT] at most. Then Stan cheers us on the air
- * ([FirstSyncPhase.Done]) only if a channel is on it ([firstOnAir]); with none the screen goes on to live TV at once,
- * which says what there is.
+ * When the sync it showed ends, the first lineup is still to be built from it ("Stan keeps working"). Stan cheers us
+ * on the air ([FirstSyncPhase.Done]) as soon as a channel is on it ([firstOnAir], asked again at each change of
+ * [firstLineup] or of the [channels]), settled or not. A lineup that settles with nothing on the air, or
+ * [FIRST_LINEUP_WAIT] with nothing on it, goes on to live TV with no cheer, and live TV says what there is.
  *
  * Leaving the screen (Back) does not stop the sync: it is WorkManager's, and the port has no way to cancel it. The
  * progress screen is simply back on the next open.
@@ -60,6 +62,7 @@ internal class FirstSyncViewModel
     constructor(
         private val firstSync: FirstSync,
         private val firstLineup: FirstLineup,
+        private val channels: ChannelRepository,
         private val schedule: ScheduleSource,
         private val clock: Clock,
     ) : ViewModel() {
@@ -129,19 +132,24 @@ internal class FirstSyncViewModel
         }
 
         /**
-         * The sync the screen showed has ended: Stan keeps working while the first lineup is built from it, until it
-         * settles or [FIRST_LINEUP_WAIT] has passed (setup never hangs). Then a channel on the air cheers; none
-         * finishes with no cheer. Once only.
+         * The sync the screen showed has ended: Stan keeps working while the first lineup is built from it. Each change
+         * of the lineup asks whether a channel is on the air: one is, and Stan cheers; the lineup settled with none,
+         * and the screen finishes with no cheer. After [FIRST_LINEUP_WAIT] it asks once more and goes either way
+         * (setup never hangs). Once only.
          */
         private fun build() {
             if (finished || building != null) return
             mutableState.value = FirstSyncPhase.Building
             building =
                 viewModelScope.launch {
-                    withTimeoutOrNull(FIRST_LINEUP_WAIT) {
-                        firstLineup.firstLineup().first { it == FirstLineupState.Settled }
-                    }
-                    finish(cheer = onTheAir())
+                    val decided =
+                        withTimeoutOrNull(FIRST_LINEUP_WAIT) {
+                            combine(firstLineup.firstLineup(), channels.activeChannels()) { state, _ -> state }
+                                .map { state -> onTheAir() to state }
+                                .first { (onAir, state) -> onAir || state == FirstLineupState.Settled }
+                                .first
+                        }
+                    finish(cheer = decided ?: onTheAir())
                 }
         }
 

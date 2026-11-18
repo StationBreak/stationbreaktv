@@ -137,7 +137,7 @@ class LineupCodecTest {
             decode("""{"version":${LineupCodec.VERSION + 1},"anything":["new"]}"""),
         )
         // A newer file is newer even when the rest is not what this version expects.
-        assertEquals(LineupCodec.Decoded.NewerVersion(7), decode("""{"version":7}"""))
+        assertEquals(LineupCodec.Decoded.NewerVersion(8), decode("""{"version":8}"""))
         assertEquals(
             LineupCodec.Decoded.NewerVersion(Int.MAX_VALUE),
             decode("""{"version":99999999999999999999999}"""),

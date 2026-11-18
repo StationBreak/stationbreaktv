@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.firstsync
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import tv.stationbreak.core.domain.FirstSync
+import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeFirstLineup
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.FirstLineup
@@ -21,6 +26,19 @@ private val halfPast =
 /** A schedule with channel 7 on the air at [halfPast]. */
 internal fun onTheAir(): FakeSchedule = FakeSchedule().also { it.channel(CH7, 7, listOf(program(0, 60, 1))) }
 
+/** The active lineup's channel list as a test drives it: [changed] is a change of the lineup, whatever it holds. */
+internal class LineupChanges : ChannelRepository {
+    private val lists = MutableSharedFlow<List<ChannelSummary>>(replay = 1).also { it.tryEmit(emptyList()) }
+
+    fun changed() {
+        lists.tryEmit(emptyList())
+    }
+
+    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = lists
+
+    override fun activeChannels(): Flow<List<ChannelSummary>> = lists
+}
+
 /**
  * The screen's ViewModel over [firstSync]. The first lineup is [firstLineup]'s (settled at once unless a test says
  * otherwise) and [schedule] has a channel on the air by default, so a test about the sync alone sees the cheer as soon
@@ -30,4 +48,5 @@ internal fun firstSyncViewModel(
     firstSync: FirstSync,
     firstLineup: FirstLineup = FakeFirstLineup(),
     schedule: FakeSchedule = onTheAir(),
-): FirstSyncViewModel = FirstSyncViewModel(firstSync, firstLineup, schedule, halfPast)
+    channels: ChannelRepository = LineupChanges(),
+): FirstSyncViewModel = FirstSyncViewModel(firstSync, firstLineup, channels, schedule, halfPast)
