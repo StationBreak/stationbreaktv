@@ -166,6 +166,90 @@ class SessionRepositoryTest {
             assertFalse("8096" in blob())
         }
 
+    // #209: the configured address is the https upgrade of the stored http one: the resume goes over https.
+    @Test
+    fun aConfiguredHttpsUpgradeOfAStoredHttpAddressIsResumedOverHttps() =
+        runBlocking {
+            val http = ServerAddress(Scheme.Http, "jellyfin.example", 8096)
+            val https = ServerAddress(Scheme.Https, "jellyfin.example", 443)
+            repository.save(session.copy(address = http))
+            val upgraded = session.copy(address = https)
+            server.resumeResult = ServerResult.Success(upgraded)
+
+            assertEquals(RestoreOutcome.Restored(upgraded), repository.restore(https))
+            assertEquals(https, server.resumeCalls.single().address)
+            assertTrue("\"https\"" in blob() || "Https" in blob())
+        }
+
+    // #209: a store that will not clear has the token overwritten, so the next start does not sign back in.
+    @Test
+    fun aStoreThatWillNotClearHasTheTokenOverwritten_soTheNextStartIsSignedOut() =
+        runBlocking {
+            repository.save(session)
+            store.failClear = true
+            server.revokeResult = ServerResult.Failure(MediaServerError.Timeout())
+
+            assertEquals(RevokeOutcome.NotRevoked, repository.signOut(session))
+            assertNull(repository.current.value)
+            server.resumeResult = ServerResult.Success(session)
+            assertEquals(RestoreOutcome.SignedOut, repository.restore(address))
+            assertEquals(emptyList(), server.resumeCalls)
+        }
+
+    // #209: neither cleared nor overwritten, and the server not told: the token may sign back in, and the sign-out
+    // says so.
+    @Test
+    fun aStoreThatWillNeitherClearNorSaveAndNoRevokeIsStillStored() =
+        runBlocking {
+            repository.save(session)
+            store.failClear = true
+            store.failSave = true
+            server.revokeResult = ServerResult.Failure(MediaServerError.Timeout())
+
+            assertEquals(RevokeOutcome.StillStored, repository.signOut(session))
+        }
+
+    // A token the server forgot is dead, even if this TV could not drop it.
+    @Test
+    fun aRevokedTokenIsRevokedEvenIfTheStoreWillNotLetGo() =
+        runBlocking {
+            repository.save(session)
+            store.failClear = true
+            store.failSave = true
+
+            assertEquals(RevokeOutcome.Revoked, repository.signOut(session))
+        }
+
+    // #209: verify, the background check, resumes over the configured https upgrade too, and writes nothing back.
+    @Test
+    fun verifyResumesOverTheConfiguredHttpsUpgrade() =
+        runBlocking {
+            val http = ServerAddress(Scheme.Http, "jellyfin.example", 8096)
+            val https = ServerAddress(Scheme.Https, "jellyfin.example", 443)
+            repository.save(session.copy(address = http))
+            val before = blob()
+            server.resumeResult = ServerResult.Success(session.copy(address = https))
+
+            repository.verify(https)
+
+            assertEquals(https, server.resumeCalls.single().address)
+            assertEquals(before, blob())
+        }
+
+    // A difference other than the http to https upgrade (here only the fallback flag) is never resumed elsewhere.
+    @Test
+    fun aFallbackOnlyDifferenceIsNotTakenForAnUpgrade() =
+        runBlocking {
+            val stored = ServerAddress(Scheme.Http, "jellyfin.example", 8096, viaFallback = true)
+            val configured = stored.copy(viaFallback = false)
+            repository.save(session.copy(address = stored))
+            server.resumeResult = ServerResult.Success(session.copy(address = stored))
+
+            repository.restore(configured)
+
+            assertEquals(stored, server.resumeCalls.single().address)
+        }
+
     @Test
     fun signOutClearsFirstThenRevokes() =
         runBlocking {

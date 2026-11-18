@@ -37,7 +37,6 @@ internal object Wire {
 }
 
 // These hold a token or a secret: never printed.
-// These hold a token or a secret: never printed.
 @Serializable
 internal class AuthResultDto(
     @SerialName("User") val user: UserDto,

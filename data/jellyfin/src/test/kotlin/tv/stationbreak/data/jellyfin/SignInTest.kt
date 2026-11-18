@@ -97,9 +97,10 @@ class SignInTest {
     @Test
     fun aLaterRejectedTokenIsSessionExpiredNotAWrongPassword() {
         jellyfin.on("POST", "/Users/AuthenticateByName") { jellyfin.json(authResult(token)) }
-        jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(401) }
+        // A token the server later refuses: a 401 on a call that carries it. (A 401 on logout is "revoked", #209.)
+        jellyfin.on("GET", "/UserViews") { jellyfin.status(401) }
         val session = signIn(request()).getOrNull()!!
-        assertIs<MediaServerError.SessionExpired>(runBlocking { adapter.revoke(session) }.errorOrNull())
+        assertIs<MediaServerError.SessionExpired>(runBlocking { adapter.libraries(session) }.errorOrNull())
     }
 
     @Test

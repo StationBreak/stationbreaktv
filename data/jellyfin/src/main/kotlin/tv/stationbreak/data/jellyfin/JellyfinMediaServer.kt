@@ -177,15 +177,18 @@ class JellyfinMediaServer internal constructor(
     ): Flow<QuickConnectState> = quickConnectFlow.run(address, acknowledgement)
 
     override suspend fun revoke(session: Session): ServerResult<Unit> {
-        val result =
+        val answer =
             withTimeoutOrNull(revokeTimeout) {
                 calls.send(session, Endpoint.post("Sessions/Logout")).flatMap { ServerResult.Success(Unit) }
             } ?: ServerResult.Failure(MediaServerError.Timeout())
+        // A 401 means the server no longer knows the token: it is as dead as a revoke would make it (#209).
+        val expired = answer is ServerResult.Failure && answer.error is MediaServerError.SessionExpired
+        val result = if (expired) ServerResult.Success(Unit) else answer
         // Whatever the server said, the user signed out: the token is not to be attached again.
         calls.forget(session)
         adapterLog.log(
             when (result) {
-                is ServerResult.Success -> "revoke ok"
+                is ServerResult.Success -> if (expired) "revoke ok (already rejected)" else "revoke ok"
                 is ServerResult.Failure -> "revoke failed: ${result.error.javaClass.logName()}"
             },
         )

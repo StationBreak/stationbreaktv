@@ -45,9 +45,8 @@ internal class SessionSignOut(
             val session = sessions.current.value
             val revoked =
                 if (session == null) {
-                    // Nothing held: still leave nothing stored behind.
+                    // Nothing held (the start could not reach the server): still leave nothing usable stored behind.
                     sessions.clear()
-                    true
                 } else {
                     sessions.signOut(session) == RevokeOutcome.Revoked
                 }

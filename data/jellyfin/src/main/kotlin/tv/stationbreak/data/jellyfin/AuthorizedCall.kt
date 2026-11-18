@@ -5,6 +5,7 @@ import tv.stationbreak.core.domain.CleartextGate
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.model.AccessToken
+import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.Session
 import java.util.concurrent.ConcurrentHashMap
@@ -22,7 +23,7 @@ internal class AuthorizedCall(
 ) {
     private data class Binding(
         val token: AccessToken,
-        val address: tv.stationbreak.core.model.ServerAddress,
+        val address: ServerAddress,
         val serverId: ServerId,
     )
 

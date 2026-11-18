@@ -46,6 +46,14 @@ class SignOutTest {
             assertEquals(true, request.headers["Authorization"]?.contains("Token=\"$token\""))
         }
 
+    // #209: the server no longer knows the token (401): it is as dead as a revoke makes it.
+    @Test
+    fun aRejectedTokenOnLogoutCountsAsRevoked() =
+        runBlocking {
+            jellyfin.on("POST", "/Sessions/Logout") { jellyfin.status(401) }
+            assertEquals(ServerResult.Success(Unit), testAdapter().revoke(session()))
+        }
+
     @Test
     fun aServerErrorIsNotRevoked() {
         runBlocking {

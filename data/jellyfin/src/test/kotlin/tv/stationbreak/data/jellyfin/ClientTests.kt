@@ -37,7 +37,7 @@ class RedirectedCredentialedCallTest {
         assertFalse(client.followSslRedirects)
         assertEquals(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT), client.connectionSpecs)
         assertFalse(ConnectionSpec.COMPATIBLE_TLS in client.connectionSpecs)
-        assertEquals(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT), factory.following.connectionSpecs)
+        assertEquals(listOf(ConnectionSpec.MODERN_TLS, ConnectionSpec.CLEARTEXT), factory.following().connectionSpecs)
     }
 
     @Test
@@ -109,7 +109,8 @@ class TwoHostRedirectTest {
                 .url(first.url("/start"))
                 .tag(AuthTag::class.java, AuthTag(TEST_DEVICE_ID, AccessToken("fake-token-for-redirect")))
                 .build()
-        factory.following
+        factory
+            .following()
             .newCall(request)
             .execute()
             .close()
@@ -204,3 +205,11 @@ class SingleAuthorizationHeaderTest {
         assertNotNull(logoutHeader)
     }
 }
+
+// The credentialed client with redirects on: test code only (#209). The adapter never follows a redirect with a token.
+private fun ClientFactory.following(): OkHttpClient =
+    credentialed
+        .newBuilder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()

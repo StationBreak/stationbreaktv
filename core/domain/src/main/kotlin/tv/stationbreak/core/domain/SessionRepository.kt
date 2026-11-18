@@ -14,6 +14,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CleartextAcknowledgement
+import tv.stationbreak.core.model.Scheme
 import tv.stationbreak.core.model.SecretAccess
 import tv.stationbreak.core.model.ServerAddress
 import tv.stationbreak.core.model.ServerId
@@ -24,8 +25,12 @@ import tv.stationbreak.core.model.UserId
 /** Whether a [SessionRepository.save] reached the [SecretStore]. */
 enum class PersistOutcome { Saved, NotSaved }
 
-/** Whether the server forgot the token on sign-out. After [NotRevoked] the user may need to revoke the device. */
-enum class RevokeOutcome { Revoked, NotRevoked }
+/**
+ * How a sign-out ended. [Revoked]: the server forgot the token. [NotRevoked]: it could not be told, and the user may
+ * need to remove the device on the server. [StillStored]: neither worked: the server was not told, and this TV's store
+ * could neither clear the token nor overwrite it, so the next start could sign back in with it (#209).
+ */
+enum class RevokeOutcome { Revoked, NotRevoked, StillStored }
 
 /** What [SessionRepository.restore] found. */
 sealed interface RestoreOutcome {
@@ -130,7 +135,9 @@ class SessionRepository(
             }
 
             else -> {
-                resume(stored, started)
+                // Over the configured https upgrade, never the stored cleartext address (#209); written back as any
+                // adopted upgrade is.
+                resume(stored.overTheUpgrade(configured), started, stored)
             }
         }
     }
@@ -148,7 +155,8 @@ class SessionRepository(
         if (!stored.address.bindsTo(configured) && !configured.bindsTo(stored.address)) {
             return RestoreOutcome.Rejected(MediaServerError.ServerMismatch())
         }
-        return when (val result = server.resume(stored)) {
+        // Over the configured https upgrade, as restore does (#209); verify still writes nothing back.
+        return when (val result = server.resume(stored.overTheUpgrade(configured))) {
             is ServerResult.Success -> {
                 // Signed out (or in again) while the server was asked: what it confirmed is no longer the session.
                 val current = guard.withLock { (generation == started).also { if (it) held.value = result.value } }
@@ -166,6 +174,7 @@ class SessionRepository(
     private suspend fun resume(
         stored: StoredSession,
         started: Long,
+        original: StoredSession = stored,
     ): RestoreOutcome =
         when (val result = server.resume(stored)) {
             is ServerResult.Success -> {
@@ -174,7 +183,7 @@ class SessionRepository(
                     guard.withLock {
                         (generation == started).also {
                             if (it) {
-                                if (result.value.address != stored.address) write(result.value.toStored())
+                                if (result.value.address != original.address) write(result.value.toStored())
                                 held.value = result.value
                             }
                         }
@@ -220,13 +229,19 @@ class SessionRepository(
         return fatal
     }
 
-    suspend fun clear() {
+    /**
+     * Drops the session from memory and the store. A store that will not clear is asked again, then has the key
+     * overwritten with a value that never decodes, so the next [restore] clears it instead of signing back in (#209).
+     * False only when none of that worked and a usable token may still be stored.
+     */
+    suspend fun clear(): Boolean =
         guard.withLock {
             generation++
             held.value = null
-            store.clear(SESSION_KEY)
+            store.clear(SESSION_KEY) is SecretStoreResult.Success ||
+                store.clear(SESSION_KEY) is SecretStoreResult.Success ||
+                store.save(SESSION_KEY, SIGNED_OUT) is SecretStoreResult.Success
         }
-    }
 
     /**
      * Clears the stored session first, then asks the server to revoke the token, all in [NonCancellable] so a
@@ -234,11 +249,17 @@ class SessionRepository(
      */
     suspend fun signOut(session: Session): RevokeOutcome =
         withContext(NonCancellable) {
-            clear()
+            val cleared = clear()
             library.forget(session.libraryAccount())
-            when (server.revoke(session)) {
-                is ServerResult.Success -> RevokeOutcome.Revoked
-                is ServerResult.Failure -> RevokeOutcome.NotRevoked
+            val revoked = server.revoke(session) is ServerResult.Success
+            when {
+                // The server forgot the token: whatever this TV still holds is dead.
+                revoked -> RevokeOutcome.Revoked
+
+                // Still stored and still valid: the next start would sign back in with it.
+                !cleared -> RevokeOutcome.StillStored
+
+                else -> RevokeOutcome.NotRevoked
             }
         }
 
@@ -293,6 +314,9 @@ class SessionRepository(
 
     companion object {
         const val SESSION_KEY = "session"
+
+        // Written over the session when the store will not clear it: not JSON, so it never decodes (#209).
+        private const val SIGNED_OUT = "signed-out"
         const val FORMAT_VERSION = 1
         private val JSON = Json { encodeDefaults = true }
     }
@@ -329,4 +353,11 @@ private class TolerantCache(
             // See above.
         }
     }
+}
+
+// The stored session aimed at [configured] when that is its https upgrade (the same host and path, http to https),
+// never for any other difference such as `viaFallback`, which carries a confirmation of its own (ADR-0014, #209).
+private fun StoredSession.overTheUpgrade(configured: ServerAddress): StoredSession {
+    val upgrade = configured.scheme == Scheme.Https && address.scheme == Scheme.Http && configured.bindsTo(address)
+    return if (upgrade) copy(address = configured) else this
 }

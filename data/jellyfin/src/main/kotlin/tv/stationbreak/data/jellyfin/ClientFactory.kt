@@ -15,9 +15,8 @@ import kotlin.time.toJavaDuration
  * authenticators) is dropped: it could add a second `Authorization` or a credential of its own. The header is added
  * by [AuthHeaderInterceptor]. Modern TLS or cleartext only (no `COMPATIBLE_TLS`).
  *
- * [credentialed] follows no redirect: every credentialed call uses it, and a 3xx is `Redirected`. [following] is the
- * same client with redirects on; the adapter never uses it, it exists so the two-host test can show the header
- * doesn't survive a cross-host redirect even there.
+ * [credentialed] follows no redirect: every credentialed call uses it, and a 3xx is `Redirected`. No credentialed
+ * client that follows redirects exists in main code (#209); the two-host test derives one from [credentialed].
  */
 internal class ClientFactory(
     source: HttpClientSource,
@@ -46,11 +45,7 @@ internal class ClientFactory(
                 .build()
         }
 
-    private val followingClient = Derived(source) { derive(it).redirects(true) }
-
     val credentialed: OkHttpClient get() = credentialedClient.get()
-
-    val following: OkHttpClient get() = followingClient.get()
 
     /**
      * The credentialed client for the player's media requests: the same interceptors, trust and no-redirect rule, but
