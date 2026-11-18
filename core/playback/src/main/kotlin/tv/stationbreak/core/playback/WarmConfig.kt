@@ -3,7 +3,7 @@ package tv.stationbreak.core.playback
 
 /**
  * The spec 24 tunables for keeping the next channel's decoder warm: values only, with safe defaults; nothing here is
- * hard-coded where it is used. A debug build's device-side switches over them are [WarmSwitches].
+ * hard-coded where it is used. Debug and benchmark builds read device-side switches over them: [WarmSwitches].
  * [warmNextDecoder] is off by default: a device run measured the standby's memory cost as too high on a 1.7 GB
  * streaming stick (the standby's decoder and buffers trip the system's running-low trim), so it stays off until the
  * standby is cheaper.
