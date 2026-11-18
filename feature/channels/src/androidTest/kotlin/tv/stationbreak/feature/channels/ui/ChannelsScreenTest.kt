@@ -31,7 +31,7 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isOff
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onChild
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
@@ -281,6 +281,9 @@ private class Lineup(
 @RunWith(AndroidJUnit4::class)
 @Suppress("LargeClass") // One rig of fakes for every case the screen has on a device, free-tier gates included (#811).
 class ChannelsScreenTest {
+    // The v2 rule: its effects run on a standard test dispatcher. Under v1 a state this test's ViewModel set on its own
+    // thread resumed the screen's collector there, and the recomposition ran off the main thread, which corrupted
+    // the composition and crashed the run when the activity was destroyed (#783).
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
