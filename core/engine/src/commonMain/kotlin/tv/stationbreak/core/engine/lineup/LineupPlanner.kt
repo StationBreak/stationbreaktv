@@ -49,8 +49,8 @@ import tv.stationbreak.core.rules.ChannelRules
  *   the anime rule holds), so it is not empty for the day, and the leftovers claim from the basis on-set (spec 23,
  *   A5, F5): their current day does not move, and both can air the same title until the boundary. A starter that is
  *   not programmed claims its day pool at once, so the leftovers' current day moves once for it.
- * - With a catalog that selects by identity (`StarterCatalogView.selectsByIdentity`, version 3 on, every recipe themed)
- *   the planner selects (`Selection.select`, spec 23) on every plan, under the boundary's "Use my collections" flag.
+ * - The planner selects by identity (`Selection.select`, spec 23) on every plan, under the boundary's "Use my
+ *   collections" flag; every recipe of the catalog is themed.
  *   A refresh switches nothing on in the middle of a day: an untouched shelved starter the selection picks is on from
  *   the boundary (`onSinceMs` is the boundary, a time ahead, and it is not on the air before it: `leavesAtMs` in
  *   reverse), so today's on-set, kept in the basis, never has it and the next day's does. Not picked again before
@@ -79,10 +79,8 @@ import tv.stationbreak.core.rules.ChannelRules
  *   `isCuratedOn`), the rule the day build reads too. A clock that jumps backwards over a day start below a channel's
  *   `onSinceMs` makes a started channel look as if it starts later: it has an empty day, and a viewer's switch-off
  *   shelves it rather than hiding it. It recovers once the clock passes that day start again.
- * - While a newer catalog that selects by identity waits for a full collection pass, no starter switches on or leaves,
- *   whatever catalog the lineup is on (`PlannerSelection.modeOf`): the swap from catalog 2 waits whole. While a newer
- *   ranked catalog waits, the lineup is still ranked: a shelved starter that switches on is resolved from the newer
- *   catalog's recipe, until that catalog is applied.
+ * - While a newer catalog waits for a full collection pass, no starter switches on or leaves, whatever catalog the
+ *   lineup is on (`PlannerSelection.modeOf`): the swap from catalog 2 waits whole.
  * - A lineup read from a file before version 3 has the viewer's choices inferred once, before its first selection (the
  *   catalog swap) and anything else of the newer catalog (A7, E7, `withInferredChoices`): an unedited starter on the
  *   air that is opt-in or outside the older planner's top is the viewer's (touched, never added: the inference makes
@@ -122,18 +120,14 @@ object LineupPlanner {
      * collection names it was given (none, if no pass has run), and a pass that lands later reaches the starters
      * through the hint pass below. With fewer than [LineupDefaults.FINALISE_THRESHOLD] filling non-opt-in recipes
      * nothing is on yet either. A kid recipe fills only with what is made for children (the kid hold, ADR-0019).
-     * Otherwise the leftovers channels and the best-filling non-opt-in recipes (ties by key) are switched on up to
-     * [LineupDefaults.CAP] (the ranked rule: the leftovers and the kept channels count), and every other recipe goes on
-     * the shelf at its default number. With a catalog that selects by identity the best
-     * [LineupDefaults.PLANNER_PICKS] are chosen by identity instead (`Selection.select`; the leftovers and the kept
-     * channels cost no place): "filling" means qualifying
-     * once every title has its home, and every recipe left on the shelf carries its [ShelfReason] (BelowCap for one
-     * without a number).
+     * Otherwise the leftovers channels are switched on, and the best [LineupDefaults.PLANNER_PICKS] recipes are chosen
+     * by identity (`Selection.select`; the leftovers and the kept channels cost no place): "filling" means qualifying
+     * once every title has its home. Every other recipe goes on the shelf at its default number, carrying its
+     * [ShelfReason] (BelowCap for one without a number).
      *
      * A finalised lineup keeps its offset, its numbers and every switched-on or hidden channel's state. A shelved,
-     * unedited starter that has a number and fills is switched on while there is room, best first. With a catalog that
-     * selects by identity ([PlannerSelection]) the untouched starters are selected again instead: the candidates are
-     * the unedited, numbered starters not hidden that are not opt-in or that the viewer switched on (pinned); the room
+     * unedited starter is selected again ([PlannerSelection]): the candidates are the unedited, numbered starters
+     * not hidden that are not opt-in or that the viewer switched on (pinned); the room
      * is [LineupDefaults.PLANNER_PICKS] places, of which only a pinned starter inside the top of the one order of free
      * and pinned starters takes one (the leftovers, own channels, edited, opt-in and outside-top pinned starters take
      * none); an untouched starter left out is shelved at [boundaryMs], with its
@@ -158,11 +152,9 @@ object LineupPlanner {
      * is full. A leftovers channel is always on, so it never goes on the shelf for that: it takes any free number it
      * may use, its own band first and then, for the grown-up one, the other bands up to 599 (the kids one stays in the
      * Kids band, being a kid channel; only if that band is full too has it no number).
-     * With a catalog that selects by identity the kept channels sit on top and cost the planner no place: it picks
-     * [LineupDefaults.PLANNER_PICKS] starters whatever they are, so a reset and the boundary after it agree. With a
-     * ranked catalog their switched-on channels count toward [LineupDefaults.CAP] before any starter is chosen, so the
-     * lowest-ranked starters are left off, never a kept channel. The leftovers channels are exempt either way: they are
-     * always switched on (the "Odds and ends" decision), so the lineup can hold more than the cap.
+     * The kept channels sit on top and cost the planner no place: it picks [LineupDefaults.PLANNER_PICKS] starters
+     * whatever they are, so a reset and the boundary after it agree. The leftovers channels are always switched on (the
+     * "Odds and ends" decision), so the lineup can hold more.
      * A finalised lineup ignores [kept]: it is planned from its own channels.
      *
      * "Use my collections" is a setting, and a plan keeps it: a lineup not yet finalised keeps its own flag (and, while
@@ -275,30 +267,14 @@ object LineupPlanner {
                 val number = numbers.getValue(LineupIds.leftovers(it.key))
                 p.leftoversChannel(it, number, if (number != null) ChannelState.On else ChannelState.Shelf)
             }
-        val choice =
-            if (p.catalog.selectsByIdentity) {
-                // The planner's picks are capped; the channels kept around them and the leftovers sit on top.
-                PlannerSelection.firstChoice(p, recipes, numbers, rules)
-            } else {
-                // The ranked rule: the switched-on kept channels and the leftovers count toward the cap.
-                val taken = kept.count { it.state == ChannelState.On } + leftovers.count { it.state == ChannelState.On }
-                val room = (LineupDefaults.CAP - taken).coerceAtLeast(0)
-                val ranked =
-                    p.ranked(
-                        recipes
-                            .filter { !it.optIn && numbers.getValue(LineupIds.starter(it.key)) != null }
-                            .map { it to rules.getValue(it.key) },
-                    )
-                val on = ranked.take(room).mapTo(HashSet()) { LineupIds.starter(it.key) }
-                PlannerSelection.Choice(on, emptyMap(), ranked.size)
-            }
+        // The planner's picks are capped; the channels kept around them and the leftovers sit on top.
+        val choice = PlannerSelection.firstChoice(p, recipes, numbers, rules)
         if (choice.qualifying < LineupDefaults.FINALISE_THRESHOLD) return unfinalised
         val starters =
             recipes.map {
                 val id = LineupIds.starter(it.key)
                 val state = if (id in choice.on) ChannelState.On else ChannelState.Shelf
                 val channel = p.starterChannel(it, numbers.getValue(id), state, rules.getValue(it.key))
-                // A selecting choice gives every recipe it leaves off its reason; a ranked one gives none.
                 val reason = if (state == ChannelState.Shelf) choice.shelf[id] else null
                 if (reason != null) channel.copy(shelfReason = reason) else channel
             }
@@ -327,7 +303,6 @@ object LineupPlanner {
             when (mode) {
                 PlannerSelection.Mode.Select -> PlannerSelection.refreshed(current, withNew, p)
                 PlannerSelection.Mode.Hold -> withNew
-                PlannerSelection.Mode.Rank -> switchedOn(withNew, p)
             }
         val next =
             current.copy(
@@ -454,35 +429,6 @@ object LineupPlanner {
                 p.starterChannel(it, it.number.takeIf(taken::add), ChannelState.Shelf, p.resolve(it))
             }
         return leftovers + starters
-    }
-
-    // Shelved, unedited, numbered, non-opt-in starters that fill are switched on while there is room, best first. The
-    // ranked rule, for a catalog that does not select by identity (`PlannerSelection.Mode.Rank`): everything on counts
-    // toward [LineupDefaults.CAP], as in `withInferredChoices`.
-    private fun switchedOn(
-        channels: List<LineupChannel>,
-        p: Planning,
-    ): List<LineupChannel> {
-        val room = LineupDefaults.CAP - channels.count { it.state == ChannelState.On }
-        if (room <= 0) return channels
-        val candidates =
-            channels.mapNotNull { channel ->
-                val source = channel.source as? ChannelSource.Starter ?: return@mapNotNull null
-                val recipe = p.recipe(source.recipeKey) ?: return@mapNotNull null
-                val shelved = channel.state == ChannelState.Shelf && channel.number != null
-                if (shelved && !source.edited && !recipe.optIn) recipe to p.resolve(recipe) else null
-            }
-        val chosen = p.ranked(candidates).take(room)
-        val byId = chosen.associateBy { LineupIds.starter(it.key) }
-        return channels.map { channel ->
-            val recipe = byId[channel.id] ?: return@map channel
-            val source = channel.source as ChannelSource.Starter
-            // Seed and timing stay, and a studio starter that says 4 stays at 4, as on a refresh.
-            val resolved = p.reResolved(recipe, source)
-            // Nothing of a shelved starter airs today, so there is nothing to protect: the rules apply at once.
-            val next = source.withRulesNow(resolved)
-            channel.copy(state = ChannelState.On, source = next, onSinceMs = p.nowMs, shelfReason = null)
-        }
     }
 
     // Number order (channels without a number last), then ID, so the same lineup is always listed the same way.

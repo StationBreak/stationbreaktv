@@ -557,7 +557,6 @@ private object SwapCatalogs {
         return object : StarterCatalogView by TestCatalog {
             override val version = catalogVersion
             override val recipes = all
-            override val selectsByIdentity = catalogVersion >= 3
         }
     }
 

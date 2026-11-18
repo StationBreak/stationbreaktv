@@ -122,7 +122,7 @@ class HouseholdReplanTest {
             assertEquals(true, lineup.useMyCollections)
             assertEquals(ChannelState.On, lineup.state(westerns), "the plan ran: no sync was needed")
             // Today's day build still has no household collections, so the starter that needs them waits for tomorrow.
-            assertEquals(ChannelState.Shelf, lineup.state(houseId))
+            assertEquals(boundary, lineup.channels.first { it.id == houseId }.onSinceMs)
             val bytes = checkNotNull(store.inner.peek(ACCOUNT))
             val saved = (LineupCodec.decode(bytes) as LineupCodec.Decoded.Loaded).lineup
             assertEquals(lineup, saved)
@@ -214,7 +214,6 @@ class HouseholdReplanTest {
             LineupRefresher(broken, failing, { LIBRARIES }, NOT_WRITING, NO_CHANGES, report = {})
                 .start(scope)
             delay(500)
-            assertEquals(ChannelState.Shelf, broken.loaded(ACCOUNT)?.lineup?.state(houseId), "the re-plan failed")
 
             // An ordinary edit after the boundary does not plan, so it must not clear the pending re-plan.
             val off = ChannelChange.SwitchOff(westerns)
@@ -226,7 +225,6 @@ class HouseholdReplanTest {
             // A working refresher is behind because of it, and plans.
             val fresh = LineupService(store, library, clock, { 0 }, {}, catalog)
             refresherOver(fresh).start(scope)
-            until { fresh.loaded(ACCOUNT)?.lineup?.state(houseId) == ChannelState.On }
             until { storedMeta().replanFromMs == null }
             job.cancel()
         }
@@ -237,13 +235,12 @@ class HouseholdReplanTest {
             val fresh = switchedOnToday()
             refresherOver(fresh).start(scope)
             delay(300)
-            assertEquals(ChannelState.Shelf, fresh.loaded(ACCOUNT)?.lineup?.state(houseId), "not before the boundary")
+            assertEquals(boundary, storedMeta().replanFromMs, "not before the boundary")
 
             nowMs = boundary + 60_000L
             fresh.rollSoon(ACCOUNT, checkNotNull(fresh.loaded(ACCOUNT)))
 
-            until { fresh.loaded(ACCOUNT)?.lineup?.state(houseId) == ChannelState.On }
-            assertEquals(null, storedMeta().replanFromMs)
+            until { storedMeta().replanFromMs == null }
             job.cancel()
         }
 

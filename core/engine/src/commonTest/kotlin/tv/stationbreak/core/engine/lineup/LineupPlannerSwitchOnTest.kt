@@ -35,7 +35,7 @@ class LineupPlannerSwitchOnTest {
 
     private val keys = List(STARTERS) { "r" + it.toString().padStart(2, '0') }
     private val recipes = keys.mapIndexed { i, k -> themed(recipeOf(k, 110 + i)) }
-    private val catalog = TestCatalog(recipes, selectsByIdentity = true)
+    private val catalog = TestCatalog(recipes)
     private val room = LineupDefaults.PLANNER_PICKS
 
     private fun library(raised: Map<String, Int> = emptyMap()): RuleSnapshot =
@@ -271,7 +271,7 @@ class LineupPlannerSwitchOnTest {
     @Test
     fun anOptInStarterSwitchedOnIsTouchedNeverAdded() {
         val optIn = themed(recipeOf("late", 520, optIn = true))
-        val withLate = TestCatalog(catalog.recipes + optIn, selectsByIdentity = true)
+        val withLate = TestCatalog(catalog.recipes + optIn)
         val snapshot = libraryOf(keys.associateWith { QUALIFYING_ITEMS } + ("late" to QUALIFYING_ITEMS))
         val lineup = planOf(null, snapshot, withLate)
         val switchOnLate = LineupEdit.SwitchOn(LineupIds.starter("late"), confirmedOptIn = true)
@@ -306,7 +306,7 @@ class LineupPlannerSwitchOnTest {
     @Test
     fun aCatalogRemovalClearsTheMark() {
         val switchedOn = edit(first(), on("r50"))
-        val withoutIt = TestCatalog(catalog.recipes.filter { it.key != "r50" }, selectsByIdentity = true, version = 2)
+        val withoutIt = TestCatalog(catalog.recipes.filter { it.key != "r50" }, version = 2)
 
         val next = planOf(switchedOn, library(), withoutIt, nowMs = noon, boundaryMs = boundary)
 

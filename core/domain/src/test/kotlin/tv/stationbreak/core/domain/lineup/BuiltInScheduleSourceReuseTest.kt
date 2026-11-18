@@ -29,7 +29,7 @@ class BuiltInScheduleSourceReuseTest {
     private val builds = Collections.synchronizedList(mutableListOf<DayBuild>())
 
     // The app's catalog from its first build on, as after an upgrade: catalog 3, with one more channel than catalog 2.
-    private val catalog = programmedCatalog(3, selects = true)
+    private val catalog = programmedCatalog(3)
     private val service = LineupService(store, counting, clock, { 0 }, {}, catalog)
     private val chosen: Set<ItemId> = LIBRARIES
     private val source = BuiltInScheduleSource(service, counting, built = { builds += it }) { selectionOf(chosen) }

@@ -11,25 +11,22 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.ChannelRules
 
 /**
- * The planner's selection by identity for a catalog that [StarterCatalogView.selectsByIdentity] (spec 23, F7): which
- * starters are candidates, which are pinned, how much room there is, and what the result does to each channel.
- * [LineupPlanner] calls it in place of its ranking.
+ * The planner's selection by identity (spec 23, F7): which starters are candidates, which are pinned, how much room
+ * there is, and what the result does to each channel. [LineupPlanner] calls it.
  */
 @Suppress("TooManyFunctions") // The selection's steps, with the candidate test the lineup audit shares.
 internal object PlannerSelection {
     /**
-     * How a refresh decides which starters are on, all by the one flag of [p]'s catalog,
-     * [StarterCatalogView.selectsByIdentity]: with a catalog that selects, [Mode.Select] once the lineup is on it, and
-     * [Mode.Hold] (nothing switches on or off; the on-set stays as it is) while it waits for a collection pass over a
-     * lineup on an older catalog, whether that one selected or ranked. With a catalog that ranks, [Mode.Rank]
-     * (switch-ons only), waiting or not.
+     * How a refresh decides which starters are on: [Mode.Select] once the lineup is on the planner's catalog, and
+     * [Mode.Hold] (nothing switches on or off; the on-set stays as it is) while a newer catalog waits for a collection
+     * pass over a lineup on an older one.
      *
-     * Hold, not Rank, while a selecting catalog waits over a ranked lineup (the swap from catalog 2 to 3): a ranked
-     * switch-on would resolve the newer catalog's programmed recipe and put it on the air at once, a mid-day change of
-     * the curated on-set before the swap, and the swap's inference of the viewer's choices (A7) reads the lineup as
+     * Hold, not a switch-on, over a lineup the older ranked planner left (the swap from catalog 2 to 3): a switch-on
+     * would resolve the newer catalog's programmed recipe and put it on the air at once, a mid-day change of the
+     * curated on-set before the swap, and the swap's inference of the viewer's choices (A7) reads the lineup as
      * catalog 2 left it.
      */
-    enum class Mode { Select, Hold, Rank }
+    enum class Mode { Select, Hold }
 
     /** The mode of a refresh of [current] with [p]'s catalog; [newer] when that catalog is applied in this refresh. */
     fun modeOf(
@@ -38,11 +35,7 @@ internal object PlannerSelection {
         newer: Boolean,
     ): Mode {
         val waiting = p.catalog.version > current.catalogVersion && !newer
-        return when {
-            !p.catalog.selectsByIdentity -> Mode.Rank
-            waiting -> Mode.Hold
-            else -> Mode.Select
-        }
+        return if (waiting) Mode.Hold else Mode.Select
     }
 
     /**

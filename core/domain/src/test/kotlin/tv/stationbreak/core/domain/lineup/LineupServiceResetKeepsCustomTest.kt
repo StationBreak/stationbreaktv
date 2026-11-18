@@ -12,7 +12,6 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
-import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.rules.Source
@@ -100,35 +99,6 @@ class LineupServiceResetKeepsCustomTest {
                     .toSet()
                     .size,
             )
-        }
-
-    @Test
-    fun resetWithKeptChannelsStaysWithinTheCap() =
-        runBlocking<Unit> {
-            val mine = (0 until 48).map { custom("M$it", 600 + it) }
-            seedStored(lineupOf(*starters(), *mine.toTypedArray()))
-
-            val fresh = reset()
-
-            val on = fresh.channels.filter { it.state == ChannelState.On }
-            assertEquals(LineupDefaults.CAP, on.size, "48 kept and the 2 leftovers fill the cap")
-            assertTrue(mine.all { fresh.byId(it.id.value).state == ChannelState.On }, "kept all On")
-            assertEquals(0, on.count { it.source is ChannelSource.Starter })
-        }
-
-    @Test
-    fun resetKeepsTheBestRankedStartersThatFitUnderTheCap() =
-        runBlocking<Unit> {
-            val mine = (0 until 46).map { custom("M$it", 600 + it) }
-            seedStored(lineupOf(*starters(), *mine.toTypedArray()))
-
-            val fresh = reset()
-
-            val on = fresh.channels.filter { it.state == ChannelState.On }
-            assertEquals(LineupDefaults.CAP, on.size)
-            // Every recipe fills equally, so the cut is by key: the first two of the six.
-            val starters = on.filter { it.source is ChannelSource.Starter }.map { it.id }.toSet()
-            assertEquals(setOf(LineupIds.starter("frights"), LineupIds.starter("laughs")), starters)
         }
 
     @Test

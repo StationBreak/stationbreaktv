@@ -104,7 +104,6 @@ class BoundaryRulesTest {
                 base.recipes.map {
                     it.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
                 },
-                selectsByIdentity = true,
             )
         val lineup = planOf(null, libraryOf(fills(themed)), themed)
         val emptied = libraryOf(fills(themed) + ("alpha" to 0))

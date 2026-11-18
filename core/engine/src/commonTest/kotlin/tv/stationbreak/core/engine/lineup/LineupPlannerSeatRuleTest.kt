@@ -30,7 +30,7 @@ class LineupPlannerSeatRuleTest {
     // 55 starters that each fill alone in a genre of their own; ties go to the lower number, so r00..r47 are the top.
     private val keys = List(STARTERS) { "r" + it.toString().padStart(2, '0') }
     private val recipes = keys.mapIndexed { i, k -> themed(recipeOf(k, 110 + i)) }
-    private val catalog = TestCatalog(recipes, selectsByIdentity = true)
+    private val catalog = TestCatalog(recipes)
     private val library: RuleSnapshot = libraryOf(keys.associateWith { QUALIFYING_ITEMS })
     private val picks = keys.take(LineupDefaults.PLANNER_PICKS)
     private val waiting = keys.drop(LineupDefaults.PLANNER_PICKS)
@@ -138,7 +138,7 @@ class LineupPlannerSeatRuleTest {
     @Test
     fun theFirstBoundaryAfterTheUpdateGrowsTheLineupByExactlyTheChannelsThatCostNoSeat() {
         val late = themed(recipeOf("late", 520, optIn = true))
-        val withLate = TestCatalog(recipes + late, selectsByIdentity = true)
+        val withLate = TestCatalog(recipes + late)
         val snapshot = libraryOf(keys.associateWith { QUALIFYING_ITEMS } + ("late" to QUALIFYING_ITEMS))
         var lineup = planOf(null, snapshot, withLate)
         lineup = lineup.withCustoms(2)
@@ -166,7 +166,7 @@ class LineupPlannerSeatRuleTest {
     fun anOptInPinAlwaysSitsOnTopAndTakesNoSeat() {
         // The opt-in starter fills far more than any pick would, so it would head the order if it were ranked.
         val late = themed(recipeOf("late", 520, optIn = true))
-        val withLate = TestCatalog(recipes + late, selectsByIdentity = true)
+        val withLate = TestCatalog(recipes + late)
         val snapshot = libraryOf(keys.associateWith { QUALIFYING_ITEMS } + ("late" to QUALIFYING_ITEMS * 3))
         val on = LineupEdit.SwitchOn(LineupIds.starter("late"), confirmedOptIn = true)
         val lineup = edit(planOf(null, snapshot, withLate), on, withLate)
@@ -197,7 +197,7 @@ class LineupPlannerSeatRuleTest {
     @Test
     fun aSwitchOnThatThinsAPlannersPickBelowQualifyingShelvesThatPickAsTooThin() {
         val shared = themed(recipeOf("shared", 105, optIn = true, sources = listOf(Source.Genre("r00"))))
-        val withShared = TestCatalog(recipes + shared, selectsByIdentity = true)
+        val withShared = TestCatalog(recipes + shared)
         val on = LineupEdit.SwitchOn(LineupIds.starter("shared"), confirmedOptIn = true)
         val lineup = edit(planOf(null, library, withShared), on, withShared)
         assertTrue(lineup.staying("r00"))

@@ -113,8 +113,6 @@ internal fun movie(
 internal object TestCatalog : StarterCatalogView {
     override val version: Int = 1
 
-    override val selectsByIdentity: Boolean = false
-
     override val recipes: List<Recipe> =
         listOf(
             recipe("toons", Band.Kids, 10, "Animation", maxRating = "G"),

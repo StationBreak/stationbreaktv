@@ -217,7 +217,7 @@ class CuratedDayFreezeTest {
     fun aRenumberedStartersTiesFollowTheRecipeNumber() {
         val twin =
             recipeOf(40, listOf(Source.Genre("Comedy"))).copy(key = "laughs-too", band = Band.General, number = 150)
-        val catalog = programmedCatalog(1, selects = true, extra = listOf(twin))
+        val catalog = programmedCatalog(1, extra = listOf(twin))
         val library = fillingLibrary().sortedBy { it.item.id.value }
         val first =
             LineupPlanner.plan(null, SERVER, USER, 0, snapshot(noon, library), noNames, noon, boundaryMs, catalog)
@@ -269,7 +269,7 @@ class CuratedDayFreezeTest {
     // guide), takes no part in today's curation, and every other channel's today and play key are unchanged.
     @Test
     fun aRefreshSelectsAStarterThatStartsAtTheBoundary() {
-        val catalog = programmedCatalog(1, selects = true)
+        val catalog = programmedCatalog(1)
         val library = fillingLibrary().sortedBy { it.item.id.value }
         val shelved = withWesternsShelved(catalog)
         val at = noon + 2 * hour
@@ -306,7 +306,7 @@ class CuratedDayFreezeTest {
     // From the boundary it airs as a full member of the curation: the same day as a starter that had long been on.
     @Test
     fun fromTheBoundaryTheStarterAirsAsAFullMember() {
-        val catalog = programmedCatalog(1, selects = true)
+        val catalog = programmedCatalog(1)
         val library = fillingLibrary().sortedBy { it.item.id.value }
         val shelved = withWesternsShelved(catalog)
         val at = noon + 2 * hour
@@ -333,7 +333,7 @@ class CuratedDayFreezeTest {
 
     @Test
     fun aFutureStartRoundTripsThroughTheLineupFile() {
-        val catalog = programmedCatalog(1, selects = true)
+        val catalog = programmedCatalog(1)
         val library = fillingLibrary().sortedBy { it.item.id.value }
         val at = noon + 2 * hour
         val planned =

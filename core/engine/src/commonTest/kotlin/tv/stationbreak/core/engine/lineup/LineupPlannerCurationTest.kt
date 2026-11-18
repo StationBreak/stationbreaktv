@@ -25,7 +25,7 @@ class LineupPlannerCurationTest {
     private fun selecting(
         recipes: List<Recipe>,
         version: Int = 1,
-    ): TestCatalog = TestCatalog(recipes, version, selectsByIdentity = true)
+    ): TestCatalog = TestCatalog(recipes, version)
 
     private fun themed(recipe: Recipe): Recipe =
         recipe.copy(ordering = OrderingMode.Curated, theme = Theme(emptyList(), emptyList(), null, false))
@@ -36,7 +36,6 @@ class LineupPlannerCurationTest {
     private val baseRecipes =
         five.map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10) + recipeOf("dup", 150, sources = genre("alpha"))
     private val catalog = selecting(baseRecipes.map(::themed))
-    private val unthemed = TestCatalog(baseRecipes)
 
     private fun fills(vararg extra: Pair<String, Int>): Map<String, Int> =
         (five.map { it.first } + "tots").associateWith { QUALIFYING_ITEMS } + extra.toMap()
@@ -120,10 +119,6 @@ class LineupPlannerCurationTest {
         assertEquals(ShelfReason.TooThin, selected.channel("dup").shelfReason)
         val all = setOf("alpha", "bravo", "charlie", "delta", "echo", "tots", "kids-odds", "odds")
         assertEquals(all, selected.onKeys())
-        // An unthemed catalog keeps the ranking: "dup" fills, so it is on, and nothing carries a reason.
-        val ranked = first(library, unthemed)
-        assertEquals(ChannelState.On, ranked.channel("dup").state)
-        assertTrue(ranked.channels.all { it.shelfReason == null })
     }
 
     // A themed refresh switches nothing on in the middle of a day (D1, Task 21 fix round 2): the starter it picks is

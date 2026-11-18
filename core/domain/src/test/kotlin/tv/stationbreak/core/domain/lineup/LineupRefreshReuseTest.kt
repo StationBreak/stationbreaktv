@@ -40,7 +40,6 @@ class LineupRefreshReuseTest {
     private val v3 =
         programmedCatalog(
             3,
-            selects = true,
             extra =
                 listOf(
                     Recipe(

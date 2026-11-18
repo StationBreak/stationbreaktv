@@ -56,13 +56,12 @@ class DayInputReuseTest {
     private fun snapshot(cutoff: Long): RuleSnapshot =
         RuleSnapshot(cutoff, setOf(LIBRARY_ID), items, emptyMap(), collections, collectionsSynced = true)
 
-    private val v3 = programmedCatalog(3, selects = true)
+    private val v3 = programmedCatalog(3)
 
     // Recipes that fit other genres: the curation homes the comedies with whodunit instead of laughs.
     private val v3Laughs =
         programmedCatalog(
             3,
-            selects = true,
             change = {
                 when (it.key) {
                     "laughs" -> it.copy(sources = listOf(Source.Genre("Horror")))
@@ -74,7 +73,6 @@ class DayInputReuseTest {
     private val v3OptIn =
         programmedCatalog(
             3,
-            selects = true,
             change = { if (it.optIn) it.copy(sources = listOf(Source.Tag("late"), Source.Genre("Horror"))) else it },
         )
 
@@ -94,17 +92,16 @@ class DayInputReuseTest {
             collectionHints = emptyList(),
             theme = Theme(listOf(Anchor(AnchorKind.Collection, NameMatcher.Exact("Box"))), emptyList(), null, false),
         )
-    private val v3Box = programmedCatalog(3, selects = true, extra = listOf(boxed))
+    private val v3Box = programmedCatalog(3, extra = listOf(boxed))
 
     // Whodunit ahead of laughs in the ties of the curation (a recipe's number breaks them).
     private val v3Order =
         programmedCatalog(
             3,
-            selects = true,
             change = { if (it.key == "whodunit") it.copy(band = Band.General, number = 105) else it },
         )
     private val v3Kid =
-        programmedCatalog(3, selects = true, change = { if (it.key == "toons") it.copy(number = 11) else it })
+        programmedCatalog(3, change = { if (it.key == "toons") it.copy(number = 11) else it })
 
     /** One lineup as one build sees it. */
     private class Side(

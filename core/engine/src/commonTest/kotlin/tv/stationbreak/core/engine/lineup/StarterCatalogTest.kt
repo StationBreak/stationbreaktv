@@ -197,17 +197,10 @@ class StarterCatalogTest {
         assertNull(StarterCatalog.recipe("no-such-recipe"))
     }
 
-    // The planner selects by identity only over themed recipes: a mixed catalog that selects fails here.
+    // The planner selects by identity over themed recipes: the shipped catalog is themed throughout.
     @Test
-    fun aCatalogThatSelectsByIdentityIsThemedThroughout() {
-        val shipped: StarterCatalogView = StarterCatalog
-        assertEquals(shipped.version >= StarterCatalog.SELECTS_BY_IDENTITY_FROM, shipped.selectsByIdentity)
-        if (shipped.selectsByIdentity) assertTrue(shipped.recipes.all { it.theme != null })
-        assertTrue(shipped.selectsByIdentity, "catalog 3 selects")
-        val themed = CATALOG_V3_RECIPES.first()
-        // Catalog 2's recipes are plain (not themed).
-        val plain = CATALOG_V2_RECIPES.first { it.key != themed.key }
-        assertFailsWith<IllegalArgumentException> { TestCatalog(listOf(themed, plain), selectsByIdentity = true) }
+    fun theShippedCatalogIsThemedThroughout() {
+        assertTrue(StarterCatalog.recipes.all { it.theme != null })
     }
 
     @Test

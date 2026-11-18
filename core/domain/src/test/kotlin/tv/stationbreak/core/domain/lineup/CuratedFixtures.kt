@@ -31,13 +31,11 @@ internal fun programmed(
 /** The test catalog as [version], every recipe in the curated order; [change] edits a recipe, [extra] adds some. */
 internal fun programmedCatalog(
     version: Int,
-    selects: Boolean = false,
     change: (Recipe) -> Recipe = { it },
     extra: List<Recipe> = emptyList(),
 ): StarterCatalogView =
     object : StarterCatalogView by TestCatalog {
         override val version: Int = version
-        override val selectsByIdentity: Boolean = selects
         override val recipes: List<Recipe> =
             (TestCatalog.recipes + extra).map { change(it.copy(ordering = OrderingMode.Curated)) }
     }

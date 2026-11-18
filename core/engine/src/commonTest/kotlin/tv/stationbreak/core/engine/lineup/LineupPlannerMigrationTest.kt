@@ -47,7 +47,6 @@ class LineupPlannerMigrationTest {
         TestCatalog(
             plain.map { themed(change(it.copy(sources = it.sources + Source.Genre(it.key + " v3")))) },
             version = 3,
-            selectsByIdentity = true,
         )
 
     // Every channel fills; the runtimes rank tots, alpha, bravo, charlie, delta, echo.
@@ -240,7 +239,6 @@ class LineupPlannerMigrationTest {
             TestCatalog(
                 v3().recipes + themed(recipeOf("foxtrot", 130, sources = listOf(Source.Genre("foxtrot new")))),
                 version = 3,
-                selectsByIdentity = true,
             )
         val library = libraryOf(fills + ("foxtrot new" to QUALIFYING_ITEMS))
 
@@ -341,7 +339,7 @@ class LineupPlannerMigrationTest {
         val withFoxtrot = TestCatalog(v2.recipes + recipeOf("foxtrot", 130), version = 2)
         val lineup = before(withFoxtrot)
         val catalog =
-            TestCatalog(v3().recipes + themed(recipeOf("foxtrot", 130)), version = 3, selectsByIdentity = true)
+            TestCatalog(v3().recipes + themed(recipeOf("foxtrot", 130)), version = 3)
         // An incremental sync: foxtrot fills now, charlie is empty.
         val incremental =
             libraryOf(fills + ("foxtrot" to QUALIFYING_ITEMS) + ("charlie" to 0), collectionsSynced = false)
@@ -525,7 +523,6 @@ class LineupPlannerMigrationTest {
                 themed(it.copy(sources = it.sources + studio))
             },
             version = version,
-            selectsByIdentity = true,
         )
 
     // A starter's rules (and previous rules) as an older app wrote them, at [version].

@@ -34,7 +34,6 @@ class CatalogSwapKeepsTodayTest {
     private val v3 =
         programmedCatalog(
             3,
-            selects = true,
             change = {
                 if (it.key == "laughs") it.copy(sources = listOf(Source.Genre("Comedy"), Source.Genre("Crime"))) else it
             },
