@@ -315,6 +315,13 @@ internal class SignInViewModel
                 withContext(NonCancellable) {
                     // Leaving, cancelling and the view model being cleared (onCleared leaves) all move [attempt] on.
                     fun waiting() = id == attempt
+                    // The sign-outs below and the clear after a failed save ignore their outcome on purpose (#872).
+                    // clear() has already cleared twice and then overwritten the key, so a retry here would ask the
+                    // same refusing Keystore a fifth time. What can be left is this viewer's own just-issued token, or
+                    // the session this TV already held before; nobody is on this screen to tell, and the next sign-in
+                    // that saves replaces either.
+                    // shortcut: no viewer-facing line for a Keystore that refuses every write; add one with the
+                    // onboarding copy if that case is ever seen.
                     if (!waiting()) {
                         sessions.signOut(session)
                         return@withContext null

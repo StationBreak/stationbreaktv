@@ -85,6 +85,10 @@ internal class SignedInViewModel
                 // First: once the user has chosen to switch, nothing may find this session to use while the
                 // sign-out is still on its way (it runs to its end even if this screen is gone).
                 signedIn.clear()
+                // The outcome is not shown (#872). NotRevoked and StillStored mean the server was not told;
+                // StillStored also means a Keystore that refused two clears and an overwrite. The sign-in form comes
+                // next, and its save (or, if that fails, its clear) replaces the old token, so a retry here adds
+                // nothing. Until then a restart can find the old session: the viewer's own account, on their own TV.
                 sessions.signOut(session)
                 // The next user chooses their libraries afresh, so a restart can't find setup done for the last one.
                 // Through the setup, under the selection's lock, so no change of the old choice lands after it. One
