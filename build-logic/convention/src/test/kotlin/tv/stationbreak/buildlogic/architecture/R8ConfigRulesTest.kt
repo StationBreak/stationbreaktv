@@ -385,4 +385,40 @@ class R8ConfigRulesTest {
 
     @Test
     fun anIfDoesNotCarryOverToALaterRule() = assertEquals(emptyList(), violations("-if class **", "-dontwarn a.B", "-keep class <1>"))
+
+    // #909 review: names that reach every package without starting with `**`, or with a wildcard package part.
+    @Test
+    fun keepEveryInnerClassBehindAWildcardPackage() = assertFlagged("-keep class *.**\$* { *; }")
+
+    @Test
+    fun keepEveryInnerClassBehindTwoWildcards() = assertFlagged("-keep class **.**\$* { *; }")
+
+    @Test
+    fun keepnamesEveryInnerClassAfterAQuestionMark() = assertFlagged("-keepnames class ?**\$*")
+
+    @Test
+    fun keepnamesEveryClassEndingInANameInAnyPackage() = assertFlagged("-keepnames class **.*Foo")
+
+    @Test
+    fun aNamedPackageSuffixIsNotBroad() = assertEquals(emptyList(), violations("-keepnames class com.**\$*", "-keep class *.R"))
+
+    // #909 review: members that nearly every class has don't narrow an `-if` condition.
+    @Test
+    fun ifWithAnAllMembersCondition() = assertFlagged("-if class ** { *; }", "-keep class <1> { *; }")
+
+    @Test
+    fun ifWithAConstructorConditionOnSeveralLines() =
+        assertFlagged("-if class ** {", "    <init>(...);", "}", "-keep class <1> {", "    *;", "}")
+
+    @Test
+    fun ifWithANamedMemberPasses() =
+        assertEquals(emptyList(), violations("-if class ** { public static final ** CREATOR; }", "-keep class <1>"))
+
+    @Test
+    fun ifWithAnAnnotatedMemberPasses() =
+        // Retrofit's rule: only interfaces with a method that carries one of its HTTP annotations.
+        assertEquals(
+            emptyList(),
+            violations("-if interface * { @retrofit2.http.* <methods>; }", "-keep,allowobfuscation interface <1>"),
+        )
 }

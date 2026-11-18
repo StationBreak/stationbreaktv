@@ -30,6 +30,32 @@ object R8ConfigRules {
     // The keep an `-if` applies, written with whitespace or a comma after the option (`-keep,allowobfuscation`).
     private val ifKeep = Regex("\\s(-keep\\w*[\\s,].*)", RegexOption.DOT_MATCHES_ALL)
     private val backreference = Regex("<(\\d+)>")
+    private val leadingWildcards = Regex("^[*?.]+")
+    private val placeholders = Regex("<init>|<fields>|<methods>|\\(\\.\\.\\.\\)")
+    private val memberSeparators = Regex("[\\s;()\\[\\],]+")
+    private val memberKeywords =
+        setOf(
+            "public",
+            "private",
+            "protected",
+            "static",
+            "final",
+            "abstract",
+            "native",
+            "synchronized",
+            "volatile",
+            "transient",
+            "strictfp",
+            "void",
+            "boolean",
+            "byte",
+            "char",
+            "short",
+            "int",
+            "long",
+            "float",
+            "double",
+        )
     private val wildcard = Regex("\\*\\*\\*|\\*\\*|\\*|\\?")
     private val keepFamily =
         setOf(
@@ -224,14 +250,27 @@ object R8ConfigRules {
         return members.isEmpty() || "*;" in members || ("<fields>;" in members && "<methods>;" in members)
     }
 
-    // `**` and a suffix with no package part (`**$*`, `**$**`, `**Foo`) names classes in every package. `**.R$*` names
-    // one class per package and is left alone, as androidx uses it (#909).
-    private fun anyPackageSuffix(name: String): Boolean = name.startsWith("**") && !wildcardOnly.matches(name) && '.' !in name
+    // A name whose leading wildcards reach every package and don't stop at a package boundary names classes in every
+    // package: `**$*`, `**Foo`, `*.**$*`, `?**$*`, `**.*Foo`. `**.R$*` (androidx) and `**.BuildConfig` end the run at a
+    // dot, so they name one class per package and are left alone (#909).
+    private fun anyPackageSuffix(name: String): Boolean {
+        val run = leadingWildcards.find(name)?.value ?: return false
+        return "**" in run && !run.endsWith('.') && !wildcardOnly.matches(name)
+    }
+
+    // A member line that names nothing: only modifiers, primitive types, wildcards and `<init>`/`<fields>`/`<methods>`.
+    // Nearly every class has such a member (`*;`, `<init>(...);`), so it doesn't narrow an `-if` condition (#909).
+    private fun namesNothing(member: String): Boolean =
+        member
+            .replace(placeholders, " ")
+            .split(memberSeparators)
+            .filter { it.isNotEmpty() }
+            .all { it in memberKeywords || wildcardOnly.matches(it) }
 
     // The keep of an `-if`, with each `<n>` replaced by the condition's n-th wildcard when the condition matches every
-    // class: then `<n>` can be any class name. A condition narrowed by an annotation, a supertype, its members or a
-    // named class only ever matches that set, so its `<n>` stay as they are and are not broad (#909). A `<n>` with no
-    // wildcard behind it is read as `**`.
+    // class: then `<n>` can be any class name. A condition narrowed by an annotation, a supertype, a named class or a
+    // member that names something (`CREATOR`, `@retrofit2.http.*`) only ever matches that set, so its `<n>` stay as they
+    // are and are not broad (#909). A `<n>` with no wildcard behind it is read as `**`.
     private fun resolved(
         condition: String,
         keep: String,
@@ -242,7 +281,14 @@ object R8ConfigRules {
                 .split(separators)
                 .filter { it.isNotEmpty() }
                 .drop(1)
-        if ('{' in condition || !keepsEverything("-keep", args, "")) return keep
+        if (!keepsEverything("-keep", args, "")) return keep
+        if ('{' in condition) {
+            val members = condition.substringAfter('{').substringBeforeLast('}').split(';', '\n')
+            if (!members.all { namesNothing(it) }) return keep
+            // Members that every class has don't narrow it; R8 also numbers their wildcards, so read every <n> as any
+            // class rather than count them.
+            return backreference.replace(keep, "**")
+        }
         val wildcards = args.flatMap { arg -> wildcard.findAll(arg).map { it.value }.toList() }
         return backreference.replace(keep) { wildcards.getOrNull(it.groupValues[1].toInt() - 1) ?: "**" }
     }
