@@ -67,6 +67,7 @@ internal fun rememberJustArrived(phase: LibrariesPhase): Boolean {
     var saved by rememberSaveable { mutableStateOf<Long?>(null) }
     // The first frame of the list already counts, so it never shows the plain line for a frame before the cheer.
     val since = saved ?: SystemClock.elapsedRealtime().takeIf { phase == LibrariesPhase.Choosing }
+    // The first SideEffect after the list shows saves that frame's `since`; every later frame reads it, so it is fixed.
     SideEffect { if (saved == null) saved = since }
     var cheering by remember(since) { mutableStateOf(cheeringAt(since, SystemClock.elapsedRealtime())) }
     LaunchedEffect(since) {

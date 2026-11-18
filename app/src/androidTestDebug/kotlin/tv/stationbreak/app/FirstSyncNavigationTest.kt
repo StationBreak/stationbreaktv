@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
-import android.os.SystemClock
 import android.view.KeyEvent
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
@@ -303,21 +302,14 @@ class FirstSyncNavigationTest {
         Syncing.firstSync.current = running(900, 1_000)
         launchApp()
         awaitExists(FirstSyncTags.HEADLINE)
-        // The cheer starts after this, so the hold cannot end before this time plus its length.
-        val cheerEarliestEnd = SystemClock.elapsedRealtime() + CHEER_HOLD_MS
         Syncing.firstSync.current = finished
         awaitFocused(FirstSyncTags.DONE)
 
-        // Back skips the cheer: on to live TV, not out of the app, and not back into setup.
+        // Back during the cheer: on to live TV, not out of the app, and not back into setup.
         press(KeyEvent.KEYCODE_BACK)
 
-        // Live within well under the hold after Back, and before the hold could have ended by itself: Back cut it.
-        compose.waitUntil(SKIPPED_WITHIN_MS) { count(LiveTags.NO_CHANNELS) > 0 }
-        val liveAt = SystemClock.elapsedRealtime()
-        assertTrue(
-            "live TV came ${liveAt - cheerEarliestEnd} ms after the hold's earliest end: Back did not cut it",
-            liveAt < cheerEarliestEnd,
-        )
+        // That Back cuts the hold short is proven on virtual time (FirstSyncViewModelTest) and by FirstSyncScreenTest.
+        awaitExists(LiveTags.NO_CHANNELS)
         assertFalse("Back during the cheer must not leave the app", compose.activity.isFinishing)
         assertEquals(0, count(FirstSyncTags.DONE))
         assertEquals(0, count(LibrariesTags.SCREEN))
@@ -398,11 +390,5 @@ class FirstSyncNavigationTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val POLL_MS = 50L
-
-        /** FirstSyncViewModel's CHEER_HOLD_MS (internal to feature:onboarding): Stan's cheer before live TV. */
-        const val CHEER_HOLD_MS = 1_500L
-
-        /** How soon live TV must follow a Back that skips the cheer: clearly shorter than the hold. */
-        const val SKIPPED_WITHIN_MS = 800L
     }
 }
