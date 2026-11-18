@@ -13,6 +13,12 @@ class R8ConfigRulesTest {
 
     private fun violations(vararg rules: String) = R8ConfigRules.violations(section("com.evil:lib:1.0", *rules))
 
+    // The input lines and the one violation they must give, which differ when options share a line.
+    private fun assertOnly(
+        expected: String,
+        vararg rules: String,
+    ) = assertEquals(listOf(R8Violation(expected, "com.evil:lib:1.0")), violations(*rules))
+
     private fun assertFlagged(vararg rules: String) =
         assertEquals(listOf(R8Violation(rules.first(), "com.evil:lib:1.0")), violations(*rules))
 
@@ -439,10 +445,10 @@ class R8ConfigRulesTest {
     // #933: R8 reads `-keep class B -dontshrink` as two options (checked with R8 9.3.16: nothing was shrunk), so each
     // option on a shared line is checked on its own.
     @Test
-    fun dontshrinkAfterANarrowKeepOnTheSameLine() = assertFlagged("-dontshrink")
+    fun dontshrinkAfterANarrowKeepOnTheSameLine() = assertOnly("-dontshrink", "-keep class a.B -dontshrink")
 
     @Test
-    fun aBroadKeepAfterANarrowKeepOnTheSameLine() = assertFlagged("-keep class ** { *; }")
+    fun aBroadKeepAfterANarrowKeepOnTheSameLine() = assertOnly("-keep class ** { *; }", "-keep class a.B -keep class ** { *; }")
 
     @Test
     fun aForbiddenOptionBehindAnotherOptionOnAContinuationLine() =
@@ -459,4 +465,50 @@ class R8ConfigRulesTest {
 
     @Test
     fun anIfAndItsNarrowKeepOnOneLineStillPass() = assertEquals(emptyList(), violations("-if class a.B -keep class a.C -dontwarn a.D"))
+
+    // #933 fix 1: R8 9.3.16 ends an option at `}` as well as at whitespace.
+    @Test
+    fun anOptionRightAfterAnEmptyBody() = assertOnly("-dontshrink", "-keep class a.B {}-dontshrink")
+
+    @Test
+    fun aBroadKeepRightAfterABody() = assertOnly("-keep class **{*;}", "-keep class a.B{*;}-keep class **{*;}")
+
+    @Test
+    fun anOptionRightAfterAMultiLineBody() = assertOnly("-dontshrink", "-keep class a.B {", "    *;", "}-dontshrink")
+
+    // `-` is a name character in R8, so these are one name, not an option (checked with 9.3.16: nothing took effect).
+    @Test
+    fun aDashInsideANameIsNotAnOption() =
+        assertEquals(emptyList(), violations("-keep class a.B-dontshrink", "-dontwarn a.B-dontoptimize"))
+
+    @Test
+    fun aTabBetweenTwoOptions() = assertOnly("-dontshrink", "-keep class a.B\t-dontshrink")
+
+    // R8 reads a quoted `#` as text in `-printconfiguration`, so the option after it still counts.
+    @Test
+    fun aQuotedHashDoesNotHideTheRestOfTheLine() = assertOnly("-dontshrink", "-printconfiguration \"x#y\" -dontshrink")
+
+    @Test
+    fun aHashOutsideQuotesStillStartsAComment() = assertEquals(emptyList(), violations("-keep class a.B # -dontshrink"))
+
+    @Test
+    fun severalMembersOnOneLine() {
+        assertFlagged("-keepclassmembers class **\$* { <fields>; <methods>; }")
+        assertFlagged("-keepclassmembers class **\$* { * ; }")
+        assertFlagged("-keepclassmembers class **\$* { * *; }")
+        assertFlagged("-keepclassmembers class **\$* { *** *; }")
+    }
+
+    @Test
+    fun narrowMembersOnOneLineStillPass() {
+        assertEquals(emptyList(), violations("-keepclassmembers class **\$\$serializer { private ** descriptor; }"))
+        assertEquals(emptyList(), violations("-keepclassmembers class **\$WhenMappings { <fields>; }"))
+    }
+
+    @Test
+    fun anIfItsKeepAndASecondBroadKeepOnOneLine() =
+        assertOnly("-keep class ** { *; }", "-if class a.B -keep class a.C -keep class ** { *; }")
+
+    @Test
+    fun aKeepAfterTheClosingBraceOfAnIfBody() = assertFlagged("-if class ** {", "    *;", "} -keep class <1> { *; }")
 }

@@ -16,6 +16,7 @@ data class R8Violation(
 object R8ConfigRules {
     private val sectionHeader = Regex("^# The proguard configuration file for the following section is (.*)$")
     private val wildcardOnly = Regex("[*.?]+")
+    private val whitespaceRun = Regex("\\s+")
     private val separators = Regex("[\\s,]+")
     private val noSpec = setOf("extends", "implements")
 
@@ -29,7 +30,10 @@ object R8ConfigRules {
 
     // The keep an `-if` applies, written with whitespace or a comma after the option (`-keep,allowobfuscation`).
     private val ifKeep = Regex("\\s(-keep\\w*[\\s,].*)", RegexOption.DOT_MATCHES_ALL)
-    private val nextOption = Regex("\\s+(?=-[a-z])")
+
+    // R8 ends an option at whitespace or at `}` before the next one (checked with 9.3.16: `-keep class a.B {}-dontshrink`
+    // and `{*;}-keep class **{*;}` both take effect), but `-` is a name character: `a.B-dontshrink` is one name (#933).
+    private val nextOption = Regex("\\s+(?=-[a-z])|(?<=\\})(?=-[a-z])")
     private val backreference = Regex("<(\\d+)>")
     private val leadingWildcards = Regex("^[*?.]+")
     private val placeholders = Regex("<init>|<fields>|<methods>|\\(\\.\\.\\.\\)")
@@ -136,8 +140,9 @@ object R8ConfigRules {
             val header = sectionHeader.matchEntire(whole)
             val end = sectionEnd.matchEntire(whole)
             // R8 reads `#` as the start of a comment anywhere on a line, so `-keep class ** # @a.B` keeps every class
-            // (checked with R8's -printseeds): the rule is read without it (#851).
-            val line = if (whole.startsWith("#")) whole else whole.substringBefore('#').trim()
+            // (checked with R8's -printseeds): the rule is read without it (#851). A `#` inside double quotes is text
+            // (`-printconfiguration "x#y" -dontshrink` still shrinks nothing, checked with 9.3.16) (#933).
+            val line = if (whole.startsWith("#")) whole else uncommented(whole)
             when {
                 end != null -> {
                     flush()
@@ -173,7 +178,7 @@ object R8ConfigRules {
                 // each whitespace followed by an option and every part is checked (#933). Over-splitting only checks more.
                 else -> {
                     for ((i, part) in line.split(nextOption).withIndex()) {
-                        if (i > 0 && part.startsWith("-keep") && directive.startsWith("-if") && ifKeep.find(directive) == null) {
+                        if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") && ifKeep.find(directive) == null) {
                             // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
                             directive.append(' ').append(part)
                         } else if (part.startsWith("-")) {
@@ -190,6 +195,14 @@ object R8ConfigRules {
         flush()
         if (open != null) found += R8Violation("a section that is never closed", source)
         return found
+    }
+
+    private fun uncommented(line: String): String {
+        var quoted = false
+        for ((i, c) in line.withIndex()) {
+            if (c == '"') quoted = !quoted else if (c == '#' && !quoted) return line.substring(0, i).trim()
+        }
+        return line
     }
 
     private fun forbidden(directive: String): Boolean {
@@ -251,10 +264,12 @@ object R8ConfigRules {
         val members =
             body
                 .substringBeforeLast('}')
-                .lines()
-                .map { it.trim() }
+                .split(';', '\n')
+                .map { it.trim().replace(whitespaceRun, " ") }
                 .filter { it.isNotEmpty() }
-        return members.isEmpty() || "*;" in members || ("<fields>;" in members && "<methods>;" in members)
+        // `*`, `* *` and `*** *` are every member; several members may share a line (#933).
+        val everything = members.any { member -> member.split(' ').all { wildcardOnly.matches(it) } }
+        return members.isEmpty() || everything || ("<fields>" in members && "<methods>" in members)
     }
 
     // A name whose leading wildcards reach every package and don't stop at a package boundary names classes in every
