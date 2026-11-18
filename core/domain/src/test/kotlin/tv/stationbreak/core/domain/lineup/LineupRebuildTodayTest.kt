@@ -14,6 +14,7 @@ import tv.stationbreak.core.rules.Source
 import java.util.Collections
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -96,6 +97,58 @@ class LineupRebuildTodayTest {
 
             assertEquals(names, disk.files.keys.toSet(), "and written again by the new build")
             assertNotEquals("disk", builds.last().snapshot)
+        }
+
+    @Test
+    fun aRebuildDeletesTheDaysWithoutRefusingTheNextSave() =
+        runBlocking<Unit> {
+            refresher.rebuildToday()
+            days()
+            val names =
+                disk.files.keys
+                    .map { it.second }
+                    .toSet()
+            assertTrue(names.isNotEmpty())
+
+            refresher.rebuildToday()
+
+            assertEquals(0, disk.forgets.get(), "a rebuild is not a sign-out: the account is not tombstoned")
+            assertTrue(disk.files.isEmpty(), "the old days are deleted")
+            assertTrue(disk.write(ACCOUNT, "probe", byteArrayOf(1)), "a later write is accepted (#815)")
+            days()
+            assertEquals(
+                names,
+                disk.files.keys
+                    .map { it.second }
+                    .toSet() - "probe",
+                "the rebuilt day is saved",
+            )
+        }
+
+    @Test
+    fun aResetDeletesTheDaysWithoutRefusingTheNextSave() =
+        runBlocking<Unit> {
+            refresher.rebuildToday()
+            days()
+            assertTrue(disk.files.isNotEmpty())
+
+            assertIs<Saved.Ok<Lineup>>(service.reset(ACCOUNT, LIBRARIES))
+
+            assertEquals(0, disk.forgets.get())
+            assertTrue(disk.files.isEmpty(), "the old days are deleted")
+            assertTrue(disk.write(ACCOUNT, "probe", byteArrayOf(1)), "a later write is accepted (#815)")
+        }
+
+    @Test
+    fun forgettingTheLineupStillForgetsTheDaysStore() =
+        runBlocking<Unit> {
+            refresher.rebuildToday()
+            days()
+
+            service.forget(ACCOUNT)
+
+            assertEquals(1, disk.forgets.get())
+            assertTrue(disk.files.isEmpty())
         }
 
     // A lineup planned under an older catalog whose Whodunit still has rules that match nothing: the newer catalog's

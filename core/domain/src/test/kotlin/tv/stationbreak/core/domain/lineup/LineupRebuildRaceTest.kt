@@ -41,11 +41,15 @@ class LineupRebuildRaceTest {
     @Volatile private var writesWhenTheDropReturned = -1
     private val derived =
         object : DayStore by disk {
-            override suspend fun forget(account: LibraryAccount) {
-                disk.forget(account)
-                rebuilt.countDown()
-                delay(SETTLE_MS)
-                writesWhenTheDropReturned = disk.writes
+            // The rebuild lists the files to delete: the first listing after the build is held is the drop.
+            override suspend fun names(account: LibraryAccount): List<String> {
+                val listed = disk.names(account)
+                if (daysMade.count == 0L && rebuilt.count == 1L) {
+                    rebuilt.countDown()
+                    delay(SETTLE_MS)
+                    writesWhenTheDropReturned = disk.writes
+                }
+                return listed
             }
         }
     private val service = LineupService(lineups, library, clock, { 0 }, {}, LineupSeams(TestCatalog, derived = derived))
