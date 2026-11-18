@@ -4,6 +4,7 @@ package tv.stationbreak.feature.live.ui
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.os.ParcelFileDescriptor
 import android.view.SurfaceView
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.text.Cue
 import androidx.media3.ui.SubtitleView
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -28,7 +30,7 @@ import org.junit.runner.RunWith
 
 /**
  * A cue the player reports reaches the caption view and is drawn in the picture's rectangle; no cue, or the guide
- * open (hidden), draws nothing; the view takes no focus.
+ * open (hidden), draws nothing; the view takes no focus; and it follows the system caption text size while on screen.
  */
 @RunWith(AndroidJUnit4::class)
 class CaptionLayerTest {
@@ -118,7 +120,53 @@ class CaptionLayerTest {
         assertTrue(!view.isClickable)
     }
 
+    // #725: the system caption style is followed whether the system switch is on or off (the app's own toggle can turn
+    // captions on), and a change made in Settings is drawn while the live picture is up. The shell may write secure
+    // settings; the test puts back what it changed.
+    @Test
+    fun theSystemCaptionTextSizeIsFollowedWhileOnScreenEvenWithTheSystemSwitchOff() {
+        val enabled = shell("settings get secure $CAPTIONS_ENABLED")
+        val scale = shell("settings get secure $FONT_SCALE")
+        try {
+            shell("settings put secure $CAPTIONS_ENABLED 0")
+            shell("settings put secure $FONT_SCALE $SMALL")
+            show()
+            val view = captionView()
+            cues.value = listOf(cue("Hello there"))
+            compose.waitForIdle()
+            val small = drawnPixels(view)
+            assertTrue("a cue is drawn", small > 0)
+
+            shell("settings put secure $FONT_SCALE $LARGE")
+            compose.waitUntil(CHANGE_TIMEOUT_MS) { drawnPixels(view) > small }
+        } finally {
+            restore(CAPTIONS_ENABLED, enabled)
+            restore(FONT_SCALE, scale)
+        }
+    }
+
+    private fun restore(
+        key: String,
+        value: String,
+    ) {
+        shell(if (value == "null") "settings delete secure $key" else "settings put secure $key $value")
+    }
+
+    private fun shell(command: String): String {
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return ParcelFileDescriptor
+            .AutoCloseInputStream(output)
+            .bufferedReader()
+            .use { it.readText() }
+            .trim()
+    }
+
     private companion object {
+        const val CAPTIONS_ENABLED = "accessibility_captioning_enabled"
+        const val FONT_SCALE = "accessibility_captioning_font_scale"
+        const val SMALL = "0.5"
+        const val LARGE = "2.0"
+        const val CHANGE_TIMEOUT_MS = 5_000L
         const val WIDTH_DP = 640
         const val HEIGHT_DP = 480
         const val ASPECT = 16f / 9f
