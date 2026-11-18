@@ -1048,9 +1048,15 @@ jobs:
   # build's R8 rules, which `emulator` (a debug build, never minified) can't check. Only the five tests that guard
   # the trust and secret-storage paths. On pushes to main and on PRs that can change what R8 produces (the release
   # scope), as `verify` and `assemble` run the release variants then. One attempt: a failure here is re-run by hand.
+  #
+  # OFF (#436, reopened): since #848 it never ran the tests. The instrumentation process crashed at start and AGP
+  # still ended BUILD SUCCESSFUL, so the job was a false green. The test APK runs in the app's process and needs
+  # Hilt's runtime and much of the libraries the minified app no longer carries, so making it run needs a design
+  # choice first (see #436). The results step below now fails unless all five classes ran, so turning it back on
+  # can't be a false green again.
   emulator-minified:
     needs: checks
-    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
+    if: ${{ false && !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     # Setup 3 + cold build ~12 + attempt 18 (step limit) + uploads 2.
     timeout-minutes: 40
@@ -1108,14 +1114,35 @@ jobs:
           profile: tv_720p
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          # The logcat is saved whatever Gradle says: a crashed instrumentation process still ends BUILD SUCCESSFUL
+          # (#489), and its stack trace is only in the device log.
           script: >-
             ./gradlew -Pstationbreak.testBuildType=benchmark :app:connectedGithubBenchmarkAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest
+            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest;
+            status=$?;
+            mkdir -p instrumented-minified-diag;
+            adb logcat -d > instrumented-minified-diag/logcat.txt;
+            adb logcat -d -b crash > instrumented-minified-diag/crash.txt;
+            exit "$status"
 
+      # The job's verdict. Gradle's own result is not enough: AGP reports a crashed or lost instrumentation run as a
+      # pass (#489), so this reads the JUnit XML and fails unless every one of the five classes ran a test and nothing
+      # failed. A crash's stack trace from the device log is printed for the next fix.
       - name: Minified security test results
         if: always()
         run: |
           shopt -s globstar nullglob
+          if [ -s instrumented-minified-diag/crash.txt ]; then
+            echo "::group::crash buffer"
+            cat instrumented-minified-diag/crash.txt
+            echo "::endgroup::"
+          fi
+          if [ -s instrumented-minified-diag/logcat.txt ]; then
+            echo "::group::AndroidRuntime and the test runner (logcat)"
+            grep -E 'AndroidRuntime|FATAL|TestRunner|ClassNotFound|NoClassDefFound|NoSuchMethod|Hilt' \
+              instrumented-minified-diag/logcat.txt | head -200 || true
+            echo "::endgroup::"
+          fi
           results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
           if [ "${#results[@]}" -eq 0 ]; then
             echo "::error::No instrumented test results from the minified build."
@@ -1128,6 +1155,18 @@ jobs:
             grep -A5 '<failure' "$f" || true
             echo "::endgroup::"
           done
+          failed=0
+          if grep -lE '<failure|testRunFailed' "${results[@]}" >/dev/null; then
+            echo "::error::The minified security tests failed or did not complete (see the results above)."
+            failed=1
+          fi
+          for class in PinnedTrustOnApi25Test NetworkSecurityConfigChainTest NoPlaintextOnDiskTest SecretPersistenceTest AdapterLogBindingTest; do
+            if ! grep -qE "classname=\"tv\.stationbreak\.app\.${class}\"" "${results[@]}"; then
+              echo "::error::${class} did not run on the minified build."
+              failed=1
+            fi
+          done
+          exit "$failed"
 
       # Test reports only, no APK (ADR-0011 gates APKs).
       - name: Upload the minified security test reports
@@ -1138,6 +1177,7 @@ jobs:
           path: |
             app/build/reports/androidTests/
             app/build/outputs/androidTest-results/
+            instrumented-minified-diag/
           retention-days: 7
           if-no-files-found: ignore
 
