@@ -9,7 +9,13 @@ import tv.stationbreak.core.scheduler.testItem
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/** A timing guard for the worst case: a 24-hour budget and 64 candidates. JVM only (commonTest runs natively too). */
+/**
+ * A timing guard for the worst case: a 24-hour budget and 64 candidates. JVM only (commonTest runs natively too).
+ *
+ * It catches a gross regression (a lost cap, a quadratic blow-up), not a small slowdown. On a quiet machine the medians
+ * are about 2.5 ms (bestFit) and 10.5 ms (bestGroupedFit); under a full parallel `check` they have reached 16 ms and
+ * 54.7 ms, which broke the old 50 ms limit (#922). The limit leaves room for that load.
+ */
 class BestFitBenchmarkTest {
     private val candidates =
         (1..64).map { testItem(idAt(it), runtimeMs = (7 + it % 53) * MS_MINUTE + it * 1_337L) }
@@ -34,7 +40,7 @@ class BestFitBenchmarkTest {
     }
 
     @Test
-    fun a24HourBudgetWith64CandidatesRunsUnder50msOnJvm() {
+    fun a24HourBudgetWith64CandidatesRunsUnder250msOnJvm() {
         val plain = medianMs { bestFit(candidates, budgetMs) { it.runtimeMs }.size }
         val index = candidates.withIndex().associate { it.value.id to groupIds[it.index % groupIds.size] }
         val grouped = medianMs { bestGroupedFit(candidates, { index.getValue(it.id) }, budgetMs) { it.runtimeMs }.size }
@@ -46,6 +52,6 @@ class BestFitBenchmarkTest {
         const val WARM_UP = 20
         const val RUNS = 21
         const val NS_PER_MS = 1_000_000.0
-        const val LIMIT_MS = 50.0
+        const val LIMIT_MS = 250.0
     }
 }
