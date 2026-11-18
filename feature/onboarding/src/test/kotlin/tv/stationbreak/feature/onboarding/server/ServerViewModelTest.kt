@@ -219,6 +219,28 @@ class ServerViewModelTest {
         assertEquals("jellyfin.example.tes", vm.state.value.input)
     }
 
+    // #810: a phone keyboard's late commit of the text already in the field is not an edit.
+    @Test
+    fun theSameTextAgainKeepsAConnection() {
+        server.fake.discoverResult = found(https)
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onInputChange("jellyfin.example.test")
+        assertTrue(vm.phase() is ServerPhase.Connected)
+    }
+
+    @Test
+    fun theSameTextAgainDoesNotCancelARunningTest() {
+        val gate = CompletableDeferred<ServerResult<ResolvedServer>>()
+        server.gate = gate
+        val vm = viewModel()
+        vm.test("jellyfin.example.test")
+        vm.onInputChange("jellyfin.example.test")
+        assertEquals(ServerPhase.Testing, vm.phase())
+        gate.complete(found(https))
+        assertTrue(vm.phase() is ServerPhase.Connected)
+    }
+
     @Test
     fun cancelOnlyActsWhileTesting() {
         server.fake.discoverResult = found(https)
