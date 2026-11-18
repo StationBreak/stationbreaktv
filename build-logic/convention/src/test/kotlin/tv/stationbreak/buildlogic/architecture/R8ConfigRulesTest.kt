@@ -297,4 +297,92 @@ class R8ConfigRulesTest {
         val config = "# The proguard configuration file for the following section is app/proguard-rules.pro\n-keep class a.B\n"
         assertEquals(listOf("a section that is never closed"), R8ConfigRules.violations(config).map { it.rule })
     }
+
+    // #909: a name of `**` and a suffix with no package part keeps classes in every package.
+    @Test
+    fun keepEveryInnerClass() = assertFlagged("-keep class **\$* { *; }")
+
+    @Test
+    fun keepEveryInnerClassAnyDepth() = assertFlagged("-keep class **\$** { *; }")
+
+    @Test
+    fun keepnamesEveryClassEndingInAName() = assertFlagged("-keepnames class **Foo")
+
+    @Test
+    fun aPackagedSuffixIsNotBroad() = assertEquals(emptyList(), violations("-keepnames class **.R\$*", "-keepnames class **.BuildConfig"))
+
+    @Test
+    fun aSuffixOnAMemberRuleNeedsAllMembers() =
+        // kotlinx.serialization's own rule (META-INF/com.android.tools/r8/kotlinx-serialization-common.pro).
+        assertEquals(
+            emptyList(),
+            violations("-keepclassmembers public class **\$\$serializer {", "    private ** descriptor;", "}"),
+        )
+
+    // #909: `<n>` is what the n-th wildcard of the `-if` condition matched. A condition that matches every class makes
+    // the kept class any class.
+    @Test
+    fun ifBackreferenceToABroadConditionOnOneLine() = assertFlagged("-if class ** -keep class <1> { *; }")
+
+    @Test
+    fun ifBackreferenceToABroadConditionOnTwoLines() = assertFlagged("-if class **", "-keep class <1> {", "    *;", "}")
+
+    @Test
+    fun ifWithAKeepThatHasModifiers() = assertFlagged("-if class **", "-keep,allowobfuscation class <1>")
+
+    @Test
+    fun ifBackreferenceToTheSecondWildcard() = assertFlagged("-if class *.**", "-keepnames class <2>")
+
+    @Test
+    fun ifBackreferenceThatAddsAPackagedNamePasses() =
+        // `<1>` is one package level, so this keeps `Api` in each single-level package: a named class, not every class.
+        assertEquals(emptyList(), violations("-if class *.**", "-keepnames class <1>.Api"))
+
+    @Test
+    fun ifWithANarrowConditionPasses() =
+        // Only classes in a.*.B… match, so whatever <2> matched comes from that bounded set.
+        assertEquals(emptyList(), violations("-if class a.*.B**", "-keepnames class <2>"))
+
+    @Test
+    fun ifNarrowedByAnAnnotationPasses() =
+        // kotlinx.serialization's companion and serializer rules.
+        assertEquals(
+            emptyList(),
+            violations(
+                "-if @kotlinx.serialization.Serializable class **",
+                "-keep, allowshrinking, allowoptimization, allowobfuscation, allowaccessmodification class <1>",
+                "-if @kotlinx.serialization.Serializable class **",
+                "-keepclassmembers class <1> {",
+                "    static <1>\$Companion Companion;",
+                "}",
+            ),
+        )
+
+    @Test
+    fun ifNarrowedByASupertypePasses() =
+        assertEquals(
+            emptyList(),
+            violations(
+                "-if public class ** implements androidx.navigation.NavArgs",
+                "-keepclassmembers public class <1> {",
+                "    ** fromBundle(android.os.Bundle);",
+                "}",
+            ),
+        )
+
+    @Test
+    fun aBroadConditionWithSpecificMembersPasses() =
+        // Gson's rule: every class, but only the members it names.
+        assertEquals(
+            emptyList(),
+            violations(
+                "-if class *",
+                "-keepclasseswithmembers,allowobfuscation class <1> {",
+                "    @com.google.gson.annotations.SerializedName <fields>;",
+                "}",
+            ),
+        )
+
+    @Test
+    fun anIfDoesNotCarryOverToALaterRule() = assertEquals(emptyList(), violations("-if class **", "-dontwarn a.B", "-keep class <1>"))
 }
