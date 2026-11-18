@@ -80,7 +80,7 @@ internal fun TrustScreen(
                     .semantics { paneTitle = title }
                     .testTag(TrustTags.SCREEN),
         ) {
-            // A 5% safe area on every side, inside the scroll area so a focused, scaled button isn't clipped.
+            // A 5% safe area on every side, inside the scroll area.
             Column(
                 modifier =
                     Modifier

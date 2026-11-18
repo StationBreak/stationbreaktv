@@ -50,6 +50,12 @@ class ContrastTest {
     }
 
     @Test
+    fun restingEdgeShowsOnTheGround() {
+        assertAtLeast(3.0, colors.borderVariant, BrandColors.Ink, "resting edge on ink")
+        assertAtLeast(3.0, colors.borderVariant, BrandColors.ScreenLiftTop, "resting edge on the lift's lightest point")
+    }
+
+    @Test
     fun errorIsReadable() {
         assertAtLeast(4.5, colors.error, colors.surface, "error on the ground")
     }

@@ -193,7 +193,7 @@ class TrustScreenTest {
         awaitFocused(TrustTags.DONT_TRUST)
         // The focused button has the orange fill. The fill eases in, so wait for it.
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
-        // Trust at rest: the panel fill and no orange border.
+        // Trust at rest: the panel fill and only the muted edge, never the orange one.
         assertRestingPlain(TrustTags.TRUST)
         press(KeyEvent.KEYCODE_DPAD_RIGHT, TrustTags.DONT_TRUST)
         awaitFocused(TrustTags.TRUST)
@@ -206,7 +206,7 @@ class TrustScreenTest {
     private fun assertRestingPlain(tag: String) {
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(tag).isCloseTo(panel) }
         assertFalse("$tag must not have the primary fill", fillOf(tag).isCloseTo(primary))
-        assertFalse("$tag must not have the orange border", topEdgeOf(tag).isCloseTo(primary))
+        assertFalse("$tag must not have the orange (emphasis) border", topEdgeOf(tag).isCloseTo(primary))
     }
 
     // The border is about 2 px thick at tvdpi and may be antialiased, so scan the rows around the top edge at the

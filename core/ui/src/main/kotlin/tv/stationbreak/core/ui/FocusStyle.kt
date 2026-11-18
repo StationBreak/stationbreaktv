@@ -20,8 +20,9 @@ import androidx.tv.material3.ClickableSurfaceScale
 import androidx.tv.material3.MaterialTheme
 
 /**
- * The setup focus treatment (onboarding, spec 05): colour, not scale. A focused button fills orange with ink text; a
- * focused surface (a text field, a collection row) keeps its fill and gets a 4 dp orange ring. Nothing grows, so a
+ * The setup focus treatment (onboarding, spec 05): colour, not scale. Every resting control has an edge: a 1 dp
+ * `borderVariant` line, or a 2 dp orange one for a screen's main button. A focused button fills orange with ink text;
+ * a focused surface (a text field, a collection row) keeps its fill and gets a 4 dp orange ring. Nothing grows, so a
  * focused row never pushes into its neighbour. The guide paints its own focus; the channel screens draw it with
  * [drawnFocus]. `ContrastTest` pins the ring and the label at 3:1 and 4.5:1 or better against what they touch.
  */
@@ -30,13 +31,14 @@ object FocusStyle {
     internal val OutlineRadius = 4.dp
     private val RingWidth = 4.dp
     private val EmphasisWidth = 2.dp
+    private val RestingWidth = 1.dp
 
     // [drawnFocus] still grows a full-width row a little; setup's own focus does not.
     internal const val SURFACE_SCALE = 1.02f
 
     /**
-     * A button's colours: panel at rest, orange with ink text when focused. The main action of a screen differs only
-     * by its orange 2 dp border at rest, which is a border, not a colour: see [buttonBorder].
+     * A button's colours: panel at rest, orange with ink text when focused. What tells the main action of a screen
+     * from the rest is its border at rest, which is a border, not a colour: see [buttonBorder].
      */
     @Composable
     fun buttonColors(): ButtonColors {
@@ -53,9 +55,14 @@ object FocusStyle {
 
     @Composable
     fun buttonBorder(emphasis: Boolean = false): ButtonBorder {
-        val ring = MaterialTheme.colorScheme.border
+        val colors = MaterialTheme.colorScheme
         return ButtonDefaults.border(
-            border = if (emphasis) Border(BorderStroke(EmphasisWidth, ring)) else Border.None,
+            border =
+                if (emphasis) {
+                    Border(BorderStroke(EmphasisWidth, colors.border))
+                } else {
+                    Border(BorderStroke(RestingWidth, colors.borderVariant))
+                },
             focusedBorder = Border.None,
         )
     }
@@ -66,6 +73,7 @@ object FocusStyle {
     @Composable
     fun surfaceBorder(): ClickableSurfaceBorder =
         ClickableSurfaceDefaults.border(
+            border = Border(BorderStroke(RestingWidth, MaterialTheme.colorScheme.borderVariant)),
             focusedBorder = Border(BorderStroke(RingWidth, MaterialTheme.colorScheme.border)),
         )
 

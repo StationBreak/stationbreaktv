@@ -9,7 +9,8 @@ import androidx.tv.material3.darkColorScheme
 
 /**
  * The warm dark scheme, built from [BrandColors]: ink ground, panel for fills, cream and grey text, orange for focus
- * (`primary` is a focused button's fill, `border` the ring on a focused field or row). `error` stays tv-material's.
+ * (`primary` is a focused button's fill, `border` the ring on a focused field or row,
+ * `borderVariant` the muted edge of a resting control). `error` stays tv-material's.
  * `ContrastTest` checks the ratios.
  */
 val StationBreakDarkColors =
@@ -23,6 +24,7 @@ val StationBreakDarkColors =
         primary = BrandColors.Orange,
         onPrimary = BrandColors.Ink,
         border = BrandColors.Orange,
+        borderVariant = BrandColors.Muted,
     )
 
 /** How strong the address hint is, as the alpha of `onSurfaceVariant` on the field fill. 0.9 keeps it above 4.5:1. */
