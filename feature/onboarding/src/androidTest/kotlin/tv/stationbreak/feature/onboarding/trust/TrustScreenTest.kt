@@ -14,12 +14,17 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.MaterialTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -135,6 +140,36 @@ class TrustScreenTest {
         assertEquals(16, description.split(" ").size)
         assertTrue(description.split(" ").all { it.length == 4 })
         for (line in Fingerprint.lines(pin)) compose.onNodeWithText(line, useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun eachFingerprintRowIsOneLineOnATenFootScreen() {
+        // At 960 dp (the 1080p TV) and wider, the dialog has the full width: no Stan column, so no row wraps.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        assumeTrue(context.resources.configuration.screenWidthDp >= TV_WIDTH_DP)
+        var rowHeight = 0
+        compose.setContent {
+            StationBreakTheme {
+                // One row as the screen sets it: the theme's text style with the fingerprint's size and font.
+                val row = TextStyle(fontSize = FingerprintSize, fontFamily = FontFamily.Monospace)
+                val style = LocalTextStyle.current.merge(row)
+                rowHeight = rememberTextMeasurer().measure(Fingerprint.lines(pin).first(), style).size.height
+                TrustScreen(
+                    prompt = TrustPrompt(TrustReason.Untrusted, certificate),
+                    serverAddress = "jellyfin.example.test:8920",
+                    onTrust = {},
+                    onDontTrust = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        val height =
+            compose
+                .onNodeWithTag(TrustTags.FINGERPRINT)
+                .fetchSemanticsNode()
+                .size.height
+        val rows = Fingerprint.lines(pin).size
+        assertEquals("fingerprint height $height for $rows rows of $rowHeight px", rows * rowHeight, height)
     }
 
     @Test
@@ -300,5 +335,6 @@ class TrustScreenTest {
         const val PADDING_DIVISOR = 10
         const val COLOUR_SLACK = 6
         const val EDGE_ROWS_BELOW = 3
+        const val TV_WIDTH_DP = 960
     }
 }

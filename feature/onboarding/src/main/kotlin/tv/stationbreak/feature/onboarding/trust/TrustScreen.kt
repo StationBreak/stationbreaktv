@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.onboarding.trust
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,6 +33,7 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.model.PinKind
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
+import tv.stationbreak.core.ui.screenLift
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RequestInitialDialogFocus
 import tv.stationbreak.feature.onboarding.safeAreaPadding
@@ -46,7 +46,7 @@ import java.text.DateFormat
 import java.util.Date
 
 private val TitleSize = 36.sp
-private val FingerprintSize = 28.sp
+internal val FingerprintSize = 28.sp
 private val ContentWidth = 760.dp
 private const val TOP_OFFSET = 0.04f
 
@@ -76,7 +76,7 @@ internal fun TrustScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .screenLift()
                     .semantics { paneTitle = title }
                     .testTag(TrustTags.SCREEN),
         ) {

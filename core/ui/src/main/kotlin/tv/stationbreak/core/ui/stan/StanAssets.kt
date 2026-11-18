@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
+import tv.stationbreak.core.ui.LIFT_RADIUS
+import tv.stationbreak.core.ui.liftBrush
 
 /** The stage the motion study draws on, in its own units. */
 internal const val STAGE_W = 1920f
@@ -59,12 +61,7 @@ internal class StanGround(
         palette: StanPalette,
         cx: Float,
         cy: Float,
-    ): Brush =
-        Brush.radialGradient(
-            colors = listOf(palette.groundLift, palette.groundEdge),
-            center = Offset(cx * STAGE_W, cy * STAGE_W),
-            radius = .8f * STAGE_W,
-        )
+    ): Brush = liftBrush(palette, center = Offset(cx * STAGE_W, cy * STAGE_W), radius = LIFT_RADIUS * STAGE_W)
 
     private fun dots(palette: StanPalette): Brush {
         val tile = ImageBitmap(DOT_TILE, DOT_TILE)
