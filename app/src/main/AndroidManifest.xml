@@ -46,6 +46,7 @@
         -->
         <activity
             android:name=".MainActivity"
+            android:theme="@style/Theme.StationBreak.Launch"
             android:exported="true"
             android:configChanges="keyboard|keyboardHidden|navigation|screenSize|smallestScreenSize|screenLayout|density|uiMode|orientation"
             android:launchMode="singleTask">

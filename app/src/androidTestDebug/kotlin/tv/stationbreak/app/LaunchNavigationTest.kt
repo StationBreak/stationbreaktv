@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.app
 
+import android.provider.Settings
 import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -8,6 +9,7 @@ import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isOff
@@ -207,9 +209,10 @@ class LaunchNavigationTest {
         runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
     }
 
-    private fun launchApp() {
+    // [coldLaunch] is a new activity's opening; the other tests start on launch routing itself, with none over it.
+    private fun launchApp(coldLaunch: Boolean = false) {
         selection.resume()
-        compose.setContent { StationBreakTheme { AppNavHost() } }
+        compose.setContent { StationBreakTheme { AppNavHost(coldLaunch) } }
         compose.waitForIdle()
     }
 
@@ -375,6 +378,96 @@ class LaunchNavigationTest {
     }
 
     // Routes
+
+    private fun openingIsUp(): Boolean =
+        compose
+            .onAllNodes(hasContentDescription("Station Break"))
+            .fetchSemanticsNodes()
+            .isNotEmpty()
+
+    private fun awaitOpeningGone() {
+        compose.waitUntil(TIMEOUT_MS) { !openingIsUp() }
+    }
+
+    @Test
+    fun aColdLaunchShowsTheOpeningUntilAKeyThenOpensWelcomeAndBackLeavesTheApp() {
+        launchApp(coldLaunch = true)
+        // The opening is over everything, and says the name once. The progress screen is not drawn beneath it.
+        compose.onNode(hasContentDescription("Station Break")).assertExists()
+        compose.onNodeWithTag(LaunchTags.SCREEN).assertDoesNotExist()
+        compose.onNodeWithText("Get started").assertDoesNotExist()
+        // Any key skips it (here a D-pad press); with nothing stored the app is ready, so Welcome follows at once.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitFocused(WelcomeTags.GET_STARTED)
+        awaitOpeningGone()
+        // The opening is not in the back stack: Back leaves the app.
+        assertBackLeavesTheApp()
+    }
+
+    @Test
+    fun aColdLaunchWithAStoredSetupOpensTheLiveScreenBeneathTheOpening() {
+        setUpEarlier()
+        launchApp(coldLaunch = true)
+        compose.onNode(hasContentDescription("Station Break")).assertExists()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitExists(LiveTags.NO_CHANNELS)
+        awaitOpeningGone()
+        assertEquals(0, count(LaunchTags.PROGRESS))
+        assertBackOpensTheGuideThenLeavesTheApp()
+    }
+
+    @Test
+    fun aColdLaunchWithAnUnavailableServerHandsOverAtOnceToTheErrorWithRetry() {
+        setUpEarlier()
+        Launched.server.fake.resumeResult = ServerResult.Failure(MediaServerError.Timeout())
+        launchApp(coldLaunch = true)
+        // No key and no wait for the name: a problem is shown as soon as routing has it.
+        awaitFocused(LaunchTags.RETRY)
+        awaitOpeningGone()
+        Launched.server.fake.resumeResult = ServerResult.Success(session)
+        press(KeyEvent.KEYCODE_DPAD_CENTER, LaunchTags.RETRY)
+        awaitExists(LiveTags.NO_CHANNELS)
+    }
+
+    @Test
+    fun backOnTheOpeningBeforeRoutingIsReadyLeavesTheApp() {
+        setUpEarlier()
+        val gate = CompletableDeferred<Unit>()
+        Launched.server.resumeGate = gate
+        launchApp(coldLaunch = true)
+        compose.onNode(hasContentDescription("Station Break")).assertExists()
+        try {
+            assertBackLeavesTheApp()
+        } finally {
+            gate.complete(Unit)
+        }
+    }
+
+    @Test
+    fun theOpeningHandsOverOnItsOwnOnceTheNameIsInAndRoutingIsReady() {
+        // Test time is the frame clock's: hold it, then move it past the 2.6 s the name takes to come in.
+        compose.mainClock.autoAdvance = false
+        launchApp(coldLaunch = true)
+        var advanced = 0L
+        val deadline = System.currentTimeMillis() + TIMEOUT_MS
+        while (openingIsUp() && System.currentTimeMillis() < deadline) {
+            compose.mainClock.advanceTimeBy(STEP_MS)
+            advanced += STEP_MS
+            Thread.sleep(POLL_MS)
+        }
+        assertFalse("the opening should have handed over without a key", openingIsUp())
+        // An emulator with animations off has reduced motion: then the still frame stays about a second instead.
+        val reduced =
+            Settings.Global.getFloat(
+                InstrumentationRegistry.getInstrumentation().targetContext.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        val nameIn = if (reduced) REDUCED_DWELL_MS else NAME_IN_MS
+        assertTrue("not before the name is fully in: advanced $advanced ms", advanced >= nameIn)
+        compose.mainClock.autoAdvance = true
+        awaitFocused(WelcomeTags.GET_STARTED)
+    }
 
     @Test
     fun noStoredServerOpensWelcomeWithGetStartedFocusedAndBackLeavesTheApp() {
@@ -781,6 +874,9 @@ class LaunchNavigationTest {
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
+        const val STEP_MS = 100L
+        const val NAME_IN_MS = 2_600L
+        const val REDUCED_DWELL_MS = 1_000L
         const val SHELL_LINES = 12
         const val APP_PACKAGE = "tv.stationbreak.app"
     }

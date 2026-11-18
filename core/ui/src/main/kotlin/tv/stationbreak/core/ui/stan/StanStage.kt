@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LongState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -52,7 +53,22 @@ fun rememberStanFrame(
     scene: StanScene,
     timeSeconds: Double? = null,
     maxFps: Int? = null,
-): State<StanFrame> {
+): State<StanFrame> = rememberStanPlayback(scene, timeSeconds, maxFps).frame
+
+/** A scene's [frame] with the [clockNanos] it is drawn from, so a screen can time itself on the same clock. */
+internal class StanPlayback(
+    val frame: State<StanFrame>,
+    /** Nanoseconds since the scene started on the frame clock; still at 0 with reduced motion or an explicit time. */
+    val clockNanos: LongState,
+)
+
+/** [rememberStanFrame], with the clock it runs on. */
+@Composable
+internal fun rememberStanPlayback(
+    scene: StanScene,
+    timeSeconds: Double? = null,
+    maxFps: Int? = null,
+): StanPlayback {
     val reduced = LocalMotionReduced.current
     val clock = remember(scene) { mutableLongStateOf(0L) }
     val explicit = rememberUpdatedState(timeSeconds)
@@ -75,7 +91,10 @@ fun rememberStanFrame(
         }
     }
     return remember(scene, reduced) {
-        derivedStateOf { scene.frame(stanTimeSeconds(explicit.value, reduced, clock.longValue)) }
+        StanPlayback(
+            derivedStateOf { scene.frame(stanTimeSeconds(explicit.value, reduced, clock.longValue)) },
+            clock,
+        )
     }
 }
 

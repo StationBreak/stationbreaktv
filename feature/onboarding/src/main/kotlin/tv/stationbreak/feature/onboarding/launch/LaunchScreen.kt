@@ -15,7 +15,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -28,6 +31,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
@@ -52,6 +57,12 @@ private const val TOP_OFFSET = 0.1f
  * Where the app opens (spec 05, Unit 4): a plain progress screen while the stored setup is checked, so onboarding
  * never flashes, then on to wherever [LaunchRouter] decided. A server that can't be reached stays here, with the error
  * and Retry; a changed certificate shows the trust screen of Unit 3 over it.
+ *
+ * [covered] is true while something the host draws over everything (the opening) is up: routing carries on and
+ * navigates as soon as it has a target, so the destination is already working beneath, but this screen is not drawn,
+ * so the progress never shows through. [onReady] is called once a destination has been chosen; [onNeedsScreen] when
+ * routing has a problem to show here (an error with Retry, or the trust question), so the host lets this screen
+ * through at once.
  */
 @Suppress("LongParameterList") // One callback for each place launch routing can send the app.
 @Composable
@@ -63,6 +74,9 @@ fun LaunchDestination(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
+    covered: Boolean = false,
+    onReady: () -> Unit = {},
+    onNeedsScreen: () -> Unit = {},
 ) {
     val viewModel: LaunchViewModel = hiltViewModel()
     LaunchRoot(
@@ -74,6 +88,9 @@ fun LaunchDestination(
         onFirstSync,
         onSetupComplete,
         onChangeServer,
+        covered,
+        onReady,
+        onNeedsScreen,
     )
 }
 
@@ -89,10 +106,62 @@ internal fun LaunchRoot(
     onFirstSync: () -> Unit,
     onSetupComplete: () -> Unit,
     onChangeServer: () -> Unit,
+    covered: Boolean = false,
+    onReady: () -> Unit = {},
+    onNeedsScreen: () -> Unit = {},
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) {
-        viewModel.targets.collect {
+    LaunchFlow(
+        viewModel.state,
+        viewModel.targets,
+        onRetry = viewModel::onRetry,
+        onTrust = viewModel::onTrust,
+        onDontTrust = viewModel::onDontTrust,
+        onWelcome = onWelcome,
+        onConfirmAddress = onConfirmAddress,
+        onSignIn = onSignIn,
+        onLibraries = onLibraries,
+        onFirstSync = onFirstSync,
+        onSetupComplete = onSetupComplete,
+        onChangeServer = onChangeServer,
+        covered = covered,
+        onReady = onReady,
+        onNeedsScreen = onNeedsScreen,
+    )
+}
+
+/** [LaunchRoot] on the ViewModel's two streams, so a test can feed them. */
+@Suppress("LongParameterList") // One callback for each place launch routing can send the app, and each action.
+@Composable
+internal fun LaunchFlow(
+    phase: StateFlow<LaunchPhase>,
+    targets: Flow<LaunchTarget>,
+    onRetry: () -> Unit,
+    onTrust: () -> Unit,
+    onDontTrust: () -> Unit,
+    onWelcome: () -> Unit,
+    onConfirmAddress: () -> Unit,
+    onSignIn: () -> Unit,
+    onLibraries: () -> Unit,
+    onFirstSync: () -> Unit,
+    onSetupComplete: () -> Unit,
+    onChangeServer: () -> Unit,
+    covered: Boolean,
+    onReady: () -> Unit,
+    onNeedsScreen: () -> Unit,
+) {
+    val state by phase.collectAsStateWithLifecycle()
+    // Routed: a destination was chosen and navigation has been asked for. This screen is not drawn from then on.
+    var routed by remember { mutableStateOf(false) }
+    val readyNow = rememberUpdatedState(onReady)
+    val needsScreenNow = rememberUpdatedState(onNeedsScreen)
+    val problem = state is LaunchPhase.Unavailable || state is LaunchPhase.Trust
+    LaunchedEffect(problem) { if (problem) needsScreenNow.value() }
+    LaunchedEffect(targets) {
+        targets.collect {
+            // Routing never waits for [covered]: the destination is ready beneath whatever is drawn over it. The host
+            // is told first, directly, so it knows before the navigation below has changed anything.
+            routed = true
+            readyNow.value()
             when (it) {
                 LaunchTarget.Welcome -> onWelcome()
                 LaunchTarget.ConfirmAddress -> onConfirmAddress()
@@ -103,13 +172,15 @@ internal fun LaunchRoot(
             }
         }
     }
-    LaunchScreen(
-        state,
-        onRetry = viewModel::onRetry,
-        onTrust = viewModel::onTrust,
-        onDontTrust = viewModel::onDontTrust,
-        onChangeServer = onChangeServer,
-    )
+    if (!covered && !routed) {
+        LaunchScreen(
+            state,
+            onRetry = onRetry,
+            onTrust = onTrust,
+            onDontTrust = onDontTrust,
+            onChangeServer = onChangeServer,
+        )
+    }
 }
 
 /** The stateless screen: everything it shows comes from [state], and every action goes back out as a callback. */

@@ -71,4 +71,8 @@
     <string name="channel_plays_never">Never</string>
     <string name="channel_plays_years_range">%1$d to %2$d</string>
     <string name="channel_plays_never_rating">Anything rated above %1$s</string>
+
+    <!-- The opening screen: the name, which is all a screen reader says, and the tagline drawn under it. -->
+    <string name="stan_opening_announcement">Station Break</string>
+    <string name="stan_opening_tagline">Put your feet up</string>
 </resources>

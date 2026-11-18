@@ -22,12 +22,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleLine("onCreate restored=${savedInstanceState != null}")
+        // Stan's opening shows for a new activity, not a restored one (see showsOpening).
+        val coldLaunch =
+            showsOpening(
+                restored = savedInstanceState != null,
+                skippable = BuildConfig.OPENING_SKIPPABLE,
+                skipExtra = intent?.getBooleanExtra(EXTRA_SKIP_OPENING, false) == true,
+            )
         setContent {
             // The viewer's screen fit (Settings, Appearance): live TV's picture and every screen lay out with it.
             val fit by ScreenFits.get(this).fit.collectAsState()
             CompositionLocalProvider(LocalScreenFit provides fit) {
                 StationBreakTheme {
-                    AppNavHost()
+                    AppNavHost(coldLaunch)
                 }
             }
         }
