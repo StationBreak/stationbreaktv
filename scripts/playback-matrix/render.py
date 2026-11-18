@@ -104,6 +104,10 @@ turned on: the server offers a direct stream for such audio only then. The devic
 
 Timings (first frame, playing) are measured on a non-debuggable build, on the device as it is, and are not graded: a
 slow device is slow, and the number is there to be read, not to pass or fail. Only the Result column grades a row.
+
+HDR is not covered. The device probe reads the display's HDR types, but the player does not send them to the server yet
+([#323](https://github.com/StationBreak/stationbreaktv/issues/323)), so the server's choice of route for an HDR file is untested
+and the matrix has no HDR column.
 """
 
 
