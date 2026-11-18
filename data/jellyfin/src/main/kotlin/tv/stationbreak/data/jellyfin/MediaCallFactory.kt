@@ -4,6 +4,7 @@ package tv.stationbreak.data.jellyfin
 import kotlinx.coroutines.runBlocking
 import okhttp3.Call
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import tv.stationbreak.core.domain.DeviceIdProvider
@@ -69,14 +70,19 @@ internal class MediaCallFactory(
     private fun withoutApiKey(url: HttpUrl): HttpUrl {
         fun isToken(name: String) = TOKEN_NAMES.any { it.equals(name, ignoreCase = true) }
         if ((0 until url.querySize).none { isToken(url.queryParameterName(it)) }) return url
-        // Rebuilt from decoded pairs: removeAllQueryParameters misses a percent-encoded name like `api%5Fkey`.
-        val builder = url.newBuilder().query(null)
-        for (i in 0 until url.querySize) {
-            val name = url.queryParameterName(i)
-            if (!isToken(name)) builder.addQueryParameter(name, url.queryParameterValue(i))
-        }
-        return builder.build()
+        // Each pair's name is compared decoded, as OkHttp decodes it (removeAllQueryParameters misses a percent-encoded
+        // name like `api%5Fkey`), but the pairs that stay keep their raw bytes, so a CDN or proxy URL signed over the
+        // query still validates (#898).
+        val kept =
+            url.encodedQuery
+                .orEmpty()
+                .split('&')
+                .filterNot { isToken(decodedName(it)) }
+        return url.newBuilder().encodedQuery(kept.joinToString("&").ifEmpty { null }).build()
     }
+
+    /** One raw `name=value` pair's name, decoded by OkHttp itself. The pair comes from a parsed URL, so it parses. */
+    private fun decodedName(pair: String): String = "$PAIR_BASE$pair".toHttpUrl().queryParameterName(0)
 
     private fun isForSessionServer(
         address: ServerAddress,
@@ -95,6 +101,9 @@ internal class MediaCallFactory(
 
     private companion object {
         val READ_METHODS = setOf("GET", "HEAD")
+
+        /** Any URL will do: only its query is read, to decode one pair's name. */
+        const val PAIR_BASE = "http://pair.invalid/?"
 
         /** `%2f` and `%5c` (any case) turn into a path separator on some servers and proxies. */
         val ENCODED_SEPARATOR = Regex("%2f|%5c", RegexOption.IGNORE_CASE)
