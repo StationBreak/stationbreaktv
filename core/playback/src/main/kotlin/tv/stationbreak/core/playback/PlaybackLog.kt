@@ -75,7 +75,7 @@ internal object PlaybackLog {
      * The error as `code=NAME` (never the top-level message: it can quote a track label), the renderer's format
      * fields when it names one, then each cause as its class name. Only decoder, audio-sink and audio-processor
      * causes keep a message (redacted, cut), and for them the top stack frame of the deepest cause is added; any other
-     * runtime fault as the deepest cause adds its top three frames (class.method:line, never a message).
+     * runtime fault or Error as the deepest cause adds its top three frames (class.method:line, never a message).
      * IOException, ParserException and HTTP causes are class names only (plus the status of an invalid response).
      */
     fun failureText(error: Throwable): String {
@@ -92,7 +92,8 @@ internal object PlaybackLog {
 
                 // A runtime fault from outside the allowlist (java.nio, another Media3 package): no message, but where
                 // it was thrown, so the next device report names the site.
-                deepest is RuntimeException -> " at=${topFrames(deepest, RUNTIME_FRAMES)}"
+                // An Error counts too: Media3's loader wraps an OutOfMemoryError in UnexpectedLoaderException (#735).
+                deepest is RuntimeException || deepest is Error -> " at=${topFrames(deepest, RUNTIME_FRAMES)}"
 
                 else -> ""
             }
