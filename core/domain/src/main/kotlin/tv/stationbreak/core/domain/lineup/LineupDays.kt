@@ -18,6 +18,7 @@ import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.HouseholdSources
 import tv.stationbreak.core.engine.lineup.KidStatus.basePolicyOf
+import tv.stationbreak.core.engine.lineup.KidStatus.policyAcrossDaysOf
 import tv.stationbreak.core.engine.lineup.KidStatus.policyOf
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LeftoversRecipe
@@ -495,7 +496,7 @@ internal class LineupDays(
     ): JsonObject {
         val channels =
             lineup.channels.sortedBy { it.id.value }.map {
-                channelInputs(it, policyOf(it, lineup), householdInputs(it, lineup))
+                channelInputs(it, policyAcrossDaysOf(it, lineup), householdInputs(it, lineup))
             }
         val claims = claimOrder(lineup).map { JsonPrimitive(it.id.value) }
         return JsonObject(
@@ -634,7 +635,8 @@ internal class LineupDays(
                 }
             // The policy of the day played: a kids leftovers channel that starts later or has left is off for it
             // (#623). The day-less fallback is only for a refused channel and is the stricter (kid-safe) direction.
-            val policy = lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyOf(channel, lineup)
+            val policy =
+                lineupDayFor(channel)?.let { policyOf(channel, lineup, it) } ?: policyAcrossDaysOf(channel, lineup)
             val inputs = channelInputs(forDay, policy, household, day?.second ?: false)
             val curated = day != null && !day.second && isCurated(channel, day.first)
             val fields = if (curated) JsonObject(inputs + ("curation" to curationPart(checkNotNull(start)))) else inputs
@@ -666,7 +668,7 @@ internal class LineupDays(
             if (channel != null && source != null) {
                 fields["rules"] = LineupCodec.sourceOf(unnamed(source.withRulesNow(source.rulesFor(start))))
                 fields["ceiling"] = JsonPrimitive(ceilings.of(channel))
-                fields["policy"] = JsonPrimitive(nameOf(policyOf(channel, lineup)))
+                fields["policy"] = JsonPrimitive(nameOf(basePolicyOf(channel)))
             }
             return JsonObject(fields)
         }

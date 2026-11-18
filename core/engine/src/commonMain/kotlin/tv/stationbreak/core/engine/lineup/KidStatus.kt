@@ -30,10 +30,11 @@ object KidStatus {
      * then takes the made-for-kids items the kid starters do not match, so the grown-up leftovers keeps them (under its
      * own ceiling) and the holds leave nothing airing nowhere. Grown-up starters keep the hold either way.
      *
-     * Not day-scoped: it counts a kid leftovers channel that starts later as on. For one day's holds (a pool, a play
-     * key) use the overload with the [LineupDay]; this one is for what spans every day (the inputs key).
+     * Not day-scoped, and named so: it counts a kid leftovers channel that starts later as on. For one day's holds (a
+     * pool, a play key) use [policyOf] with the [LineupDay]; this one is for what spans every day (the inputs key). For
+     * a starter or custom channel the lineup makes no difference: [basePolicyOf] says the same without it.
      */
-    fun policyOf(
+    fun policyAcrossDaysOf(
         channel: LineupChannel,
         lineup: Lineup,
     ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup))
@@ -58,8 +59,9 @@ object KidStatus {
         return if (grownUpLeftovers && !kidLeftoversOn) PoolPolicy.Open else policy
     }
 
-    /** Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on, whenever it starts. */
-    fun hasKidLeftoversOn(lineup: Lineup): Boolean = lineup.channels.any { isKidLeftoversOn(it) }
+    // Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on, whenever it starts: the day-less
+    // [policyAcrossDaysOf] only. Private so that nothing else can ask it for a day's hold (#629).
+    private fun hasKidLeftoversOn(lineup: Lineup): Boolean = lineup.channels.any { isKidLeftoversOn(it) }
 
     /** Whether [lineup] has a kid leftovers channel on the air on [day] ([isOnAirOn]); one starting later is off. */
     fun hasKidLeftoversOn(

@@ -63,14 +63,14 @@ class KidStatusTest {
         val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
         val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
         val alpha = starter("alpha", 110)
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds)))
-        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(odds)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyAcrossDaysOf(odds, lineupOf(kids, odds)))
+        assertEquals(PoolPolicy.Open, KidStatus.policyAcrossDaysOf(odds, lineupOf(odds)))
         for (state in listOf(ChannelState.Shelf, ChannelState.UserHidden)) {
-            assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(kids.copy(state = state), odds)))
+            assertEquals(PoolPolicy.Open, KidStatus.policyAcrossDaysOf(odds, lineupOf(kids.copy(state = state), odds)))
         }
         // Everything else is as without a lineup.
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(alpha, lineupOf(alpha, odds)))
-        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(kids, lineupOf(kids, odds)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyAcrossDaysOf(alpha, lineupOf(alpha, odds)))
+        assertEquals(PoolPolicy.KidsOnly, KidStatus.policyAcrossDaysOf(kids, lineupOf(kids, odds)))
     }
 
     @Test
@@ -87,7 +87,7 @@ class KidStatusTest {
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds), today))
         // The channel's own and a starter's policy do not depend on the day; the day-less one still counts it as on.
         assertEquals(PoolPolicy.KidsOnly, KidStatus.policyOf(starting, lineupOf(starting, odds), today))
-        assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.policyAcrossDaysOf(odds, lineupOf(starting, odds)))
     }
 
     @Test

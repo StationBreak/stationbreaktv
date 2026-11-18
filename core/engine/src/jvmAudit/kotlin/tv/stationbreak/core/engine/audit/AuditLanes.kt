@@ -41,7 +41,7 @@ internal class AuditLanes(
     private fun curationChannelOf(channel: LineupChannel): CurationChannel? {
         val source = channel.source as ChannelSource.Starter
         if (planned.planning.recipe(source.recipeKey) == null) return null
-        return PlannerSelection.curationOf(channel, planned.lineup, planned.planning, planned.planning.household)
+        return PlannerSelection.curationOf(channel, planned.planning, planned.planning.household)
     }
 
     private val builder = LaneBuilder(planned.snapshot, channels)
