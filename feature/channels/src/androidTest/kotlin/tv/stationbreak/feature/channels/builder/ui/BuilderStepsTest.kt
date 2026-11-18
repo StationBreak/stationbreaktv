@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
@@ -165,9 +166,25 @@ class BuilderStepsTest {
             Pad.Back -> Key.Back
         }
 
+    /**
+     * Waits for [condition]. A timeout says what the screen and the ViewModel held, so a failure tells a slow emulator
+     * (the state is right and the screen lags) from a lost key or edit (the state itself is wrong) (#918).
+     */
     private fun until(condition: () -> Boolean) {
-        compose.waitUntil(TIMEOUT_MS, condition)
+        try {
+            compose.waitUntil(TIMEOUT_MS, condition)
+        } catch (e: ComposeTimeoutException) {
+            throw AssertionError("${e.message}; ${describeState()}", e)
+        }
         compose.waitForIdle()
+    }
+
+    // Test fixtures only (the fake library's names), never a viewer's.
+    private fun describeState(): String {
+        val ui = vm.ui.value
+        val shown = listOf(BuilderTags.NAME_INPUT, BuilderTags.PROBLEM, BuilderTags.MESSAGE).filter(::exists)
+        return "ui: ready=${ui.ready} step=${ui.step} focus=${ui.focus} name='${ui.draft.name}' " +
+            "problem=${ui.problem} message=${ui.message}; on screen: $shown"
     }
 
     private fun exists(tag: String): Boolean {
@@ -475,6 +492,9 @@ class BuilderStepsTest {
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
-        const val TIMEOUT_MS = 5_000L
+
+        // A wait ends as soon as its condition holds (the whole test usually takes about 1.3 s), so a long limit costs
+        // nothing on a fast run; 5 s was cut short once on a loaded CI emulator (#918).
+        const val TIMEOUT_MS = 15_000L
     }
 }
