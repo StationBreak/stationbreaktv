@@ -77,7 +77,7 @@ internal fun Modifier.politeLiveRegion(): Modifier = semantics { liveRegion = Li
 
 /**
  * One button: the shared focus treatment, a target of about 56 dp and body-size text. The main action of a screen
- * passes [emphasis] for an orange border at rest; its focused look (the orange fill) is the same as any button's.
+ * passes [emphasis] for a cream outline at rest; its focused look (the orange fill) is the same as any button's.
  * [description] is what a screen reader says when the visible [label] alone is not enough ("Show" beside a password
  * field).
  */

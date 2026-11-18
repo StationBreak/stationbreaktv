@@ -22,10 +22,11 @@ import androidx.tv.material3.MaterialTheme
 
 /**
  * The setup focus treatment (onboarding, spec 05): colour, not scale. Every resting control has an edge: a 1 dp
- * `borderVariant` line, or a 2 dp orange one for a screen's main button. A focused button fills orange with ink text;
- * a focused surface (a text field, a collection row) keeps its fill and gets a 4 dp orange ring. Nothing grows, so a
- * focused row never pushes into its neighbour. The guide paints its own focus; the channel screens draw it with
- * [drawnFocus]. `ContrastTest` pins the ring and the label at 3:1 and 4.5:1 or better against what they touch.
+ * `borderVariant` line, or a 2 dp cream one for a screen's main button (only focus is orange). A focused
+ * button fills orange with ink text; a focused surface (a text field, a collection row) keeps its fill and gets a 4 dp
+ * orange ring. Nothing grows, so a focused row never pushes into its neighbour. The guide paints its own
+ * focus; the channel screens draw it with [drawnFocus]. `ContrastTest` pins the ring and the label at 3:1 and 4.5:1 or
+ * better against what they touch.
  */
 object FocusStyle {
     internal val OutlineWidth = 3.dp
@@ -64,7 +65,7 @@ object FocusStyle {
         return ButtonDefaults.border(
             border =
                 if (emphasis) {
-                    Border(BorderStroke(EmphasisWidth, colors.border))
+                    Border(BorderStroke(EmphasisWidth, colors.onSurface))
                 } else {
                     Border(BorderStroke(RestingWidth, colors.borderVariant))
                 },

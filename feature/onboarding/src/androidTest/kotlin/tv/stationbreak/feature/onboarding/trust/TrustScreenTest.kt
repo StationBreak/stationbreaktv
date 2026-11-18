@@ -52,12 +52,14 @@ class TrustScreenTest {
 
     private var primary = Color.Unspecified
     private var panel = Color.Unspecified
+    private var cream = Color.Unspecified
 
     private fun show(reason: TrustReason = TrustReason.Untrusted) {
         compose.setContent {
             StationBreakTheme {
                 primary = MaterialTheme.colorScheme.primary
                 panel = MaterialTheme.colorScheme.surfaceVariant
+                cream = MaterialTheme.colorScheme.onSurface
                 TrustScreen(
                     prompt = TrustPrompt(reason, certificate),
                     serverAddress = "jellyfin.example.test:8920",
@@ -228,30 +230,37 @@ class TrustScreenTest {
         awaitFocused(TrustTags.DONT_TRUST)
         // The focused button has the orange fill. The fill eases in, so wait for it.
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(primary) }
-        // Trust at rest: the panel fill and only the muted edge, never the orange one.
+        // Trust at rest: the panel fill and only the muted edge, never an emphasis edge.
         assertRestingPlain(TrustTags.TRUST)
         press(KeyEvent.KEYCODE_DPAD_RIGHT, TrustTags.DONT_TRUST)
         awaitFocused(TrustTags.TRUST)
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.TRUST).isCloseTo(primary) }
-        // Don't trust at rest: the panel fill with the orange emphasis border.
+        // Don't trust at rest: the panel fill with the cream emphasis outline.
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(TrustTags.DONT_TRUST).isCloseTo(panel) }
-        assertTrue("Don't trust must keep the orange border", topEdgeOf(TrustTags.DONT_TRUST).isCloseTo(primary))
+        assertTrue(
+            "Don't trust must keep the cream outline",
+            topEdgeOf(TrustTags.DONT_TRUST, cream).isCloseTo(cream),
+        )
     }
 
     private fun assertRestingPlain(tag: String) {
         compose.waitUntil(FOCUS_TIMEOUT_MS) { fillOf(tag).isCloseTo(panel) }
         assertFalse("$tag must not have the primary fill", fillOf(tag).isCloseTo(primary))
-        assertFalse("$tag must not have the orange (emphasis) border", topEdgeOf(tag).isCloseTo(primary))
+        assertFalse("$tag must not have an orange edge", topEdgeOf(tag, primary).isCloseTo(primary))
+        assertFalse("$tag must not have a cream edge", topEdgeOf(tag, cream).isCloseTo(cream))
     }
 
     // The border is about 2 px thick at tvdpi and may be antialiased, so scan the rows around the top edge at the
-    // horizontal centre and return the pixel nearest to the primary colour.
-    private fun topEdgeOf(tag: String): Int {
+    // horizontal centre and return the pixel nearest to [target].
+    private fun topEdgeOf(
+        tag: String,
+        target: Color,
+    ): Int {
         val bounds = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
         val screen = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         val x = bounds.center.x.toInt()
         val top = bounds.top.toInt()
-        return (top - 1..top + EDGE_ROWS_BELOW).map { screen.getPixel(x, it) }.minBy { it.distanceTo(primary) }
+        return (top - 1..top + EDGE_ROWS_BELOW).map { screen.getPixel(x, it) }.minBy { it.distanceTo(target) }
     }
 
     private fun Int.distanceTo(color: Color): Int {

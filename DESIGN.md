@@ -260,7 +260,7 @@ Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The gr
 A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's.
 
 ### Setup (onboarding)
-Setup is a station screen too: the reading face at 20sp for fields and buttons, and focus in orange. Stan hosts each step from the bottom-right corner, reacting to what happens (pleased, shrug, busy, cheer, dozing).
+Setup is a station screen too: the reading face at 20sp for fields and buttons, and focus in orange. A screen's main action is a 2 dp cream outline at rest; orange only for focus. Stan hosts each step from the bottom-right corner, reacting to what happens (pleased, shrug, busy, cheer, dozing).
 
 ## Do's and Don'ts
 
