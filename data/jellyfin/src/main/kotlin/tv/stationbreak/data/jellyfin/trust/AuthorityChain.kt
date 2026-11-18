@@ -4,8 +4,8 @@ package tv.stationbreak.data.jellyfin.trust
 import okhttp3.internal.tls.OkHostnameVerifier
 import tv.stationbreak.core.model.AuthorityEvidence
 import tv.stationbreak.core.model.SpkiPin
-import java.security.AlgorithmParameters
 import java.security.GeneralSecurityException
+import java.security.KeyPairGenerator
 import java.security.PublicKey
 import java.security.cert.CertPathValidator
 import java.security.cert.CertificateFactory
@@ -44,14 +44,13 @@ internal object AuthorityChain {
     private const val MIN_RSA_BITS = 2048
 
     // The only EC curves accepted, compared by their parameters, so a brainpool, secp256k1 or explicit curve of the
-    // same size is refused.
+    // same size is refused. Read from a generated key, not AlgorithmParameters("EC"), which Android has only from
+    // API 26: on API 25 that left the list empty and refused every EC chain.
     private val NAMED_CURVES: List<ECParameterSpec> by lazy {
         listOf("secp256r1", "secp384r1", "secp521r1").mapNotNull { name ->
             try {
-                AlgorithmParameters
-                    .getInstance("EC")
-                    .apply { init(ECGenParameterSpec(name)) }
-                    .getParameterSpec(ECParameterSpec::class.java)
+                val generator = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec(name)) }
+                (generator.generateKeyPair().public as ECPublicKey).params
             } catch (_: GeneralSecurityException) {
                 null
             }
