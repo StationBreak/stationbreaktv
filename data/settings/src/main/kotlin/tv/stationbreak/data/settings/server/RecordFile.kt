@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.server
 
-import tv.stationbreak.data.settings.lineup.syncDirectoryWithOs
+import tv.stationbreak.data.settings.syncDirectoryWithOs
 import tv.stationbreak.data.settings.writeStaged
 import java.io.File
 import java.io.IOException

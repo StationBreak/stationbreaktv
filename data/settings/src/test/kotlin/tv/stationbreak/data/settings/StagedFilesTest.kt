@@ -52,16 +52,4 @@ class StagedFilesTest {
         assertArrayEquals(file.readBytes(), readAtMost(file, 100))
         assertEquals(100, readAtMost(file, 1000).size)
     }
-
-    @Test
-    fun `only one main source file stages and renames`() {
-        val writers =
-            File("src/main")
-                .walkTopDown()
-                .filter { it.isFile && it.extension == "kt" }
-                .filter { "fd.sync()" in it.readText() && "renameTo" in it.readText() }
-                .map { it.name }
-                .toList()
-        assertEquals(listOf("StagedFiles.kt"), writers)
-    }
 }

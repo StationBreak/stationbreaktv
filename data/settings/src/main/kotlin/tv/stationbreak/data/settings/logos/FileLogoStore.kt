@@ -59,6 +59,7 @@ class FileLogoStore(
         try {
             val folder = checkNotNull(file.parentFile)
             if (folder.isDirectory || folder.mkdirs()) {
+                // A cache: a torn logo costs a re-download, so this deliberately skips the durable StagedFiles writer.
                 val temporary = File(folder, "$key.part")
                 temporary.writeBytes(bytes)
                 if (temporary.renameTo(file)) evict() else temporary.delete()

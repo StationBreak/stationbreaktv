@@ -50,6 +50,17 @@ class ArchitecturePlugin : Plugin<Project> {
                     report.set(layout.buildDirectory.file("reports/architecture/atomic-file.txt"))
                 }
             tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkAtomicFile) }
+
+            val checkStagedWrite =
+                tasks.register<StagedWriteCheck>("checkStagedWrite") {
+                    group = LifecycleBasePlugin.VERIFICATION_GROUP
+                    description = "Fails if a shipped source other than StagedFiles.kt both syncs and renames a file."
+                    modulePath.set(projectPath)
+                    moduleDir.set(layout.projectDirectory)
+                    sources.from(fileTree("src") { include("**/*.kt", "**/*.java") })
+                    report.set(layout.buildDirectory.file("reports/architecture/staged-write.txt"))
+                }
+            tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkStagedWrite) }
         }
 
     /**
