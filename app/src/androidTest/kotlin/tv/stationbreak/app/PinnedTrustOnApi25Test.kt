@@ -423,7 +423,11 @@ class PinnedTrustOnApi25Test {
             media.newCall(request).execute().close()
             fail("a cleared pin still trusted the server")
         } catch (expected: IOException) {
-            // The kept factory asks for the client in force on every call.
+            // The kept factory uses the client in force on every call; the pin policy refused it, not a dead socket.
+            assertTrue(
+                "expected the pin policy's rejection in the cause chain, got ${causeNames(expected)}",
+                generateSequence<Throwable>(expected) { it.cause }.any { it.javaClass.simpleName == REJECTED },
+            )
         }
     }
 

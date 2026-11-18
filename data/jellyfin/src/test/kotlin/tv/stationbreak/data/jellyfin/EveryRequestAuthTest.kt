@@ -117,6 +117,50 @@ class EveryRequestAuthTest {
         }
     }
 
+    @Test
+    fun aPercentEncodedTokenNameIsStrippedAndOtherParametersSurviveInOrder() {
+        val adapter = testAdapter()
+        jellyfin.on("GET", "/seg.ts") { jellyfin.json("{}") }
+        val url =
+            "http://127.0.0.1:${jellyfin.server.port}/seg.ts?a=1&api%5Fkey=$token&flag&Api%4Bey=$token" +
+                "&b=x%20y&X%2DEmby%2DToken=$token&c="
+
+        adapter
+            .mediaCallFactory { null }
+            .newCall(Request.Builder().url(url).build())
+            .execute()
+            .close()
+
+        val seen = jellyfin.log.single().url
+        val pairs = (0 until seen.querySize).map { seen.queryParameterName(it) to seen.queryParameterValue(it) }
+        assertEquals(listOf("a" to "1", "flag" to null, "b" to "x y", "c" to ""), pairs)
+    }
+
+    @Test
+    fun aCallerSetTokenHeaderNeverReachesAnyServer() {
+        val adapter = testAdapter()
+        jellyfin.on("GET", "/seg.ts") { jellyfin.json("{}") }
+        val media = adapter.mediaCallFactory { null }
+        for (host in listOf("127.0.0.1", "localhost")) {
+            val request =
+                Request
+                    .Builder()
+                    .url("http://$host:${jellyfin.server.port}/seg.ts")
+                    .header("x-emby-token", token)
+                    .header("X-MediaBrowser-Token", token)
+                    .header("X-Emby-Authorization", token)
+                    .build()
+            media.newCall(request).execute().close()
+        }
+
+        assertEquals(2, jellyfin.log.size)
+        for (request in jellyfin.log) {
+            assertEquals(null, request.headers["X-Emby-Token"])
+            assertEquals(null, request.headers["X-MediaBrowser-Token"])
+            assertEquals(null, request.headers["X-Emby-Authorization"])
+        }
+    }
+
     private fun assertNoCredentialInUrl(
         path: String,
         request: RecordedRequest,
