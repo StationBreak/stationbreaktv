@@ -20,6 +20,9 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import tv.stationbreak.core.ui.RemoteKey
+import tv.stationbreak.core.ui.remoteKeyOf
+import tv.stationbreak.core.ui.remoteKeyToAct
 import tv.stationbreak.feature.settings.LibrariesSettingsViewModel
 
 /**
@@ -77,33 +80,29 @@ internal fun LibrariesRoot(
 /** A key the screen acts on. */
 internal enum class Pad { Up, Down, Select, Back }
 
-// The D-pad and Back: the screen keeps all of them, so the focus never leaves it. The media keys are not its own.
-internal fun isScreenKey(key: Key): Boolean =
-    when (key) {
-        Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight -> true
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Back -> true
-        else -> false
-    }
+// The D-pad, Select and Back: the screen keeps all of them, so the focus never leaves it. The media keys are not
+// its own.
+internal fun isScreenKey(key: Key): Boolean = remoteKeyOf(key) != null
+
+// The list scrolls up and down only.
+private val LIST_PADS = setOf(RemoteKey.Up, RemoteKey.Down)
 
 /**
- * The pad to act on for a key event, or null when the event is only kept: Back on its release (a fast double Back can
- * reach the screen as a release alone), Select on its first press (never its auto-repeat), Up and Down on every press
- * (so holding one scrolls). Left and Right do nothing.
+ * The pad to act on for a key event, or null when the event is only kept: the shared remote policy (#823) with Up and
+ * Down as the pads. Left and Right are kept but do nothing.
  */
 internal fun padToAct(
     key: Key,
     type: KeyEventType,
     repeatCount: Int,
-): Pad? {
-    val down = type == KeyEventType.KeyDown
-    return when (key) {
-        Key.Back -> Pad.Back.takeIf { type == KeyEventType.KeyUp }
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> Pad.Select.takeIf { down && repeatCount == 0 }
-        Key.DirectionUp -> Pad.Up.takeIf { down }
-        Key.DirectionDown -> Pad.Down.takeIf { down }
-        else -> null
+): Pad? =
+    when (remoteKeyToAct(key, type, repeatCount, LIST_PADS)) {
+        RemoteKey.Up -> Pad.Up
+        RemoteKey.Down -> Pad.Down
+        RemoteKey.Select -> Pad.Select
+        RemoteKey.Back -> Pad.Back
+        RemoteKey.Left, RemoteKey.Right, null -> null
     }
-}
 
 internal fun librariesKey(
     event: KeyEvent,

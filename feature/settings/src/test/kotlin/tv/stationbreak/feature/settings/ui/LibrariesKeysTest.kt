@@ -7,21 +7,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** The libraries screen's own keys. The shared remote policy (Back, Select, repeat) is `RemoteKeyTest`'s (#823). */
 class LibrariesKeysTest {
-    @Test
-    fun backIsActedOnAtItsRelease() {
-        assertEquals(Pad.Back, padToAct(Key.Back, KeyEventType.KeyUp, 0))
-        assertNull(padToAct(Key.Back, KeyEventType.KeyDown, 0))
-    }
-
-    @Test
-    fun selectActsOncePerPress_notOnItsAutoRepeat() {
-        assertEquals(Pad.Select, padToAct(Key.DirectionCenter, KeyEventType.KeyDown, 0))
-        assertNull(padToAct(Key.DirectionCenter, KeyEventType.KeyDown, 1))
-        assertNull(padToAct(Key.DirectionCenter, KeyEventType.KeyUp, 0))
-        assertEquals(Pad.Select, padToAct(Key.Enter, KeyEventType.KeyDown, 0))
-    }
-
     @Test
     fun upAndDownActOnEveryPress() {
         assertEquals(Pad.Down, padToAct(Key.DirectionDown, KeyEventType.KeyDown, 3))
@@ -29,10 +16,18 @@ class LibrariesKeysTest {
         assertNull(padToAct(Key.DirectionUp, KeyEventType.KeyUp, 0))
     }
 
+    @Test
+    fun selectAndBackReachTheScreenAsItsOwnPads() {
+        assertEquals(Pad.Select, padToAct(Key.Enter, KeyEventType.KeyDown, 0))
+        assertEquals(Pad.Back, padToAct(Key.Back, KeyEventType.KeyUp, 0))
+        assertNull(padToAct(Key.Back, KeyEventType.KeyDown, 0))
+    }
+
     // Left and Right do nothing here, but are kept, so the focus never leaves the screen.
     @Test
     fun leftAndRightAreKept_butDoNothing() {
         assertNull(padToAct(Key.DirectionLeft, KeyEventType.KeyDown, 0))
+        assertNull(padToAct(Key.DirectionRight, KeyEventType.KeyDown, 2))
         assertEquals(true, isScreenKey(Key.DirectionLeft))
         assertEquals(true, isScreenKey(Key.DirectionRight))
     }
