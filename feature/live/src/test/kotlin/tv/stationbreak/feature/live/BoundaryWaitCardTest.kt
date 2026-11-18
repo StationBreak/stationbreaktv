@@ -85,11 +85,25 @@ class BoundaryWaitCardTest {
             val r = Rig(this)
             r.twoShows()
             r.start()
-            r.slowFromJustBeforeTheBoundary(LiveTimings().boundaryCardAfter.inWholeMilliseconds)
-            r.at(boundaryMs + 399)
+            val grace = LiveTimings().boundaryCardAfter.inWholeMilliseconds
+            r.slowFromJustBeforeTheBoundary(grace)
+            r.at(boundaryMs + grace - 1)
             assertTrue(r.channelIdents().isEmpty())
+            // The tie itself: the read ends in the same millisecond the card is due, and the read wins. No card
+            // shows, not even for a moment, and nothing is stopped for it.
+            r.at(boundaryMs + grace)
+            assertTrue(r.states.joinToString("\n"), r.channelIdents().isEmpty())
+            assertEquals(0, r.stops())
+            assertEquals(
+                itemOf(2),
+                r.tune.calls
+                    .filterIsInstance<Call.TuneHandle>()
+                    .single()
+                    .item,
+            )
             r.at(boundaryMs + 5_000)
 
+            assertTrue(r.states.joinToString("\n"), r.channelIdents().isEmpty())
             assertFalse(r.state is LiveState.Ident)
             assertEquals(
                 listOf(itemOf(2)),
