@@ -2,6 +2,8 @@
 package tv.stationbreak.feature.live.ui
 
 import android.content.Context
+import android.view.View
+import android.view.accessibility.CaptioningManager
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -10,6 +12,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import kotlinx.coroutines.flow.StateFlow
 
@@ -22,11 +25,49 @@ import kotlinx.coroutines.flow.StateFlow
 internal fun captionView(context: Context): SubtitleView =
     SubtitleView(context).apply {
         setApplyEmbeddedStyles(false)
-        setUserDefaultStyle()
-        setUserDefaultTextSize()
+        addOnAttachStateChangeListener(SystemCaptionStyle(this).also { it.apply() })
         isFocusable = false
         isClickable = false
     }
+
+/**
+ * Keeps [view] in the system caption style (#725): the font, colours, edges, window and text size from Settings,
+ * Accessibility, Captions, whether that page's own switch is on or off. Captions are on or off by the carried subtitle
+ * choice, which the system switch only starts, so a viewer who turns them on in the app still gets the style they
+ * chose. (Media3's own `setUserDefaultStyle` falls back to its plain default while the switch is off.) A change made
+ * while the view is on screen is drawn from then on, and one made while it was off screen when it comes back.
+ */
+@OptIn(markerClass = [UnstableApi::class])
+internal class SystemCaptionStyle(
+    view: SubtitleView,
+) : View.OnAttachStateChangeListener {
+    private val captioning = view.context.getSystemService(CaptioningManager::class.java)
+
+    private val listener =
+        object : CaptioningManager.CaptioningChangeListener() {
+            override fun onUserStyleChanged(userStyle: CaptioningManager.CaptionStyle) =
+                view.setStyle(CaptionStyleCompat.createFromCaptionStyle(userStyle))
+
+            override fun onFontScaleChanged(fontScale: Float) =
+                view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * fontScale)
+        }
+
+    /** Draws in the style the system holds now. */
+    fun apply() {
+        val system = captioning ?: return
+        listener.onUserStyleChanged(system.userStyle)
+        listener.onFontScaleChanged(system.fontScale)
+    }
+
+    override fun onViewAttachedToWindow(v: View) {
+        captioning?.addCaptioningChangeListener(listener)
+        apply()
+    }
+
+    override fun onViewDetachedFromWindow(v: View) {
+        captioning?.removeCaptioningChangeListener(listener)
+    }
+}
 
 /** Shows [cues] on this view, or nothing while [hidden] (the guide is open over the picture). */
 @OptIn(markerClass = [UnstableApi::class])
