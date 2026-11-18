@@ -194,7 +194,9 @@ internal fun LaunchScreen(
     onChangeServer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SetupScaffold(launchCue(state), modifier, covered = launchCovered(state)) { contentPadding ->
+    val cue = launchCue(state)
+    // The plain progress line has no Stan: it is centred on the whole screen, as before him.
+    SetupScaffold(cue, modifier, covered = launchCovered(state), fullWidth = cue == null) { contentPadding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LaunchTags.SCREEN)) {
             Column(
                 modifier =
@@ -205,7 +207,7 @@ internal fun LaunchScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
+                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth().testTag(LaunchTags.BODY),
                     verticalArrangement = Arrangement.spacedBy(Gap),
                 ) {
                     when (state) {

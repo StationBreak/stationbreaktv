@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,10 @@ object FocusStyle {
     private val RingWidth = 4.dp
     private val EmphasisWidth = 2.dp
     private val RestingWidth = 1.dp
+
+    /** A focused button's scale: none, setup's focus is colour. Public so layout tests measure the real value. */
+    @VisibleForTesting
+    const val BUTTON_SCALE = 1f
 
     // [drawnFocus] still grows a full-width row a little; setup's own focus does not.
     internal const val SURFACE_SCALE = 1.02f
@@ -68,7 +73,7 @@ object FocusStyle {
     }
 
     @Composable
-    fun buttonScale(): ButtonScale = ButtonDefaults.scale(focusedScale = 1f)
+    fun buttonScale(): ButtonScale = ButtonDefaults.scale(focusedScale = BUTTON_SCALE)
 
     @Composable
     fun surfaceBorder(): ClickableSurfaceBorder =

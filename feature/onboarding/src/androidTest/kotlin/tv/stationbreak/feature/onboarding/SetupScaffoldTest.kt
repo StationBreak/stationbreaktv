@@ -39,6 +39,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.core.ui.stan.StanMood
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -106,8 +107,9 @@ class SetupScaffoldTest {
         compose.onNodeWithTag(FIRST).assertIsFocused()
         val host = compose.onNodeWithTag(SetupScaffoldTags.HOST).getUnclippedBoundsInRoot()
         val form = compose.onNodeWithTag(FORM).getUnclippedBoundsInRoot()
-        // A focused button is drawn scaled about its centre, past its layout bounds.
-        val focused = compose.onNodeWithTag(FIRST).getUnclippedBoundsInRoot().scaled(FOCUS_SCALE)
+        // A focused button is drawn scaled about its centre, past its layout bounds. FIRST spans the form's width, the
+        // widest a control there can be, so it grows the most.
+        val focused = compose.onNodeWithTag(FIRST).getUnclippedBoundsInRoot().scaled(FocusStyle.BUTTON_SCALE)
         assertFalse("form $form and Stan $host overlap", form.overlaps(host))
         assertFalse("focused button $focused and Stan $host overlap", focused.overlaps(host))
     }
@@ -153,7 +155,7 @@ class SetupScaffoldTest {
                 ServerButton(
                     label = R.string.server_test,
                     onClick = {},
-                    modifier = Modifier.focusRequester(first).testTag(FIRST),
+                    modifier = Modifier.fillMaxWidth().focusRequester(first).testTag(FIRST),
                 )
                 ServerButton(label = R.string.server_cancel, onClick = {}, modifier = Modifier.testTag(SECOND))
             }
@@ -174,9 +176,6 @@ class SetupScaffoldTest {
         const val FIRST = "setupScaffoldTest.first"
         const val SECOND = "setupScaffoldTest.second"
         const val KEY_TIMEOUT_MS = 10_000L
-
-        /** FocusStyle's button scale (private there): what a focused setup button is drawn at. */
-        const val FOCUS_SCALE = 1.08f
         const val LONG_TEXT =
             "Type the address you use to open your server in a browser, then test it. A long line, so a large " +
                 "font fills the form's width."

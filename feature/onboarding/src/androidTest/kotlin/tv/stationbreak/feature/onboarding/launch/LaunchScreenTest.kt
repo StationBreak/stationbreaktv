@@ -3,15 +3,21 @@ package tv.stationbreak.feature.onboarding.launch
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,6 +32,7 @@ import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import tv.stationbreak.feature.onboarding.trust.TrustPrompt
 import tv.stationbreak.feature.onboarding.trust.TrustReason
 import tv.stationbreak.feature.onboarding.trust.TrustTags
+import kotlin.math.abs
 
 /**
  * The launch screen on the API 25 emulator, driven with real key events (spec 05, Unit 4): a plain progress screen
@@ -86,6 +93,24 @@ class LaunchScreenTest {
         compose.onNodeWithTag(LaunchTags.PROGRESS).assertExists()
         compose.onNodeWithTag(LaunchTags.ERROR_PANEL).assertDoesNotExist()
         compose.onNodeWithTag("server:field").assertDoesNotExist()
+    }
+
+    @Test
+    fun theRoutingProgressIsCentredOnTheWholeScreenBesideStansEmptyColumn() {
+        compose.setContent {
+            StationBreakTheme {
+                Box(Modifier.requiredSize(TV_WIDTH, TV_HEIGHT)) {
+                    LaunchScreen(LaunchPhase.Routing, onRetry = {}, onTrust = {}, onDontTrust = {}, onChangeServer = {})
+                }
+            }
+        }
+        compose.waitForIdle()
+        // The progress sits in the screen's content block, as every launch screen's content does: that block is
+        // centred on the 960 dp screen, not on the content area beside Stan's reserved column.
+        val body = compose.onNodeWithTag(LaunchTags.BODY).getUnclippedBoundsInRoot()
+        val centre = (body.left + body.right) / 2
+        assertTrue("body centre $centre", abs((centre - TV_WIDTH / 2).value) <= CENTRE_SLACK_DP)
+        compose.onNodeWithTag(LaunchTags.PROGRESS).assertExists()
     }
 
     @Test
@@ -151,6 +176,9 @@ class LaunchScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 5_000L
+        const val CENTRE_SLACK_DP = 2f
+        val TV_WIDTH = 960.dp
+        val TV_HEIGHT = 540.dp
     }
 
     @Test

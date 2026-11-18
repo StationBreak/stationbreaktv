@@ -4,7 +4,6 @@ package tv.stationbreak.feature.onboarding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -94,13 +93,17 @@ internal class DozeTimer(
  * dozes; any key, or a new [cue], wakes him, and the key still reaches the content. [covered] is true while a dialog
  * window is over the screen: its keys never pass through here, so the timer stops, and Stan, unseen, is not drawn.
  *
- * [renderer] defaults to one per screen; the app may hoist one across the setup destinations later.
+ * [fullWidth] (only with no [cue]) lets [content] span the whole screen, with the full safe area, so a plain line is
+ * centred on the screen; the column stays reserved, and [content] keeps its place in the tree, so nothing restarts
+ * when it narrows again. [renderer] defaults to one per screen; the app may hoist one across the setup destinations
+ * later.
  */
 @Composable
 internal fun SetupScaffold(
     cue: StanCue?,
     modifier: Modifier = Modifier,
     covered: Boolean = false,
+    fullWidth: Boolean = false,
     renderer: StanRenderer = rememberStanRenderer(),
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -119,14 +122,17 @@ internal fun SetupScaffold(
         val screen = DpSize(maxWidth, maxHeight)
         val fit = LocalScreenFit.current
         val safe = ScreenLayout.safeArea(screen, fit)
-        val contentPadding = safeAreaPadding(screen, fit, top = safe.top, end = false)
+        val spanning = fullWidth && cue == null
+        val contentPadding = safeAreaPadding(screen, fit, top = safe.top, end = spanning)
         val endInset = screen.width - safe.right
         val bottomInset = screen.height - safe.bottom
-        Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { content(contentPadding) }
+        val column = HOST_COLUMN + endInset
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().padding(end = if (spanning) 0.dp else column)) { content(contentPadding) }
             Box(
                 Modifier
-                    .width(HOST_COLUMN + endInset)
+                    .align(Alignment.BottomEnd)
+                    .width(column)
                     .fillMaxHeight()
                     .padding(end = endInset, bottom = bottomInset),
                 contentAlignment = Alignment.BottomEnd,

@@ -4,6 +4,7 @@ package tv.stationbreak.feature.onboarding.launch
 /** Test tags for the launch screen, public so `app`'s instrumented tests can find its parts. */
 object LaunchTags {
     const val SCREEN = "launch:screen"
+    const val BODY = "launch:body"
     const val PROGRESS = "launch:progress"
     const val ERROR_PANEL = "launch:errorPanel"
     const val RETRY = "launch:retry"
