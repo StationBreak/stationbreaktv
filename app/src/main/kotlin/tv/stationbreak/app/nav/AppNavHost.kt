@@ -135,8 +135,8 @@ internal fun AppNavGraph(
                     // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so
                     // the graph hands it over. Live says where its picture is; the guide leaves that hole clear.
                     guide = { opening, pictureHole, onTune ->
-                        // A sign-out from Settings, Libraries (#336): launch routing asks for a new sign-in.
-                        GuideWithChannels(opening, pictureHole, onTune) { navController.replaceAll(LaunchRoute) }
+                        // A sign-out from Settings, Libraries (#336): the server screen, to choose a server again.
+                        GuideWithChannels(opening, pictureHole, onTune) { navController.afterSignOut() }
                     },
                 )
             }
@@ -166,6 +166,13 @@ private fun GuideWithChannels(
         libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone, onSignedOut) },
     )
 }
+
+/**
+ * Where a sign-out from Settings, Libraries goes (#336, #864): the server screen, alone on the stack, showing the
+ * stored address. The viewer can change server or Continue to sign in on the same one; Back leaves the app. Not
+ * launch routing, which would skip straight to sign-in for the stored server.
+ */
+internal fun NavController.afterSignOut() = replaceAll(ServerRoute())
 
 /** Replaces the whole back stack with [route], so nothing is left to go Back to. */
 private fun NavController.replaceAll(route: Any) {

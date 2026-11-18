@@ -15,6 +15,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.DialogNavigator
+import androidx.navigation.compose.rememberNavController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dagger.Module
@@ -37,6 +38,7 @@ import tv.stationbreak.app.nav.AppNavGraph
 import tv.stationbreak.app.nav.LibrariesRoute
 import tv.stationbreak.app.nav.ServerRoute
 import tv.stationbreak.app.nav.SignInRoute
+import tv.stationbreak.app.nav.afterSignOut
 import tv.stationbreak.core.domain.AccountCache
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
@@ -188,6 +190,30 @@ class SignInNavigationTest {
     /** The Test runs off the main thread; on a cold emulator its result can land after the idle check. */
     private fun awaitFocused(tag: String) {
         compose.awaitFocusedForKeys(tag, BACK_TIMEOUT_MS)
+    }
+
+    // #864: a sign-out from Settings, Libraries lands on the server screen, alone on the stack, not on sign-in.
+    @Test
+    fun afterASignOutTheServerScreenShowsAloneSoAServerCanBeChosenAgain() {
+        selection.resume()
+        lateinit var nav: NavHostController
+        compose.setContent {
+            nav = rememberNavController()
+            StationBreakTheme { AppNavGraph(startDestination = ServerRoute(), navController = nav) }
+        }
+        compose.waitForIdle()
+        testAddressAndContinue()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertIsFocused()
+
+        compose.runOnUiThread { nav.afterSignOut() }
+        compose.waitForIdle()
+
+        awaitFocused(ServerTags.FIELD)
+        compose.onNodeWithTag(SignInTags.USERNAME).assertDoesNotExist()
+        val alone = compose.runOnUiThread { nav.previousBackStackEntry == null }
+        assertTrue("the server screen is alone on the stack", alone)
+        assertTrue(compose.runOnUiThread { nav.currentDestination?.hasRoute<ServerRoute>() == true })
     }
 
     @Test
