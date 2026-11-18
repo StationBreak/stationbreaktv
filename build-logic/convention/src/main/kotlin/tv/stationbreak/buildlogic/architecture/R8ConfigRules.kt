@@ -29,6 +29,7 @@ object R8ConfigRules {
 
     // The keep an `-if` applies, written with whitespace or a comma after the option (`-keep,allowobfuscation`).
     private val ifKeep = Regex("\\s(-keep\\w*[\\s,].*)", RegexOption.DOT_MATCHES_ALL)
+    private val nextOption = Regex("\\s+(?=-[a-z])")
     private val backreference = Regex("<(\\d+)>")
     private val leadingWildcards = Regex("^[*?.]+")
     private val placeholders = Regex("<init>|<fields>|<methods>|\\(\\.\\.\\.\\)")
@@ -168,14 +169,21 @@ object R8ConfigRules {
 
                 line.startsWith("#") || line.isEmpty() -> {}
 
-                line.startsWith("-") -> {
-                    flush()
-                    directive.append(line)
-                }
-
-                // A rule's member lines and closing brace, or arguments on the line after the option.
+                // R8 reads `-keep class a.B -dontshrink` as two options (checked with 9.3.16), so a line is split at
+                // each whitespace followed by an option and every part is checked (#933). Over-splitting only checks more.
                 else -> {
-                    directive.append('\n').append(line)
+                    for ((i, part) in line.split(nextOption).withIndex()) {
+                        if (i > 0 && part.startsWith("-keep") && directive.startsWith("-if") && ifKeep.find(directive) == null) {
+                            // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
+                            directive.append(' ').append(part)
+                        } else if (part.startsWith("-")) {
+                            flush()
+                            directive.append(part)
+                        } else {
+                            // A rule's member lines and closing brace, or arguments on the line after the option.
+                            directive.append('\n').append(part)
+                        }
+                    }
                 }
             }
         }
@@ -236,10 +244,9 @@ object R8ConfigRules {
         // Both limit the rule: it is broad only when the class names and, if there is one, the supertype are (#851).
         val supertypes = if (superAt >= 0) args.drop(superAt + 1) else null
         val anySupertype = supertypes == null || broad(supertypes) || supertypes.any { matchesEveryClass(it) }
-        // The class itself is kept, so `**$*` or `**Foo` (every package) is broad here; on a member rule it isn't, as
-        // the members decide (kotlinx's `**$$serializer { private ** descriptor; }`) (#909).
-        val classKept = option == "-keep" || option == "-keepnames"
-        if (!(broad(names) || (classKept && names.any { anyPackageSuffix(it) })) || !anySupertype) return false
+        // `**$*` or `**Foo` (every package) is broad for every option; on a member rule the members then decide
+        // (kotlinx's `**$$serializer { private ** descriptor; }` passes) (#909, #933).
+        if (!(broad(names) || names.any { anyPackageSuffix(it) }) || !anySupertype) return false
         if (option == "-keep" || option == "-keepnames") return true
         val members =
             body

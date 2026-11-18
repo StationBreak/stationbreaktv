@@ -421,4 +421,42 @@ class R8ConfigRulesTest {
             emptyList(),
             violations("-if interface * { @retrofit2.http.* <methods>; }", "-keep,allowobfuscation interface <1>"),
         )
+
+    // #933: the every-package name check applies to all six keep options; the members then decide.
+    @Test
+    fun everyPackageInnerClassesOnEachMemberOption() {
+        val options = listOf("-keepclassmembers", "-keepclassmembernames", "-keepclasseswithmembers", "-keepclasseswithmembernames")
+        for (option in options) {
+            assertFlagged("$option class **\$* { *; }")
+            assertEquals(emptyList(), violations("$option class **\$\$serializer { private ** descriptor; }"), option)
+        }
+    }
+
+    @Test
+    fun everyPackageInnerClassesWithAllFieldsAndMethods() =
+        assertFlagged("-keepclassmembers class **\$* {", "    <fields>;", "    <methods>;", "}")
+
+    // #933: R8 reads `-keep class B -dontshrink` as two options (checked with R8 9.3.16: nothing was shrunk), so each
+    // option on a shared line is checked on its own.
+    @Test
+    fun dontshrinkAfterANarrowKeepOnTheSameLine() = assertFlagged("-dontshrink")
+
+    @Test
+    fun aBroadKeepAfterANarrowKeepOnTheSameLine() = assertFlagged("-keep class ** { *; }")
+
+    @Test
+    fun aForbiddenOptionBehindAnotherOptionOnAContinuationLine() =
+        assertEquals(
+            listOf(R8Violation("-dontoptimize", "com.evil:lib:1.0")),
+            violations("-keep class a.B", "    -keepattributes Signature -dontoptimize"),
+        )
+
+    @Test
+    fun aListedSourceStillPassesWithSeveralOptionsOnALine() {
+        val config = section("androidx.compose.runtime:runtime-android:1.12.1", "-keep class a.B -assumenosideeffects class a.C {", "}")
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
+    }
+
+    @Test
+    fun anIfAndItsNarrowKeepOnOneLineStillPass() = assertEquals(emptyList(), violations("-if class a.B -keep class a.C -dontwarn a.D"))
 }
