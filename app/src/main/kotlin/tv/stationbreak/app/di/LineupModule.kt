@@ -38,7 +38,6 @@ import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInChannelHoldings
 import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
 import tv.stationbreak.core.domain.lineup.BuiltInChannelReadiness
-import tv.stationbreak.core.domain.lineup.BuiltInLineupReadiness
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
@@ -49,9 +48,9 @@ import tv.stationbreak.core.domain.lineup.ChannelReadiness
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSwitchOns
 import tv.stationbreak.core.domain.lineup.CollectionsAtSetup
+import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupEvent
-import tv.stationbreak.core.domain.lineup.LineupReadiness
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
@@ -182,6 +181,13 @@ internal object LineupModule {
     /** The "Use my collections" flag, read by the Channels screen. */
     @Provides
     fun householdSetting(service: LineupService): HouseholdSetting = service
+
+    /**
+     * Whether the active account's first lineup is still being built (setup's first-sync screen waits on it; live TV
+     * stands by on it rather than saying "no channels"): the service's own view of its first choice.
+     */
+    @Provides
+    fun firstLineup(service: LineupService): FirstLineup = service
 
     /** The "Use my collections" switch at library selection (onboarding). */
     @Provides
@@ -588,21 +594,6 @@ internal object LineupModule {
             report = report,
         )
     }
-
-    /**
-     * Whether the active lineup has a channel on the air yet, is still being built, or has none (setup's first-sync
-     * screen waits on it; live TV tells "building" from "no channels" by it): the service's lineup, the refresher's own
-     * signal of work in hand, and the schedule live TV tunes from.
-     */
-    @Provides
-    @Singleton
-    fun lineupReadiness(
-        service: LineupService,
-        library: LibraryRepository,
-        schedule: ScheduleSource,
-        refresher: LineupRefresher,
-        clock: Clock,
-    ): LineupReadiness = BuiltInLineupReadiness(service, library, schedule, clock, refresher.working)
 }
 
 /**

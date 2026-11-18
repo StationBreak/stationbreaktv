@@ -171,7 +171,8 @@ private fun skipsCheer(
 
 /**
  * While the first lineup is built, after the library is in: one line, said once to a screen reader as it appears, and
- * the full bar (the library part is done). No count and no percentage: there is nothing true to count.
+ * a bar with no end in sight (indeterminate, never "complete"). No count and no percentage: there is nothing true to
+ * count.
  */
 @Composable
 private fun BuildingChannels() {
@@ -186,7 +187,7 @@ private fun BuildingChannels() {
         style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,
     )
-    Bar(fraction = 1f, description = headline)
+    Bar(fraction = null, description = headline)
 }
 
 /**
@@ -284,10 +285,13 @@ private fun Announcement(fraction: Float) {
     )
 }
 
-/** A plain bar with no animation of its own: it redraws only when the count changes (Stan beside it animates). */
+/**
+ * A plain bar with no animation of its own: it redraws only when the count changes (Stan beside it animates). A null
+ * [fraction] is a bar with no known end: an empty track that reads as indeterminate.
+ */
 @Composable
 private fun Bar(
-    fraction: Float,
+    fraction: Float?,
     description: String,
 ) {
     val track = MaterialTheme.colorScheme.surfaceVariant
@@ -302,10 +306,11 @@ private fun Bar(
                 .testTag(FirstSyncTags.BAR)
                 .semantics {
                     contentDescription = description
-                    progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
+                    progressBarRangeInfo =
+                        fraction?.let { ProgressBarRangeInfo(it, 0f..1f) } ?: ProgressBarRangeInfo.Indeterminate
                 },
     ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(fill))
+        fraction?.let { Box(Modifier.fillMaxHeight().fillMaxWidth(it).background(fill)) }
     }
 }
 

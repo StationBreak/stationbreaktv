@@ -17,18 +17,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LastChannelStore
@@ -43,10 +46,12 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
-import tv.stationbreak.core.domain.lineup.LineupReadiness
-import tv.stationbreak.core.domain.lineup.LineupState
+import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
+import tv.stationbreak.core.domain.lineup.FirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineupState
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.firstOnAir
 import tv.stationbreak.core.domain.lineup.neighbourOf
 import tv.stationbreak.core.domain.lineup.onLineup
 import tv.stationbreak.core.domain.logName
@@ -93,11 +98,11 @@ class LiveChannel(
      */
     private val output: StateFlow<Boolean>? = null,
     /**
-     * Whether the lineup is still being built (the first one after setup). While it is and no channel airs,
-     * [LiveState.BuildingChannels] shows, not [LiveState.NoChannels]. Null leaves it unwatched: no channel is no
-     * channels.
+     * Whether the first lineup is still being built (just after setup). While it is and no channel airs,
+     * [LiveState.BuildingChannels] shows, not [LiveState.NoChannels], for [FIRST_LINEUP_WAIT] at most. Null leaves it
+     * unwatched: no channel is no channels.
      */
-    private val readiness: LineupReadiness? = null,
+    private val firstLineup: FirstLineup? = null,
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
     private val onFirstVisit: () -> Unit = {},
 ) {
@@ -794,13 +799,15 @@ class LiveChannel(
     }
 
     /**
-     * Waits for a channel on the air. Meanwhile [LiveState.BuildingChannels] shows while the lineup is still being
-     * built, and [LiveState.NoChannels] once it is built with none; a change of the lineup or of [readiness] looks
-     * again.
+     * Waits for a channel on the air, choosing afresh at each change of the lineup. While none airs, it says why:
+     * [LiveState.BuildingChannels] while the first lineup is still being built ([firstLineup], looked at only then,
+     * choosing again at each change of it), and [LiveState.NoChannels] once it is settled, or once [FIRST_LINEUP_WAIT]
+     * has passed since this wait began, so live TV never stands by for good.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private suspend fun awaitChannel(): Pair<LibraryAccount, ChannelOnAir> =
-        library
+    private suspend fun awaitChannel(): Pair<LibraryAccount, ChannelOnAir> {
+        val lineup = firstLineupUntil(firstLineup, clock, clock.now() + FIRST_LINEUP_WAIT)
+        return library
             .activeAccount()
             .flatMapLatest { account ->
                 // No account is active until a library has been synced: nothing is on the air yet.
@@ -808,14 +815,21 @@ class LiveChannel(
                     screen.value = LiveState.NoChannels
                     emptyFlow()
                 } else {
-                    val state = readiness?.readiness(account) ?: flowOf(LineupState.Empty)
-                    combine(channels.channels(account), state) { _, lineup -> account to lineup }
+                    channels.channels(account).transformLatest {
+                        val chosen = choose(account)
+                        if (chosen != null) {
+                            emit(account to chosen)
+                        } else {
+                            lineup.collectIndexed { index, state ->
+                                // The first state is the one just chosen against: only a change looks again.
+                                val now = if (index == 0) null else choose(account)
+                                if (now != null) emit(account to now) else screen.value = noChannelState(state)
+                            }
+                        }
+                    }
                 }
-            }.mapNotNull { (account, lineup) ->
-                val chosen = choose(account)
-                if (chosen == null) screen.value = noChannelState(lineup)
-                chosen?.let { account to it }
             }.first()
+    }
 
     /**
      * The saved channel, else the first of these with something on now (#375): the lowest-numbered unhidden channel
@@ -823,19 +837,15 @@ class LiveChannel(
      * chosen yet and anyone may be in the room, so little kids' channels are not preferred.
      */
     private suspend fun choose(account: LibraryAccount): ChannelOnAir? {
-        val now = clock.now()
-        val unhidden = schedule.airings(now).filter { it.hidden == null }
         val saved = lastChannel.load(account)
         firstVisit = saved == null
-        // A saved channel that has left the lineup (the viewer switched it off, say) lands on its neighbour first.
-        val near = saved?.takeIf { s -> unhidden.none { it.id == s } }?.let { neighbourOfGone(account, it, unhidden) }
-        // The sort is stable, so each group stays in number order.
-        val rest = unhidden.filter { it.id != saved && it.id != near?.id }.sortedBy { firstOpenGroup(it.ceilingRank) }
-        val ordered = listOfNotNull(near) + unhidden.filter { it.id == saved } + rest
-        for (airing in ordered) {
-            schedule.onAir(airing.id, now, Sitting.WINDOW)?.let { return it }
+        return schedule.firstOnAir(clock.now()) { visible ->
+            // A saved channel that has left the lineup (the viewer switched it off, say) lands on its neighbour first.
+            val near = saved?.takeIf { s -> visible.none { it.id == s } }?.let { neighbourOfGone(account, it, visible) }
+            // The sort is stable, so each group stays in number order.
+            val rest = visible.filter { it.id != saved && it.id != near?.id }
+            listOfNotNull(near) + visible.filter { it.id == saved } + rest.sortedBy { firstOpenGroup(it.ceilingRank) }
         }
-        return null
     }
 
     /**
@@ -858,22 +868,39 @@ class LiveChannel(
         val id = unhidden.map { it.id to it.number }.neighbourOf(number)
         return unhidden.firstOrNull { it.id == id }
     }
-
-    /** 0 for the PG tier, 1 for a ceiling below PG, 2 for a higher ceiling or none. */
-    private fun firstOpenGroup(ceilingRank: Int?): Int =
-        when {
-            ceilingRank == ChannelAiring.PG_TIER -> 0
-            ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
-            else -> 2
-        }
 }
 
-/**
- * What shows while no channel can be tuned: no channels only once the lineup is built with none. A lineup said to be
- * ready that live TV cannot tune yet (its channel list has not caught up) is still being built, for the viewer.
- */
-private fun noChannelState(lineup: LineupState): LiveState =
+/** What shows while no channel can be tuned: Stan stands by while the first lineup is built, else no channels. */
+private fun noChannelState(lineup: FirstLineupState): LiveState =
     when (lineup) {
-        LineupState.Building, LineupState.Ready -> LiveState.BuildingChannels
-        LineupState.Empty -> LiveState.NoChannels
+        FirstLineupState.Building -> LiveState.BuildingChannels
+        FirstLineupState.Settled -> LiveState.NoChannels
+    }
+
+// [firstLineup]'s state until [deadline], then settled: after it, no channel is no channels. The port is asked only
+// when the flow is collected, that is only when no channel is on the air.
+private fun firstLineupUntil(
+    firstLineup: FirstLineup?,
+    clock: Clock,
+    deadline: Instant,
+): Flow<FirstLineupState> {
+    val states = flow { emitAll(firstLineup?.firstLineup() ?: flowOf(FirstLineupState.Settled)) }
+    val over =
+        flow {
+            val left = deadline - clock.now()
+            if (left.isPositive()) {
+                emit(false)
+                delay(left)
+            }
+            emit(true)
+        }
+    return combine(states, over) { state, late -> if (late) FirstLineupState.Settled else state }.distinctUntilChanged()
+}
+
+/** 0 for the PG tier, 1 for a ceiling below PG, 2 for a higher ceiling or none. */
+private fun firstOpenGroup(ceilingRank: Int?): Int =
+    when {
+        ceilingRank == ChannelAiring.PG_TIER -> 0
+        ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
+        else -> 2
     }

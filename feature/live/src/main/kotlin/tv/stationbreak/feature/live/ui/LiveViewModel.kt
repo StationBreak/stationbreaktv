@@ -29,8 +29,8 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.GuideOpening
-import tv.stationbreak.core.domain.lineup.LineupReadiness
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.logName
@@ -164,8 +164,8 @@ internal class LiveViewModel
         private val choices: LibrarySelectionView,
         // Whether the TV's output is there: while it is not, nothing is tuned or reported (#423).
         private val display: DisplayOutput,
-        // Whether the lineup is still being built: Stan stands by then, not the no-channels card.
-        private val readiness: LineupReadiness,
+        // Whether the first lineup is still being built: Stan stands by then, not the no-channels card.
+        private val firstLineup: FirstLineup,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -387,7 +387,7 @@ internal class LiveViewModel
                 details = details,
                 selection = choices.selection,
                 output = display.present,
-                readiness = readiness,
+                firstLineup = firstLineup,
                 onFirstVisit = ::openFirstVisitGuide,
             )
 

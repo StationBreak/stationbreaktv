@@ -478,6 +478,19 @@ through `X509TrustManagerExtensions`) and accepts a refused chain only on an exa
   viewer is off the live route is never seen. Nothing is saved: a restart forgets what was getting ready.
   Channels the builder creates are not watched. The Channels list shows "Getting ready" for a pending row; `app` draws the
   notice (`core:ui` `ChannelReadyNotice`) over the live route, and it takes no focus and no key.
+- **First lineup.** `FirstLineup` (a read-only port: `firstLineup()`, a flow of `FirstLineupState`) says whether the
+  active account's first lineup is still to come. It is not `ChannelReadiness`: that one follows channels a viewer switched
+  on; this one follows the lineup's first choice. `LineupService` implements it and `di/LineupModule` binds it.
+  `Building`: nobody is signed in, there is no lineup yet, or the planner still waits for its first choice. `Settled`: the
+  first choice is made (`Revisioned.firstChoiceMade`: the lineup is finalised, a plan took in a collection pass, which a
+  thin library that stays unfinalised also does, or a plan gave up waiting for one under `GIVE_UP_AFTER`). Once settled it
+  stays settled, so later stay-current syncs never make it `Building` again; an account that can never have a lineup is
+  `Settled`. It reads only the published lineup: the `LineupRefresher` plans it as before (start check, the first sync's
+  end, the collection pass) and each plan it publishes is a new value, including the one that gives up. Whether a channel
+  is on the air is not part of it: that is `ScheduleSource.firstOnAir`, the one rule live TV's first tune picks by and
+  setup cheers by. Setup's first-sync screen waits for `Settled` (at most `FIRST_LINEUP_WAIT`), then cheers only if
+  `firstOnAir` finds a channel. Live TV looks at it only when no channel is on the air: `Building` stands by
+  (`LiveState.BuildingChannels`), `Settled` shows no channels, and so does a wait past `FIRST_LINEUP_WAIT`.
 - Performance: the double refresh on every launch was fixed in [#309](https://github.com/StationBreak/stationbreaktv/issues/309)
   (closed 2026-10-21, before F1.3). Later work is in PRs #406, #481 and #484.
 

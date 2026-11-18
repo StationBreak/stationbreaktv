@@ -4,8 +4,8 @@ package tv.stationbreak.feature.onboarding.firstsync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -17,22 +17,24 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import tv.stationbreak.core.domain.FirstSync
-import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncState
-import tv.stationbreak.core.domain.lineup.LineupReadiness
-import tv.stationbreak.core.domain.lineup.LineupState
+import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
+import tv.stationbreak.core.domain.lineup.FirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineupState
+import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.firstOnAir
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
 import javax.inject.Inject
+import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -45,8 +47,9 @@ import kotlin.time.Duration.Companion.seconds
  * own count and total, at most twice a second, and on a failure shows the error table's words with Retry.
  *
  * When the sync it showed ends, the first lineup is still to be built from it ("Stan keeps working"): the screen waits
- * on [readiness] for the active account. A channel on the air cheers us on it ([FirstSyncPhase.Done]); no channels at
- * all, or a wait past [LINEUP_WAIT], go on to live TV with no cheer, and live TV says what there is.
+ * for [firstLineup] to settle, for [FIRST_LINEUP_WAIT] at most. Then Stan cheers us on the air
+ * ([FirstSyncPhase.Done]) only if a channel is on it ([firstOnAir]); with none the screen goes on to live TV at once,
+ * which says what there is.
  *
  * Leaving the screen (Back) does not stop the sync: it is WorkManager's, and the port has no way to cancel it. The
  * progress screen is simply back on the next open.
@@ -56,8 +59,9 @@ internal class FirstSyncViewModel
     @Inject
     constructor(
         private val firstSync: FirstSync,
-        private val library: LibraryRepository,
-        private val readiness: LineupReadiness,
+        private val firstLineup: FirstLineup,
+        private val schedule: ScheduleSource,
+        private val clock: Clock,
     ) : ViewModel() {
         private val mutableState = MutableStateFlow<FirstSyncPhase>(FirstSyncPhase.Starting)
         val state: StateFlow<FirstSyncPhase> = mutableState.asStateFlow()
@@ -125,32 +129,31 @@ internal class FirstSyncViewModel
         }
 
         /**
-         * The sync the screen showed has ended: Stan keeps working while the first lineup is built from it. A channel
-         * on the air cheers; no channels, or no answer within [LINEUP_WAIT], finish with no cheer (setup never hangs;
-         * live TV goes on waiting for the channels itself). Once only.
+         * The sync the screen showed has ended: Stan keeps working while the first lineup is built from it, until it
+         * settles or [FIRST_LINEUP_WAIT] has passed (setup never hangs). Then a channel on the air cheers; none
+         * finishes with no cheer. Once only.
          */
-        @OptIn(ExperimentalCoroutinesApi::class)
         private fun build() {
             if (finished || building != null) return
             mutableState.value = FirstSyncPhase.Building
             building =
                 viewModelScope.launch {
-                    val state =
-                        withTimeoutOrNull(LINEUP_WAIT) {
-                            library
-                                .activeAccount()
-                                .filterNotNull()
-                                .flatMapLatest { readiness.readiness(it) }
-                                .first { it != LineupState.Building }
-                        }
-                    val cheer =
-                        when (state) {
-                            LineupState.Ready -> true
-                            LineupState.Empty, LineupState.Building, null -> false
-                        }
-                    finish(cheer)
+                    withTimeoutOrNull(FIRST_LINEUP_WAIT) {
+                        firstLineup.firstLineup().first { it == FirstLineupState.Settled }
+                    }
+                    finish(cheer = onTheAir())
                 }
         }
+
+        @Suppress("TooGenericExceptionCaught") // A schedule that cannot be read has nothing to cheer.
+        private suspend fun onTheAir(): Boolean =
+            try {
+                schedule.firstOnAir(clock.now()) != null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
+            }
 
         /**
          * The screen's work is over. With [cheer] (a channel is on the air after the sync it showed), Stan cheers us on
@@ -259,12 +262,6 @@ internal class FirstSyncViewModel
             val FAILED_AFTER = 5.minutes
         }
     }
-
-/**
- * How long the screen waits for the first lineup after the sync before going on to live TV anyway (about half a
- * minute on a TV is usual): setup can never hang on it.
- */
-internal val LINEUP_WAIT: Duration = 3.minutes
 
 /** How long Stan cheers "WE'RE ON THE AIR!" before live TV, unless a key skips it (spec 2026-11-18, owner choice). */
 internal const val CHEER_HOLD_MS = 1_500L

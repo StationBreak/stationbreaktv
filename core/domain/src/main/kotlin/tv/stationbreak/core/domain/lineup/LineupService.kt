@@ -78,6 +78,8 @@ import kotlin.time.TimeSource
  * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed. [writable]
  * is whether this session may write the account's file, as it stood when this was published (spec 21). [repairs] is the
  * per-TV repair record (spec 26) that is saved with the lineup; a change of it alone keeps the revision too.
+ * [firstChoiceMade] is whether the planner has made the lineup's first choice ([FirstLineup]): it is finalised, or a
+ * plan took in a collection pass (a thin library stays unfinalised after it), or a plan gave up waiting for one.
  */
 internal data class Revisioned(
     val revision: Long,
@@ -85,6 +87,7 @@ internal data class Revisioned(
     val meta: RefreshMeta = RefreshMeta(),
     val repairs: TodayRepairs = TodayRepairs.NONE,
     val writable: Boolean = false,
+    val firstChoiceMade: Boolean = lineup.finalised || meta.collectionPassActedOn != null,
 )
 
 /**
@@ -117,7 +120,8 @@ class LineupService internal constructor(
     private val seams: LineupSeams,
 ) : ChannelRepository,
     HouseholdSetting,
-    CollectionsAtSetup {
+    CollectionsAtSetup,
+    FirstLineup {
     /** For tests: a small catalog in place of the real one. */
     internal constructor(
         store: LineupStore,
@@ -212,6 +216,13 @@ class LineupService internal constructor(
 
         /** The boundaries the background roll and the re-plan signal were last made for ([rollSoon]). */
         val boundaries = BoundaryMemo()
+
+        /**
+         * Whether a plan of this session gave up waiting for the collections ([GIVE_UP_AFTER]): its first choice was
+         * made without them, so the lineup is [Revisioned.firstChoiceMade] though it took in no pass. It never goes
+         * back to false: a later plan only adds to a choice once made.
+         */
+        @Volatile var plannedWithoutCollections = false
 
         /** The kept starters' reasons of the last plan, so an unchanged plan skips their homing. Used under [mutex]. */
         val keptReasons = KeptReasonsMemo()
@@ -463,6 +474,7 @@ class LineupService internal constructor(
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )
+        if (read.giveUp) entryOf(owner).plannedWithoutCollections = true
         val planned = if (sinceDayStart) plan.rolled(dayStartMs) else plan
         val taken = read.pass?.takeIf { read.snapshot.collectionsSynced }?.toEpochMilliseconds()
         val meta =
@@ -1537,6 +1549,28 @@ class LineupService internal constructor(
         }.map { held -> held?.lineup?.useMyCollections ?: true }.distinctUntilChanged()
     }
 
+    /**
+     * [FirstLineup.firstLineup]: the active account's lineup, settled once [Revisioned.firstChoiceMade]. An account
+     * whose IDs are not IDs never has a lineup, so there is nothing to wait for: settled.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun firstLineup(): Flow<FirstLineupState> =
+        library
+            .activeAccount()
+            .flatMapLatest { account ->
+                when {
+                    account == null -> flowOf(FirstLineupState.Building)
+                    ownerOf(account) == null -> flowOf(FirstLineupState.Settled)
+                    else -> firstLineupOf(account)
+                }
+            }.distinctUntilChanged()
+
+    private fun firstLineupOf(account: LibraryAccount): Flow<FirstLineupState> =
+        flow {
+            loaded(account)
+            emitAll(lineup(account))
+        }.map { held -> if (held?.firstChoiceMade == true) FirstLineupState.Settled else FirstLineupState.Building }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun activeChannels(): Flow<List<ChannelSummary>> =
         library.activeAccount().flatMapLatest { account -> if (account == null) emptyFlow() else channels(account) }
@@ -1796,7 +1830,8 @@ class LineupService internal constructor(
         repairs: TodayRepairs,
     ) {
         val revision = synchronized(lock) { ++revisions }
-        entry.set(Revisioned(revision, lineup, meta, repairs, entry.writable))
+        val firstChoiceMade = lineup.finalised || meta.collectionPassActedOn != null || entry.plannedWithoutCollections
+        entry.set(Revisioned(revision, lineup, meta, repairs, entry.writable, firstChoiceMade))
     }
 
     private fun entryOf(owner: Owner): Entry = synchronized(lock) { entries.getOrPut(owner.key) { Entry() } }

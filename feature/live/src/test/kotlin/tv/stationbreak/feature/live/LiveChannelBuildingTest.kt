@@ -5,39 +5,39 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import tv.stationbreak.core.domain.lineup.LineupState
+import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
+import tv.stationbreak.core.domain.lineup.FirstLineupState
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.itemOf
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 
 /**
- * Live TV while the lineup is still being built (the first one after setup): Stan stands by, never the no-channels
- * card, and a channel opens as soon as one is on the air. Only a lineup built with no channels shows no channels.
+ * Live TV while the first lineup is still being built (just after setup): Stan stands by, never the no-channels card,
+ * and a channel opens as soon as one is on the air. A settled lineup with nothing on the air shows no channels, and so
+ * does a first lineup that is still not settled after [FIRST_LINEUP_WAIT]. The first tune never waits on any of it.
  */
 class LiveChannelBuildingTest {
     @Test
     fun whileTheFirstLineupIsBuiltItStandsByNotNoChannels() =
         runTest {
             val r = Rig(this)
-            r.readiness.state.value = LineupState.Building
+            r.firstLineup.state.value = FirstLineupState.Building
             r.start()
 
             assertEquals(LiveState.BuildingChannels, r.state)
             assertTrue(r.seen.none { it == LiveState.NoChannels })
-            assertEquals("the signed-in account's lineup", listOf(r.account), r.readiness.asked.distinct())
             assertTrue(r.tune.calls.isEmpty())
         }
 
     @Test
-    fun aLineupBuiltWithChannelsOpensOneStraightFromStandingBy() =
+    fun aChannelOnTheAirOpensStraightFromStandingBy() =
         runTest {
             val r = Rig(this)
-            r.readiness.state.value = LineupState.Building
+            r.firstLineup.state.value = FirstLineupState.Building
             r.start()
 
             r.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
             r.channels.publish(CH7 to 7)
-            r.readiness.state.value = LineupState.Ready
             r.at(1_000)
 
             assertIs<LiveState.Tuning>(r.seen.first { it is LiveState.Tuning })
@@ -46,26 +46,43 @@ class LiveChannelBuildingTest {
         }
 
     @Test
-    fun aLineupBuiltWithNoChannelsShowsNoChannels() =
+    fun aSettledLineupChoosesAgainAndShowsNoChannelsWhenNothingAirs() =
         runTest {
             val r = Rig(this)
-            r.readiness.state.value = LineupState.Building
+            r.firstLineup.state.value = FirstLineupState.Building
             r.start()
+            val looks = r.schedule.airingsCalls
 
-            r.readiness.state.value = LineupState.Empty
+            r.firstLineup.state.value = FirstLineupState.Settled
             r.at(1_000)
 
             assertEquals(LiveState.NoChannels, r.state)
+            assertEquals("the change looked at the schedule again", looks + 1, r.schedule.airingsCalls)
         }
 
     @Test
-    fun aReadyLineupLiveCannotTuneYetStillStandsBy() =
+    fun aFirstLineupThatNeverSettlesShowsNoChannelsAfterTheWait() =
         runTest {
-            // The lineup says a channel is on the air, but the channel list has not caught up: no false "no channels".
             val r = Rig(this)
-            r.readiness.state.value = LineupState.Ready
+            r.firstLineup.state.value = FirstLineupState.Building
             r.start()
 
+            r.at(FIRST_LINEUP_WAIT.inWholeMilliseconds - 1)
             assertEquals(LiveState.BuildingChannels, r.state)
+
+            r.at(FIRST_LINEUP_WAIT.inWholeMilliseconds)
+            assertEquals("live TV never stands by for good", LiveState.NoChannels, r.state)
+        }
+
+    @Test
+    fun theFirstTuneDoesNotLookAtTheLineupState() =
+        runTest {
+            val r = Rig(this)
+            r.firstLineup.state.value = FirstLineupState.Building
+            r.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+            r.start()
+
+            assertEquals(itemOf(1), r.tunes.single().item)
+            assertEquals("a channel on the air is tuned at once", 0, r.firstLineup.asked)
         }
 }

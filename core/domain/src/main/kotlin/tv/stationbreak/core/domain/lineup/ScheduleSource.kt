@@ -153,3 +153,22 @@ interface ScheduleSource {
         build: ScheduleBuild,
     ): ScheduleWindow?
 }
+
+/** How many following blocks a tune asks [ScheduleSource.onAir] for with the one on the air (the next is resolved). */
+const val TUNE_LOOK_AHEAD: Int = 3
+
+/**
+ * The first channel with something on the air at [at], with the [TUNE_LOOK_AHEAD] blocks after it: of the visible
+ * channels ([ChannelAiring.hidden] null, in number order) put in [order], the first [ScheduleSource.onAir] gives a
+ * block for. Null when none does. The one rule for "a channel is on the air": live TV's first tune picks by it (with
+ * its own order), and setup cheers by it.
+ */
+suspend fun ScheduleSource.firstOnAir(
+    at: Instant,
+    order: suspend (List<ChannelAiring>) -> List<ChannelAiring> = { it },
+): ChannelOnAir? {
+    for (airing in order(airings(at).filter { it.hidden == null })) {
+        onAir(airing.id, at, TUNE_LOOK_AHEAD)?.let { return it }
+    }
+    return null
+}
