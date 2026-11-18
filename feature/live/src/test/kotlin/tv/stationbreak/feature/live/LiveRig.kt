@@ -511,6 +511,9 @@ class Rig(
     /** The details the info overlay fetches: asks [media], which a test scripts with `itemDetailsResult`. */
     val details = ProgramDetailsCache(media, sessions, scope.backgroundScope)
 
+    /** How many times the machine asked for the first visit's guide (#94). */
+    var firstVisits = 0
+
     /** Every report the machine made, in order. */
     val reports = mutableListOf<TuneReport>()
 
@@ -528,6 +531,7 @@ class Rig(
             server,
             details = details,
             selection = choices.selection,
+            onFirstVisit = { firstVisits++ },
         )
 
     /** Every state in order, each with how many port calls had been made when it appeared. */

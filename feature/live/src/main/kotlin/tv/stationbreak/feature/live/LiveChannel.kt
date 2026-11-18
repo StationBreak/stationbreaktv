@@ -83,6 +83,8 @@ class LiveChannel(
      * null leaves it unwatched.
      */
     private val selection: StateFlow<ChoiceView?>? = null,
+    /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
+    private val onFirstVisit: () -> Unit = {},
 ) {
     // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
     private val tuned = Tuned()
@@ -92,6 +94,10 @@ class LiveChannel(
     // The channel last saved as the last channel, and the account it is saved for: shared by the sittings of one run.
     private var saved: ChannelId? = null
     private var account: LibraryAccount? = null
+
+    // Set by [choose] when nothing was saved for the account: this sitting is its first visit (#94). A pick that
+    // finds no channel never reaches a tune, so a lineup still building leaves it for the next sitting.
+    private var firstVisit = false
 
     // A commit queued and not yet begun by a sitting: replaced, it is a flip that never resolved.
     private var unstarted: SitRequest? = null
@@ -372,6 +378,10 @@ class LiveChannel(
                     // is a synced file write that must not sit in the cut).
                     if (id != saved) lastChannel.save(acct, id, first.channel.number)
                     saved = id
+                    if (firstVisit) {
+                        firstVisit = false
+                        onFirstVisit()
+                    }
                     val next = newSitting(session, first, flip, neighbours, reporter)
                     flip = null
                     // The sitting this one replaces takes no more presses: its inbox is closed with it.
@@ -770,6 +780,7 @@ class LiveChannel(
         val now = clock.now()
         val unhidden = schedule.airings(now).filter { it.hidden == null }
         val saved = lastChannel.load(account)
+        firstVisit = saved == null
         // A saved channel that has left the lineup (the viewer switched it off, say) lands on its neighbour first.
         val near = saved?.takeIf { s -> unhidden.none { it.id == s } }?.let { neighbourOfGone(account, it, unhidden) }
         // The sort is stable, so each group stays in number order.

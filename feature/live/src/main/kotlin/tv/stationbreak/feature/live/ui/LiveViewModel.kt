@@ -206,6 +206,9 @@ internal class LiveViewModel
         /** The item that was playing on [guideChannel] when the guide last opened, with its real start and end. */
         val guidePlaying: PlayingAiring? get() = guide.playing
 
+        /** True when the guide's last opening is the first visit's (#94). */
+        val guideFirstVisit: Boolean get() = guide.firstVisit
+
         /**
          * When the guide last opened, in `System.nanoTime` units: each opening's own, for the guide's open-time
          * measurement and so each opening is a fresh guide session.
@@ -231,6 +234,11 @@ internal class LiveViewModel
         /** Opens the guide over the channel playing now; [atNanos] is when its key arrived (`System.nanoTime`). */
         fun openGuide(atNanos: Long) {
             guide.open(atNanos, live?.playingChannel, live?.playingAiring)
+        }
+
+        // The first visit's guide (#94): over the channel just tuned, with the welcome note.
+        private fun openFirstVisitGuide() {
+            guide.open(System.nanoTime(), live?.playingChannel, live?.playingAiring, firstVisit = true)
         }
 
         /** The clock now (epoch ms), the one the transport view's times are in: the strip reads it. */
@@ -384,6 +392,7 @@ internal class LiveViewModel
                         server = server,
                         details = details,
                         selection = choices.selection,
+                        onFirstVisit = ::openFirstVisitGuide,
                     ).also {
                         live = it
                         running.machine = it
