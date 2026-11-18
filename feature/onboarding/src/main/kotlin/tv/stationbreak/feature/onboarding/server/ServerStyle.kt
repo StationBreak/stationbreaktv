@@ -90,18 +90,12 @@ internal fun ServerButton(
     emphasis: Boolean = false,
     description: String? = null,
 ) {
-    val colors = MaterialTheme.colorScheme
     Button(
         onClick = onClick,
         modifier = if (description == null) modifier else modifier.semantics { contentDescription = description },
         enabled = enabled,
-        colors =
-            if (emphasis) {
-                ButtonDefaults.colors(containerColor = colors.primary, contentColor = colors.onPrimary)
-            } else {
-                ButtonDefaults.colors()
-            },
-        border = FocusStyle.buttonBorder(),
+        colors = FocusStyle.buttonColors(),
+        border = FocusStyle.buttonBorder(emphasis),
         scale = FocusStyle.buttonScale(),
         contentPadding = ButtonPadding,
     ) {

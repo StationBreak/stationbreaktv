@@ -4,16 +4,26 @@ package tv.stationbreak.core.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
 
 /**
- * tv-material's dark scheme, with one change: `border` is the focus ring on a focused button. A focused button fills
- * with `onSurface` (near white), so the ring has to be a mid tone that is at least 3:1 against both that fill and the
- * page; `primary` is only 1.3:1 against the fill and vanishes. `ContrastTest` checks the numbers.
+ * The warm dark scheme, built from [BrandColors]: ink ground, panel for fills, cream and grey text, orange for focus
+ * (`primary` is a focused button's fill, `border` the ring on a focused field or row). `error` stays tv-material's.
+ * `ContrastTest` checks the ratios.
  */
-val StationBreakDarkColors = darkColorScheme(border = Color(0xFF7E74B0))
+val StationBreakDarkColors =
+    darkColorScheme(
+        background = BrandColors.Ink,
+        surface = BrandColors.Ink,
+        surfaceVariant = BrandColors.Panel,
+        onBackground = BrandColors.Cream,
+        onSurface = BrandColors.Cream,
+        onSurfaceVariant = BrandColors.Grey,
+        primary = BrandColors.Orange,
+        onPrimary = BrandColors.Ink,
+        border = BrandColors.Orange,
+    )
 
 /** How strong the address hint is, as the alpha of `onSurfaceVariant` on the field fill. 0.9 keeps it above 4.5:1. */
 const val HINT_ALPHA = 0.9f
