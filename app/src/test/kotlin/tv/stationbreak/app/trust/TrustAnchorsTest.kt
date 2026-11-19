@@ -57,7 +57,7 @@ class TrustAnchorsTest {
     @Test
     fun theCrossSignedRootYeIsTheBundledRootYeAndVerifiesUnderRootX2() {
         // Ties Root YE, which no trust store lists yet, to Root X2, which Mozilla's does: same key, signed by X2.
-        val crossSign = parse(File("src/androidTest/assets/chains/isrg_root_ye_by_x2.pem").readBytes())
+        val crossSign = parse(File("src/androidTest/securityTest/trust/assets/chains/isrg_root_ye_by_x2.pem").readBytes())
         val rootYe = parse(bundled().getValue("isrg_root_ye"))
         val rootX2 = parse(bundled().getValue("isrg_root_x2"))
         assertEquals(rootYe.publicKey, crossSign.publicKey)
