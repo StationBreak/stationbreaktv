@@ -98,6 +98,9 @@ data class SeparateSubtitle(
  * this source (spec 24), stamped on by the caller: a play with it swaps to that standby when it is ready. It is not
  * shown by [toString] either. [levelKey] names the item for volume levelling (its media source id, never a title or a
  * URL): a new key starts from that item's own gain (#498); null carries the gain over. Not shown by [toString].
+ * [fileFacts] is the file's container, size, runtime and track codecs for the player's error line (no title, path or
+ * id; #735), null for a source built by hand. It is log text only: nothing reads it to decide anything. It is derived
+ * from the same file as the rest of the source, so it never makes two sources of one file unequal.
  */
 @Suppress("LongParameterList") // One independent fact each; the player reads them all.
 data class PlayerSource(
@@ -112,6 +115,7 @@ data class PlayerSource(
     val subtitlePick: TrackPick? = null,
     val warmKey: String? = null,
     val levelKey: String? = null,
+    val fileFacts: String? = null,
 ) {
     override fun toString(): String = "PlayerSource(hls=$isHls, url=<not shown>, subtitles=${subtitles.size})"
 }

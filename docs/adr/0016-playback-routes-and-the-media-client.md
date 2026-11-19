@@ -400,3 +400,23 @@ per item and applied the next time the item plays.
   keeps the warm path. `Prepared.item` is public so the port can ask about the right item.
 - **Not covered:** the remembered version is not used to pre-resolve or warm the next programme, so the first flip to
   an item whose remembered version is not its default is not warm.
+
+## Update 2026-11-19: an MP4 whose header does not fit the heap (#735)
+
+A third case where the resolver overrules `SupportsDirectPlay`, beside decision 8's two. Media3 parses a direct-play
+MP4's whole `moov` box, every track's sample table, before the first frame, in one step that cannot be bounded or
+interrupted. On the Insignia (192 MiB heap) one long multi-track MP4 ran out of memory there three times in 60 flips.
+
+- **The rule.** For an MP4-family container, the resolver estimates the header's heap cost from the runtime and each
+  embedded track's frame or sample rate (`Mp4HeaderCost`: about 64 bytes per sample, measured on Media3 1.11.1). Over a
+  third of the heap limit the route is the server's direct stream (else a transcode): the video is copied, and HLS
+  segments carry no whole-file sample table. Matroska and the other containers are not affected.
+- **What the server sends for it.** `MediaSource.sizeBytes`, `MediaStreamInfo.frameRate` and `sampleRate` are mapped
+  from `Size`, `RealFrameRate` (else `AverageFrameRate`) and `SampleRate`. A missing rate takes a default; a missing
+  runtime gives no estimate, and the file direct-plays as before.
+- **What the log says.** The player's error line carries the file's container, size, runtime, track codecs and the
+  estimate (no title, path or id), and a refused direct play logs `route headerGuard` with the estimate and budget, so
+  the next failure names the kind of file.
+- **Revisit** when Media3 can skip unselected tracks' sample tables, or if device runs show the budget refusing files
+  that played well.
+
