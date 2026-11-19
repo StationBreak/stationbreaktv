@@ -334,11 +334,21 @@ class LineupService internal constructor(
         val entry = entryOf(owner)
         val began = TimeSource.Monotonic.markNow()
         val savedSeq = savedSeqNow()
+        var published = true
         entry.mutex.withLock {
             val start = startOf(owner, entry)
             entry.writable = start.save
             val (planned, meta) = planned(owner, account, libraries, start, sinceDayStart = rebuildDays)
-            val repairs = savedWithRecord(owner, entry, planned, meta, start.repairs, savedSeq)
+            val saving = recordSaved(owner, entry, planned, meta, start.repairs, savedSeq)
+            // A refresh whose save failed does not publish what it planned (Phil's decision on #648): the lineup
+            // still on disk stays the one in use, so the screen matches what is saved, and the next refresh plans
+            // again (the planned meta was never published, so it still looks out of date). With no lineup to keep
+            // (the first one) there is nothing to fall back to, so it is published as it was planned.
+            if (saving.failed && start.current != null) {
+                published = false
+                return@withLock
+            }
+            val repairs = saving.repairs
             if (rebuildDays) withContext(NonCancellable) { forgetDerived(owner.key, signOut = false) }
             publish(entry, planned, meta, repairs)
             // Again after the publish: a build that began between the first drop and the publish read the old lineup
@@ -348,8 +358,8 @@ class LineupService internal constructor(
             entry.loaded = true
         }
         // Only a refresh that ran to its publish is timed: load to publish, including any wait on the account's lock.
-        seams.timed(began.elapsedNow().inWholeMilliseconds)
-        return true
+        if (published) seams.timed(began.elapsedNow().inWholeMilliseconds)
+        return published
     }
 
     /**
@@ -1028,12 +1038,28 @@ class LineupService internal constructor(
         meta: RefreshMeta,
         repairs: TodayRepairs,
         savedSeq: SavedSeqs?,
-    ): TodayRepairs {
-        if (!entry.writable) return repairs
+    ): TodayRepairs = recordSaved(owner, entry, lineup, meta, repairs, savedSeq).repairs
+
+    // [savedWithRecord]'s record, and whether a write was tried and failed (not when this session may not write).
+    private class Saving(
+        val repairs: TodayRepairs,
+        val failed: Boolean = false,
+    )
+
+    @Suppress("LongParameterList") // The save's own five, and the saved seq read before the lock.
+    private suspend fun recordSaved(
+        owner: Owner,
+        entry: Entry,
+        lineup: Lineup,
+        meta: RefreshMeta,
+        repairs: TodayRepairs,
+        savedSeq: SavedSeqs?,
+    ): Saving {
+        if (!entry.writable) return Saving(repairs)
         val trimmed = trimmed(lineup, meta, repairs, nowMs(), savedSeq)
         val saved = saveVerified(owner, lineup, meta, trimmed.record)
         if (saved) told(trimmed)
-        return if (saved) trimmed.record else repairs
+        return if (saved) Saving(trimmed.record) else Saving(repairs, failed = true)
     }
 
     private suspend fun record(
