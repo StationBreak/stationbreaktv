@@ -49,7 +49,7 @@ android {
     }
 
     sourceSets {
-        getByName("main").kotlin.directories.add("../app/src/androidTest/securityTest/kotlin")
+        getByName("main").kotlin.directories.add("../app/src/androidTest/securityTest/trust/kotlin")
     }
 }
 
@@ -67,17 +67,9 @@ dependencies {
     implementation(project(":data:jellyfin"))
 }
 
-// The shared directory holds the Hilt tests too; this module compiles only the two that need none. AndroidSystemTrust is
+// The trust tests reach AndroidSystemTrust, which is
 // `internal` to the app, so the app's classes are this module's friend, as in app's own androidTest.
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    exclude(
-        "**/AdapterLogBindingTest.kt",
-        "**/NoPlaintextOnDiskTest.kt",
-        "**/SecretPersistenceTest.kt",
-        "**/SelectionResumeRule.kt",
-        "**/SecretFixtures.kt",
-        "**/HiltTestRunner.kt",
-    )
     val appBuild =
         project(":app")
             .layout.buildDirectory

@@ -640,8 +640,8 @@ Together they fail the build if
 
 The five security tests (`PinnedTrustOnApi25Test`, `NetworkSecurityConfigChainTest`, `NoPlaintextOnDiskTest`,
 `SecretPersistenceTest`, `AdapterLogBindingTest`) must also pass against shipped code. Their sources and helpers live once, in
-`app/src/androidTest/securityTest/kotlin`; `app`'s `androidTest` (the debug `emulator` job) and the two test modules compile that
-directory, and each test module compiles only its own files. `:security-minified-test` is a `com.android.test` module with
+`app/src/androidTest/securityTest/{hilt,trust}/kotlin`; `app`'s `androidTest` (the debug `emulator` job) and the two test modules compile them:
+the `hilt` directory is `:security-minified-test`'s, the `trust` directory is `:security-minified-test-trust`'s (no name-based file lists). `:security-minified-test` is a `com.android.test` module with
 `targetProjectPath = ":app"` and a `benchmark` build type, so its `githubBenchmark` variant instruments the minified app. It
 holds the three `@HiltAndroidTest` classes, so it is the Hilt test application's host (`HiltTestRunner`) and depends on every
 module `app` wires. `:security-minified-test-trust` holds `PinnedTrustOnApi25Test` and `NetworkSecurityConfigChainTest` under

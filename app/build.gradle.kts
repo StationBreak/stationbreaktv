@@ -186,7 +186,9 @@ android {
         getByName("debug").kotlin.directories.add("src/nonRelease/kotlin")
         getByName("benchmark").kotlin.directories.add("src/nonRelease/kotlin")
         // The security tests and their helpers are compiled here and by :security-minified-test (#436): one copy.
-        getByName("androidTest").kotlin.directories.add("src/androidTest/securityTest/kotlin")
+        getByName(
+            "androidTest",
+        ).kotlin.directories.addAll(listOf("src/androidTest/securityTest/hilt/kotlin", "src/androidTest/securityTest/trust/kotlin"))
     }
 }
 
