@@ -1,0 +1,3 @@
+<failure message="androidx.compose.ui.test.ComposeTimeoutException: Condition (a window of the test has input focus) still not satisfied after 10000 ms" type="androidx.compose.ui.test.ComposeTimeoutException">androidx.compose.ui.test.ComposeTimeoutException: Condition (a window of the test has input focus) still not satisfied after 10000 ms
+	at androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:1)
+	at tv.stationbreak.feature.guide.ui.KeyFocusKt.awaitWindowFocus(KeyFocus.kt:27)</failure>

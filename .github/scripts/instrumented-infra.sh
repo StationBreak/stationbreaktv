@@ -45,6 +45,13 @@
 #                 logcat cannot tell the two apart reliably (the default buffers carry no per-test "resumed" marker),
 #                 so (b) counts only when EVERY failure in the run is (b). Any other failure alongside it, even an
 #                 empty one, makes the run genuine.
+#              c. `androidx.compose.ui.test.ComposeTimeoutException: Condition (a window of the test has input focus)
+#                 still not satisfied`: awaitWindowFocus (the KeyFocus.kt helper in app, feature/guide, feature/live and
+#                 feature/onboarding androidTest) gave up waiting for the test's window to get input focus, because
+#                 the launcher or a system dialog kept it (#473, GuideFirstVisitUiTest, GuideMenuUiTest). Only that
+#                 helper's own wording counts: a test's own waitUntil (`Condition still not satisfied after N ms`) and
+#                 awaitFocusedForKeys (`Condition (<tag> is focused and its window has input focus)`, a focus that
+#                 did not land, which can be a real bug) stay genuine.
 #            Anchored match: the failure's head is its message attribute if it has one, else its body (AGP's
 #            connected-test XML usually has no message; the body starts with the exception class). After optional
 #            leading whitespace the head must BEGIN with the exact text above, and a type="..." attribute, if
@@ -167,6 +174,7 @@ case "$mode" in
     empty=0
     sig_inject=0
     sig_nohier=0
+    sig_window=0
     crashed=0
     crashed_in=()
     # Rule 0: the run itself died. AGP's own records in its connected-test XML: its testRunFailed test case, or a
@@ -174,6 +182,8 @@ case "$mode" in
     crash_marks='<testcase name="testRunFailed" classname="android-test"|<failure[^>]*>[[:space:]]*(Test failed with status -1|Test run failed to complete\.[^<]*(System has crashed|Instrumentation run failed due to Process crashed))'
     sig_inject_class="java.lang.SecurityException"
     sig_inject_text="$sig_inject_class: Injecting to another application requires INJECT_EVENTS"
+    sig_window_class="androidx.compose.ui.test.ComposeTimeoutException"
+    sig_window_text="$sig_window_class: Condition (a window of the test has input focus) still not satisfied after"
     sig_nohier_class="java.lang.IllegalStateException"
     sig_nohier_text="$sig_nohier_class: No compose hierarchies found in the app"
     files=()
@@ -208,6 +218,8 @@ case "$mode" in
           head="${head#"${head%%[![:space:]]*}"}"
           if [[ "$head" == "$sig_inject_text"* ]] && [[ -z "$type" || "$type" == "$sig_inject_class" ]]; then
             sig_inject=$((sig_inject + 1))
+          elif [[ "$head" == "$sig_window_text"* ]] && [[ -z "$type" || "$type" == "$sig_window_class" ]]; then
+            sig_window=$((sig_window + 1))
           elif [[ "$head" == "$sig_nohier_text"* ]] && [[ -z "$type" || "$type" == "$sig_nohier_class" ]]; then
             sig_nohier=$((sig_nohier + 1))
           else
@@ -220,7 +232,7 @@ case "$mode" in
     done
 
     # (b) is ambiguous on its own (see the header): it counts only when nothing else failed.
-    if [ "$sig_nohier" -gt 0 ] && { [ "$genuine" -gt 0 ] || [ "$sig_inject" -gt 0 ] || [ "$empty" -gt 0 ]; }; then
+    if [ "$sig_nohier" -gt 0 ] && { [ "$genuine" -gt 0 ] || [ "$sig_inject" -gt 0 ] || [ "$sig_window" -gt 0 ] || [ "$empty" -gt 0 ]; }; then
       genuine=$((genuine + sig_nohier))
       sig_nohier=0
     fi
@@ -234,6 +246,10 @@ case "$mode" in
     fi
     if [ "$sig_inject" -gt 0 ]; then
       echo "infra: $sig_inject test failure(s) refused input injection (INJECT_EVENTS): a system dialog took focus"
+      exit 0
+    fi
+    if [ "$sig_window" -gt 0 ]; then
+      echo "infra: $sig_window test failure(s) waited for window focus that never came (the launcher or a system dialog kept it)"
       exit 0
     fi
     if [ "$sig_nohier" -gt 0 ]; then

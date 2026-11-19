@@ -215,6 +215,47 @@ new_case
 xml '<failure>Test run failed to complete. Instrumentation run failed due to Process crashed.</failure>'
 expect "Process crashed alone" 0 "instrumentation run crashed"
 
+# awaitWindowFocus (#473): the test's window never got input focus. Only that helper's own wording is infrastructure.
+new_case
+xml "$(cat "$fx/window-focus.failure.xml")"
+expect "awaitWindowFocus timed out (message attribute)" 0 "window focus that never came"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")"
+expect "awaitWindowFocus timed out (body only, as AGP writes it)" 0 "window focus that never came"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")$(cat "$fx/body-window-focus.failure.xml")"
+expect "two awaitWindowFocus timeouts" 0 "2 test failure(s) waited for window focus"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")$(cat "$fx/inject-events.failure.xml")"
+expect "awaitWindowFocus plus INJECT_EVENTS (both system-dialog signatures)" 0 "infra"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")$(cat "$fx/body-compose-timeout.failure.xml")"
+expect "awaitWindowFocus plus a test's own waitUntil timeout" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")<failure message=\"java.lang.AssertionError: expected:&lt;1&gt;\">trace</failure>"
+expect "awaitWindowFocus plus an assertion" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-window-focus.failure.xml")$(cat "$fx/body-no-compose-hierarchies.failure.xml")"
+expect "awaitWindowFocus plus No compose hierarchies found (the latter is not then the sole signature)" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-compose-timeout.failure.xml")"
+expect "a test's own waitUntil timeout stays genuine" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-tag-focus.failure.xml")"
+expect "awaitFocusedForKeys (a tag's focus did not land) stays genuine" 1 "genuine"
+
+new_case
+xml "$(cat "$fx/body-assertion-quotes-window-focus.failure.xml")"
+expect "an assertion that quotes the window-focus wording stays genuine" 1 "genuine"
+
 # Logcat: the system crashed.
 new_case
 xml '<testcase name="x"/>'
