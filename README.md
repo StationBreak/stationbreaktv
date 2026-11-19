@@ -14,7 +14,7 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 
 | Doc | What's in it |
 | --- | --- |
-| [User guide](docs/index.md) | For viewers: install, server setup, certificates, channels, FAQ, privacy. Published as the docs site |
+| [User guide](docs/guide/index.md) | For viewers: install, server setup, certificates, channels, FAQ, privacy. Published as the docs site |
 | [Spec](docs/SPEC.md) | Vision, goals, architecture, MVP scope (source of truth) |
 | [Epics](docs/EPICS.md) | One epic per roadmap phase, with its gate as acceptance criteria |
 | [Backlog](docs/BACKLOG.md) | Features and user stories with testable acceptance criteria |
