@@ -51,8 +51,11 @@ class AndroidAppPlugin : Plugin<Project> {
                             }.files
                     val defaultRules =
                         extensions.getByType(ApplicationExtension::class.java).getDefaultProguardFile("proguard-android-optimize.txt")
+                    // Only the minified security test run (#436) has generated keep rules; the guard trusts that one file.
+                    val generatedRules = minifiedSecurityKeepRules(variant)
                     val guard =
                         tasks.register<R8ConfigCheck>("checkR8Config$capitalised") {
+                            generatedRules?.let { this.generatedRules.set(it) }
                             group = LifecycleBasePlugin.VERIFICATION_GROUP
                             description = "Fails if the merged R8 configuration of $capitalised has a risky rule."
                             // AGP writes configuration.txt beside mapping.txt.

@@ -89,6 +89,67 @@ class ArchitectureRulesTest {
         )
     }
 
+    // The security test module (#436): a test module whose classes only app's keep-rule wiring reads.
+
+    @Test
+    fun appMayNameTheSecurityTestModuleInItsClassesConfiguration() {
+        assertEquals(emptyList(), rulesBroken(":app", project("securityTestClasses", ":security-minified-test-hilt")))
+    }
+
+    @Test
+    fun nothingElseMayNameTheSecurityTestModule() {
+        assertEquals(
+            listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
+            rulesBroken(":app", project("implementation", ":security-minified-test-hilt")),
+        )
+        assertEquals(
+            listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
+            rulesBroken(":feature:guide", project("securityTestClasses", ":security-minified-test-hilt")),
+        )
+    }
+
+    @Test
+    fun theSecurityTestModuleMayTargetTheAppAndUseWhatTheTestsUse() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":security-minified-test-hilt",
+                project("testedApks", ":app"),
+                project("compileOnly", ":app"),
+                project("securityTargetClasses", ":app"),
+                project("implementation", ":data:jellyfin"),
+                project("implementation", ":feature:guide"),
+                DeclaredEdge("implementation", Dependency.OnProject(":core:domain", testFixtures = true)),
+            ),
+        )
+    }
+
+    @Test
+    fun theTrustTestModuleIsTheSmallEndAndHasNoFeatureOrHiltReach() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":security-minified-test-trust",
+                project("testedApks", ":app"),
+                project("compileOnly", ":app"),
+                project("implementation", ":data:jellyfin"),
+            ),
+        )
+        assertEquals(
+            listOf(Rule.NOT_ALLOWLISTED),
+            rulesBroken(":security-minified-test-trust", project("implementation", ":feature:guide")),
+        )
+        assertEquals(
+            listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
+            rulesBroken(":app", project("implementation", ":security-minified-test-trust")),
+        )
+    }
+
+    @Test
+    fun theBenchmarkModuleMayNotCompileAgainstTheApp() {
+        assertEquals(listOf(Rule.NOT_ALLOWLISTED), rulesBroken(":benchmark", project("compileOnly", ":app")))
+    }
+
     // [KMP]/[JVM] modules: no Android dependencies.
 
     @Test

@@ -29,8 +29,8 @@ Let's Encrypt does not publish SHA-256 fingerprints for these roots on its pages
    shipped in a current Linux `ca-certificates` bundle.
 3. **Root YE against X2 by signature:** Let's Encrypt's cross-signed Root YE
    (<https://letsencrypt.org/certs/gen-y/root-ye-by-x2.pem>, kept as a test fixture at
-   `app/src/androidTest/assets/chains/isrg_root_ye_by_x2.pem`) carries the same public key as `isrg_root_ye.pem` and
-   verifies under the X2 above. `TrustAnchorsTest` checks this on every build, which ties YE to the root that is in
+   `app/src/androidTest/securityTest/trust/assets/chains/isrg_root_ye_by_x2.pem`) carries the same public key as
+   `isrg_root_ye.pem` and verifies under the X2 above. `TrustAnchorsTest` checks this on every build, which ties YE to the root that is in
    the trust stores.
 
 ## Decision: Root YE is bundled, Root YR is not

@@ -85,7 +85,9 @@ stationbreaktv/
 
 `benchmark/` (Macrobenchmark + Baseline Profile generation, F2.5, [#416](https://github.com/StationBreak/stationbreaktv/issues/416))
 is a `com.android.test` module that only the app's `baselineProfile` configuration points at; nothing ships from it and no
-module depends on it. `core:common` is not created until something genuinely needs sharing.
+module depends on it. `security-minified-test-hilt/` and `security-minified-test-trust/` ([#436](https://github.com/StationBreak/stationbreaktv/issues/436)) are the other
+`com.android.test` modules: the test APKs for the security tests that run against the R8-minified `githubBenchmark` build (see
+"Security tests on the minified build"). `core:common` is not created until something genuinely needs sharing.
 ```
 
 **Baseline Profile (#416).** `benchmark/GuideBaselineProfile` drives the guide on a real TV with the ADR-0008 scenarios
@@ -630,7 +632,37 @@ Together they fail the build if
   `ForbiddenImport` on `okhttp3.logging.HttpLoggingInterceptor` is the second guard),
 - any module other than `app`, or `app` outside its `baselineProfile` configuration, depends on `benchmark`
   (`benchmark-for-profile-only`, #416),
+- any module other than `app`, or `app` outside its `securityTestClasses` configuration, depends on `security-minified-test-hilt` or `security-minified-test-trust`
+  (`security-test-for-keep-rules-only`, #436),
 - any manifest uses `tools:overrideLibrary`.
+
+### Security tests on the minified build
+
+The five security tests (`PinnedTrustOnApi25Test`, `NetworkSecurityConfigChainTest`, `NoPlaintextOnDiskTest`,
+`SecretPersistenceTest`, `AdapterLogBindingTest`) must also pass against shipped code. Their sources and helpers live once, in
+`app/src/androidTest/securityTest/{hilt,trust}/kotlin`; `app`'s `androidTest` (the debug `emulator` job) and the two test modules compile them:
+the `hilt` directory is `:security-minified-test-hilt`'s, the `trust` directory is `:security-minified-test-trust`'s (no name-based file lists). `:security-minified-test-hilt` is a `com.android.test` module with
+`targetProjectPath = ":app"` and a `benchmark` build type, so its `githubBenchmark` variant instruments the minified app. It
+holds the three `@HiltAndroidTest` classes, so it is the Hilt test application's host (`HiltTestRunner`) and depends on every
+module `app` wires. `:security-minified-test-trust` holds `PinnedTrustOnApi25Test` and `NetworkSecurityConfigChainTest` under
+the plain `AndroidJUnitRunner`: no Hilt plugin, KSP or Hilt dependency. `checkArchitecture` lists the edges of both.
+
+A normal build never touches it. With `-Pstationbreak.minifiedSecurityTest=true` the app's `githubBenchmark` R8 run also reads
+`traceSecurityTestReferences`'s output: R8's own `tracereferences --keep-rules`, with both test APKs' classes as `--source` and
+the variant's R8 input as `--target`. The app keeps exactly what the test APK references; the rest is shrunk and optimised as
+in the benchmark build used for timing. `R8ConfigCheck` trusts that one generated file by its exact path and text, and holds it
+to every library check (`generatedRules`); no app allowance reaches it. Only the app's `securityTestClasses` configuration may
+name the module (`security-test-for-keep-rules-only`).
+
+Android loads the test APK before the app, so a class packaged in both would run unminified from the test APK. Each test
+module's `assembleGithubBenchmark` therefore runs `checkSecurityTestApkOverlap`, which fails (listing up to 20 names) if the
+test APK holds any class of the app's R8 input other than the module's own; `traceSecurityTestReferences` also fails if
+a missing definition is under `tv.stationbreak.` or `okhttp3.`, or if it writes fewer than 100 `-keep` rules. Both run only
+with the property.
+
+**What the run proves, and what it does not.** It proves the R8-optimised code bodies the tests reach. The three Hilt tests
+reach them through the Hilt component the test generates, so the run does not prove the shipped component's wiring, and the
+generated keeps stop R8 from optimising the signatures the tests call.
 
 ### Hilt in pure modules
 
