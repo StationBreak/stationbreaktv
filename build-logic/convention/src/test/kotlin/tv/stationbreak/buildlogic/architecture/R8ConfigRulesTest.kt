@@ -2,24 +2,34 @@
 package tv.stationbreak.buildlogic.architecture
 
 import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class R8ConfigRulesTest {
     // A library header is believed only for an extracted file that exists under a trusted root (the Gradle user home or
-    // the root project), so the tests keep real files under a temporary root.
+    // the root project) and holds the section's text, so the tests keep real files under a temporary root.
     private val root = Files.createTempDirectory("r8rules").toRealPath()
 
-    private fun extractedFile(name: String) = root.resolve(name).also { Files.writeString(it, "") }
+    private fun extractedFile(
+        name: String,
+        content: String,
+    ) = root.resolve(name).also { Files.writeString(it, content + "\n") }
 
-    private val proguardFile = extractedFile("proguard.txt")
+    // The file R8 would have read for a section with these rules; one file per distinct text.
+    private fun fileWith(vararg rules: String): Path {
+        val text = rules.joinToString("\n")
+        return extractedFile("r${text.hashCode()}.txt", text)
+    }
+
+    private val proguardFile = fileWith("-keep class a.B")
 
     private fun section(
         source: String,
         vararg rules: String,
     ): String {
         // AGP prints the app's own rules file as the bare path, and a library's with the extracted file.
-        val name = if (source == appRules) source else "$source (extracted file: $proguardFile)"
+        val name = if (source == appRules) source else "$source (extracted file: ${fileWith(*rules)})"
         return "# The proguard configuration file for the following section is $name\n" +
             rules.joinToString("\n") + "\n# End of content from $name\n"
     }
@@ -175,8 +185,8 @@ class R8ConfigRulesTest {
 
     @Test
     fun aLibraryWithTwoRuleFilesIsFine() {
-        extractedFile("one.pro")
-        extractedFile("two.pro")
+        extractedFile("one.pro", "-keep class a.B")
+        extractedFile("two.pro", "-keep class a.C")
         val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: $root/"
         val end = "# End of content from a:b:1 (extracted file: $root/"
         val config = "${header}one.pro)\n-keep class a.B\n${end}one.pro)\n${header}two.pro)\n-keep class a.C\n${end}two.pro)\n"
@@ -688,13 +698,16 @@ class R8ConfigRulesTest {
     fun theHeaderShapesAgpPrintsPass() {
         fun block(
             header: String,
-            vararg rules: String,
-        ) = "# The proguard configuration file for the following section is $header\n" + rules.joinToString("\n") +
-            "\n# End of content from $header\n"
+            rule: String,
+        ): String {
+            // A library's header names the file holding its text; the others have none.
+            val full = if (header.startsWith("<") || header == appRules) header else "$header (extracted file: ${fileWith(rule)})"
+            return "# The proguard configuration file for the following section is $full\n$rule\n# End of content from $full\n"
+        }
         val config =
-            block("androidx.core:core:1.2.0 (extracted file: $proguardFile)", "-keep class a.B") +
-                block("Android Gradle plugin 9.5.1 (extracted file: $proguardFile)", "-keep class a.C") +
-                block("Local project :::feature:live (extracted file: $proguardFile)", "-keep class a.D") +
+            block("androidx.core:core:1.2.0", "-keep class a.B") +
+                block("Android Gradle plugin 9.5.1", "-keep class a.C") +
+                block("Local project :::feature:live", "-keep class a.D") +
                 block("<unknown>", "-keep class a.E") +
                 block(appRules, "-dontobfuscate")
         assertEquals(emptyList(), scan(config))
@@ -750,4 +763,46 @@ class R8ConfigRulesTest {
     @Test
     fun anAnnotationAfterANonKeepOptionIsNotAnInclude() =
         assertEquals(emptyList(), violations("-identifiernamestring @dagger.internal.IdentifierNameString class ** {", "    *;", "}"))
+
+    // #933 fix 5: the named file must hold the section's text, not just exist.
+    private fun forgedHeader(
+        file: Path,
+        vararg rules: String,
+    ) = "androidx.compose.runtime:runtime-android:0 (extracted file: $file)".let { header ->
+        "# The proguard configuration file for the following section is $header\n${rules.joinToString("\n")}\n" +
+            "# End of content from $header\n"
+    }
+
+    @Test
+    fun aForgedHeaderNamingARealFileWithOtherContentIsFlagged() {
+        val found = scan(forgedHeader(proguardFile, "-assumenosideeffects class a.B"))
+        assertEquals(listOf("a section header of an unknown shape", "-assumenosideeffects class a.B"), found.map { it.rule })
+    }
+
+    @Test
+    fun aHeaderWhoseFileHoldsTheSectionPasses() {
+        val file = fileWith("-assumenosideeffects class a.B")
+        assertEquals(emptyList(), scan(forgedHeader(file, "-assumenosideeffects class a.B").replace(":0 (", ":1.12.1 (")))
+    }
+
+    @Test
+    fun theFileMayDifferInLineEndingsTrailingSpacesAndEdgeBlankLines() {
+        val file = root.resolve("crlf.txt").also { Files.writeString(it, "\r\n-keep class a.B  \r\n-keep class a.C\t\r\n\r\n") }
+        assertEquals(emptyList(), scan(forgedHeader(file, "-keep class a.B", "-keep class a.C")))
+    }
+
+    @Test
+    fun aDotDotPathBackUnderTheRootWithOtherContentIsFlagged() {
+        Files.createDirectories(root.resolve("sub"))
+        val path = "$root/sub/../${proguardFile.fileName}"
+        val found = scan(forgedHeader(Path.of(path), "-assumenosideeffects class a.B"))
+        assertEquals(listOf("a section header of an unknown shape", "-assumenosideeffects class a.B"), found.map { it.rule })
+    }
+
+    @Test
+    fun aGluedKeywordInAnIfConditionIsFlagged() {
+        assertOnly("-if class**", "-if class**", "-keep class <1>")
+        assertOnly("-if class** -keep class <1>", "-if class** -keep class <1>")
+        assertEquals(emptyList(), violations("-if class a.B", "-keep class <1>"))
+    }
 }

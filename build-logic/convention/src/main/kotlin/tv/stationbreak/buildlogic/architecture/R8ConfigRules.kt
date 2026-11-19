@@ -2,7 +2,6 @@
 package tv.stationbreak.buildlogic.architecture
 
 import java.nio.file.Files
-import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 /** One forbidden rule in the merged R8 configuration: the rule's first line, and the file or artifact it came from. */
@@ -165,6 +164,7 @@ object R8ConfigRules {
     ): List<R8Violation> {
         val found = mutableListOf<R8Violation>()
         val seen = mutableSetOf<String>()
+        val bodies = sectionBodies(configuration)
         var source = "unknown"
         var open: String? = null
         var directive = StringBuilder()
@@ -246,7 +246,8 @@ object R8ConfigRules {
                     val text = header.groupValues[1]
                     val shapeOk =
                         text == appRules ||
-                            libraryHeaders.any { it.matches(text) } && (text == "<unknown>" || extractedFileIsReal(text, trustedRoots))
+                            libraryHeaders.any { it.matches(text) } &&
+                            (text == "<unknown>" || extractedFileIsReal(text, trustedRoots, bodies[text]))
                     // A header of an unknown shape never reaches the app's allowance, whatever its text says.
                     val name = if (shapeOk || coordinateHeader.matches(text)) normalise(text, appRules) else "unknown header: $text"
                     if (open != null) found += R8Violation("a section header inside an open section", name)
@@ -303,16 +304,54 @@ object R8ConfigRules {
         return found
     }
 
+    // Each section's lines by its header text (the first section of a header), as R8 printed them.
+    private fun sectionBodies(configuration: String): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        var header: String? = null
+        val body = mutableListOf<String>()
+
+        fun close() {
+            header?.let { result.putIfAbsent(it, body.joinToString("\n")) }
+            header = null
+            body.clear()
+        }
+        for (raw in configuration.lines()) {
+            val whole = raw.trim()
+            val opening = sectionHeader.matchEntire(whole)
+            when {
+                opening != null -> {
+                    close()
+                    header = opening.groupValues[1]
+                }
+
+                sectionEnd.matchEntire(whole) != null -> close()
+
+                header != null -> body += raw
+            }
+        }
+        close()
+        return result
+    }
+
+    // Line endings, trailing whitespace and blank lines at either end are the only differences R8's copy may have.
+    private fun comparable(text: String): String =
+        text.lines().map { it.trimEnd() }.dropWhile { it.isEmpty() }.dropLastWhile { it.isEmpty() }.joinToString("\n")
+
     private fun extractedFileIsReal(
         header: String,
         roots: List<String>,
+        body: String?,
     ): Boolean {
         val raw = extractedPath.find(header)?.groupValues?.get(1) ?: return false
         val path = runCatching { Path.of(raw) }.getOrNull() ?: return false
         if (!path.isAbsolute || !Files.exists(path)) return false
         // Normalised, not resolved: a symlink under a root does not make a path outside it.
         val normal = path.normalize()
-        return roots.any { normal.startsWith(Path.of(it).normalize()) }
+        if (roots.none { normal.startsWith(Path.of(it).normalize()) }) return false
+        // The header is believed only if the file it names is the text R8 read for this section: a forged header can
+        // name any real file under a root, but not make that file's content equal its own rules.
+        val content = runCatching { Files.readString(path) }.getOrNull() ?: return false
+        return body != null && comparable(content) == comparable(body)
     }
 
     private fun uncommented(line: String): String {
@@ -340,7 +379,10 @@ object R8ConfigRules {
             // condition (#909).
             option == "-if" -> {
                 ifKeep.find(directive)?.let {
-                    forbidden(resolved(directive.substring(0, it.range.first), it.groupValues[1]))
+                    val condition = directive.substring(0, it.range.first)
+                    // `-if class** -keep class <1>`: no exact class keyword in the condition, as for a keep (#933).
+                    val keywords = condition.substringBefore('{').split(separators).filter { token -> token in classKeywords }
+                    keywords.isEmpty() || forbidden(resolved(condition, it.groupValues[1]))
                 } == true
             }
 
