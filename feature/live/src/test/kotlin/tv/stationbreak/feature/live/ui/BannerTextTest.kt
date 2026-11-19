@@ -3,11 +3,13 @@ package tv.stationbreak.feature.live.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.ui.ProgramCopy
+import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.live.NextProgram
 import java.io.File
 import java.time.ZoneOffset
@@ -21,6 +23,9 @@ class BannerTextTest {
     private val copy = StringsXml.programCopy()
     private val banner = StringsXml.bannerCopy()
     private val id = CanonicalId.parse("1".padStart(32, '0'))
+
+    // 9 PM on a 24-hour clock, as [ProgramText.time] words it.
+    private val ninePm = "21:00"
 
     private fun episode(
         season: Int?,
@@ -110,17 +115,86 @@ class BannerTextTest {
     @Test
     fun nextLineNamesTheProgramAndWhenItStarts() {
         val next = NextProgram("Test Movie B", 21 * 3_600_000L)
-        val line = BannerText.nextLine(next, copy, ZoneOffset.UTC, false, Locale.US)
-        assertEquals("Next: Test Movie B at 9:00 PM", line)
+        val line = BannerText.nextLine(next, ProgramText.time(next.startMs, ZoneOffset.UTC, false, Locale.US), copy)
+        assertEquals("Up next: Test Movie B at 9:00 PM", line)
     }
 
     @Test
-    fun aLongNextTitleIsCutBeforeTheLineIsMadeSoTheTimeStaysInView() {
+    fun aLongNextTitleIsCutUntilTheWholeLineFitsSoTheTimeStaysInView() {
         val title = "A Very Long Synthetic Name ".repeat(5).trim()
-        val line = BannerText.nextLine(NextProgram(title, 21 * 3_600_000L), copy, ZoneOffset.UTC, true, Locale.US)
-        assertEquals("Next: ${title.take(39)}\u2026 at 21:00", line)
-        assertEquals(40, BannerText.capTitle(title).length)
-        assertEquals("Test Movie B", BannerText.capTitle("Test Movie B"))
+        val next = NextProgram(title, 21 * 3_600_000L)
+        val line = BannerText.nextLine(next, ninePm, copy) { it.length <= 40 }
+        // "Up next: " and " at 21:00" leave 22 characters: 21 of the title (a space dropped) and the ellipsis.
+        assertEquals("Up next: A Very Long Synthetic\u2026 at 21:00", line)
+        assertTrue(line.endsWith(" at 21:00"))
+    }
+
+    @Test
+    fun withNoMeasureTheNextTitleIsWhole() {
+        val title = "A Very Long Synthetic Name ".repeat(5).trim()
+        val line = BannerText.nextLine(NextProgram(title, 21 * 3_600_000L), ninePm, copy)
+        assertEquals("Up next: $title at 21:00", line)
+    }
+
+    @Test
+    fun aTitleThatFitsIsLeftWhole() {
+        assertEquals("Test Movie B", BannerText.fitTitle("Test Movie B") { it.length <= 20 })
+    }
+
+    @Test
+    fun aLongTitleIsCutToTheLongestStartThatFitsWithAnEllipsis() {
+        val cut = BannerText.fitTitle("Abcdefghij Klmnopqrst") { it.length <= 10 }
+        assertEquals("Abcdefghi\u2026", cut)
+    }
+
+    @Test
+    fun aWideTitleIsCutFurtherThanANarrowOneOfTheSameLength() {
+        // A stand-in measure: a capital is twice as wide as anything else.
+        val width = { s: String -> s.sumOf { if (it.isUpperCase()) 2 else 1 } }
+        val narrow = BannerText.fitTitle("the quiet hours of night") { width(it) <= 16 }
+        val wide = BannerText.fitTitle("THE QUIET HOURS OF NIGHT") { width(it) <= 16 }
+        assertEquals("the quiet hours\u2026", narrow)
+        assertEquals("THE QUIE\u2026", wide)
+        assertTrue(wide.length < narrow.length)
+    }
+
+    @Test
+    fun whenNothingFitsTheTitleIsALoneEllipsisAndTheSearchEnds() {
+        var asked = 0
+        val cut =
+            BannerText.fitTitle("Test Movie ".repeat(200)) {
+                asked++
+                false
+            }
+        assertEquals("\u2026", cut)
+        assertTrue("asked $asked times", asked <= 2)
+        assertEquals("\u2026", BannerText.fitTitle("") { false })
+    }
+
+    @Test
+    fun whenOnlyTheEllipsisFitsTheTimeIsStillLast() {
+        val next = NextProgram("Test Movie B", 21 * 3_600_000L)
+        val bare = "Up next: \u2026 at 21:00"
+        val line = BannerText.nextLine(next, ninePm, copy) { it.length <= bare.length }
+        assertEquals(bare, line)
+    }
+
+    @Test
+    fun theSearchAsksAboutLogarithmicallyManyCuts() {
+        var asked = 0
+        BannerText.fitTitle("x".repeat(1_000)) {
+            asked++
+            it.length <= 300
+        }
+        assertTrue("asked $asked times", asked <= 13)
+    }
+
+    @Test
+    fun aCutNeverSplitsASurrogatePair() {
+        val title = "ab\uD83D\uDCFAcd"
+        // Keeping three characters would end on the first half of the TV emoji, so only "ab" is kept.
+        val cut = BannerText.fitTitle(title) { it.length <= 4 }
+        assertEquals("ab\u2026", cut)
     }
 }
 

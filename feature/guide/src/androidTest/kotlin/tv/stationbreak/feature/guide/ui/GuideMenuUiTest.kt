@@ -326,7 +326,7 @@ class GuideMenuUiTest {
     fun backFromThePlayingCellOpensTheSheetAndBackAgainLeaves() {
         showReady()
         cell(60).assertIsSelected()
-        assertTrue(hint(), hint().contains("Back To the menu"))
+        assertTrue(hint(), hint().contains("Back Open the menu"))
         back()
         awaitOnChannels()
         assertEquals("Back Exit live TV", hint())
@@ -477,7 +477,7 @@ class GuideMenuUiTest {
         sheet().assertDoesNotExist()
         // Still on the channel column: its panel and its hint, no cell selected.
         compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertExists()
-        assertTrue(hint(), hint().contains("Back to programs"))
+        assertTrue(hint(), hint().contains("Back to programmes"))
         cell(60).assertIsNotSelected()
         press(Key.DirectionRight)
         cell(60).assertIsSelected()

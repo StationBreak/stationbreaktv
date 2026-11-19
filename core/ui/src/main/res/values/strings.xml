@@ -11,7 +11,7 @@
     <string name="program_episode_season">S%1$d · %2$s</string>
     <string name="program_episode_number">E%1$d · %2$s</string>
 
-    <string name="program_next">Next: %1$s at %2$s</string>
+    <string name="program_next">Up next: %1$s at %2$s</string>
     <string name="program_off_air_until">Off air until %1$s</string>
     <!-- A station break (leftover time spread through the day): the time is when the next programme starts. -->
     <string name="program_station_break_up_next">Station break · Up next at %1$s</string>
@@ -25,10 +25,10 @@
     <string name="program_back_to_close">Back to close</string>
 
     <!-- The notice that a channel the viewer switched on is ready (#776): its number and name, or how many. -->
-    <string name="ready_notice_one">%1$d %2$s is ready</string>
+    <string name="ready_notice_one">%1$d %2$s is on the air</string>
     <plurals name="ready_notice_many">
-        <item quantity="one">%1$d channel is ready</item>
-        <item quantity="other">%1$d channels are ready</item>
+        <item quantity="one">%1$d channel is on the air</item>
+        <item quantity="other">%1$d channels are on the air</item>
     </plurals>
 
     <!-- What a channel holds (#757): the box beside the guide's channel and the properties sheet's "What it holds". -->

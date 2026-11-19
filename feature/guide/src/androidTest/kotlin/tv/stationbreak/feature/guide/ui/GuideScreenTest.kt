@@ -329,7 +329,7 @@ class GuideScreenTest {
         showReady(CH7)
         // On the row's earliest cell: OK, the left-arrow hint, Back, Menu, in that order.
         assertEquals(
-            "OK Watch   ◂ About this channel   Back To the menu   Menu Open the menu",
+            "OK Watch   ◂ About this channel   Back Open the menu   Menu Open the menu",
             text(GuideTags.HINT),
         )
         press(Key.DirectionRight)
@@ -339,7 +339,8 @@ class GuideScreenTest {
         // On the channel column itself the way out is Right, and nothing says Left.
         press(Key.DirectionLeft)
         assertTrue(text(GuideTags.HINT), !text(GuideTags.HINT).contains("◂"))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK About this channel   ▸ Back to programs"))
+        val hint = text(GuideTags.HINT)
+        assertTrue(hint, hint.startsWith("OK About this channel   ▸ Back to programmes"))
     }
 
     @Test
@@ -365,7 +366,7 @@ class GuideScreenTest {
         // No cell is drawn focused, and the hint says what OK and the way back do.
         cell(CH5, 60).assertIsNotSelected()
         assertTrue(text(GuideTags.HINT).contains("About this channel"))
-        assertTrue(text(GuideTags.HINT).contains("Back to programs"))
+        assertTrue(text(GuideTags.HINT).contains("Back to programmes"))
         press(Key.DirectionRight)
         compose.onNodeWithTag(GuideTags.CHANNEL_PANEL).assertDoesNotExist()
         cell(CH5, 60).assertIsSelected()
@@ -537,7 +538,7 @@ class GuideScreenTest {
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back To the menu   Menu Open the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Open the menu   Menu Open the menu"))
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()
@@ -564,7 +565,7 @@ class GuideScreenTest {
         back()
         cell(CH7, 60).assertIsSelected()
         assertEquals("Test Movie 102", text(GuideTags.PANEL_TITLE))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back Open the menu"))
         assertEquals(0, exits)
         // On the playing cell: the next Back opens the menu sheet, whose Back leaves live TV.
         back()
@@ -614,7 +615,7 @@ class GuideScreenTest {
         // The guide opens on the first row, which is not what is playing: nothing to go back to but the menu.
         showReady(null)
         press(Key.DirectionRight)
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back To the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).contains("Back Open the menu"))
         back()
         compose.onNodeWithTag(GuideTags.CHANNELS_BUTTON).assertIsSelected()
         assertEquals(0, exits)

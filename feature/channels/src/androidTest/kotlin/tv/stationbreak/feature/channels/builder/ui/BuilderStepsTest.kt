@@ -441,7 +441,7 @@ class BuilderStepsTest {
         toName()
         press(Pad.Down, Pad.Down, Pad.Select)
         until { exists(BuilderTags.MESSAGE) }
-        compose.onNodeWithTag(BuilderTags.MESSAGE).assertTextContains("save that", substring = true)
+        compose.onNodeWithTag(BuilderTags.MESSAGE).assertTextContains("save the channel", substring = true)
     }
 
     @Test

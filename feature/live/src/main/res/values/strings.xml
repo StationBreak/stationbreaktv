@@ -39,7 +39,7 @@
     <string name="live_stan_no_channels_headline">NOTHING ON\nTHE AIR</string>
     <string name="live_stan_no_channels_status">NO CHANNELS YET</string>
     <string name="live_stan_no_channels_detail">GUIDE · CHANNELS</string>
-    <string name="live_stan_spoken_no_channels">No channels on the air yet.</string>
+    <string name="live_stan_spoken_no_channels">No channels on the air yet. Guide, Channels.</string>
     <!-- Every library this TV chose is gone from the server (spec 26): the detail is where to choose them again. -->
     <string name="live_stan_no_libraries_headline">NOTHING ON\nTHE SHELF</string>
     <string name="live_stan_no_libraries_status">NO LIBRARIES</string>
@@ -50,7 +50,7 @@
     <string name="live_label_tuning_in">Tuning in</string>
     <string name="live_label_now">Now</string>
     <string name="live_label_up_next">Up next</string>
-    <string name="live_label_filling_in">Filling in</string>
+    <string name="live_label_filling_in">Programme change</string>
     <string name="live_label_switching_audio">Switching audio</string>
     <string name="live_label_switching_subtitles">Switching subtitles</string>
     <string name="live_label_switching_version">Switching version</string>
@@ -59,7 +59,7 @@
     <string name="live_picture_now_playing">Now playing:</string>
     <string name="live_picture_tuning_in">Tuning in:</string>
     <string name="live_picture_up_next">Up next:</string>
-    <string name="live_picture_filling_in">Filling in:</string>
+    <string name="live_picture_filling_in">Programme change:</string>
     <string name="live_picture_switching_audio">Switching audio:</string>
     <string name="live_picture_switching_subtitles">Switching subtitles:</string>
     <string name="live_picture_switching_version">Switching version:</string>

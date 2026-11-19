@@ -7,7 +7,7 @@
 -->
 <resources>
     <!-- While the schedule is being built, and when there is nothing to show. -->
-    <string name="guide_loading">Loading the guide…</string>
+    <string name="guide_loading">Getting the listings…</string>
     <string name="guide_empty">Nothing on the guide yet</string>
     <!-- placeholder: design partner. Every library this TV chose is gone from the server (spec 26). -->
     <string name="guide_no_libraries">None of this TV\'s libraries are available. Choose them in Settings, Libraries.</string>
@@ -27,13 +27,13 @@
     <!-- On the channel column (#631): OK opens the channel's properties, Right or Back returns to the programs. -->
     <string name="guide_key_right">▸</string>
     <string name="guide_hint_properties">About this channel</string>
-    <string name="guide_hint_programs">Back to programs</string>
+    <string name="guide_hint_programs">Back to programmes</string>
     <string name="guide_hint_exit">Exit live TV</string>
     <!-- Back while the focus is away from the channel playing: it goes back to what is on now there. -->
     <string name="guide_hint_playing">To what\'s playing</string>
 
     <!-- Back on the playing channel's cell: it opens the menu sheet. -->
-    <string name="guide_hint_menu">To the menu</string>
+    <string name="guide_hint_menu">Open the menu</string>
     <!-- The Menu key (#756) opens the menu sheet from anywhere in the guide; in the sheet, Back and Menu close it. -->
     <string name="guide_key_menu">Menu</string>
     <string name="guide_hint_open_menu">Open the menu</string>
@@ -72,13 +72,13 @@
     <string name="guide_settings_libraries">Libraries</string>
     <!-- placeholder: design partner. The Settings panel's row that syncs with the server now (spec 26), and the line
          beside it: running, done (the time in the device's own format), or why it failed. -->
-    <string name="guide_settings_sync_now">Sync now</string>
-    <string name="guide_sync_running">Syncing…</string>
-    <string name="guide_sync_done">Synced at %1$s</string>
+    <string name="guide_settings_sync_now">Update library</string>
+    <string name="guide_sync_running">Updating…</string>
+    <string name="guide_sync_done">Updated at %1$s</string>
     <string name="guide_sync_failed_network">Couldn\'t reach the server. Nothing changed.</string>
     <string name="guide_sync_failed_session">Sign-in expired. Nothing changed.</string>
     <string name="guide_sync_failed_server">The server had a problem. Nothing changed.</string>
-    <string name="guide_sync_failed_suspect">The server\'s answer looked wrong. Nothing changed.</string>
+    <string name="guide_sync_failed_suspect">The server sent something StationBreak couldn\'t read. Nothing changed.</string>
     <!-- placeholder: design partner. Every chosen library is gone from the server (#507): choosing again is the way out. -->
     <string name="guide_sync_failed_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries. Nothing changed.</string>
     <!-- placeholder: design partner. The same reasons when the sync itself failed, after it may have written some of
@@ -86,7 +86,7 @@
     <string name="guide_sync_reason_network">Couldn\'t reach the server.</string>
     <string name="guide_sync_reason_session">Sign-in expired.</string>
     <string name="guide_sync_reason_server">The server had a problem.</string>
-    <string name="guide_sync_reason_suspect">The server\'s answer looked wrong.</string>
+    <string name="guide_sync_reason_suspect">The server sent something StationBreak couldn\'t read.</string>
     <string name="guide_sync_reason_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries.</string>
     <string name="guide_exit_button">Exit</string>
 
@@ -109,7 +109,7 @@
     <string name="guide_channel_on_now">On now: %1$s</string>
 
     <!-- DESIGN(#633): placeholder. A program whose item left the library: the cell's title and the panel's line, instead of a blank. -->
-    <string name="guide_unavailable">Unavailable</string>
+    <string name="guide_unavailable">Removed</string>
 
     <!-- What a screen reader says about a cell: its title and slot, then "on now" for the program airing. -->
     <string name="guide_cell_description">%1$s, %2$s</string>

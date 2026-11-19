@@ -13,11 +13,11 @@ that's on, and skip ahead again up to where the channel is now. The channel's sc
 paused. A paused place is kept for 60 minutes after the screen stops; after that, the channel picks up live.
 
 **Why isn't a channel in the guide today?**
-A channel with nothing to air today is hidden, and comes back when it has something. **Channels** shows why a
+A channel with nothing to air today is not in today's guide, and comes back when it has something. **Channels** shows why a
 channel isn't on, for example that nothing in your libraries fits it.
 
 **I changed my library. When do the channels change?**
-The app reads the libraries again by itself. To read them now, choose **Settings → Sync now** in the guide. Some
+The app reads the libraries again by itself. To read them now, choose **Settings → Update library** in the guide. Some
 lineup changes start with the next day's schedule at 6 AM.
 
 **My server uses a self-signed certificate. Can I still use https?**

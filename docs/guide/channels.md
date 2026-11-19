@@ -10,13 +10,13 @@ The schedule is worked out on each TV from your library, and a new day's schedul
 
 ## The Channels screen
 
-Open it from the guide's menu: **Channels**. Channels are grouped as **On**, **More channels** (channels that could
-be switched on) and **Off**. Select a channel to:
+Open it from the guide's menu: **Channels**. Channels are grouped as **On the air**, **More channels**
+(channels that could be switched on) and **Switched off**. Select a channel to:
 
 - **Watch** it;
 - **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
   edit freely;
-- **Switch on** or **Switch off**. At least one channel stays on. A channel with adult content asks before it comes
+- **Switch on** or **Switch off**. Keep at least one channel on. A channel with adult content asks before it comes
   on;
 - **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
   back.
@@ -41,7 +41,7 @@ Choose **New channel**. Three steps:
    **Narrow down** (genres, years, runtime, only films or only shows, a rating limit) and **Leave out** anything you
    don't want.
 2. **How it plays**:
-   - **Shuffle**: random order; no show runs on past its cap while something else is waiting.
+   - **Shuffle**: random order; no show plays more episodes in a row than its limit while others wait.
    - **Rotation**: shows and collections take turns, each keeping its place.
    - **In order**: one show start to finish, then the next, oldest first.
 

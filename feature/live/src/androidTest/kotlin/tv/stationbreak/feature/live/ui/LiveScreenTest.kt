@@ -156,7 +156,7 @@ class LiveScreenTest {
         // The stream facts are on the chips; the right column is the "Next" line and nothing else.
         val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT).fetchSemanticsNode()
         val text = node.config[SemanticsProperties.Text].joinToString("") { it.text }
-        assertTrue(text, text.startsWith("Next: Test Movie B at "))
+        assertTrue(text, text.startsWith("Up next: Test Movie B at "))
         assertFalse(text, text.contains("1080p") || text.contains("HEVC"))
     }
 
@@ -301,7 +301,7 @@ class LiveScreenTest {
         show(LiveState.NoChannels)
         compose
             .onNodeWithTag(LiveTags.NO_CHANNELS)
-            .assertContentDescriptionEquals("No channels on the air yet.")
+            .assertContentDescriptionEquals("No channels on the air yet. Guide, Channels.")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("NOTHING ON").assertExists()
         compose.onNodeWithText("THE AIR").assertExists()
@@ -328,9 +328,9 @@ class LiveScreenTest {
     }
 
     @Test
-    fun fillingInBannerSaysFillingIn() {
+    fun fillingInBannerSaysProgrammeChange() {
         show(LiveState.Watching(banner(BannerLabel.FillingIn)))
-        compose.onNodeWithText("FILLING IN").assertExists()
+        compose.onNodeWithText("PROGRAMME CHANGE").assertExists()
     }
 
     @Test

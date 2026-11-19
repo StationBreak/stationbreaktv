@@ -11,7 +11,7 @@ class SpokenRowTest {
 
     @Test
     fun aRowSpeaksItsReasonsAfterItsName() {
-        val reason = "Fits, but it isn't in your lineup right now"
+        val reason = "Fits, but your lineup is full. Switch it on to add it."
         assertEquals(
             "9, Charlie, (Kids), Nothing to air today, $reason",
             spokenRow(9, "Charlie", "(Kids)", "Nothing to air today", reason, comma),

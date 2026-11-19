@@ -2,7 +2,9 @@
 package tv.stationbreak.feature.live.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -14,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
@@ -40,8 +43,11 @@ import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.NextProgram
 import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.TransportView
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Long text in the banners (spec 14, device finding): every single-line text is one line that ends in an ellipsis, and
@@ -159,6 +165,56 @@ class LiveBannerOverflowTest {
         val density = compose.activity.resources.displayMetrics.density
         // The tagged node is inside the 1 dp border on each side of the 58 dp bar.
         assertEquals((58f - 2f) * density, frame().tagged.getValue(LiveTags.BANNER).height, density)
+    }
+
+    /**
+     * The "Up next" line with a long title and a wide time (12:59 PM, or 12:59 on a 24-hour TV): the title is cut until
+     * the whole line, time included, fits the column, so the line's own ellipsis never cuts the time. A screen reader
+     * still hears the whole title.
+     */
+    @Test
+    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFit() = assertTheNextLineFits("Test Movie $longWords", 1f)
+
+    /** The same at the larger text size a TV can be set to. */
+    @Test
+    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFitAtFontScale115() {
+        assertTheNextLineFits("Test Movie $longWords", 1.15f)
+    }
+
+    /** A title in capitals is wider for its length: it is cut further, and the time still fits at 1.15. */
+    @Test
+    fun aLongNextTitleInCapitalsIsCutSoTheTimeFitsAtFontScale115() {
+        assertTheNextLineFits("TEST MOVIE ${longWords.uppercase()}", 1.15f)
+    }
+
+    private fun assertTheNextLineFits(
+        title: String,
+        fontScale: Float,
+    ) {
+        val at =
+            LocalDateTime
+                .of(2026, 1, 1, 12, 59)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        val state = LiveState.Watching(banner(longEpisode).copy(next = NextProgram(title, at)))
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                StationBreakTheme { LiveScreen(state, changeStyle = Stan) {} }
+            }
+        }
+        compose.waitForIdle()
+        val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT)
+        val result = layout(node)
+        val text = result.layoutInput.text.text
+        assertTrue("the title is cut: $text", "\u2026" in text)
+        assertEquals("$text is one line", 1, result.lineCount)
+        assertTrue("$text is not ellipsized", !result.isLineEllipsized(0))
+        assertTrue("$text has no visual overflow", !result.hasVisualOverflow)
+        assertEquals("$text shows whole", text.length, result.getLineEnd(0, visibleEnd = true))
+        val said = node.fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertTrue("a screen reader hears the whole title: $said", title.trim() in said)
+        assertInside(LiveTags.BANNER_NEXT)
     }
 
     @Test

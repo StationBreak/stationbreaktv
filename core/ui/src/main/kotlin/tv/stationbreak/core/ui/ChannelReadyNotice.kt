@@ -35,13 +35,13 @@ object ChannelReadyNoticeTags {
 }
 
 /**
- * Says a channel the viewer switched on is ready (#776): "352 Neon Rain is ready" for one, "2 channels are ready" for
- * more. It only informs: it holds no focus and takes no key, so it is drawn with no popup, dialog, focus target or
- * click handler, and Back and the D-pad go on to the screen under it. A screen reader says it once, as it appears. It
- * is opaque, so what is under it does not show through. It sits top-left inside the safe area, clear of live TV's
- * banner (bottom), the guide's picture (top-right) and the programme info panel (bottom-left); on the Channels list it
- * covers the heading, which nothing can be done with. The caller decides when it shows and when it goes. Each of
- * [channels] is a number and a name.
+ * Says a channel the viewer switched on is ready (#776): "352 Neon Rain is on the air" for one, "2 channels are on the
+ * air" for more. It only informs: it holds no focus and takes no key, so it is drawn with no popup, dialog, focus
+ * target or click handler, and Back and the D-pad go on to the screen under it. A screen reader says it once, as it
+ * appears. It is opaque, so what is under it does not show through. It sits top-left inside the safe area, clear of
+ * live TV's banner (bottom), the guide's picture (top-right) and the programme info panel (bottom-left); on the
+ * Channels list it covers the heading, which nothing can be done with. The caller decides when it shows and when it
+ * goes. Each of [channels] is a number and a name.
  */
 @Composable
 fun ChannelReadyNotice(

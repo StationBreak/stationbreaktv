@@ -48,7 +48,7 @@ internal fun spokenOf(row: LibraryRow): String {
 internal fun Modifier.announcingFocus(state: LibrariesSettingsState): Modifier =
     if (state.signOutFocused) announcingSignOut(state) else announcingRow(state)
 
-// The sign-out row (#336): its words ("Sign out", or "Select again to sign out" once armed).
+// The sign-out row (#336): its words ("Sign out", or "Press OK again to sign out" once armed).
 @Composable
 private fun Modifier.announcingSignOut(state: LibrariesSettingsState): Modifier {
     val spoken = signOutLabel(state.signOut)

@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -230,16 +231,32 @@ private fun Progress(
     val numbers = remember(locale) { NumberFormat.getInstance(locale) }
     val count =
         when {
-            waiting -> stringResource(R.string.first_sync_waiting_for_network)
-            copied == null -> stringResource(R.string.first_sync_starting)
-            total == null -> stringResource(R.string.first_sync_count_only, numbers.format(copied))
-            else -> stringResource(R.string.first_sync_count, numbers.format(copied), numbers.format(total))
+            waiting -> {
+                stringResource(R.string.first_sync_waiting_for_network)
+            }
+
+            copied == null -> {
+                stringResource(R.string.first_sync_starting)
+            }
+
+            total == null -> {
+                pluralStringResource(R.plurals.first_sync_count_only, copied, numbers.format(copied))
+            }
+
+            else -> {
+                pluralStringResource(R.plurals.first_sync_count, total, numbers.format(copied), numbers.format(total))
+            }
         }
     val description =
         if (copied == null || total == null) {
             stringResource(R.string.first_sync_progress_description_starting)
         } else {
-            stringResource(R.string.first_sync_progress_description, numbers.format(copied), numbers.format(total))
+            pluralStringResource(
+                R.plurals.first_sync_progress_description,
+                total,
+                numbers.format(copied),
+                numbers.format(total),
+            )
         }
     Text(
         text = stringResource(R.string.first_sync_headline),

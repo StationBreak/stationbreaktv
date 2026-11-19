@@ -106,7 +106,7 @@ class LiveBannerActionsTest {
         val next = compose.onNodeWithTag(LiveTags.BANNER_NEXT)
         next.assertExists()
         val text = next.fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("") { it.text }
-        assertTrue(text, text.startsWith("Next: Test Movie B at "))
+        assertTrue(text, text.startsWith("Up next: Test Movie B at "))
     }
 
     @Test

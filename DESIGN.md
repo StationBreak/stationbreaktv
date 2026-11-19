@@ -197,12 +197,15 @@ Cream on orange and orange on cream (2.9:1) are for shapes only, never text; on 
 - **Sheet body / caption** (reading face, Medium 16sp / Regular 14sp): the properties sheet and channel rows.
 - **Title** (reading face, Medium 13sp, 1.2 line height): programme names in the grid.
 - **Body / label** (reading face, 11sp, Regular / Medium tabular): grid metadata, times, channel numbers.
-- **Flag** (Space Mono Bold, 10sp, capitals, +13%): NOW, UP NEXT, section headers ("ON · 48"), tags.
+- **Flag** (Space Mono Bold, 10sp, capitals, +13%): NOW, UP NEXT, section headers ("ON THE AIR · 48"), tags.
 
 ### Named Rules
 **The Ten-Foot Floor Rule.** Nothing renders under 10sp, at any font scale. (The brand sheet's smallest station-screen text, 28px at 1080p, still needs checking from the couch: PROVISIONAL.)
 
 **The Few Words Rule.** Ranchers is for the name and Stan's lines only, never more than a few words, and never for information the viewer needs to act on.
+
+**The One Term Rule.** Each idea has one word everywhere. Getting changes from the server is **updating the library** ("Update library", "Updating…", "Updated at 9:41 PM"); first setup keeps "Getting your library ready". A channel is **switched on** or **switched off**, and a switched-on channel is **on the air**. One with nothing today is **not in today's guide** ("hidden" is not used). A gap with nothing scheduled is **off the air** ("Off air" on a plate), never a switched-off channel. What follows is **Up next**. The picture arriving is **tuning in**. Something in a slot is a **programme** (a series is a "show"). Picking from a list is **choose**, and the centre key is **OK**. The rest stay as they are: sign in and sign out, server, libraries and your library, lineup.
+Known exceptions, still to settle: "Press Select to go on." on the signed-out screen (awaits the owner), and "Pick" in `builder_source_pick`, `builder_number_held`, `builder_number_taken_pick` and `first_visit_body`.
 
 **The Three-Size Grid Rule.** The guide grid uses three sizes and two weights (13sp Medium titles, 11sp Regular metadata, 11sp Medium tabular figures). Hierarchy comes from that step and from cream, grey and muted, not from more sizes.
 
@@ -254,7 +257,7 @@ Near-flat panel cells in one grid, 2dp corners, 1dp gaps. Title in 13sp Medium c
 A 58dp ink bar over the picture with a 1dp line, 2dp corners and a 2dp orange progress line along its top. It holds the mark and number, an 18sp title in cream, and a single 11sp line led by a teletype flag (NOW, TUNING IN, UP NEXT). The Select banner's buttons focus with an orange fill and no scale.
 
 ### Sheet and Rows (menu sheet, channel properties, channel screens, settings)
-Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The ground bleeds while the text keeps to the safe area, and the content scrolls and fades while actions stay pinned. A row's focus is the drawn ring in orange (`panelFocus`), with no scale. Section headers are teletype flags in grey with a count ("ON · 48"), not text that looks like a row.
+Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The ground bleeds while the text keeps to the safe area, and the content scrolls and fades while actions stay pinned. A row's focus is the drawn ring in orange (`panelFocus`), with no scale. Section headers are teletype flags in grey with a count ("ON THE AIR · 48"), not text that looks like a row.
 
 ### Key Hints
 A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's.
@@ -290,4 +293,4 @@ These tokens and components are the brand's target. The app reaches them in step
 - **Faces:** the station screens' sign-off uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
 - **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`. Stan's moods and the animated station screens come in the next step.
 - **Station screens:** the snow is to be replaced by Stan station screens.
-- **Words:** "Sync now", "First sync" and loading states are to move toward broadcast words (stand by, tune, signal, returns at).
+- **Words:** done. "Sync now" is "Update library", setup and loading lines say what is happening ("Asking your server for your library…", "Getting the listings…", "Tuning in…"), and the app keeps one term per idea (The One Term Rule).

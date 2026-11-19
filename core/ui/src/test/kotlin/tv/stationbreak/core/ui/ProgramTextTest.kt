@@ -104,7 +104,7 @@ class ProgramTextTest {
 
     @Test
     fun countdownCopyIsTheShippedWords() {
-        assertEquals("Next: Test Show at 8:30 PM", copy.next("Test Show", "8:30 PM"))
+        assertEquals("Up next: Test Show at 8:30 PM", copy.next("Test Show", "8:30 PM"))
         assertEquals("Off air until 6:00 AM", copy.offAirUntil("6:00 AM"))
         assertEquals("Station break · Up next at 9:15 PM", copy.breakUpNext("9:15 PM"))
         assertEquals("Starts in 5 min", copy.startsIn(5))

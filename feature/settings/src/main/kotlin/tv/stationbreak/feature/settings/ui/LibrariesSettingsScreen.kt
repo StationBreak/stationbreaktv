@@ -245,7 +245,7 @@ private fun LibraryLine(
     }
 }
 
-// The last row (#336), drawn as a library row is, without a tick: "Sign out", "Select again to sign out" once armed,
+// The last row (#336), drawn as a library row is, without a tick: "Sign out", "Press OK again to sign out" once armed,
 // and the note that the TV will need a new sign-in. Spoken as one button.
 @Composable
 private fun SignOutLine(
