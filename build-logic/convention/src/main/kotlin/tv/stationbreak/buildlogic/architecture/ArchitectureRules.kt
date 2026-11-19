@@ -95,6 +95,11 @@ enum class Rule(
         "benchmark (the Baseline Profile generator, #416) may be named only by app's baselineProfile configuration: " +
             "nothing that ships depends on it",
     ),
+    SECURITY_TEST_FOR_KEEP_RULES_ONLY(
+        "security-test-for-keep-rules-only",
+        "security-minified-test (#436) may be named only by app's securityTestClasses configuration: nothing that " +
+            "ships depends on it",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }
@@ -124,6 +129,10 @@ object ArchitectureRules {
 
     private const val APP = ":app"
     private const val BENCHMARK = ":benchmark"
+    private const val SECURITY_TEST = ":security-minified-test"
+
+    // The resolvable configuration in app that reads the security test module's classes (AndroidAppPlugin).
+    const val SECURITY_TEST_CLASSES = "securityTestClasses"
     private const val FEATURE_PREFIX = ":feature:"
     private const val DATA_PREFIX = ":data:"
 
@@ -136,6 +145,27 @@ object ArchitectureRules {
             // A test module that drives the app on a device; it depends on no other project module (it targets :app
             // through targetProjectPath, which is not a dependency edge).
             BENCHMARK to ModuleSpec(Platform.ANDROID, emptySet()),
+            // A test module: its whole source is the security tests that run against the minified app (#436). Its
+            // Hilt test component is the app's whole graph, so it names every module `app` wires; nothing depends on it
+            // but app's R8 wiring.
+            SECURITY_TEST to
+                ModuleSpec(
+                    Platform.ANDROID,
+                    setOf(
+                        ":core:model",
+                        ":core:domain",
+                        ":core:playback",
+                        ":core:ui",
+                        ":data:jellyfin",
+                        ":data:settings",
+                        ":data:library",
+                        ":feature:live",
+                        ":feature:guide",
+                        ":feature:channels",
+                        ":feature:onboarding",
+                        ":feature:settings",
+                    ),
+                ),
             ":core:model" to ModuleSpec(Platform.PURE, emptySet()),
             ":core:rules" to ModuleSpec(Platform.PURE, setOf(":core:model")),
             ":core:engine" to ModuleSpec(Platform.PURE, setOf(":core:rules", ":core:model")),
@@ -259,7 +289,8 @@ object ArchitectureRules {
     ): Rule? {
         val target = dependency.path
         val targetSpec = specOf(target)
-        val isTest = isTestConfiguration(configuration)
+        // Every configuration of the security test module is a test one: all its source is tests (#436).
+        val isTest = isTestConfiguration(configuration) || module == SECURITY_TEST
         return when {
             targetSpec == null -> {
                 Rule.UNKNOWN_MODULE
@@ -270,12 +301,23 @@ object ArchitectureRules {
             }
 
             // AGP records a test module's targetProjectPath as a `testedApks` edge: the app it drives, not a dependency.
-            module == BENCHMARK && target == APP && configuration == "testedApks" -> {
+            (module == BENCHMARK || module == SECURITY_TEST) && target == APP && configuration == "testedApks" -> {
+                null
+            }
+
+            // The security tests compile against the app's classes (AGP's `compileOnly` edge to it): they reach its
+            // internals, as app's own androidTest does (#436).
+            module == SECURITY_TEST && target == APP && configuration == "compileOnly" -> {
                 null
             }
 
             target == BENCHMARK && !(module == APP && isProfileConfiguration(configuration)) -> {
                 Rule.BENCHMARK_FOR_PROFILE_ONLY
+            }
+
+            // The app names the security test module only to read its classes for R8's keep rules (#436).
+            target == SECURITY_TEST && !(module == APP && configuration == SECURITY_TEST_CLASSES) -> {
+                Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY
             }
 
             target == ":core:testing" -> {

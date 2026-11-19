@@ -25,8 +25,8 @@ object TrustSurfaceRules {
             APP to "src/main/kotlin/tv/stationbreak/app/net/AndroidSystemTrust.kt",
             // These tests exercise the real Conscrypt stack and the network security config.
             APP to "src/test/kotlin/tv/stationbreak/app/trust/NetworkSecurityConfigTest.kt",
-            APP to "src/androidTest/kotlin/tv/stationbreak/app/NetworkSecurityConfigChainTest.kt",
-            APP to "src/androidTest/kotlin/tv/stationbreak/app/PinnedTrustOnApi25Test.kt",
+            APP to "src/androidTest/securityTest/kotlin/tv/stationbreak/app/NetworkSecurityConfigChainTest.kt",
+            APP to "src/androidTest/securityTest/kotlin/tv/stationbreak/app/PinnedTrustOnApi25Test.kt",
             APP to "src/androidTest/kotlin/tv/stationbreak/app/AuthorityPinOnApi25Test.kt",
             // A test that hands the adapter's clients a socket factory of its own.
             TRUST_MODULE to "src/test/kotlin/tv/stationbreak/data/jellyfin/SchemeResolutionTest.kt",

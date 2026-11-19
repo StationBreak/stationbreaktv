@@ -8,6 +8,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -31,6 +32,13 @@ abstract class R8ConfigCheck : DefaultTask() {
     @get:PathSensitive(PathSensitivity.ABSOLUTE)
     abstract val rulesGivenToR8: ConfigurableFileCollection
 
+    // The keep rules tracereferences generated for the minified security test run (#436), when the build has them: the one
+    // extra file whose bare-path section header is believed. Its section is checked as a library's.
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val generatedRules: RegularFileProperty
+
     @get:OutputFile
     abstract val report: RegularFileProperty
 
@@ -49,7 +57,17 @@ abstract class R8ConfigCheck : DefaultTask() {
 
     @TaskAction
     fun check() {
-        val violations = R8ConfigRules.violations(configuration.get().asFile.readText(), appRules.get(), ruleFiles())
+        val violations =
+            R8ConfigRules.violations(
+                configuration.get().asFile.readText(),
+                appRules.get(),
+                ruleFiles(),
+                generatedRules.orNull
+                    ?.asFile
+                    ?.toPath()
+                    ?.toAbsolutePath()
+                    ?.normalize(),
+            )
         report.writeReportOrFail(
             violations.map { "${it.rule}  (from ${it.source})" },
             "The merged R8 configuration holds a rule that weakens the release build (#437). Read it; if it is " +

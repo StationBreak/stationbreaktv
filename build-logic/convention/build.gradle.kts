@@ -100,6 +100,10 @@ gradlePlugin {
             id = "stationbreak.hilt"
             implementationClass = "tv.stationbreak.buildlogic.HiltPlugin"
         }
+        register("securityTestClasses") {
+            id = "stationbreak.security-test-classes"
+            implementationClass = "tv.stationbreak.buildlogic.SecurityTestClassesPlugin"
+        }
         register("jvmInject") {
             id = "stationbreak.jvm-inject"
             implementationClass = "tv.stationbreak.buildlogic.JvmInjectPlugin"

@@ -85,7 +85,9 @@ stationbreaktv/
 
 `benchmark/` (Macrobenchmark + Baseline Profile generation, F2.5, [#416](https://github.com/StationBreak/stationbreaktv/issues/416))
 is a `com.android.test` module that only the app's `baselineProfile` configuration points at; nothing ships from it and no
-module depends on it. `core:common` is not created until something genuinely needs sharing.
+module depends on it. `security-minified-test/` ([#436](https://github.com/StationBreak/stationbreaktv/issues/436)) is the other
+`com.android.test` module: the test APK for the security tests that run against the R8-minified `githubBenchmark` build (see
+"Security tests on the minified build"). `core:common` is not created until something genuinely needs sharing.
 ```
 
 **Baseline Profile (#416).** `benchmark/GuideBaselineProfile` drives the guide on a real TV with the ADR-0008 scenarios
@@ -630,7 +632,25 @@ Together they fail the build if
   `ForbiddenImport` on `okhttp3.logging.HttpLoggingInterceptor` is the second guard),
 - any module other than `app`, or `app` outside its `baselineProfile` configuration, depends on `benchmark`
   (`benchmark-for-profile-only`, #416),
+- any module other than `app`, or `app` outside its `securityTestClasses` configuration, depends on `security-minified-test`
+  (`security-test-for-keep-rules-only`, #436),
 - any manifest uses `tools:overrideLibrary`.
+
+### Security tests on the minified build
+
+The five security tests (`PinnedTrustOnApi25Test`, `NetworkSecurityConfigChainTest`, `NoPlaintextOnDiskTest`,
+`SecretPersistenceTest`, `AdapterLogBindingTest`) must also pass against shipped code. Their sources and helpers live once, in
+`app/src/androidTest/securityTest/kotlin`; `app`'s `androidTest` (the debug `emulator` job) and `:security-minified-test` both compile that
+directory. `:security-minified-test` is a `com.android.test` module with `targetProjectPath = ":app"` and a `benchmark` build
+type, so its `githubBenchmark` variant instruments the minified app. It is the Hilt test application's host (`HiltTestRunner`), so
+it depends on every module `app` wires, and `checkArchitecture` lists those edges.
+
+A normal build never touches it. With `-Pstationbreak.minifiedSecurityTest=true` the app's `githubBenchmark` R8 run also reads
+`traceSecurityTestReferences`'s output: R8's own `tracereferences --keep-rules`, with the test APK's classes as `--source` and
+the variant's R8 input as `--target`. The app keeps exactly what the test APK references; the rest is shrunk and optimised as
+in the benchmark build used for timing. `R8ConfigCheck` trusts that one generated file by its exact path and text, and holds it
+to every library check (`generatedRules`); no app allowance reaches it. Only the app's `securityTestClasses` configuration may
+name the module (`security-test-for-keep-rules-only`).
 
 ### Hilt in pure modules
 
