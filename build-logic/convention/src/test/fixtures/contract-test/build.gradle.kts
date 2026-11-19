@@ -16,7 +16,7 @@ tasks.register("printContract") {
         println("JUNIT_PLATFORM ${task.options is org.gradle.api.tasks.testing.junitplatform.JUnitPlatformOptions}")
         println("CHECK_DEPENDS ${checkDependsOn.get().sorted().joinToString(",")}")
         println("ENV_IMAGE ${task.environment["JELLYFIN_IMAGE"]}")
-        println("SYSTEM_PROPERTIES ${task.systemProperties.keys.sorted().joinToString(",")}")
+        println("SYSTEM_PROPERTIES ${task.systemProperties.entries.map { "${it.key}=${it.value}" }.sorted().joinToString(",")}")
         println("JVM_ARGS ${task.jvmArgs}")
         println("UP_TO_DATE_ALWAYS_RERUNS ${!task.outputs.upToDateSpec.isSatisfiedBy(task)}")
     }

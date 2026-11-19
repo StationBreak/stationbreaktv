@@ -24,6 +24,8 @@ dependencies {
     // kotlin.test on JUnit 5 (the kotlin-dsl plugin's embedded Kotlin version), and TestKit for the
     // architecture check's fixture builds.
     testImplementation(kotlin("test"))
+    // A JUnit 5 that reports a test it never runs (#211); the same version the JVM modules use.
+    testImplementation(platform(libs.junit.bom))
     testImplementation(gradleTestKit())
     // Gradle 9 no longer supplies the JUnit Platform launcher; the junit-bom from kotlin-test-junit5 versions it.
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -31,6 +33,8 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // #211: a @Test JUnit cannot run (one that returns a value) fails the run instead of being skipped in silence.
+    systemProperty("junit.platform.discovery.issue.severity.critical", "WARNING")
     // TestKit fixture projects for the architecture check.
     val fixtures = layout.projectDirectory.dir("src/test/fixtures")
     inputs.dir(fixtures).withPropertyName("fixtures")

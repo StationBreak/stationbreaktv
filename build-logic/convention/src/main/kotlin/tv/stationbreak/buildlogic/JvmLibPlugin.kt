@@ -22,8 +22,13 @@ class JvmLibPlugin : Plugin<Project> {
             dependencies {
                 // KGP picks the kotlin-test-junit5 variant from the test task's framework.
                 add("testImplementation", kotlin("test"))
+                // A JUnit 5 that reports a test it never runs (#211), over the older one kotlin-test brings.
+                add("testImplementation", platform(libs.library("junit-bom")))
             }
-            tasks.withType<Test>().configureEach { useJUnitPlatform() }
+            tasks.withType<Test>().configureEach {
+                useJUnitPlatform()
+                failOnSkippedTests()
+            }
 
             // detekt's JVM tasks that run type resolution.
             checkDependsOn("detektMain", "detektTest")
