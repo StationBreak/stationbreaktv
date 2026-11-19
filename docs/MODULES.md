@@ -100,13 +100,18 @@ build types by name.
 
 The profile is recorded by hand, on a connected TV that has **the `tv.stationbreak.app.baseline` build installed, signed in,
 with libraries chosen**:
-`./gradlew :app:generateGithubBaselineProfile -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`.
+`./gradlew :app:generateBaselineProfile -x :benchmark:connectedAmazonNonMinifiedReleaseAndroidTest -x :benchmark:collectAmazonNonMinifiedReleaseBaselineProfile -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true -Pandroid.testInstrumentationRunnerArguments.targetAppId=tv.stationbreak.app.baseline`
+(the `-x` options leave out the amazon flavor, which would install over the github one; the plugin does not pass `targetAppId` on its own here).
 Without the flag the Gradle run uninstalls the app and the test APK afterwards, and with them the sign-in. Install the build
 from the machine that runs the generation (a different debug key makes the install fail). Collecting a profile needs Android
 13 (API 33) or later, so the older Fire TVs cannot record it: record on a newer TV and commit the file. The result lands in
 `app/src/main/generated/baselineProfiles` (merged into `src/main`) beside the hand-written `baseline-prof.txt` rules.
-`automaticGenerationDuringBuild` is off, so no normal build or CI job needs a device. Rules for the `j$.time` desugaring
-backport (the #416 comment on `classes2.dex`) are measured then.
+`automaticGenerationDuringBuild` is off, so no normal build or CI job needs a device. The profile was recorded on 2026-11-19 on an API 34 Android TV emulator
+(x86, headless, software GPU) against a local Jellyfin with the demo media and a viewer account with no password.
+`benchmark/GuideOpenBenchmark` times the guide opening from a cold launch (`launches` argument, default 10) with no profile
+and with the build's profile: run it with `:benchmark:connectedGithubBenchmarkReleaseAndroidTest` and the same two
+`-P` options, and read the `GuideOpen` lines in logcat. The `j$.time` rule (the #416 comment on `classes2.dex`) was measured
+that way and kept in `src/main/baseline-prof.txt`; the numbers are on #416.
 
 **Day-one set (decided 2026-10-11):** F0.2 creates only `app`, `build-logic`, `core:model`, `core:rules`,
 `core:engine`, `core:scheduler`, `core:testing`, `core:domain`, `data:jellyfin`, and `core:ui` (theme only).
