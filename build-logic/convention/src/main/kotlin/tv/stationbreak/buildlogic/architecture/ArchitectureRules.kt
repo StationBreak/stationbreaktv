@@ -130,6 +130,8 @@ object ArchitectureRules {
     private const val APP = ":app"
     private const val BENCHMARK = ":benchmark"
     private const val SECURITY_TEST = ":security-minified-test"
+    private const val SECURITY_TEST_TRUST = ":security-minified-test-trust"
+    private val SECURITY_TESTS = setOf(SECURITY_TEST, SECURITY_TEST_TRUST)
 
     // The resolvable configuration in app that reads the security test module's classes (AndroidAppPlugin).
     const val SECURITY_TEST_CLASSES = "securityTestClasses"
@@ -148,6 +150,8 @@ object ArchitectureRules {
             // A test module: its whole source is the security tests that run against the minified app (#436). Its
             // Hilt test component is the app's whole graph, so it names every module `app` wires; nothing depends on it
             // but app's R8 wiring.
+            // The two trust tests need no Hilt runner, so they have a module without Hilt: the small end of the graph.
+            SECURITY_TEST_TRUST to ModuleSpec(Platform.ANDROID, setOf(":core:model", ":core:domain", ":data:jellyfin")),
             SECURITY_TEST to
                 ModuleSpec(
                     Platform.ANDROID,
@@ -290,7 +294,7 @@ object ArchitectureRules {
         val target = dependency.path
         val targetSpec = specOf(target)
         // Every configuration of the security test module is a test one: all its source is tests (#436).
-        val isTest = isTestConfiguration(configuration) || module == SECURITY_TEST
+        val isTest = isTestConfiguration(configuration) || module in SECURITY_TESTS
         return when {
             targetSpec == null -> {
                 Rule.UNKNOWN_MODULE
@@ -301,13 +305,13 @@ object ArchitectureRules {
             }
 
             // AGP records a test module's targetProjectPath as a `testedApks` edge: the app it drives, not a dependency.
-            (module == BENCHMARK || module == SECURITY_TEST) && target == APP && configuration == "testedApks" -> {
+            (module == BENCHMARK || module in SECURITY_TESTS) && target == APP && configuration == "testedApks" -> {
                 null
             }
 
             // The security tests compile against the app's classes (AGP's `compileOnly` edge to it): they reach its
             // internals, as app's own androidTest does (#436).
-            module == SECURITY_TEST && target == APP && configuration == "compileOnly" -> {
+            module in SECURITY_TESTS && target == APP && configuration == "compileOnly" -> {
                 null
             }
 
@@ -316,7 +320,7 @@ object ArchitectureRules {
             }
 
             // The app names the security test module only to read its classes for R8's keep rules (#436).
-            target == SECURITY_TEST && !(module == APP && configuration == SECURITY_TEST_CLASSES) -> {
+            target in SECURITY_TESTS && !(module == APP && configuration == SECURITY_TEST_CLASSES) -> {
                 Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY
             }
 

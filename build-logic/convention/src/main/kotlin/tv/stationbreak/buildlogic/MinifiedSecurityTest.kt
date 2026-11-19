@@ -21,7 +21,7 @@ import org.gradle.kotlin.dsl.register
 // This is only on when the build is asked for it: `-Pstationbreak.minifiedSecurityTest=true`.
 private const val MINIFIED_SECURITY_PROPERTY = "stationbreak.minifiedSecurityTest"
 private const val MINIFIED_VARIANT = "githubBenchmark"
-private const val TEST_PROJECT = ":security-minified-test"
+private val TEST_PROJECTS = listOf(":security-minified-test", ":security-minified-test-trust")
 private const val CLASSES_USAGE = "stationbreak-security-test-classes"
 
 /**
@@ -89,7 +89,7 @@ internal fun Project.minifiedSecurityKeepRules(variant: ApplicationVariant): Pro
                 isTransitive = false
             }.get()
     dependencies {
-        add("securityTestClasses", project(TEST_PROJECT))
+        TEST_PROJECTS.forEach { add("securityTestClasses", project(it)) }
         // AGP runs this jar's R8; tracereferences must read the same R8's view of the app.
         add("r8Tool", "com.android.tools.build:builder:${libs.version("agp")}")
     }

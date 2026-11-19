@@ -63,8 +63,6 @@ dependencies {
     implementation(libs.androidx.test.ext.junit)
     implementation(libs.junit)
     implementation(libs.okhttp)
-    implementation(libs.okhttp.mockwebserver)
-    implementation(libs.okhttp.tls)
     implementation(libs.kotlinx.coroutines.core)
     implementation(project(":core:model"))
     implementation(project(":core:domain"))
@@ -103,6 +101,8 @@ dependencies {
 // The shared tests reach a few `internal` app types (AndroidSystemTrust, StationBreakApp.AppStartEntryPoint,
 // resumeSelection), as the app's own androidTest does: the app's classes are this module's friend.
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    // The two trust tests run from :security-minified-test-trust, without Hilt: each module compiles its own files.
+    exclude("**/PinnedTrustOnApi25Test.kt", "**/NetworkSecurityConfigChainTest.kt")
     val appBuild =
         project(":app")
             .layout.buildDirectory

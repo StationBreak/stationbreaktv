@@ -90,7 +90,7 @@ abstract class TraceReferencesKeepRules
         @get:Classpath
         abstract val r8: ConfigurableFileCollection
 
-        // One jar: the security test module's classes. A file collection, so the task depends on what builds it.
+        // One jar per security test module. The first copy of a class wins. A file collection, so the task depends on what builds it.
         @get:InputFiles
         @get:PathSensitive(PathSensitivity.NONE)
         abstract val source: ConfigurableFileCollection
@@ -118,13 +118,16 @@ abstract class TraceReferencesKeepRules
                         .toSet()
                 }
             val traced = temporaryDir.resolve("source-only.jar")
-            ZipFile(source.singleFile).use { zip ->
-                ZipOutputStream(traced.outputStream().buffered()).use { out ->
-                    for (entry in zip.entries()) {
-                        if (isClass(entry.name) && entry.name !in targetClasses) {
-                            out.putNextEntry(ZipEntry(entry.name))
-                            zip.getInputStream(entry).use { it.copyTo(out) }
-                            out.closeEntry()
+            val seen = HashSet<String>()
+            ZipOutputStream(traced.outputStream().buffered()).use { out ->
+                for (jar in source.files.sortedBy { it.path }) {
+                    ZipFile(jar).use { zip ->
+                        for (entry in zip.entries()) {
+                            if (isClass(entry.name) && entry.name !in targetClasses && seen.add(entry.name)) {
+                                out.putNextEntry(ZipEntry(entry.name))
+                                zip.getInputStream(entry).use { it.copyTo(out) }
+                                out.closeEntry()
+                            }
                         }
                     }
                 }

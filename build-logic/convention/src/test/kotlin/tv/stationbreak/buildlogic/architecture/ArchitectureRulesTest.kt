@@ -124,6 +124,27 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    fun theTrustTestModuleIsTheSmallEndAndHasNoFeatureOrHiltReach() {
+        assertEquals(
+            emptyList(),
+            rulesBroken(
+                ":security-minified-test-trust",
+                project("testedApks", ":app"),
+                project("compileOnly", ":app"),
+                project("implementation", ":data:jellyfin"),
+            ),
+        )
+        assertEquals(
+            listOf(Rule.NOT_ALLOWLISTED),
+            rulesBroken(":security-minified-test-trust", project("implementation", ":feature:guide")),
+        )
+        assertEquals(
+            listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
+            rulesBroken(":app", project("implementation", ":security-minified-test-trust")),
+        )
+    }
+
+    @Test
     fun theBenchmarkModuleMayNotCompileAgainstTheApp() {
         assertEquals(listOf(Rule.NOT_ALLOWLISTED), rulesBroken(":benchmark", project("compileOnly", ":app")))
     }
