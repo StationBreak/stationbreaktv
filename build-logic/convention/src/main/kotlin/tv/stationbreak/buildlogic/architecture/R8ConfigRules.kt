@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.buildlogic.architecture
 
+import java.nio.file.Files
+import java.nio.file.InvalidPathException
+import java.nio.file.Path
+
 /** One forbidden rule in the merged R8 configuration: the rule's first line, and the file or artifact it came from. */
 data class R8Violation(
     val rule: String,
@@ -97,6 +101,8 @@ object R8ConfigRules {
             "-ignorewarnings",
         ) + fileOptions
 
+    // The text checks below (options anywhere, `@file`) are a second line of defence: R8 does not print an `-include`
+    // line, it prints the included file as a section, so the section-header checks are the real defence.
     // The fail-closed backstop (#933): a forbidden option anywhere in a line, after a quote or glued to something that
     // the splitting did not understand. In rule code any `-` starts one; in comment text a `-` after a letter is a
     // hyphen (`re-include`).
@@ -105,6 +111,8 @@ object R8ConfigRules {
     private val inComment = Regex("(?<![A-Za-z_$.])-($optionNames)\\b")
     private const val APP_RULES = "app/proguard-rules.pro"
     private const val MAX_RULE = 200
+    private val atToken = Regex("(?<=\\s)@\\S")
+    private val extractedPath = Regex("\\(extracted file: (.+)\\)$")
 
     // The section headers AGP prints (checked against a real configuration.txt): a Maven coordinate, the Android Gradle
     // plugin's own file, a local project, an unknown source, and the app's own rules file by its exact path. An
@@ -144,10 +152,16 @@ object R8ConfigRules {
             "-dontobfuscate" to listOf(APP_RULES),
         ) + fileOptions.associateWith { listOf(APP_RULES) }
 
-    /** [appRules] is the app's own rules file, as AGP prints its header: the only section the app's allowances reach. */
+    /**
+     * [appRules] is the app's own rules file, as AGP prints its header: the only section the app's allowances reach.
+     * [trustedRoots] are the Gradle user home and the root project: a library header is believed only if the file it
+     * names exists under one of them, as R8 prints an included file's path as written (`-include "a:b:1 (extracted
+     * file: x)"` prints a header that looks like a library's).
+     */
     fun violations(
         configuration: String,
         appRules: String,
+        trustedRoots: List<String>,
     ): List<R8Violation> {
         val found = mutableListOf<R8Violation>()
         val seen = mutableSetOf<String>()
@@ -184,11 +198,15 @@ object R8ConfigRules {
 
         // `@file` reads a file of options. It is that only where a directive starts: `@a.B` after a class keyword or
         // inside a body is an annotation (`-keep @a.B class *`).
-        fun startsFileInclude(): Boolean {
-            val text = directive.toString().trim()
-            if (text.isEmpty()) return true
+        fun startsFileInclude(
+            before: String = directive.toString(),
+            midLine: Boolean = false,
+        ): Boolean {
+            val text = before.trim()
+            if (text.isEmpty()) return !midLine
             if (text.count { it == '{' } != text.count { it == '}' }) return false
             val tokens = text.split(separators)
+            if (midLine) return tokens.any { it in classKeywords }
             return tokens.first() !in keepFamily && tokens.first() != "-if" || tokens.any { it in classKeywords }
         }
         for (raw in configuration.lines()) {
@@ -206,6 +224,8 @@ object R8ConfigRules {
                 hits.forEach { backstop += Triple(source, it.groupValues[0], whole) }
                 // No library rule needs a quote, and a quote is how a `#` or an option gets hidden from the scan.
                 if (code.any { it == '"' || it == '\'' }) backstop += Triple(source, "a quote in a rule line", whole)
+                // Only printable ASCII and tabs: another space or a control character can hide a token from this scan.
+                if (raw.any { it !in ' '..'~' && it != '\t' }) backstop += Triple(source, "a non-ASCII or control character", raw)
             }
             when {
                 end != null -> {
@@ -224,7 +244,9 @@ object R8ConfigRules {
                     flush()
                     pendingIf = null
                     val text = header.groupValues[1]
-                    val shapeOk = text == appRules || libraryHeaders.any { it.matches(text) }
+                    val shapeOk =
+                        text == appRules ||
+                            libraryHeaders.any { it.matches(text) } && (text == "<unknown>" || extractedFileIsReal(text, trustedRoots))
                     // A header of an unknown shape never reaches the app's allowance, whatever its text says.
                     val name = if (shapeOk || coordinateHeader.matches(text)) normalise(text, appRules) else "unknown header: $text"
                     if (open != null) found += R8Violation("a section header inside an open section", name)
@@ -250,6 +272,13 @@ object R8ConfigRules {
                         if (part.startsWith("@") && part.length > 1 && startsFileInclude() && source != APP_RULES) {
                             backstop += Triple(source, "@file", whole)
                         }
+                        // `-keep class a.B @file`: an `@` after whitespace where a class spec is complete. Other options take an
+                        // annotation too (`-identifiernamestring @a.B class **`, dagger), so they are not read as an include.
+                        val sofar = if (part.startsWith("-")) "" else directive.toString()
+                        val glued = atToken.find(part)
+                        if (glued != null && startsFileInclude(sofar + "\n" + part.substring(0, glued.range.first), midLine = true) && source != APP_RULES) {
+                            backstop += Triple(source, "@file", whole)
+                        }
                         if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") && ifKeep.find(directive) == null) {
                             // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
                             directive.append(' ').append(part)
@@ -272,6 +301,18 @@ object R8ConfigRules {
         }
         if (open != null) found += R8Violation("a section that is never closed", source)
         return found
+    }
+
+    private fun extractedFileIsReal(
+        header: String,
+        roots: List<String>,
+    ): Boolean {
+        val raw = extractedPath.find(header)?.groupValues?.get(1) ?: return false
+        val path = runCatching { Path.of(raw) }.getOrNull() ?: return false
+        if (!path.isAbsolute || !Files.exists(path)) return false
+        // Normalised, not resolved: a symlink under a root does not make a path outside it.
+        val normal = path.normalize()
+        return roots.any { normal.startsWith(Path.of(it).normalize()) }
     }
 
     private fun uncommented(line: String): String {
@@ -304,7 +345,9 @@ object R8ConfigRules {
             }
 
             option in keepFamily -> {
-                keepsEverything(option, args, directive.substringAfter('{', ""))
+                // `-keep class**{*;}`: R8 reads a keyword glued to its names as the class keyword, so a keep with no
+                // exact keyword is a violation rather than a rule to read (#933).
+                args.none { it in classKeywords } || keepsEverything(option, args, directive.substringAfter('{', ""))
             }
 
             else -> {

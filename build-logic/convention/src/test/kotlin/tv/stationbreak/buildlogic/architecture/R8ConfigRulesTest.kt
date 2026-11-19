@@ -1,23 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.buildlogic.architecture
 
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class R8ConfigRulesTest {
+    // A library header is believed only for an extracted file that exists under a trusted root (the Gradle user home or
+    // the root project), so the tests keep real files under a temporary root.
+    private val root = Files.createTempDirectory("r8rules").toRealPath()
+
+    private fun extractedFile(name: String) = root.resolve(name).also { Files.writeString(it, "") }
+
+    private val proguardFile = extractedFile("proguard.txt")
+
     private fun section(
         source: String,
         vararg rules: String,
     ): String {
         // AGP prints the app's own rules file as the bare path, and a library's with the extracted file.
-        val name = if (source == appRules) source else "$source (extracted file: /x/y/proguard.txt)"
+        val name = if (source == appRules) source else "$source (extracted file: $proguardFile)"
         return "# The proguard configuration file for the following section is $name\n" +
             rules.joinToString("\n") + "\n# End of content from $name\n"
     }
 
     private val appRules = "/home/dev/stationbreaktv/app/proguard-rules.pro"
 
-    private fun scan(config: String) = R8ConfigRules.violations(config, appRules)
+    private fun scan(config: String) = R8ConfigRules.violations(config, appRules, listOf(root.toString()))
 
     private fun violations(vararg rules: String) = scan(section("com.evil:lib:1.0", *rules))
 
@@ -166,8 +175,10 @@ class R8ConfigRulesTest {
 
     @Test
     fun aLibraryWithTwoRuleFilesIsFine() {
-        val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: /x/"
-        val end = "# End of content from a:b:1 (extracted file: /x/"
+        extractedFile("one.pro")
+        extractedFile("two.pro")
+        val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: $root/"
+        val end = "# End of content from a:b:1 (extracted file: $root/"
         val config = "${header}one.pro)\n-keep class a.B\n${end}one.pro)\n${header}two.pro)\n-keep class a.C\n${end}two.pro)\n"
         assertEquals(emptyList(), scan(config))
     }
@@ -306,7 +317,7 @@ class R8ConfigRulesTest {
 
     @Test
     fun anEndMarkerWithNothingOpenIsFlagged() {
-        val config = section("a:b:1") + "# End of content from a:b:1 (extracted file: /x/y/proguard.txt)\n"
+        val config = section("a:b:1") + "# End of content from a:b:1 (extracted file: $proguardFile)\n"
         assertEquals(listOf("an end marker that does not close the open section"), scan(config).map { it.rule })
     }
 
@@ -681,11 +692,62 @@ class R8ConfigRulesTest {
         ) = "# The proguard configuration file for the following section is $header\n" + rules.joinToString("\n") +
             "\n# End of content from $header\n"
         val config =
-            block("androidx.core:core:1.2.0 (extracted file: /g/proguard.txt)", "-keep class a.B") +
-                block("Android Gradle plugin 9.5.1 (extracted file: /g/proguard-android-optimize.txt-9.5.1)", "-keep class a.C") +
-                block("Local project :::feature:live (extracted file: /w/feature/live/proguard.txt)", "-keep class a.D") +
+            block("androidx.core:core:1.2.0 (extracted file: $proguardFile)", "-keep class a.B") +
+                block("Android Gradle plugin 9.5.1 (extracted file: $proguardFile)", "-keep class a.C") +
+                block("Local project :::feature:live (extracted file: $proguardFile)", "-keep class a.D") +
                 block("<unknown>", "-keep class a.E") +
                 block(appRules, "-dontobfuscate")
         assertEquals(emptyList(), scan(config))
     }
+
+    // #933 fix 4: a library header is believed only for a real extracted file under a trusted root.
+    private fun headerOnly(header: String) =
+        "# The proguard configuration file for the following section is $header\n-keep class a.B\n# End of content from $header\n"
+
+    @Test
+    fun aCoordinateHeaderWithARelativeMissingOrOutsidePathIsFlagged() {
+        val outside = Files.createTempFile("r8outside", ".txt")
+        for (path in listOf("rel/proguard.txt", "$root/missing.txt", outside.toString(), "$root/../${outside.fileName}")) {
+            val found = scan(headerOnly("a:b:1 (extracted file: $path)"))
+            assertEquals(listOf("a section header of an unknown shape"), found.map { it.rule }, path)
+        }
+    }
+
+    @Test
+    fun theOtherLibraryHeaderShapesNeedARealFileToo() {
+        for (header in listOf("Android Gradle plugin 9.5.1", "Local project :::feature:live")) {
+            assertEquals(emptyList(), scan(headerOnly("$header (extracted file: $proguardFile)")), header)
+            assertEquals(
+                listOf("a section header of an unknown shape"),
+                scan(headerOnly("$header (extracted file: rel/x.txt)")).map { it.rule },
+                header,
+            )
+        }
+    }
+
+    @Test
+    fun aRealShapedHeaderUnderTheRootPasses() =
+        assertEquals(emptyList(), scan(headerOnly("a:b:1 (extracted file: $proguardFile)")))
+
+    @Test
+    fun aKeywordGluedToItsClassNamesIsFlagged() {
+        assertOnly("-keep class**{*;}", "-keep class**{*;}")
+        assertOnly("-keepclassmembers interface**{*;}", "-keepclassmembers interface**{*;}")
+        assertOnly("-if class a.B -keep class**", "-if class a.B -keep class**")
+    }
+
+    @Test
+    fun aNonAsciiSpaceOrControlCharacterIsFlagged() {
+        assertFlaggedWith("-keep class a.B\u2003{ *; }", "-keep class a.B\u2003{ *; }")
+        assertFlaggedWith("-keep class a.\u2028B", "-keep class a.\u2028B")
+        assertEquals(emptyList(), scan(section(appRules, "-keep class a.B \u2003 # app only")))
+    }
+
+    @Test
+    fun aFileIncludeAfterWhitespaceOnTheSameLine() = assertOnly("-keep class a.B @other.pro", "-keep class a.B @other.pro")
+
+    // Dagger's own consumer rule: an annotation after an option that is not a keep is not a file include.
+    @Test
+    fun anAnnotationAfterANonKeepOptionIsNotAnInclude() =
+        assertEquals(emptyList(), violations("-identifiernamestring @dagger.internal.IdentifierNameString class ** {", "    *;", "}"))
 }
