@@ -654,6 +654,16 @@ in the benchmark build used for timing. `R8ConfigCheck` trusts that one generate
 to every library check (`generatedRules`); no app allowance reaches it. Only the app's `securityTestClasses` configuration may
 name the module (`security-test-for-keep-rules-only`).
 
+Android loads the test APK before the app, so a class packaged in both would run unminified from the test APK. Each test
+module's `assembleGithubBenchmark` therefore runs `checkSecurityTestApkOverlap`, which fails (listing up to 20 names) if the
+test APK holds any class of the app's R8 input other than the module's own; `traceSecurityTestReferences` also fails if
+a missing definition is under `tv.stationbreak.` or `okhttp3.`, or if it writes fewer than 100 `-keep` rules. Both run only
+with the property.
+
+**What the run proves, and what it does not.** It proves the R8-optimised code bodies the tests reach. The three Hilt tests
+reach them through the Hilt component the test generates, so the run does not prove the shipped component's wiring, and the
+generated keeps stop R8 from optimising the signatures the tests call.
+
 ### Hilt in pure modules
 
 `javax.inject` is JVM-only, so it is **kept out of** `core:model`, `core:rules`, `core:engine`, and

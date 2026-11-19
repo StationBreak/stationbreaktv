@@ -311,7 +311,8 @@ object ArchitectureRules {
 
             // The security tests compile against the app's classes (AGP's `compileOnly` edge to it): they reach its
             // internals, as app's own androidTest does (#436).
-            module in SECURITY_TESTS && target == APP && configuration == "compileOnly" -> {
+            // ... and read the app's R8 input classes, to fail if their APK carries a copy of one (#436).
+            module in SECURITY_TESTS && target == APP && configuration in setOf("compileOnly", "securityTargetClasses") -> {
                 null
             }
 

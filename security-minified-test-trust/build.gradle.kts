@@ -67,6 +67,15 @@ dependencies {
     implementation(project(":data:jellyfin"))
 }
 
+// androidx.test asks for an old lifecycle-common (2.3.1); the app resolves the current one, and a copy in this APK would
+// run unminified (checkSecurityTestApkOverlap). Versions are in gradle/libs.versions.toml.
+dependencies {
+    constraints {
+        implementation(libs.androidx.lifecycle.common)
+        implementation(libs.androidx.lifecycle.runtime)
+    }
+}
+
 // The trust tests reach AndroidSystemTrust, which is
 // `internal` to the app, so the app's classes are this module's friend, as in app's own androidTest.
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {

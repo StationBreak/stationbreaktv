@@ -116,6 +116,7 @@ class ArchitectureRulesTest {
                 ":security-minified-test-hilt",
                 project("testedApks", ":app"),
                 project("compileOnly", ":app"),
+                project("securityTargetClasses", ":app"),
                 project("implementation", ":data:jellyfin"),
                 project("implementation", ":feature:guide"),
                 DeclaredEdge("implementation", Dependency.OnProject(":core:domain", testFixtures = true)),

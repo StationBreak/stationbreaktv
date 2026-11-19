@@ -23,6 +23,7 @@ private const val MINIFIED_SECURITY_PROPERTY = "stationbreak.minifiedSecurityTes
 private const val MINIFIED_VARIANT = "githubBenchmark"
 private val TEST_PROJECTS = listOf(":security-minified-test-hilt", ":security-minified-test-trust")
 private const val CLASSES_USAGE = "stationbreak-security-test-classes"
+private const val TARGET_USAGE = "stationbreak-security-target-classes"
 
 /** Only the value `true` turns the minified security run on; `=false`, or any other text, leaves the build as it is. */
 internal fun minifiedSecurityRequested(value: String?): Boolean = value.toBoolean()
@@ -67,9 +68,43 @@ class SecurityTestClassesPlugin : Plugin<Project> {
                         .forScope(ScopedArtifacts.Scope.ALL)
                         .use(classesJar)
                         .toGet(ScopedArtifact.CLASSES, ClassesJar::jars, ClassesJar::dirs)
+                    if (minifiedSecurityTestOn()) registerOverlapCheck(variant)
                 }
             }
         }
+    }
+}
+
+// Android loads the instrumentation APK first: a class in both it and the app would run unminified from the test APK.
+// The module's `assemble` fails if its APK holds any class of the app's R8 input (CheckTestApkOverlap).
+private fun Project.registerOverlapCheck(variant: com.android.build.api.variant.TestVariant) {
+    val own =
+        tasks.register<ClassesJar>("securityTestOwnClassesJar") {
+            description = "Packs this test module's own compiled classes, which may not count as overlap (#436)."
+            output.set(layout.buildDirectory.file("security-test/own-classes.jar"))
+        }
+    variant.artifacts
+        .forScope(ScopedArtifacts.Scope.PROJECT)
+        .use(own)
+        .toGet(ScopedArtifact.CLASSES, ClassesJar::jars, ClassesJar::dirs)
+    val declared = configurations.dependencyScope("securityTargetClasses")
+    val target =
+        configurations.resolvable("securityTargetClassesPath") {
+            extendsFrom(declared.get())
+            attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(TARGET_USAGE))
+        }
+    dependencies { add("securityTargetClasses", project(":app")) }
+    val check =
+        tasks.register<CheckTestApkOverlap>("checkSecurityTestApkOverlap") {
+            description = "Fails if the test APK carries a class the minified app also has (#436)."
+            group = org.gradle.language.base.plugins.LifecycleBasePlugin.VERIFICATION_GROUP
+            apkDir.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.APK))
+            appClasses.from(target)
+            ownClasses.set(own.flatMap { it.output })
+            report.set(layout.buildDirectory.file("reports/security-test/apk-overlap.txt"))
+        }
+    tasks.matching { it.name == "assemble${MINIFIED_VARIANT.replaceFirstChar { c -> c.uppercase() }}" }.configureEach {
+        dependsOn(check)
     }
 }
 
@@ -110,6 +145,11 @@ internal fun Project.minifiedSecurityKeepRules(variant: ApplicationVariant): Pro
         .forScope(ScopedArtifacts.Scope.ALL)
         .use(appClasses)
         .toGet(ScopedArtifact.CLASSES, ClassesJar::jars, ClassesJar::dirs)
+    // The test modules compare their APKs with this same jar (CheckTestApkOverlap).
+    configurations.consumable("securityTargetClassesElements") {
+        attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(TARGET_USAGE))
+        outgoing.artifact(appClasses.flatMap { it.output })
+    }
     val bootClasspath =
         extensions
             .getByType(ApplicationAndroidComponentsExtension::class.java)

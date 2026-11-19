@@ -2,6 +2,7 @@
 package tv.stationbreak.buildlogic
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
 import org.gradle.api.file.RegularFile
@@ -132,7 +133,10 @@ abstract class TraceReferencesKeepRules
                     }
                 }
             }
+            val messages = java.io.ByteArrayOutputStream()
             exec.javaexec {
+                standardOutput = messages
+                errorOutput = messages
                 classpath = r8
                 mainClass.set("com.android.tools.r8.tracereferences.TraceReferences")
                 args("--keep-rules")
@@ -144,5 +148,39 @@ abstract class TraceReferencesKeepRules
                 args("--target", target.get().asFile.absolutePath)
                 args("--output", keepRules.get().asFile.absolutePath)
             }
+            val output = messages.toString(Charsets.UTF_8)
+            logger.warn(output)
+            val ours = missingOwnDefinitions(output)
+            if (ours.isNotEmpty()) {
+                throw GradleException(
+                    "tracereferences cannot find our own code in the app's R8 input, so the trace is partial (#436): " +
+                        ours.take(MAX_MISSING).joinToString("; "),
+                )
+            }
+            val rules = keepRuleCount(keepRules.get().asFile.readText())
+            if (rules < MIN_KEEP_RULES) {
+                throw GradleException(
+                    "The generated keep rules hold $rules -keep rules, fewer than $MIN_KEEP_RULES: a partial trace (#436)",
+                )
+            }
         }
     }
+
+private const val MAX_MISSING = 10
+internal const val MIN_KEEP_RULES = 100
+private val ownNames = Regex("(?<![A-Za-z0-9_$])(tv\\.stationbreak|okhttp3)\\.")
+
+/**
+ * The missing definitions tracereferences reported that are ours or OkHttp's. Third-party names (annotations, hidden
+ * platform API) are only warnings; a class of ours the target lacks means the target is not the whole app. Only the
+ * part of a line before "(referenced from" names the missing thing.
+ */
+internal fun missingOwnDefinitions(output: String): List<String> =
+    output
+        .lines()
+        .map { it.removePrefix("Warning: ").removePrefix("Error: ") }
+        .filter { it.startsWith("Missing ") }
+        .map { it.substringBefore(" (referenced from") }
+        .filter { ownNames.containsMatchIn(it) }
+
+internal fun keepRuleCount(rules: String): Int = rules.lines().count { it.startsWith("-keep") }

@@ -92,6 +92,7 @@ dependencies {
         implementation(libs.androidx.savedstate)
         implementation(libs.androidx.collection)
         implementation(libs.androidx.profileinstaller)
+        implementation(libs.androidx.lifecycle.common)
         implementation(libs.androidx.lifecycle.livedata)
         implementation(libs.androidx.lifecycle.livedata.core)
         implementation(libs.androidx.lifecycle.runtime)
