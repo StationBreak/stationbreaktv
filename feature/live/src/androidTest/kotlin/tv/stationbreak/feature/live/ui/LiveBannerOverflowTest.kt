@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -169,42 +168,52 @@ class LiveBannerOverflowTest {
     }
 
     /**
-     * The "Up next" line with a title cut to its longest and a wide time (12:59 PM, or 12:59 on a 24-hour TV): the
-     * whole line, time included, fits the column, so the line's own ellipsis never cuts the time.
+     * The "Up next" line with a long title and a wide time (12:59 PM, or 12:59 on a 24-hour TV): the title is cut until
+     * the whole line, time included, fits the column, so the line's own ellipsis never cuts the time. A screen reader
+     * still hears the whole title.
      */
     @Test
-    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFit() = assertTheNextLineFits(fontScale = 1f)
+    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFit() = assertTheNextLineFits("Test Movie $longWords", 1f)
 
-    /**
-     * The same at the larger text size a TV can be set to. Ignored: at 1.15 the 28-character cap measures about 295 to
-     * 310 dp for a mixed-case title, over the 280 dp column, so the time is cut. It needs a decision (a cap of about
-     * 22, or the time as its own text) before it can run.
-     */
-    @Ignore("The 28-character next-title cap does not fit the 280 dp column at font scale 1.15; awaiting a decision")
+    /** The same at the larger text size a TV can be set to. */
     @Test
-    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFitAtFontScale115() = assertTheNextLineFits(fontScale = 1.15f)
+    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFitAtFontScale115() {
+        assertTheNextLineFits("Test Movie $longWords", 1.15f)
+    }
 
-    private fun assertTheNextLineFits(fontScale: Float) {
+    /** A title in capitals is wider for its length: it is cut further, and the time still fits at 1.15. */
+    @Test
+    fun aLongNextTitleInCapitalsIsCutSoTheTimeFitsAtFontScale115() {
+        assertTheNextLineFits("TEST MOVIE ${longWords.uppercase()}", 1.15f)
+    }
+
+    private fun assertTheNextLineFits(
+        title: String,
+        fontScale: Float,
+    ) {
         val at =
             LocalDateTime
                 .of(2026, 1, 1, 12, 59)
                 .atZone(ZoneId.systemDefault())
                 .toInstant()
                 .toEpochMilli()
-        val state = LiveState.Watching(banner(longEpisode).copy(next = NextProgram("Test Movie $longWords", at)))
+        val state = LiveState.Watching(banner(longEpisode).copy(next = NextProgram(title, at)))
         compose.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 StationBreakTheme { LiveScreen(state, changeStyle = Stan) {} }
             }
         }
         compose.waitForIdle()
-        val result = layout(compose.onNodeWithTag(LiveTags.BANNER_NEXT))
+        val node = compose.onNodeWithTag(LiveTags.BANNER_NEXT)
+        val result = layout(node)
         val text = result.layoutInput.text.text
-        assertTrue("the title is cut: $text", "…" in text)
+        assertTrue("the title is cut: $text", "\u2026" in text)
         assertEquals("$text is one line", 1, result.lineCount)
         assertTrue("$text is not ellipsized", !result.isLineEllipsized(0))
         assertTrue("$text has no visual overflow", !result.hasVisualOverflow)
         assertEquals("$text shows whole", text.length, result.getLineEnd(0, visibleEnd = true))
+        val said = node.fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertTrue("a screen reader hears the whole title: $said", title.trim() in said)
         assertInside(LiveTags.BANNER_NEXT)
     }
 

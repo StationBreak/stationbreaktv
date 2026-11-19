@@ -8,8 +8,6 @@ import tv.stationbreak.core.ui.ProgramCopy
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.feature.live.NextProgram
 import tv.stationbreak.feature.live.R
-import java.time.ZoneId
-import java.util.Locale
 
 /**
  * The words of the tune banner's "how far in" text, from resources: a plain holder, so [BannerText.joined] is tested on
@@ -51,13 +49,6 @@ internal class SpokenCopy(
 
 /** What the banner says about progress, the next program and episodes (spec 14); the shared rules are [ProgramText]. */
 internal object BannerText {
-    /**
-     * The longest title the "Up next" line shows, ellipsis included: the time after it must stay in view. With "Up
-     * next: " and " at 12:59 PM", a mixed-case title this long measures about 255 to 270 dp in 11 sp Manrope, inside
-     * the banner's 280 dp column (`LiveBannerOverflowTest` checks it on the device). A title in capitals is wider and
-     * can still lose the time to the line's ellipsis.
-     */
-    private const val NEXT_TITLE_MAX = 28
     private const val ELLIPSIS = "\u2026"
 
     /** How far through [startMs]..[endMs] the clock is at [nowMs], from 0 to 1; 0 for a slot with no length. */
@@ -97,24 +88,59 @@ internal object BannerText {
         return if (minutesLeft == null) named else copy.withMinutes(named, minutesLeft)
     }
 
-    /** [title] cut to [NEXT_TITLE_MAX] characters, the last one an ellipsis, when it is longer. */
-    fun capTitle(title: String): String =
+    /**
+     * [title] whole when [fits] accepts it, else the longest start of it, with trailing spaces dropped and an ellipsis
+     * added, that [fits] accepts. When not even a lone ellipsis fits, it is the ellipsis: the caller's line still ends
+     * in its own ellipsis then, and there is nothing shorter to give. [fits] is asked once per halving (a binary search
+     * over the title's length), which takes a longer start to be no narrower than a shorter one.
+     */
+    fun fitTitle(
+        title: String,
+        fits: (String) -> Boolean,
+    ): String =
         when {
-            title.length <= NEXT_TITLE_MAX -> title
-            else -> title.take(NEXT_TITLE_MAX - 1) + ELLIPSIS
+            fits(title) -> title
+            title.isEmpty() || !fits(ELLIPSIS) -> ELLIPSIS
+            else -> cut(title, longestKept(title, fits))
         }
 
+    // The most characters of [title] whose cut [fits] accepts: 0 always does (the lone ellipsis, which the caller
+    // checked), and the whole title never does.
+    private fun longestKept(
+        title: String,
+        fits: (String) -> Boolean,
+    ): Int {
+        var low = 0
+        var high = title.length - 1
+        while (low < high) {
+            val mid = (low + high + 1) / 2
+            if (fits(cut(title, mid))) low = mid else high = mid - 1
+        }
+        return low
+    }
+
+    // The first [kept] characters of [title] (one fewer if that would split a surrogate pair), trailing spaces dropped,
+    // then an ellipsis.
+    private fun cut(
+        title: String,
+        kept: Int,
+    ): String {
+        val end = if (kept > 0 && title[kept - 1].isHighSurrogate()) kept - 1 else kept
+        return title.take(end).trimEnd() + ELLIPSIS
+    }
+
     /**
-     * "Up next: <title> at <time>". The title is cut first: one line that ellipsizes at its end would cut the time,
-     * which is the part that matters.
+     * "Up next: <title> at <time>", from the one `program_next` string, with the title cut ([fitTitle]) until the whole
+     * line passes [fits]: the banner measures it against the column's real width at the TV's density and font scale.
+     * The title is what gives way, since one line that ellipsizes at its end would cut [time], the part that matters.
+     * With no [fits] the title is whole (what a screen reader is given).
      */
     fun nextLine(
         next: NextProgram,
+        time: String,
         copy: ProgramCopy,
-        zone: ZoneId,
-        is24h: Boolean,
-        locale: Locale = Locale.getDefault(),
-    ): String = copy.next(capTitle(next.title), ProgramText.time(next.startMs, zone, is24h, locale))
+        fits: (String) -> Boolean = { true },
+    ): String = copy.next(fitTitle(next.title) { candidate -> fits(copy.next(candidate, time)) }, time)
 
     /**
      * "12 min in", or "Just started" under a minute: how far into the show the viewer joined. Null when [joinedMs] is

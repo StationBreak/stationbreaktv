@@ -267,10 +267,6 @@ private fun BannerStrip(
         remember(banner) { BannerText.episodeLine(banner.info, programCopy) ?: BannerText.yearLine(banner.info) }
     // How far in the viewer joined: on the tune banner only, not the Select banner (its row of buttons is the line).
     val joined = remember(banner) { if (banner.actions) null else BannerText.joined(banner.joinedMs, bannerCopy) }
-    val next =
-        remember(banner, is24h) {
-            banner.next?.let { BannerText.nextLine(it, programCopy, ZoneId.systemDefault(), is24h) }
-        }
     val now = rememberMinuteClock(clock)
     val spoken = rememberSpoken(banner, clock)
     Column(
@@ -286,7 +282,7 @@ private fun BannerStrip(
         } else {
             ProgressLine(banner.slotStartMs, banner.slotEndMs, programCopy, now)
         }
-        BannerRow(banner, BannerLines(episode, slot, next, joined), programCopy, now, spoken)
+        BannerRow(banner, BannerLines(episode, slot, joined, is24h), programCopy, now, spoken)
         if (banner.actions) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
             ActionsRow(
@@ -305,14 +301,14 @@ private fun BannerStrip(
 }
 
 /**
- * What the banner's row writes besides the title: the episode line (a film's year), the slot, the "Next" line, and
- * "N min in" (the tune banner only).
+ * What the banner's row writes besides the title: the episode line (a film's year), the slot and "N min in" (the tune
+ * banner only), and the clock format the "Up next" line ([NextLine]) words its time in.
  */
 private class BannerLines(
     val episode: String?,
     val slot: String,
-    val next: String?,
     val joined: String?,
+    val is24h: Boolean,
 )
 
 /** The 54 dp row: the mark and number, the title and meta line, and the "Next" line on the right. */
@@ -369,19 +365,11 @@ private fun BannerRow(
             MetaLine(banner, lines, programCopy, now)
         }
         // The right column is the "Next" line alone; what plays is on the Select banner's chips.
-        lines.next?.let {
-            Text(
-                text = it,
-                modifier =
-                    Modifier
-                        .padding(start = SidePadding)
-                        .widthIn(max = NextMaxWidth)
-                        .testTag(LiveTags.BANNER_NEXT),
-                style = guideText(MetaSize, FontWeight.Normal),
-                color = colors.textSecondary,
-                textAlign = TextAlign.End,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+        banner.next?.let {
+            NextLine(
+                it,
+                NextLineLook(programCopy, lines.is24h, guideText(MetaSize, FontWeight.Normal)),
+                Modifier.padding(start = SidePadding).widthIn(max = NextMaxWidth),
             )
         }
     }
