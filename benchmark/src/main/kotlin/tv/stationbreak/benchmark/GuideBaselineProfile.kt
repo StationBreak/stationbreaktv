@@ -4,8 +4,6 @@ package tv.stationbreak.benchmark
 import android.view.KeyEvent
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
-import androidx.test.uiautomator.UiDevice
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,20 +36,20 @@ class GuideBaselineProfile {
             pressHome()
             startActivityAndWait()
             // Live TV tunes the last channel; give the first picture a moment before the guide opens over it.
-            device.waitForIdle(SETTLE_MS)
+            device.waitForIdle(Keys.SETTLE_MS)
             val keys = Keys(device, targetPackage())
 
             // Back from live TV opens the guide (feature:live OverlayKeys).
             keys.press(KeyEvent.KEYCODE_BACK)
-            device.waitForIdle(SETTLE_MS)
+            device.waitForIdle(Keys.SETTLE_MS)
 
             // s1: down stepping, one row per press.
-            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_DOWN, STEP_MS) }
+            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_DOWN, Keys.STEP_MS) }
             // s2: down held (repeat events 50 ms apart, the held-key path of the guide model).
             keys.hold(KeyEvent.KEYCODE_DPAD_DOWN, HELD_PRESSES)
             // s3: sweep right and back, stepping.
-            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_RIGHT, STEP_MS) }
-            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_LEFT, STEP_MS) }
+            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_RIGHT, Keys.STEP_MS) }
+            repeat(STEPS) { keys.press(KeyEvent.KEYCODE_DPAD_LEFT, Keys.STEP_MS) }
             // s4: the sweep held, the weakest case of ADR-0008.
             keys.hold(KeyEvent.KEYCODE_DPAD_RIGHT, HELD_PRESSES)
             keys.hold(KeyEvent.KEYCODE_DPAD_LEFT, HELD_PRESSES)
@@ -64,44 +62,11 @@ class GuideBaselineProfile {
 
             // Close the guide again so a later run starts the same way.
             keys.press(KeyEvent.KEYCODE_BACK)
-            device.waitForIdle(SETTLE_MS)
+            device.waitForIdle(Keys.SETTLE_MS)
         }
-
-    private fun targetPackage(): String {
-        val arguments = InstrumentationRegistry.getArguments()
-        return arguments.getString("targetAppId") ?: error("targetAppId is not set")
-    }
-
-    /** Remote keys by the input system: one press, or a run of presses spaced like a held key's repeats. */
-    private class Keys(
-        private val device: UiDevice,
-        private val packageName: String,
-    ) {
-        fun press(
-            keyCode: Int,
-            thenWaitMs: Long = STEP_MS,
-        ) {
-            check(device.currentPackageName == packageName) {
-                "$packageName is not in front (${device.currentPackageName}): the run stops before more keys go to it"
-            }
-            device.pressKeyCode(keyCode)
-            Thread.sleep(thenWaitMs)
-        }
-
-        fun hold(
-            keyCode: Int,
-            presses: Int,
-        ) {
-            repeat(presses) { press(keyCode, HELD_MS) }
-            Thread.sleep(STEP_MS)
-        }
-    }
 
     private companion object {
-        const val SETTLE_MS = 3_000L
         const val STEPS = 8
-        const val STEP_MS = 150L
-        const val HELD_MS = 50L
         const val HELD_PRESSES = 30
         const val MIXED_MS = 100L
     }

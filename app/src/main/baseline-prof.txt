@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# The app's baseline profile, by hand: an interim until the generated one and its Macrobenchmark module (#416, F2.5).
+# The app's baseline profile rules written by hand, beside the one recorded by benchmark/GuideBaselineProfile (#416, F2.5,
+# in generated/baselineProfiles).
 # AGP merges it with the libraries' own profiles into assets/dexopt/baseline.prof, and profileinstaller hands it to
 # ART, which compiles these methods ahead of time instead of interpreting them until the JIT gets to them. Broad on
 # purpose: the guide and live TV are most of the app, and the older TV has no time to spare on a first open.
@@ -28,3 +29,6 @@ HSPLdagger/**;->**(**)**
 Ldagger/**;
 HSPLandroidx/room/**;->**(**)**
 Landroidx/room/**;
+
+# The (#416) j$.time desugaring backport that the guide's time formatting runs through on API 25.
+HSPLj$/time/**;->**(**)**
