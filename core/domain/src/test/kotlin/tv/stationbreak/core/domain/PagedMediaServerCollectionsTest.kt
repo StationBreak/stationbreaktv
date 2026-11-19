@@ -120,9 +120,11 @@ class PagedMediaServerCollectionsTest {
             assertEquals(5, server.collections(session, 0, 2).getOrNull()?.totalCount)
         }
 
+    // runBlocking<Unit>: ending in assertFailsWith, the body would return the exception, and JUnit 5 would never run
+    // the test (#211). It never had, until 5.13 reported it.
     @Test
     fun badArgumentsAreRefusedAsTheRealPortDoes() =
-        runBlocking {
+        runBlocking<Unit> {
             val tooMany = MediaServer.MAX_PAGE_SIZE + 1
 
             assertFailsWith<IllegalArgumentException> { server.collections(session, -1, 10) }

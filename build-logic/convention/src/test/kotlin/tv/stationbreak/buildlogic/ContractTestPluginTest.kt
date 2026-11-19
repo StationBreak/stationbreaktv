@@ -72,8 +72,15 @@ class ContractTestPluginTest {
         val image = "registry.example/jellyfin@sha256:0000"
 
         assertEquals(image, printed("ENV_IMAGE", environment = mapOf("JELLYFIN_IMAGE" to image)))
-        assertEquals("", printed("SYSTEM_PROPERTIES"))
-        assertEquals("[]", printed("JVM_ARGS"))
+        // The only property is JUnit's (#211); the image is never one, so it never lands in a report.
+        assertEquals(SKIPPED_TESTS_FAIL, printed("SYSTEM_PROPERTIES", environment = mapOf("JELLYFIN_IMAGE" to image)))
+        assertEquals("[]", printed("JVM_ARGS", environment = mapOf("JELLYFIN_IMAGE" to image)))
+    }
+
+    // #211: a contract test JUnit cannot run (one that returns a value) fails the run, as in every JVM module.
+    @Test
+    fun aTestThatCannotRunFailsTheRunInsteadOfBeingSkipped() {
+        assertEquals(SKIPPED_TESTS_FAIL, printed("SYSTEM_PROPERTIES"))
     }
 
     @Test
@@ -86,3 +93,5 @@ class ContractTestPluginTest {
         assertEquals("true", printed("UP_TO_DATE_ALWAYS_RERUNS"))
     }
 }
+
+private const val SKIPPED_TESTS_FAIL = "junit.platform.discovery.issue.severity.critical=WARNING"

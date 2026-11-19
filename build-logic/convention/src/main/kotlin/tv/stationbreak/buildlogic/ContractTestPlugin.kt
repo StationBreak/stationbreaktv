@@ -42,6 +42,7 @@ class ContractTestPlugin : Plugin<Project> {
                     testClassesDirs = contract.output.classesDirs
                     classpath = contract.runtimeClasspath
                     useJUnitPlatform()
+                    failOnSkippedTests()
                     // A real server is an input nothing here tracks, so a rerun is never "up to date".
                     outputs.upToDateWhen { false }
                     providers.environmentVariable(IMAGE_VARIABLE).orNull?.let { environment(IMAGE_VARIABLE, it) }
@@ -57,7 +58,10 @@ class ContractTestPlugin : Plugin<Project> {
                 extensions.getByType(KotlinJvmProjectExtension::class.java).target.compilations.apply {
                     getByName(SOURCE_SET).associateWith(getByName(SourceSet.MAIN_SOURCE_SET_NAME))
                 }
-                dependencies { add(contract.implementationConfigurationName, kotlin("test-junit5")) }
+                dependencies {
+                    add(contract.implementationConfigurationName, kotlin("test-junit5"))
+                    add(contract.implementationConfigurationName, platform(libs.library("junit-bom")))
+                }
                 contractTest.configure { useJUnitPlatform() }
             }
         }

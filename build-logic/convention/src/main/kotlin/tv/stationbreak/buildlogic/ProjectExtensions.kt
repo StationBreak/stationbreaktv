@@ -5,6 +5,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalog
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.file.Directory
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.getByType
 import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 
@@ -26,6 +27,15 @@ internal fun VersionCatalog.library(alias: String) = findLibrary(alias).get()
 // The repository root, read through Gradle's isolated view so the plugins stay isolated-projects safe.
 internal val Project.repoRoot: Directory
     get() = isolated.rootProject.projectDirectory
+
+/**
+ * #211: JUnit 5 skips a `@Test` it cannot run (one that returns a value, as an expression body ending in `assertIs`
+ * does) and says nothing. From 5.13 it reports such a method as a discovery issue at WARNING; with WARNING as the
+ * critical severity the run fails and names it, instead of passing with the test never run.
+ */
+internal fun Test.failOnSkippedTests() {
+    systemProperty("junit.platform.discovery.issue.severity.critical", "WARNING")
+}
 
 internal fun Project.configureKotlinToolchain() {
     extensions.getByType<KotlinBaseExtension>().jvmToolchain(JDK_VERSION)
