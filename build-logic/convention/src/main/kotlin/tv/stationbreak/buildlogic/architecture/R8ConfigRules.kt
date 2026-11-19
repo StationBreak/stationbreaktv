@@ -76,6 +76,7 @@ object R8ConfigRules {
             "-keepclasseswithmembers",
             "-keepclasseswithmembernames",
         )
+
     // Includes and file options read or write files; no library needs them, and the app's own rules may (#933).
     private val fileOptions =
         setOf(
@@ -211,7 +212,7 @@ object R8ConfigRules {
             if (text.count { it == '{' } != text.count { it == '}' }) return false
             val tokens = text.split(separators)
             if (midLine) return tokens.any { it in classKeywords }
-            return tokens.first() !in keepFamily && tokens.first() != "-if" || tokens.any { it in classKeywords }
+            return (tokens.first() !in keepFamily && tokens.first() != "-if") || tokens.any { it in classKeywords }
         }
         for (raw in configuration.lines()) {
             val whole = raw.trim()
@@ -250,8 +251,10 @@ object R8ConfigRules {
                     val text = header.groupValues[1]
                     val shapeOk =
                         text == appRules ||
-                            libraryHeaders.any { it.matches(text) } &&
-                            (text == "<unknown>" || extractedFileIsReal(text, rulesFiles, headerPaths, bodies[text]))
+                            (
+                                libraryHeaders.any { it.matches(text) } &&
+                                    (text == "<unknown>" || extractedFileIsReal(text, rulesFiles, headerPaths, bodies[text]))
+                            )
                     // A header of an unknown shape never reaches the app's allowance, whatever its text says.
                     val name = if (shapeOk || coordinateHeader.matches(text)) normalise(text, appRules) else "unknown header: $text"
                     if (open != null) found += R8Violation("a section header inside an open section", name)
@@ -273,7 +276,11 @@ object R8ConfigRules {
                 // R8 reads `-keep class a.B -dontshrink` as two options (checked with 9.3.16), so a line is split at
                 // each whitespace followed by an option and every part is checked (#933). Over-splitting only checks more.
                 else -> {
-                    for ((i, part) in line.split(nextOption).map { it.trim() }.filter { it.isNotEmpty() }.withIndex()) {
+                    for ((i, part) in line
+                        .split(nextOption)
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .withIndex()) {
                         if (part.startsWith("@") && part.length > 1 && startsFileInclude() && source != APP_RULES) {
                             backstop += Triple(source, "@file", whole)
                         }
@@ -281,10 +288,14 @@ object R8ConfigRules {
                         // annotation too (`-identifiernamestring @a.B class **`, dagger), so they are not read as an include.
                         val sofar = if (part.startsWith("-")) "" else directive.toString()
                         val glued = atToken.find(part)
-                        if (glued != null && startsFileInclude(sofar + "\n" + part.substring(0, glued.range.first), midLine = true) && source != APP_RULES) {
+                        if (glued != null && startsFileInclude(sofar + "\n" + part.substring(0, glued.range.first), midLine = true) &&
+                            source != APP_RULES
+                        ) {
                             backstop += Triple(source, "@file", whole)
                         }
-                        if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") && ifKeep.find(directive) == null) {
+                        if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") &&
+                            ifKeep.find(directive) == null
+                        ) {
                             // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
                             directive.append(' ').append(part)
                         } else if (part.startsWith("-")) {
@@ -328,9 +339,13 @@ object R8ConfigRules {
                     header = opening.groupValues[1]
                 }
 
-                sectionEnd.matchEntire(whole) != null -> close()
+                sectionEnd.matchEntire(whole) != null -> {
+                    close()
+                }
 
-                header != null -> body += raw
+                header != null -> {
+                    body += raw
+                }
             }
         }
         close()
@@ -339,7 +354,12 @@ object R8ConfigRules {
 
     // Line endings, trailing whitespace and blank lines at either end are the only differences R8's copy may have.
     private fun comparable(text: String): String =
-        text.lines().map { it.trimEnd() }.dropWhile { it.isEmpty() }.dropLastWhile { it.isEmpty() }.joinToString("\n")
+        text
+            .lines()
+            .map { it.trimEnd() }
+            .dropWhile { it.isEmpty() }
+            .dropLastWhile { it.isEmpty() }
+            .joinToString("\n")
 
     // The distinct header texts that name each extracted file: a file named by two headers is not trusted for either.
     private fun headerPaths(configuration: String): Map<Path, Set<String>> {
@@ -376,7 +396,11 @@ object R8ConfigRules {
     private fun uncommented(line: String): String {
         var quoted = false
         for ((i, c) in line.withIndex()) {
-            if (c == '"') quoted = !quoted else if (c == '#' && !quoted) return line.substring(0, i).trim()
+            if (c == '"') {
+                quoted = !quoted
+            } else if (c == '#' && !quoted) {
+                return line.substring(0, i).trim()
+            }
         }
         return line
     }

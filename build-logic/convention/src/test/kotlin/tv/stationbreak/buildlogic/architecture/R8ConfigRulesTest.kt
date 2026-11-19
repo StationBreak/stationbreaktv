@@ -612,7 +612,13 @@ class R8ConfigRulesTest {
     @Test
     fun aListedSourceStillPassesTheBackstop() {
         val config =
-            section("androidx.startup:startup-runtime:1.2.0", "-keep class a.B", "-assumenosideeffects class a.C {", "}", "# -assumenosideeffects")
+            section(
+                "androidx.startup:startup-runtime:1.2.0",
+                "-keep class a.B",
+                "-assumenosideeffects class a.C {",
+                "}",
+                "# -assumenosideeffects",
+            )
         assertEquals(emptyList(), scan(config))
     }
 
@@ -645,12 +651,10 @@ class R8ConfigRulesTest {
     }
 
     @Test
-    fun aQuoteAfterTheFirstHashIsOnlyAComment() =
-        assertEquals(emptyList(), violations("-keep class a.B # it's a \"quoted\" licence"))
+    fun aQuoteAfterTheFirstHashIsOnlyAComment() = assertEquals(emptyList(), violations("-keep class a.B # it's a \"quoted\" licence"))
 
     @Test
-    fun theAppMayUseQuotes() =
-        assertEquals(emptyList(), scan(section(appRules, "-printconfiguration \"x y\"")))
+    fun theAppMayUseQuotes() = assertEquals(emptyList(), scan(section(appRules, "-printconfiguration \"x y\"")))
 
     @Test
     fun aDashAfterALetterInRuleCodeIsFlagged() {
@@ -690,13 +694,17 @@ class R8ConfigRulesTest {
 
     @Test
     fun aBarePathHeaderIsFlagged() {
-        val config = "# The proguard configuration file for the following section is other.pro\n-keep class C\n# End of content from other.pro\n"
+        val config =
+            "# The proguard configuration file for the following section is other.pro\n" +
+                "-keep class C\n# End of content from other.pro\n"
         assertEquals(listOf("a section header of an unknown shape"), scan(config).map { it.rule })
     }
 
     @Test
     fun aBareAppRulesHeaderGetsNoAppTrust() {
-        val config = "# The proguard configuration file for the following section is app/proguard-rules.pro\n-dontobfuscate\n# End of content from app/proguard-rules.pro\n"
+        val config =
+            "# The proguard configuration file for the following section is app/proguard-rules.pro\n" +
+                "-dontobfuscate\n# End of content from app/proguard-rules.pro\n"
         assertEquals(listOf("a section header of an unknown shape", "-dontobfuscate"), scan(config).map { it.rule })
     }
 
@@ -745,8 +753,7 @@ class R8ConfigRulesTest {
     }
 
     @Test
-    fun aRealShapedHeaderUnderTheRootPasses() =
-        assertEquals(emptyList(), scan(headerOnly("a:b:1 (extracted file: $proguardFile)")))
+    fun aRealShapedHeaderUnderTheRootPasses() = assertEquals(emptyList(), scan(headerOnly("a:b:1 (extracted file: $proguardFile)")))
 
     @Test
     fun aKeywordGluedToItsClassNamesIsFlagged() {

@@ -42,7 +42,12 @@ class AndroidAppPlugin : Plugin<Project> {
                         variant.runtimeConfiguration.incoming
                             .artifactView {
                                 isLenient = true
-                                attributes { attribute(Attribute.of("artifactType", String::class.java), "android-consumer-proguard-rules") }
+                                attributes {
+                                    attribute(
+                                        Attribute.of("artifactType", String::class.java),
+                                        "android-consumer-proguard-rules",
+                                    )
+                                }
                             }.files
                     val defaultRules =
                         extensions.getByType(ApplicationExtension::class.java).getDefaultProguardFile("proguard-android-optimize.txt")
@@ -53,7 +58,11 @@ class AndroidAppPlugin : Plugin<Project> {
                             // AGP writes configuration.txt beside mapping.txt.
                             configuration.set(layout.buildDirectory.file("outputs/mapping/${variant.name}/configuration.txt"))
                             report.set(layout.buildDirectory.file("reports/r8/${variant.name}.txt"))
-                            appRules.set(layout.projectDirectory.file("proguard-rules.pro").asFile.absolutePath)
+                            appRules.set(
+                                layout.projectDirectory
+                                    .file("proguard-rules.pro")
+                                    .asFile.absolutePath,
+                            )
                             // The same set AGP feeds R8: the consumer proguard rules of the variant's runtime classpath
                             // (the artifact type R8Task reads), plus the default file the app lists in proguardFiles.
                             rulesGivenToR8.from(consumerRules, defaultRules)

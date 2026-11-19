@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.buildlogic.architecture
 
-import java.nio.file.Files
-import java.nio.file.Path
-
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
@@ -15,6 +12,8 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import java.nio.file.Files
+import java.nio.file.Path
 
 /** Fails if the merged R8 configuration of a minified variant holds a risky rule ([R8ConfigRules]). */
 abstract class R8ConfigCheck : DefaultTask() {
@@ -36,9 +35,17 @@ abstract class R8ConfigCheck : DefaultTask() {
     abstract val report: RegularFileProperty
 
     private fun ruleFiles(): Set<Path> =
-        rulesGivenToR8.files.flatMap { file ->
-            if (file.isDirectory) Files.walk(file.toPath()).use { walk -> walk.filter { Files.isRegularFile(it) }.toList() } else listOf(file.toPath())
-        }.map { it.toAbsolutePath().normalize() }.toSet()
+        rulesGivenToR8.files
+            .flatMap { file ->
+                if (file.isDirectory) {
+                    Files.walk(file.toPath()).use { walk ->
+                        walk.filter { Files.isRegularFile(it) }.toList()
+                    }
+                } else {
+                    listOf(file.toPath())
+                }
+            }.map { it.toAbsolutePath().normalize() }
+            .toSet()
 
     @TaskAction
     fun check() {
