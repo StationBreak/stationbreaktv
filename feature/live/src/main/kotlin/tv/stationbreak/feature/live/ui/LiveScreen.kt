@@ -168,8 +168,8 @@ private class InRectNode(
 }
 
 /**
- * What live TV shows in the guide's corner for [state] when there is no picture to show: snow while tuning, the cards
- * without their banners. Nothing over a picture (the guide says what is on), nor while signed out.
+ * What live TV shows in the guide's corner for [state] when there is no picture to show: Stan's screens (or snow while
+ * tuning, when chosen) without their banners. Nothing over a picture (the guide says what is on), nor while signed out.
  */
 @Composable
 private fun PictureLayers(
@@ -186,16 +186,13 @@ private fun PictureLayers(
             if (!state.overPicture) StationGround(state, changeStyle, nowMs, full = false)
         }
 
-        is LiveState.TechnicalDifficulties, is LiveState.Ident, LiveState.BuildingChannels -> {
+        is LiveState.TechnicalDifficulties,
+        is LiveState.Ident,
+        LiveState.BuildingChannels,
+        LiveState.NoChannels,
+        LiveState.NoLibraries,
+        -> {
             StationGround(state, changeStyle, nowMs, full = false)
-        }
-
-        LiveState.NoChannels -> {
-            NoChannelsSlate()
-        }
-
-        LiveState.NoLibraries -> {
-            NoLibrariesSlate()
         }
 
         is LiveState.Watching, LiveState.SignedOut -> {
@@ -253,16 +250,8 @@ private fun LiveLayers(
                 CardBanner(state.upNext, state.channel)
             }
 
-            LiveState.NoChannels -> {
-                NoChannelsSlate()
-            }
-
-            LiveState.BuildingChannels -> {
+            LiveState.BuildingChannels, LiveState.NoChannels, LiveState.NoLibraries -> {
                 StationGround(state, changeStyle, nowMs)
-            }
-
-            LiveState.NoLibraries -> {
-                NoLibrariesSlate()
             }
 
             LiveState.SignedOut -> {

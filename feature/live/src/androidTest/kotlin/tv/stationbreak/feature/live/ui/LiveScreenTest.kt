@@ -93,7 +93,6 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
         compose.onNodeWithTag(LiveTags.BANNER_TITLE).assertTextEquals("Test Movie A")
         compose.onNodeWithText("TUNING IN").assertExists()
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
     }
 
     @Test
@@ -102,7 +101,6 @@ class LiveScreenTest {
         compose.onNodeWithTag(LiveTags.SNOW).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STANDBY).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
     }
 
     @Test
@@ -229,7 +227,6 @@ class LiveScreenTest {
         show(LiveState.Watching(banner(BannerLabel.TuningIn)))
         compose.onNodeWithTag(LiveTags.BANNER).assertExists()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
     }
 
     @Test
@@ -237,13 +234,11 @@ class LiveScreenTest {
         show(LiveState.Watching(null))
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
     }
 
     @Test
     fun technicalDifficultiesShowsStansScreenWithUpNext() {
         show(LiveState.TechnicalDifficulties(banner(BannerLabel.UpNext, joinedMs = null)))
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.DIFFICULTIES).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("TECHNICAL DIFFICULTIES")
         compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("WE'LL BE RIGHT BACK")
@@ -280,7 +275,6 @@ class LiveScreenTest {
     @Test
     fun identShowsStansOffAirScreenWithUpNext() {
         show(LiveState.Ident(banner(BannerLabel.UpNext, joinedMs = null)))
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.STAN_OFF_AIR).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("OFF THE AIR")
         compose.onNodeWithText("UP NEXT").assertExists()
@@ -288,10 +282,33 @@ class LiveScreenTest {
     }
 
     @Test
-    fun noChannelsShowsTheTestCardLine() {
+    fun noChannelsShowsStansScreenAndSaysItPlainly() {
         show(LiveState.NoChannels)
-        compose.onNodeWithTag(LiveTags.TEST_CARD).assertExists()
-        compose.onNodeWithTag(LiveTags.NO_CHANNELS).assertTextEquals("No channels on the air yet")
+        compose
+            .onNodeWithTag(LiveTags.NO_CHANNELS)
+            .assertContentDescriptionEquals("No channels on the air yet.")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        compose.onNodeWithText("NOTHING ON").assertExists()
+        compose.onNodeWithText("THE AIR").assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("NO CHANNELS YET")
+        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("GUIDE · CHANNELS")
+        compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
+    }
+
+    @Test
+    fun noLibrariesShowsStansScreenAndSaysWhereToChooseThem() {
+        // Whichever the viewer chose for a channel change: nothing is changing channel.
+        show(LiveState.NoLibraries, ChannelChangeStyle.Snow)
+        compose
+            .onNodeWithTag(LiveTags.NO_LIBRARIES)
+            .assertContentDescriptionEquals("No libraries available. Guide, Settings, Libraries.")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        compose.onNodeWithText("NOTHING ON").assertExists()
+        compose.onNodeWithText("THE SHELF").assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("NO LIBRARIES")
+        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("GUIDE · SETTINGS · LIBRARIES")
+        compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
 

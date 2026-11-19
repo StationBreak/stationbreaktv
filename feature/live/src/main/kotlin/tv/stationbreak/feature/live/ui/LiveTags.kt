@@ -38,9 +38,8 @@ object LiveTags {
     const val TRANSPORT = "live:transport"
     const val TRANSPORT_SPINNER = "live:transport:spinner"
     const val INFO = "live:info"
-    const val TEST_CARD = "live:testCard"
 
-    /** Stan's station screens: standby while a channel tunes (the difficulties and ident roots are tagged below). */
+    /** Stan's station screens: standby while a channel tunes (the difficulties and empty-screen roots are below). */
     const val STAN_STANDBY = "live:stan:standby"
     const val STAN_OFF_AIR = "live:stan:offAir"
     const val STAN_STAGE = "live:stan:stage"
@@ -50,10 +49,10 @@ object LiveTags {
     const val STAN_SIGN_OFF = "live:stan:signOff"
     const val STAN_CLOCK = "live:stan:clock"
     const val DIFFICULTIES = "live:difficulties"
-    const val IDENT = "live:ident"
-    const val IDENT_NOTE = "live:identNote"
+
+    /** Stan's screen when no channel is on the air. */
     const val NO_CHANNELS = "live:noChannels"
 
-    /** The line on the card when none of this TV's libraries is available (spec 26). */
+    /** Stan's screen when none of this TV's libraries is available (spec 26). */
     const val NO_LIBRARIES = "live:noLibraries"
 }

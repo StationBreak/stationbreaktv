@@ -9,7 +9,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 
-/** The on-air look of the live channel (snow, cable banner, test-card slates), taken from the app icon art. */
+/** The on-air look of the live channel (snow and the cable banner), taken from the app icon art. */
 object BroadcastColors {
     val Ground = BrandColors.Grey
     val Ink = BrandColors.Ink
