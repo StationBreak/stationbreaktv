@@ -189,6 +189,7 @@ android {
         getByName(
             "androidTest",
         ).kotlin.directories.addAll(listOf("src/androidTest/securityTest/hilt/kotlin", "src/androidTest/securityTest/trust/kotlin"))
+        getByName("androidTest").assets.directories.add("src/androidTest/securityTest/trust/assets")
     }
 }
 

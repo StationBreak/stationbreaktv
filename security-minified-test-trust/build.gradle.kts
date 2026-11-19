@@ -50,6 +50,8 @@ android {
 
     sourceSets {
         getByName("main").kotlin.directories.add("../app/src/androidTest/securityTest/trust/kotlin")
+        // The certificate chains the two trust tests read (#436).
+        getByName("main").assets.directories.add("../app/src/androidTest/securityTest/trust/assets")
     }
 }
 
