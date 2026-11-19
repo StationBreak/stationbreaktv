@@ -8,10 +8,18 @@ class R8ConfigRulesTest {
     private fun section(
         source: String,
         vararg rules: String,
-    ) = "# The proguard configuration file for the following section is $source (extracted file: /x/y/proguard.txt)\n" +
-        rules.joinToString("\n") + "\n# End of content from $source (extracted file: /x/y/proguard.txt)\n"
+    ): String {
+        // AGP prints the app's own rules file as the bare path, and a library's with the extracted file.
+        val name = if (source == appRules) source else "$source (extracted file: /x/y/proguard.txt)"
+        return "# The proguard configuration file for the following section is $name\n" +
+            rules.joinToString("\n") + "\n# End of content from $name\n"
+    }
 
-    private fun violations(vararg rules: String) = R8ConfigRules.violations(section("com.evil:lib:1.0", *rules))
+    private val appRules = "/home/dev/stationbreaktv/app/proguard-rules.pro"
+
+    private fun scan(config: String) = R8ConfigRules.violations(config, appRules)
+
+    private fun violations(vararg rules: String) = scan(section("com.evil:lib:1.0", *rules))
 
     // The input lines and the one violation they must give, which differ when options share a line.
     private fun assertOnly(
@@ -33,7 +41,7 @@ class R8ConfigRulesTest {
             ) +
                 section("x:y:1", "-keepclasseswithmembers class * {", "    native <methods>;", "}") +
                 section("x:z:1", "-keepclassmembers class ** {", "    @androidx.lifecycle.OnLifecycleEvent <methods>;", "}")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -43,7 +51,7 @@ class R8ConfigRulesTest {
     @Test
     fun assumenosideeffectsFromAListedSourcePasses() {
         val config = section("androidx.compose.runtime:runtime-android:1.12.1", "-assumenosideeffects public class a.B {", "}")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -54,7 +62,7 @@ class R8ConfigRulesTest {
                 "-assumenosideeffects class androidx.datastore.core.SharedCounter\$Factory {",
                 "}",
             )
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -72,7 +80,7 @@ class R8ConfigRulesTest {
     @Test
     fun dontobfuscateFromTheAppPasses() {
         val config = section("/home/dev/stationbreaktv/app/proguard-rules.pro", "-dontobfuscate")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -101,12 +109,12 @@ class R8ConfigRulesTest {
 
     // #933: the backstop reads comments too, as it cannot tell a comment from a quote it did not understand.
     @Test
-    fun aForbiddenOptionNamedInACommentIsFlagged() = assertOnly("-dontoptimize", "# -dontoptimize", "-keep class a.B")
+    fun aForbiddenOptionNamedInACommentIsFlagged() = assertOnly("# -dontoptimize", "# -dontoptimize", "-keep class a.B")
 
     @Test
     fun theSourceHasNoBuildMachinePath() {
         val config = section("/home/dev/stationbreaktv/app/proguard-rules.pro", "-dontshrink")
-        assertEquals(listOf(R8Violation("-dontshrink", "app/proguard-rules.pro")), R8ConfigRules.violations(config))
+        assertEquals(listOf(R8Violation("-dontshrink", "app/proguard-rules.pro")), scan(config))
     }
 
     @Test
@@ -121,7 +129,7 @@ class R8ConfigRulesTest {
     @Test
     fun assumevaluesFromComposePasses() {
         val config = section("androidx.compose.runtime:runtime-android:1.12.1", "-assumevalues class a.B {", "}")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -153,7 +161,7 @@ class R8ConfigRulesTest {
     fun aSecondHeaderForTheSameSourceIsFlagged() {
         val source = "androidx.compose.runtime:runtime-android:1.12.1"
         val config = section(source) + section(source)
-        assertEquals(listOf("a second section header for this source file"), R8ConfigRules.violations(config).map { it.rule })
+        assertEquals(listOf("a second section header for this source file"), scan(config).map { it.rule })
     }
 
     @Test
@@ -161,7 +169,7 @@ class R8ConfigRulesTest {
         val header = "# The proguard configuration file for the following section is a:b:1 (extracted file: /x/"
         val end = "# End of content from a:b:1 (extracted file: /x/"
         val config = "${header}one.pro)\n-keep class a.B\n${end}one.pro)\n${header}two.pro)\n-keep class a.C\n${end}two.pro)\n"
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -169,7 +177,7 @@ class R8ConfigRulesTest {
         val config =
             "# The proguard configuration file for the following section is androidx.compose.runtime:runtime-android:1.12.1\n" +
                 "-assumenosideeffects class a.B\n"
-        assertEquals(1, R8ConfigRules.violations(config).count { it.rule == "a section header without an extracted file" })
+        assertEquals(1, scan(config).count { it.rule == "a section header without an extracted file" })
     }
 
     @Test
@@ -293,19 +301,19 @@ class R8ConfigRulesTest {
         val spoof =
             "# The proguard configuration file for the following section is androidx.startup:startup-runtime:1.2.0 (extracted file: /z)"
         val config = section("com.evil:lib:1.0", spoof, "-assumenosideeffects class a.B")
-        assertEquals(1, R8ConfigRules.violations(config).count { it.rule == "a section header inside an open section" })
+        assertEquals(1, scan(config).count { it.rule == "a section header inside an open section" })
     }
 
     @Test
     fun anEndMarkerWithNothingOpenIsFlagged() {
         val config = section("a:b:1") + "# End of content from a:b:1 (extracted file: /x/y/proguard.txt)\n"
-        assertEquals(listOf("an end marker that does not close the open section"), R8ConfigRules.violations(config).map { it.rule })
+        assertEquals(listOf("an end marker that does not close the open section"), scan(config).map { it.rule })
     }
 
     @Test
     fun aSectionNeverClosedIsFlagged() {
-        val config = "# The proguard configuration file for the following section is app/proguard-rules.pro\n-keep class a.B\n"
-        assertEquals(listOf("a section that is never closed"), R8ConfigRules.violations(config).map { it.rule })
+        val config = "# The proguard configuration file for the following section is $appRules\n-keep class a.B\n"
+        assertEquals(listOf("a section that is never closed"), scan(config).map { it.rule })
     }
 
     // #909: a name of `**` and a suffix with no package part keeps classes in every package.
@@ -464,7 +472,7 @@ class R8ConfigRulesTest {
     @Test
     fun aListedSourceStillPassesWithSeveralOptionsOnALine() {
         val config = section("androidx.compose.runtime:runtime-android:1.12.1", "-keep class a.B -assumenosideeffects class a.C {", "}")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
@@ -482,18 +490,21 @@ class R8ConfigRulesTest {
 
     // `-` is a name character in R8, so these are one name, not an option (checked with 9.3.16: nothing took effect).
     @Test
-    fun aDashInsideANameIsNotAnOption() =
-        assertEquals(emptyList(), violations("-keep class a.B-dontshrink", "-dontwarn a.B-dontoptimize"))
+    fun aDashAfterALetterInARuleIsFlaggedToo() =
+        assertEquals(
+            listOf(
+                R8Violation("-keep class a.B-dontshrink", "com.evil:lib:1.0"),
+                R8Violation("-dontwarn a.B-dontoptimize", "com.evil:lib:1.0"),
+            ),
+            violations("-keep class a.B-dontshrink", "-dontwarn a.B-dontoptimize"),
+        )
 
     @Test
     fun aTabBetweenTwoOptions() = assertOnly("-dontshrink", "-keep class a.B\t-dontshrink")
 
     // R8 reads a quoted `#` as text in `-printconfiguration`, so the option after it still counts.
     @Test
-    fun aQuotedHashDoesNotHideTheRestOfTheLine() = assertEquals(
-            listOf(R8Violation("-printconfiguration \"x#y\"", "com.evil:lib:1.0"), R8Violation("-dontshrink", "com.evil:lib:1.0")),
-            violations("-printconfiguration \"x#y\" -dontshrink"),
-        )
+    fun aQuotedHashDoesNotHideTheRestOfTheLine() = assertFlaggedWith("-dontshrink", "-printconfiguration \"x#y\" -dontshrink")
 
     @Test
     fun aHashOutsideQuotesStillStartsAComment() = assertEquals(emptyList(), violations("-keep class a.B # -keep class ** { *; }"))
@@ -521,14 +532,17 @@ class R8ConfigRulesTest {
 
     // #933 fix 2: a fail-closed scan of every line, comments and quotes included, outside the app's own rules.
     @Test
-    fun aSingleQuotedHashDoesNotHideAnOption() = assertOnly("-dontshrink", "-dontwarn 'x#y' -dontshrink")
+    fun aSingleQuotedHashDoesNotHideAnOption() = assertOnly("-dontwarn 'x#y' -dontshrink", "-dontwarn 'x#y' -dontshrink")
 
     @Test
-    fun aQuoteRunningAcrossALineDoesNotHideAnOption() = assertOnly("-dontshrink", "-keep class a.B \"a", "# b\" -dontshrink")
+    fun aQuoteRunningAcrossALineDoesNotHideAnOption() {
+        assertFlaggedWith("-keep class a.B \"a", "-keep class a.B \"a", "# b\" -dontshrink")
+        assertFlaggedWith("# b\" -dontshrink", "-keep class a.B \"a", "# b\" -dontshrink")
+    }
 
     @Test
     fun anOptionGluedAfterAQuoteADigitAndAComma() {
-        assertOnly("-dontshrink", "-keep class a.B \"x\"-dontshrink")
+        assertFlaggedWith("-dontshrink", "-keep class a.B \"x\"-dontshrink")
         assertOnly("-dontshrink", "-optimizationpasses 5-dontshrink")
         assertOnly("-dontshrink", "-keep class a.B,-dontshrink")
     }
@@ -537,10 +551,10 @@ class R8ConfigRulesTest {
     fun anIncludeInALibrarySection() = assertOnly("-include other.pro", "-include other.pro")
 
     @Test
-    fun aFileIncludeInALibrarySection() = assertOnly("@file", "@other.pro")
+    fun aFileIncludeInALibrarySection() = assertOnly("@other.pro", "@other.pro")
 
     @Test
-    fun aFileIncludeAfterAnotherDirective() = assertOnly("@file", "-keep class a.B", "@other.pro")
+    fun aFileIncludeAfterAnotherDirective() = assertOnly("@other.pro", "-keep class a.B", "@other.pro")
 
     @Test
     fun aBasedirectoryInALibrarySection() = assertOnly("-basedirectory /x", "-basedirectory /x")
@@ -565,13 +579,113 @@ class R8ConfigRulesTest {
     fun theAppMayUsePrintconfigurationAndIncludes() {
         val config =
             section("/home/dev/stationbreaktv/app/proguard-rules.pro", "-printconfiguration out.txt", "-include x.pro # -dontshrink")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
     }
 
     @Test
     fun aListedSourceStillPassesTheBackstop() {
         val config =
             section("androidx.startup:startup-runtime:1.2.0", "-keep class a.B", "-assumenosideeffects class a.C {", "}", "# -assumenosideeffects")
-        assertEquals(emptyList(), R8ConfigRules.violations(config))
+        assertEquals(emptyList(), scan(config))
+    }
+
+    // #933 fix 3: no quotes in library rules, a split at any non-name dash, and only AGP's own section headers.
+    private val broadKeep = "-keep class ** { *; }"
+
+    private fun assertFlaggedWith(
+        expected: String,
+        vararg rules: String,
+    ) = assertEquals(true, R8Violation(expected, "com.evil:lib:1.0") in violations(*rules), violations(*rules).toString())
+
+    @Test
+    fun aSingleQuoteHidesNothing() {
+        assertFlaggedWith("-dontwarn 'x#y' $broadKeep", "-dontwarn 'x#y' $broadKeep")
+    }
+
+    @Test
+    fun aDoubleQuoteGluedToAnOptionHidesNothing() {
+        assertFlaggedWith("-keepattributes \"x\"$broadKeep", "-keepattributes \"x\"$broadKeep")
+        assertFlaggedWith(broadKeep, "-keepattributes \"x\"$broadKeep")
+    }
+
+    @Test
+    fun aDigitGluedToAnOptionHidesNothing() = assertFlaggedWith(broadKeep, "-optimizationpasses 5$broadKeep")
+
+    @Test
+    fun anUnclosedQuoteAcrossTwoLinesHidesNothing() {
+        assertFlaggedWith("-keepattributes \"x", "-keepattributes \"x", broadKeep)
+        assertFlaggedWith(broadKeep, "-keepattributes \"x", broadKeep)
+    }
+
+    @Test
+    fun aQuoteAfterTheFirstHashIsOnlyAComment() =
+        assertEquals(emptyList(), violations("-keep class a.B # it's a \"quoted\" licence"))
+
+    @Test
+    fun theAppMayUseQuotes() =
+        assertEquals(emptyList(), scan(section(appRules, "-printconfiguration \"x y\"")))
+
+    @Test
+    fun aDashAfterALetterInRuleCodeIsFlagged() {
+        assertFlaggedWith("-keepattributes Signature-dontshrink", "-keepattributes Signature-dontshrink")
+        assertFlaggedWith("-renamesourcefileattribute SourceFile-dontshrink", "-renamesourcefileattribute SourceFile-dontshrink")
+    }
+
+    @Test
+    fun aHyphenInACommentIsNotAnOption() = assertEquals(emptyList(), violations("# re-include the file", "-keep class a.B"))
+
+    @Test
+    fun moreFileOptionsInALibrarySection() {
+        for (option in listOf("-printmapping", "-printseeds", "-printusage", "-dump", "-applymapping", "-obfuscationdictionary")) {
+            assertOnly("$option x.txt", "$option x.txt")
+            assertEquals(emptyList(), scan(section(appRules, "$option x.txt")), option)
+        }
+        assertOnly("-classobfuscationdictionary x.txt", "-classobfuscationdictionary x.txt")
+        assertOnly("-packageobfuscationdictionary x.txt", "-packageobfuscationdictionary x.txt")
+    }
+
+    @Test
+    fun aBackstopViolationIsTheRawLineCutTo200Characters() {
+        val line = "-keep class a.B \"" + "x".repeat(300)
+        val found = violations(line).single()
+        assertEquals(200, found.rule.length)
+        assertEquals(line.take(200), found.rule)
+    }
+
+    // An included file prints as its own top-level section, named by the path as written (checked with R8 9.3.16).
+    @Test
+    fun aHeaderEndingInTheAppRulesNameIsNotTheApp() {
+        val config = section("/evil/app/proguard-rules.pro", "-dontobfuscate")
+        val found = scan(config)
+        assertEquals(listOf("a section header of an unknown shape", "-dontobfuscate"), found.map { it.rule })
+        assertEquals(true, found.all { it.source.startsWith("unknown header: ") })
+    }
+
+    @Test
+    fun aBarePathHeaderIsFlagged() {
+        val config = "# The proguard configuration file for the following section is other.pro\n-keep class C\n# End of content from other.pro\n"
+        assertEquals(listOf("a section header of an unknown shape"), scan(config).map { it.rule })
+    }
+
+    @Test
+    fun aBareAppRulesHeaderGetsNoAppTrust() {
+        val config = "# The proguard configuration file for the following section is app/proguard-rules.pro\n-dontobfuscate\n# End of content from app/proguard-rules.pro\n"
+        assertEquals(listOf("a section header of an unknown shape", "-dontobfuscate"), scan(config).map { it.rule })
+    }
+
+    @Test
+    fun theHeaderShapesAgpPrintsPass() {
+        fun block(
+            header: String,
+            vararg rules: String,
+        ) = "# The proguard configuration file for the following section is $header\n" + rules.joinToString("\n") +
+            "\n# End of content from $header\n"
+        val config =
+            block("androidx.core:core:1.2.0 (extracted file: /g/proguard.txt)", "-keep class a.B") +
+                block("Android Gradle plugin 9.5.1 (extracted file: /g/proguard-android-optimize.txt-9.5.1)", "-keep class a.C") +
+                block("Local project :::feature:live (extracted file: /w/feature/live/proguard.txt)", "-keep class a.D") +
+                block("<unknown>", "-keep class a.E") +
+                block(appRules, "-dontobfuscate")
+        assertEquals(emptyList(), scan(config))
     }
 }

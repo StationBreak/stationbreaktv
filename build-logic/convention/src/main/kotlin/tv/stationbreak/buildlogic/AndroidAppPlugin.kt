@@ -44,6 +44,7 @@ class AndroidAppPlugin : Plugin<Project> {
                             // AGP writes configuration.txt beside mapping.txt.
                             configuration.set(layout.buildDirectory.file("outputs/mapping/${variant.name}/configuration.txt"))
                             report.set(layout.buildDirectory.file("reports/r8/${variant.name}.txt"))
+                            appRules.set(layout.projectDirectory.file("proguard-rules.pro").asFile.absolutePath)
                             dependsOn("minify${capitalised}WithR8")
                         }
                     tasks.named { it == "minify${capitalised}WithR8" }.configureEach { finalizedBy(guard) }

@@ -32,8 +32,9 @@ object R8ConfigRules {
     private val ifKeep = Regex("\\s(-keep\\w*[\\s,].*)", RegexOption.DOT_MATCHES_ALL)
 
     // R8 ends an option at whitespace or at `}` before the next one (checked with 9.3.16: `-keep class a.B {}-dontshrink`
-    // and `{*;}-keep class **{*;}` both take effect), but `-` is a name character: `a.B-dontshrink` is one name (#933).
-    private val nextOption = Regex("\\s+(?=-[a-z])|(?<=\\})(?=-[a-z])")
+    // and `{*;}-keep class **{*;}` both take effect). A `-` after a letter, `_`, `$` or `.` is part of a name; after anything
+    // else (a digit, a quote, `>`, `,`, `)`) it may start an option, so it splits: over-splitting only checks more (#933).
+    private val nextOption = Regex("(?<![A-Za-z_$.])(?=-[a-z])|(?<=\\})(?=-[a-z])")
     private val backreference = Regex("<(\\d+)>")
     private val leadingWildcards = Regex("^[*?.]+")
     private val placeholders = Regex("<init>|<fields>|<methods>|\\(\\.\\.\\.\\)")
@@ -71,6 +72,21 @@ object R8ConfigRules {
             "-keepclasseswithmembers",
             "-keepclasseswithmembernames",
         )
+    // Includes and file options read or write files; no library needs them, and the app's own rules may (#933).
+    private val fileOptions =
+        setOf(
+            "-include",
+            "-basedirectory",
+            "-printconfiguration",
+            "-printmapping",
+            "-printseeds",
+            "-printusage",
+            "-dump",
+            "-applymapping",
+            "-obfuscationdictionary",
+            "-classobfuscationdictionary",
+            "-packageobfuscationdictionary",
+        )
     private val alwaysForbidden =
         setOf(
             "-assumenosideeffects",
@@ -79,20 +95,28 @@ object R8ConfigRules {
             "-dontoptimize",
             "-dontshrink",
             "-ignorewarnings",
-            // Includes and file options pull in or write files; no library needs them (#933).
-            "-include",
-            "-basedirectory",
-            "-printconfiguration",
-        )
+        ) + fileOptions
 
-    // The fail-closed backstop (#933): a forbidden option anywhere in a line, in a comment or after a quote that the
-    // splitting did not understand. `-` after a letter is part of a name (`a.B-dontshrink`), so it is skipped; after a digit it may end a number.
-    private val anywhere =
-        Regex(
-            "(?<![A-Za-z_$.])-(dontshrink|dontoptimize|dontobfuscate|ignorewarnings|assumenosideeffects|" +
-                "assumevalues|include|basedirectory|printconfiguration)\\b",
-        )
+    // The fail-closed backstop (#933): a forbidden option anywhere in a line, after a quote or glued to something that
+    // the splitting did not understand. In rule code any `-` starts one; in comment text a `-` after a letter is a
+    // hyphen (`re-include`).
+    private val optionNames = alwaysForbidden.joinToString("|") { Regex.escape(it.removePrefix("-")) }
+    private val inCode = Regex("(?<![_$.])-($optionNames)\\b")
+    private val inComment = Regex("(?<![A-Za-z_$.])-($optionNames)\\b")
     private const val APP_RULES = "app/proguard-rules.pro"
+    private const val MAX_RULE = 200
+
+    // The section headers AGP prints (checked against a real configuration.txt): a Maven coordinate, the Android Gradle
+    // plugin's own file, a local project, an unknown source, and the app's own rules file by its exact path. An
+    // included file prints as a section named by the path as written, which is none of these.
+    private val extracted = "\\(extracted file: .+\\)"
+    private val libraryHeaders =
+        listOf(
+            Regex("[^\\s/]+:[^\\s/]+:\\S+ $extracted"),
+            Regex("Android Gradle plugin \\S+ $extracted"),
+            Regex("Local project :\\S+ $extracted"),
+            Regex("<unknown>"),
+        )
 
     // Rules that are fine from a named source: a Maven "group:artifact:" prefix, or the app's own rules file. Each is
     // what the build prints today: a first-party library's own debug-stripping or constant-folding rule (Compose's
@@ -118,12 +142,13 @@ object R8ConfigRules {
                 ),
             // Deliberate (#331): logs print class simple names.
             "-dontobfuscate" to listOf(APP_RULES),
-            "-include" to listOf(APP_RULES),
-            "-basedirectory" to listOf(APP_RULES),
-            "-printconfiguration" to listOf(APP_RULES),
-        )
+        ) + fileOptions.associateWith { listOf(APP_RULES) }
 
-    fun violations(configuration: String): List<R8Violation> {
+    /** [appRules] is the app's own rules file, as AGP prints its header: the only section the app's allowances reach. */
+    fun violations(
+        configuration: String,
+        appRules: String,
+    ): List<R8Violation> {
         val found = mutableListOf<R8Violation>()
         val seen = mutableSetOf<String>()
         var source = "unknown"
@@ -135,7 +160,7 @@ object R8ConfigRules {
 
         // Options the normal scan flagged, and what the backstop saw anywhere: (source, option) pairs.
         val reported = mutableSetOf<Pair<String, String>>()
-        val backstop = mutableListOf<Pair<String, String>>()
+        val backstop = mutableListOf<Triple<String, String, String>>()
 
         fun flush() {
             var text = directive.toString().trim()
@@ -174,9 +199,13 @@ object R8ConfigRules {
             // (checked with R8's -printseeds): the rule is read without it (#851). A `#` inside double quotes is text
             // (`-printconfiguration "x#y" -dontshrink` turns shrinking off, checked with 9.3.16) (#933).
             val line = if (whole.startsWith("#")) whole else uncommented(whole)
-            if (header == null && end == null) {
-                // The raw line contains the uncommented one, so one pass covers both (#933).
-                anywhere.findAll(whole).forEach { backstop += source to it.value }
+            if (header == null && end == null && source != APP_RULES) {
+                // Read quote-blind: the text before the first `#`, then the whole line (#933).
+                val code = whole.substringBefore('#')
+                val hits = inCode.findAll(code).toList() + inComment.findAll(whole).toList()
+                hits.forEach { backstop += Triple(source, it.groupValues[0], whole) }
+                // No library rule needs a quote, and a quote is how a `#` or an option gets hidden from the scan.
+                if (code.any { it == '"' || it == '\'' }) backstop += Triple(source, "a quote in a rule line", whole)
             }
             when {
                 end != null -> {
@@ -195,15 +224,20 @@ object R8ConfigRules {
                     flush()
                     pendingIf = null
                     val text = header.groupValues[1]
-                    if (open != null) found += R8Violation("a section header inside an open section", normalise(text))
+                    val shapeOk = text == appRules || libraryHeaders.any { it.matches(text) }
+                    // A header of an unknown shape never reaches the app's allowance, whatever its text says.
+                    val name = if (shapeOk || coordinateHeader.matches(text)) normalise(text, appRules) else "unknown header: $text"
+                    if (open != null) found += R8Violation("a section header inside an open section", name)
                     open = text
-                    source = normalise(text)
+                    source = name
                     // A rule file can contain a comment that looks like a header, to borrow another source's allowance.
                     // AGP always prints "(extracted file: …)" after a coordinate, and each file once (a library may have several files).
                     if (!seen.add(text)) {
                         found += R8Violation("a second section header for this source file", source)
                     } else if ("(extracted file:" !in text && coordinateHeader.matches(text)) {
                         found += R8Violation("a section header without an extracted file", source)
+                    } else if (!shapeOk) {
+                        found += R8Violation("a section header of an unknown shape", source)
                     }
                 }
 
@@ -212,8 +246,10 @@ object R8ConfigRules {
                 // R8 reads `-keep class a.B -dontshrink` as two options (checked with 9.3.16), so a line is split at
                 // each whitespace followed by an option and every part is checked (#933). Over-splitting only checks more.
                 else -> {
-                    for ((i, part) in line.split(nextOption).withIndex()) {
-                        if (part.startsWith("@") && part.length > 1 && startsFileInclude()) backstop += source to "@file"
+                    for ((i, part) in line.split(nextOption).map { it.trim() }.filter { it.isNotEmpty() }.withIndex()) {
+                        if (part.startsWith("@") && part.length > 1 && startsFileInclude() && source != APP_RULES) {
+                            backstop += Triple(source, "@file", whole)
+                        }
                         if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") && ifKeep.find(directive) == null) {
                             // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
                             directive.append(' ').append(part)
@@ -229,9 +265,10 @@ object R8ConfigRules {
             }
         }
         flush()
-        for ((hitSource, option) in backstop) {
+        for ((hitSource, option, rawLine) in backstop) {
             val trusted = hitSource == APP_RULES || allowed[option]?.any { hitSource.startsWith(it) } == true
-            if (!trusted && reported.add(hitSource to option)) found += R8Violation(option, hitSource)
+            val violation = R8Violation(rawLine.take(MAX_RULE), hitSource)
+            if (!trusted && reported.add(hitSource to option) && violation !in found) found += violation
         }
         if (open != null) found += R8Violation("a section that is never closed", source)
         return found
@@ -388,8 +425,11 @@ object R8ConfigRules {
 
     // The rule's origin, not the build machine: drop the extracted file's path, and trim the app's rules file to its
     // project-relative name.
-    private fun normalise(source: String): String {
+    private fun normalise(
+        source: String,
+        appRules: String,
+    ): String {
         val name = source.substringBefore(" (extracted file:")
-        return if (name.endsWith("/app/proguard-rules.pro")) "app/proguard-rules.pro" else name
+        return if (source == appRules) APP_RULES else name
     }
 }

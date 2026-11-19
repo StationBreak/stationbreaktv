@@ -3,6 +3,8 @@ package tv.stationbreak.buildlogic.architecture
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -15,12 +17,16 @@ abstract class R8ConfigCheck : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val configuration: RegularFileProperty
 
+    // The app's own rules file, as AGP prints it in the configuration: the only section that gets the app's allowances.
+    @get:Input
+    abstract val appRules: Property<String>
+
     @get:OutputFile
     abstract val report: RegularFileProperty
 
     @TaskAction
     fun check() {
-        val violations = R8ConfigRules.violations(configuration.get().asFile.readText())
+        val violations = R8ConfigRules.violations(configuration.get().asFile.readText(), appRules.get())
         report.writeReportOrFail(
             violations.map { "${it.rule}  (from ${it.source})" },
             "The merged R8 configuration holds a rule that weakens the release build (#437). Read it; if it is " +
