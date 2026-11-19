@@ -282,6 +282,21 @@ class LiveScreenTest {
     }
 
     @Test
+    fun startingShowsStanStandingByNotOffTheAir() {
+        // Whichever the viewer chose for a channel change: nothing is changing channel, and the station is not closed.
+        show(LiveState.Starting, ChannelChangeStyle.Snow)
+        compose
+            .onNodeWithTag(LiveTags.STAN_STARTING)
+            .assertContentDescriptionEquals("Please stand by. Warming up.")
+        compose.onNodeWithText("PLEASE").assertExists()
+        compose.onNodeWithText("STAND BY").assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("WARMING UP")
+        compose.onNodeWithTag(LiveTags.STAN_OFF_AIR).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
+    }
+
+    @Test
     fun noChannelsShowsStansScreenAndSaysItPlainly() {
         show(LiveState.NoChannels)
         compose

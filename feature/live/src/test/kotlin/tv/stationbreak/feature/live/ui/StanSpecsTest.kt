@@ -3,6 +3,7 @@ package tv.stationbreak.feature.live.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -139,6 +140,25 @@ class StanSpecsTest {
     }
 
     @Test
+    fun whileLiveStartsStanStandsByNotOffTheAir() {
+        // Nothing is chosen yet: no channel to name, and the station is not closed. Whichever the viewer chose for a
+        // channel change, on the whole screen and in the guide's corner.
+        for (change in ChannelChangeStyle.entries) {
+            for (withBanner in listOf(true, false)) {
+                val spec = checkNotNull(spec(LiveState.Starting, change, withBanner))
+                assertEquals(StanScene.Standby, spec.scene)
+                assertNotEquals(StanScene.OffAir, spec.scene)
+                assertEquals(Phrase(R.string.live_stan_standby_headline), spec.headline)
+                assertEquals(Phrase(R.string.live_stan_starting_status), spec.status)
+                assertNull(spec.detail)
+                assertEquals(Phrase(R.string.live_stan_spoken_starting), spec.spoken)
+                assertEquals(LiveTags.STAN_STARTING, spec.tag)
+            }
+        }
+        assertFalse(isChangingChannel(LiveState.Starting))
+    }
+
+    @Test
     fun withNoChannelsStanShrugsAndSaysWhereChannelsAreSwitchedOn() {
         // Whichever the viewer chose for a channel change, and in the guide's corner too: no channel is changing.
         for (change in ChannelChangeStyle.entries) {
@@ -215,6 +235,7 @@ class StanSpecsTest {
         // Technical difficulties and the off-air screen are Stan's whichever the viewer chose for the change.
         assertNotNull(spec(LiveState.TechnicalDifficulties(null), ChannelChangeStyle.Snow))
         assertNotNull(spec(LiveState.Ident(null), ChannelChangeStyle.Snow))
+        assertNotNull(spec(LiveState.Starting, ChannelChangeStyle.Snow))
     }
 
     @Test

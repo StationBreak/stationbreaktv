@@ -94,7 +94,8 @@ class LiveChannel(
     private val selection: StateFlow<ChoiceView?>? = null,
     /**
      * Whether the TV's output is there (#423). While it is not, nothing is tuned, retried or reported, and the screen
-     * holds the StationBreak card; the output coming back tunes once, as at any start. Null leaves it unwatched.
+     * holds the one a start shows ([LiveState.Starting]); the output coming back tunes once, as at any start. Null
+     * leaves it unwatched.
      */
     private val output: StateFlow<Boolean>? = null,
     /**
@@ -106,9 +107,9 @@ class LiveChannel(
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
     private val onFirstVisit: () -> Unit = {},
 ) {
-    // The StationBreak card until the first look at the lineup: never a blank screen, never a false "no channels".
+    // Stan stands by until the first look at the lineup: never a blank screen, never a false "no channels".
     private val tuned = Tuned()
-    private val screen = Screen(LiveState.Ident(null)) { tuned.previous != null }
+    private val screen = Screen(LiveState.Starting) { tuned.previous != null }
     private val overlays = Overlays(screen, timings, tuned, details)
 
     // The channel last saved as the last channel, and the account it is saved for: shared by the sittings of one run.
@@ -610,9 +611,10 @@ class LiveChannel(
 
     /**
      * An unexpected exception (a failed schedule or library read, say) must not end the screen: report its class name
-     * (never its message, which may hold an id), put the card up with the channel if one was chosen, stop what plays,
-     * and wait [LiveTimings.crashBackoff] so a fault that repeats cannot spin. The loop then starts a fresh sitting
-     * from the clock. Only cancellation is ever rethrown.
+     * (never its message, which may hold an id), put the card up with the channel if one was chosen (Stan stands by as
+     * at a start when none was: no channel is off the air), stop what plays, and wait [LiveTimings.crashBackoff] so a
+     * fault that repeats cannot spin. The loop then starts a fresh sitting from the clock. Only cancellation is ever
+     * rethrown.
      */
     private suspend fun recoverFrom(
         error: Exception,
@@ -621,7 +623,7 @@ class LiveChannel(
         known: ChannelTag?,
     ) {
         report(TuneReport.Failed(error.javaClass.logName().ifEmpty { "Unknown" }))
-        screen.value = LiveState.Ident(null, known)
+        screen.value = known?.let { LiveState.Ident(null, it) } ?: LiveState.Starting
         withContext(NonCancellable) {
             try {
                 sitting?.release()
@@ -777,13 +779,13 @@ class LiveChannel(
     }
 
     /**
-     * While the TV's output is gone (#423), shows the StationBreak card and waits until it is back. True when it
-     * waited: whatever the sitting was asked to land on is out of date then. The card is the one a start shows, so the
-     * screen needs no state of its own for a picture nobody can see.
+     * While the TV's output is gone (#423), shows [LiveState.Starting] and waits until it is back. True when it
+     * waited: whatever the sitting was asked to land on is out of date then. The screen is the one a start shows, so
+     * it needs no state of its own for a picture nobody can see.
      */
     private suspend fun awaitOutput(): Boolean {
         val present = output?.takeIf { !it.value } ?: return false
-        screen.value = LiveState.Ident(null)
+        screen.value = LiveState.Starting
         present.first { it }
         return true
     }

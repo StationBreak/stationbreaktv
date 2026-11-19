@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -33,6 +34,7 @@ import tv.stationbreak.feature.live.Call
 import tv.stationbreak.feature.live.DisplayOutput
 import tv.stationbreak.feature.live.FakeTune
 import tv.stationbreak.feature.live.LiveCommand
+import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.LiveTimings
 import tv.stationbreak.feature.live.ReportFacts
 import tv.stationbreak.feature.live.Rig
@@ -409,6 +411,32 @@ class LiveViewModelKeptPlaceTest {
             sit(s)
             assertEquals(Call.Tune(itemOf(1), 40.minutes, 30 * MIN), s.r.tunes.last())
             assertTrue(s.r.tunes.none { it.item == itemOf(7) && it.at >= 30 * MIN })
+        }
+
+    @Test
+    fun aFreshViewModelStandsByNotOffTheAir() =
+        runTest {
+            val s = setup()
+            assertEquals(LiveState.Starting, s.vm.state.value)
+        }
+
+    @Test
+    fun eachSittingStartsStandingByNotOffTheAir() =
+        runTest {
+            val s = setup()
+            sit(s)
+            s.r.at(MIN)
+            s.vm.leave()
+            runCurrent()
+            val seen = mutableListOf<LiveState>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { s.vm.state.collect { seen += it } }
+            sit(s)
+            s.r.at(2 * MIN)
+
+            val start = seen.dropWhile { it != LiveState.Starting }
+            assertTrue("the sitting began standing by: $seen", start.isNotEmpty())
+            val beforeTune = start.takeWhile { it !is LiveState.Tuning && it !is LiveState.Watching }
+            assertTrue("no card before the tune: $seen", beforeTune.none { it is LiveState.Ident })
         }
 
     @Test

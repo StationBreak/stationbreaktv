@@ -34,8 +34,8 @@ data class PictureLabel(
 
 /**
  * The label for what the picture is, or shows in its place, in [state] (#722); null when no channel is named (nothing
- * on the air, no libraries, signed out). [playing] is the banner of the show on, which [state] no longer carries once
- * the banner has lingered away (`Watching(null)`).
+ * chosen yet, nothing on the air, no libraries, signed out). [playing] is the banner of the show on, which [state] no
+ * longer carries once the banner has lingered away (`Watching(null)`).
  *
  * While the picture plays the label says "Now playing"; during a tune, an ident or a slate the title follows the
  * banner's own label ("Tuning in", "Up next", ...). A card that names no show, and a number still moving, say the
@@ -47,11 +47,21 @@ internal fun pictureLabelOf(
 ): PictureLabel? =
     when (state) {
         is LiveState.Watching -> (state.banner ?: playing)?.labelled(PictureLead.NowPlaying)
+
         is LiveState.Tuning -> state.banner.labelled(leadOf(state.banner.label))
+
         is LiveState.Ident -> cardLabel(state.upNext, state.channel)
+
         is LiveState.TechnicalDifficulties -> cardLabel(state.upNext, state.channel)
+
         is LiveState.Choosing -> state.target.alone()
-        LiveState.NoChannels, LiveState.BuildingChannels, LiveState.NoLibraries, LiveState.SignedOut -> null
+
+        LiveState.Starting,
+        LiveState.NoChannels,
+        LiveState.BuildingChannels,
+        LiveState.NoLibraries,
+        LiveState.SignedOut,
+        -> null
     }
 
 // A slate or ident: what is up next when it says, else the channel alone.

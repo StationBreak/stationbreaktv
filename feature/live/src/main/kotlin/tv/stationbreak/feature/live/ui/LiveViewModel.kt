@@ -167,7 +167,7 @@ internal class LiveViewModel
         // Whether the first lineup is still being built: Stan stands by then, not the no-channels card.
         private val firstLineup: FirstLineup,
     ) : ViewModel() {
-        private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
+        private val shown = MutableStateFlow<LiveState>(LiveState.Starting)
         val state: StateFlow<LiveState> = shown.asStateFlow()
 
         private val shownInfo = MutableStateFlow<LiveInfo?>(null)
@@ -329,7 +329,7 @@ internal class LiveViewModel
             val resume = kept?.takeIf { it.heldAt(elapsedMs(), timings.pauseHoldMax.inWholeMilliseconds) }
             kept = null
             val before = shown.value.javaClass.logName()
-            shown.value = LiveState.Ident(null)
+            shown.value = LiveState.Starting
             shownInfo.value = null
             shownLabel.value = null
             shownTransport.value = null

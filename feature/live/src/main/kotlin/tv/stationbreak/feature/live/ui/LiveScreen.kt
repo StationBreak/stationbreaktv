@@ -188,6 +188,7 @@ private fun PictureLayers(
 
         is LiveState.TechnicalDifficulties,
         is LiveState.Ident,
+        LiveState.Starting,
         LiveState.BuildingChannels,
         LiveState.NoChannels,
         LiveState.NoLibraries,
@@ -250,7 +251,7 @@ private fun LiveLayers(
                 CardBanner(state.upNext, state.channel)
             }
 
-            LiveState.BuildingChannels, LiveState.NoChannels, LiveState.NoLibraries -> {
+            LiveState.Starting, LiveState.BuildingChannels, LiveState.NoChannels, LiveState.NoLibraries -> {
                 StationGround(state, changeStyle, nowMs)
             }
 

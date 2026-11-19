@@ -7,6 +7,13 @@ import tv.stationbreak.core.playback.StreamFacts
 
 /** What the live screen shows (spec 14). The screen draws it; the machine in [LiveChannel] decides it. */
 sealed interface LiveState {
+    /**
+     * Live is starting and nothing is chosen yet: the first look at the lineup has not answered, or the TV's output is
+     * gone and nothing tunes until it is back. Stan stands by with no channel to name: never a blank screen, never a
+     * false "off the air" or "no channels".
+     */
+    data object Starting : LiveState
+
     /** Signed in, but no channel is on the air. Not final: a lineup that arrives later opens a channel. */
     data object NoChannels : LiveState
 
@@ -43,7 +50,7 @@ sealed interface LiveState {
 
     /**
      * The StationBreak ident card: a gap in the schedule, or a show that ended early. [upNext] and [channel] are as on
-     * [TechnicalDifficulties]; both are null before a channel is chosen. [note] is a plain line under the wordmark,
+     * [TechnicalDifficulties]; both are null when no channel is named. [note] is a plain line under the wordmark,
      * when the card has something to explain.
      */
     data class Ident(
