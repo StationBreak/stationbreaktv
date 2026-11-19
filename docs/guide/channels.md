@@ -16,7 +16,7 @@ Open it from the guide's menu: **Channels**. Channels are grouped as **On the ai
 - **Watch** it;
 - **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
   edit freely;
-- **Switch on** or **Switch off**. At least one channel stays on. A channel with adult content asks before it comes
+- **Switch on** or **Switch off**. Keep at least one channel on. A channel with adult content asks before it comes
   on;
 - **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
   back.

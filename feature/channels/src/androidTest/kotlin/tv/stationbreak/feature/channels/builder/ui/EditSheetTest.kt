@@ -340,7 +340,7 @@ class EditSheetTest {
         compose.onNodeWithTag(BuilderTags.kept(0)).assertTextContains("by air date", substring = true)
         compose
             .onNodeWithTag(BuilderTags.sheetRow(SheetRow.Kept))
-            .assertTextContains("builder's settings", substring = true)
+            .assertTextContains("settings on this screen", substring = true)
         press(Pad.Select)
         until { SheetRow.Kept !in vm.ui.value.sheetRows }
         assertFalse(exists(BuilderTags.sheetRow(SheetRow.Kept)))

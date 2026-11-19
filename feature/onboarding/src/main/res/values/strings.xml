@@ -220,9 +220,19 @@
     <string name="first_sync_headline">Getting your library ready</string>
     <string name="first_sync_second_line">This only happens once and can take a few minutes.</string>
     <string name="first_sync_starting">Asking your server for your library…</string>
-    <string name="first_sync_count">%1$s of %2$s programmes</string>
-    <string name="first_sync_count_only">%1$s programmes so far</string>
-    <string name="first_sync_progress_description">Getting your library ready: %1$s of %2$s</string>
+    <!-- The counts are formatted numbers; the plural follows the total (the copied count for "so far"). -->
+    <plurals name="first_sync_count">
+        <item quantity="one">%1$s of %2$s programme</item>
+        <item quantity="other">%1$s of %2$s programmes</item>
+    </plurals>
+    <plurals name="first_sync_count_only">
+        <item quantity="one">%1$s programme so far</item>
+        <item quantity="other">%1$s programmes so far</item>
+    </plurals>
+    <plurals name="first_sync_progress_description">
+        <item quantity="one">Getting your library ready: %1$s of %2$s programme</item>
+        <item quantity="other">Getting your library ready: %1$s of %2$s programmes</item>
+    </plurals>
     <string name="first_sync_progress_description_starting">Getting your library ready</string>
     <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
     <string name="first_sync_waiting_for_network">Waiting for your network…</string>

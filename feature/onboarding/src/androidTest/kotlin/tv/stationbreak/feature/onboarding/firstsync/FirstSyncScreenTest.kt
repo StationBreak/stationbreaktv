@@ -92,6 +92,26 @@ class FirstSyncScreenTest {
         assertEquals(0f, range.current, 0f)
     }
 
+    @Test
+    fun theBarSaysTheSameCountAsTheScreen() {
+        show(FirstSyncPhase.Syncing(copied = 12_500, total = 15_000))
+
+        val said = "Getting your library ready: ${number(12_500)} of ${number(15_000)} programmes"
+        compose.onNodeWithTag(FirstSyncTags.BAR).assert(hasContentDescription(said))
+    }
+
+    @Test
+    fun oneProgrammeIsSingular() {
+        show(FirstSyncPhase.Syncing(copied = 1, total = null))
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(1)} programme so far"))
+
+        phase.value = FirstSyncPhase.Syncing(copied = 0, total = 1)
+        compose.waitForIdle()
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(0)} of ${number(1)} programme"))
+        val said = "Getting your library ready: ${number(0)} of ${number(1)} programme"
+        compose.onNodeWithTag(FirstSyncTags.BAR).assert(hasContentDescription(said))
+    }
+
     // Building the channels
 
     @Test
