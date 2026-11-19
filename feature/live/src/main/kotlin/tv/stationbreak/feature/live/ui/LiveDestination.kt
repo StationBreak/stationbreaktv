@@ -249,7 +249,7 @@ private fun logLiveKey(
 internal fun keepsScreenOn(transport: TransportView?): Boolean = transport?.paused != true
 
 /**
- * A TV channel never lets the device sleep while it is on screen (snow, slates and the "No channels" card included):
+ * A TV channel never lets the device sleep while it is on screen (snow and Stan's screens, the empty ones included):
  * the view keeps the screen on from STARTED until the screen leaves or stops. A view flag, so the feature does not
  * touch the activity's window.
  *

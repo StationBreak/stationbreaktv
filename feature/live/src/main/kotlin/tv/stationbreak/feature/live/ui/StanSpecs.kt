@@ -58,6 +58,28 @@ internal fun buildingSpec(): StanScreenSpec =
         tag = LiveTags.STAN_STANDBY,
     )
 
+/** Signed in, but no channel is on the air: Stan shrugs, and the detail says where channels are switched on. */
+internal fun noChannelsSpec(): StanScreenSpec =
+    StanScreenSpec(
+        scene = StanScene.NoSignal,
+        headline = Phrase(R.string.live_stan_no_channels_headline),
+        status = Phrase(R.string.live_stan_no_channels_status),
+        detail = Phrase(R.string.live_stan_no_channels_detail),
+        spoken = Phrase(R.string.live_stan_spoken_no_channels),
+        tag = LiveTags.NO_CHANNELS,
+    )
+
+/** None of this TV's libraries is available (spec 26): Stan shrugs, and the detail says where to choose them. */
+internal fun noLibrariesSpec(): StanScreenSpec =
+    StanScreenSpec(
+        scene = StanScene.NoSignal,
+        headline = Phrase(R.string.live_stan_no_libraries_headline),
+        status = Phrase(R.string.live_stan_no_libraries_status),
+        detail = Phrase(R.string.live_stan_no_libraries_detail),
+        spoken = Phrase(R.string.live_stan_spoken_no_libraries),
+        tag = LiveTags.NO_LIBRARIES,
+    )
+
 private val PLAIN_TROUBLE = R.string.live_stan_spoken_trouble_status
 private val FULL_TROUBLE = R.string.live_stan_spoken_trouble
 
@@ -126,10 +148,10 @@ internal fun isChangingChannel(state: LiveState): Boolean {
 }
 
 /**
- * Stan's screen for [state], or null when [state] has none: the picture, the sign-in hand-over and the two instruction
- * cards (no channels, no libraries) stay as they are, a lineup still being built has him stand by, and a channel
- * change shows snow when [change] says so. The difficulties, ident and building screens are not part of the choice;
- * only the change of channel is. [withBanner] is true on the whole screen, where a banner is over the card, and false
+ * Stan's screen for [state], or null when [state] has none: the picture and the sign-in hand-over have none, a lineup
+ * still being built has him stand by, no channels or no libraries has him shrug, and a channel change shows snow when
+ * [change] says so. The difficulties, ident, building and empty screens are not part of the choice; only the change
+ * of channel is. [withBanner] is true on the whole screen, where a banner is over the card, and false
  * in the guide's corner, which has none.
  */
 internal fun stanSpecOf(
@@ -143,6 +165,8 @@ internal fun stanSpecOf(
         state is LiveState.Tuning -> tuningSpec(state.banner.number, state.banner.title)
         state is LiveState.Choosing -> if (state.overPicture) null else tuningSpec(state.target.number, null)
         state == LiveState.BuildingChannels -> buildingSpec()
+        state == LiveState.NoChannels -> noChannelsSpec()
+        state == LiveState.NoLibraries -> noLibrariesSpec()
         state is LiveState.TechnicalDifficulties -> difficultiesSpec(withBanner && state.hasBanner())
         state is LiveState.Ident -> offAirSpec(state.upNext, state.note, withBanner && state.hasBanner(), time)
         else -> null

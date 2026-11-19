@@ -174,12 +174,14 @@ class LiveScreenGuideModeTest {
     }
 
     @Test
-    fun noChannelsKeepsItsCardInTheCornerUnderTheGuide() {
+    fun noChannelsKeepsItsScreenInTheCornerUnderTheGuide() {
         // With no channels the guide is still drawn (it shows its own empty state, GuideScreenTest), and live's "no
-        // channels" card stays in the picture's corner, not full screen over the guide.
+        // channels" screen stays in the picture's corner, not full screen over the guide.
         show(LiveState.NoChannels)
         compose.onNodeWithTag(GUIDE).assertExists()
-        assertRect(corner, compose.onNodeWithTag(LiveTags.TEST_CARD).bounds())
+        assertRect(corner, compose.onNodeWithTag(LiveTags.STAN_STAGE).bounds())
+        compose.onNodeWithTag(LiveTags.NO_CHANNELS, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
 
     private val nowPlaying = PictureLabel(4, "Test Channel", null, PictureLead.NowPlaying, "Test Movie A")

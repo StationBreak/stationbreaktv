@@ -139,9 +139,59 @@ class StanSpecsTest {
     }
 
     @Test
-    fun theInstructionCardsThePictureAndSignOutHaveNoStanScreen() {
-        assertNull(spec(LiveState.NoChannels))
-        assertNull(spec(LiveState.NoLibraries))
+    fun withNoChannelsStanShrugsAndSaysWhereChannelsAreSwitchedOn() {
+        // Whichever the viewer chose for a channel change, and in the guide's corner too: no channel is changing.
+        for (change in ChannelChangeStyle.entries) {
+            for (withBanner in listOf(true, false)) {
+                val spec = checkNotNull(spec(LiveState.NoChannels, change, withBanner))
+                assertEquals(StanScene.NoSignal, spec.scene)
+                assertEquals(Phrase(R.string.live_stan_no_channels_headline), spec.headline)
+                assertEquals(Phrase(R.string.live_stan_no_channels_status), spec.status)
+                assertEquals(Phrase(R.string.live_stan_no_channels_detail), spec.detail)
+                assertEquals(Phrase(R.string.live_stan_spoken_no_channels), spec.spoken)
+                assertEquals(LiveTags.NO_CHANNELS, spec.tag)
+            }
+        }
+        assertFalse(isChangingChannel(LiveState.NoChannels))
+    }
+
+    @Test
+    fun withNoLibrariesStanShrugsAndSaysWhereToChooseThem() {
+        for (change in ChannelChangeStyle.entries) {
+            for (withBanner in listOf(true, false)) {
+                val spec = checkNotNull(spec(LiveState.NoLibraries, change, withBanner))
+                assertEquals(StanScene.NoSignal, spec.scene)
+                assertEquals(Phrase(R.string.live_stan_no_libraries_headline), spec.headline)
+                assertEquals(Phrase(R.string.live_stan_no_libraries_status), spec.status)
+                assertEquals(Phrase(R.string.live_stan_no_libraries_detail), spec.detail)
+                assertEquals(Phrase(R.string.live_stan_spoken_no_libraries), spec.spoken)
+                assertEquals(LiveTags.NO_LIBRARIES, spec.tag)
+            }
+        }
+        assertFalse(isChangingChannel(LiveState.NoLibraries))
+    }
+
+    @Test
+    fun theEmptyScreensSayTheirLinesWordForWord() {
+        // Module tests run from the module's directory. The spoken lines are the plain status, never Stan's joke.
+        val line = Regex("""<string name="([a-z_]+)"[^>]*>(.*)</string>""")
+        val strings =
+            File("src/main/res/values/strings.xml")
+                .readLines()
+                .mapNotNull { line.find(it)?.destructured }
+                .associate { (name, text) -> name to text }
+        assertEquals("NOTHING ON\\nTHE AIR", strings["live_stan_no_channels_headline"])
+        assertEquals("NO CHANNELS YET", strings["live_stan_no_channels_status"])
+        assertEquals("GUIDE · CHANNELS", strings["live_stan_no_channels_detail"])
+        assertEquals("No channels on the air yet.", strings["live_stan_spoken_no_channels"])
+        assertEquals("NOTHING ON\\nTHE SHELF", strings["live_stan_no_libraries_headline"])
+        assertEquals("NO LIBRARIES", strings["live_stan_no_libraries_status"])
+        assertEquals("GUIDE · SETTINGS · LIBRARIES", strings["live_stan_no_libraries_detail"])
+        assertEquals("No libraries available. Guide, Settings, Libraries.", strings["live_stan_spoken_no_libraries"])
+    }
+
+    @Test
+    fun thePictureAndSignOutHaveNoStanScreen() {
         assertNull(spec(LiveState.Watching(banner(BannerLabel.Now))))
         assertNull(spec(LiveState.Watching(null)))
         assertNull(spec(LiveState.SignedOut))

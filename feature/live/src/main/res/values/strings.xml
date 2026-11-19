@@ -2,13 +2,10 @@
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
-  The copy for the live channel screen (spec 14): the cable banner and the test-card slates. The strings that spec
+  The copy for the live channel screen (spec 14): the cable banner and Stan's station screens. The strings that spec
   14's global constraints give word for word are exact; the others are the mockups' own wording.
 -->
 <resources>
-    <!-- The StationBreak ident card: the app icon's wordmark, on two lines. -->
-    <string name="live_ident_station" translatable="false">STATION</string>
-    <string name="live_ident_break" translatable="false">BREAK</string>
 
     <!--
       Stan's station screens (DESIGN.md, Station Screen). Each is one line for Stan in capitals (two lines are one string
@@ -36,9 +33,16 @@
     <string name="live_stan_spoken_building">Please stand by. Building your channels.</string>
     <string name="live_stan_spoken_trouble">Technical difficulties. We\'ll be right back.</string>
 
-    <string name="live_no_channels">No channels on the air yet</string>
-    <!-- placeholder: design partner. Every library this TV chose is gone from the server (spec 26). -->
-    <string name="live_no_libraries">No libraries available. Guide, Settings, Libraries.</string>
+    <!-- Signed in, but no channel is on the air: the detail is where channels are switched on (the guide's menu, Channels). -->
+    <string name="live_stan_no_channels_headline">NOTHING ON\nTHE AIR</string>
+    <string name="live_stan_no_channels_status">NO CHANNELS YET</string>
+    <string name="live_stan_no_channels_detail">GUIDE · CHANNELS</string>
+    <string name="live_stan_spoken_no_channels">No channels on the air yet.</string>
+    <!-- Every library this TV chose is gone from the server (spec 26): the detail is where to choose them again. -->
+    <string name="live_stan_no_libraries_headline">NOTHING ON\nTHE SHELF</string>
+    <string name="live_stan_no_libraries_status">NO LIBRARIES</string>
+    <string name="live_stan_no_libraries_detail">GUIDE · SETTINGS · LIBRARIES</string>
+    <string name="live_stan_spoken_no_libraries">No libraries available. Guide, Settings, Libraries.</string>
 
     <!-- The banner's label line. -->
     <string name="live_label_tuning_in">Tuning in</string>

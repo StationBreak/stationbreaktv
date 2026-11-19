@@ -245,7 +245,7 @@ The icon is Stan's head, content, with no limbs: orange is the main version, ink
 The launcher icon is the main orange icon (`icon-main.svg`: cream Stan on an orange tile; its adaptive foreground is Stan's head alone, fitted to the 66dp safe circle, over the orange ground). The TV banner is the brand banner (`tv-banner.svg`: Stan beside the wordmark and tagline, on ink). Both, and the README banner, are rendered from `art/brand/` by `scripts/render-brand-art.sh`. Stan's moods and the animated station screens come in the next step; the mood and screen SVGs in `art/brand/` are their reference art.
 
 ### Station Screen (signature)
-Stan in a mood, a Ranchers line, a teletype status, then the next step. "PLEASE STAND BY · TUNING CHANNEL 212", "GONE TO BED · OFF THE AIR · RETURNS AT 6:00 AM", "ANYBODY OUT THERE? · NO SIGNAL · CAN'T REACH YOUR SERVER · OK TO RETRY". It replaces the test-card slates over time (see Migration).
+Stan in a mood, a Ranchers line, a teletype status, then the next step. "PLEASE STAND BY · TUNING CHANNEL 212", "GONE TO BED · OFF THE AIR · RETURNS AT 6:00 AM", "ANYBODY OUT THERE? · NO SIGNAL · CAN'T REACH YOUR SERVER · OK TO RETRY". It has replaced the test-card slates on live TV.
 
 ### Programme Cell (listings)
 Near-flat panel cells in one grid, 2dp corners, 1dp gaps. Title in 13sp Medium cream, metadata in 11sp muted. Focus is an orange fill with ink text: no growth, no shadow, a 160ms colour change, and none with reduced motion. The current programme gets a 1.5dp orange progress line along its bottom edge. The playing channel's tile carries a marker and "Playing" for screen readers.
@@ -287,7 +287,7 @@ Setup is a station screen too: the reading face at 20sp for fields and buttons, 
 These tokens and components are the brand's target. The app reaches them in steps; until then the code is the record of what ships.
 - **Light:** no longer behind. The guide's Light theme is the brand's paper mode (see Light mode above).
 - **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
-- **Faces:** the test card uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
+- **Faces:** the station screens' sign-off uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
 - **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`. Stan's moods and the animated station screens come in the next step.
-- **Station screens:** the test-card slates (ident, difficulties, no channels, no libraries) and the snow are to be replaced by Stan station screens.
+- **Station screens:** the snow is to be replaced by Stan station screens.
 - **Words:** "Sync now", "First sync" and loading states are to move toward broadcast words (stand by, tune, signal, returns at).
