@@ -30,6 +30,13 @@ navigation = "2.10.2"
 lifecycle = "2.11.0"
 # hilt-navigation-compose 1.4.0 is the latest stable (checked 2026-10-14): hiltViewModel() for @HiltViewModel.
 hiltNavigationCompose = "1.4.0"
+# The AndroidX releases the app's own classpath resolves (transitively), pinned for the security test APK (#436):
+# hilt-android(-testing) and androidx.test ask for old ones and the app's copies are the ones that run. Keep these
+# equal to what `:app:dependencies --configuration githubBenchmarkRuntimeClasspath` shows.
+androidxCore = "1.18.0"
+androidxSavedstate = "1.5.0"
+androidxCollection = "1.5.0"
+androidxProfileinstaller = "1.4.1"
 
 # jellyfin-sdk-kotlin 1.9.2 (checked 2026-10-13): the 12.0+ line, the version ADR-0006 tested. Upgrade only through the
 # contract matrix (F0.3 Unit 3).
@@ -111,6 +118,21 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 # The process lifecycle: the app coming to the foreground is an "open" for the library sync (spec 06). Same version as the rest.
 androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+# Constraints for the security test APK only (see the versions above); the activity line is activity-compose's.
+androidx-activity = { module = "androidx.activity:activity", version.ref = "activityCompose" }
+androidx-core = { module = "androidx.core:core", version.ref = "androidxCore" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-savedstate = { module = "androidx.savedstate:savedstate", version.ref = "androidxSavedstate" }
+androidx-collection = { module = "androidx.collection:collection", version.ref = "androidxCollection" }
+androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "androidxProfileinstaller" }
+androidx-lifecycle-livedata = { module = "androidx.lifecycle:lifecycle-livedata", version.ref = "lifecycle" }
+androidx-lifecycle-livedata-core = { module = "androidx.lifecycle:lifecycle-livedata-core", version.ref = "lifecycle" }
+androidx-lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel = { module = "androidx.lifecycle:lifecycle-viewmodel", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
+# Versioned by the Compose BOM.
+androidx-compose-runtime-annotation = { module = "androidx.compose.runtime:runtime-annotation" }
+androidx-compose-runtime-annotation-android = { module = "androidx.compose.runtime:runtime-annotation-android" }
 androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }

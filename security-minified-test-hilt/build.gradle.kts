@@ -80,22 +80,27 @@ dependencies {
     implementation(project(":feature:settings"))
 }
 
-// hilt-android(-testing) asks for old AndroidX releases; the app's own classpath resolves to these newer, already
-// verified ones, and the test APK must run against the same.
+// hilt-android(-testing) asks for old AndroidX releases; the app's own classpath resolves to newer, already verified
+// ones, and the test APK must run against the same. Every version is in gradle/libs.versions.toml (the Compose ones
+// come from the BOM). shouldResolveConsistentlyWith(app) was tried first and fails: Gradle will not resolve another
+// project's configuration without its lock when tasks run in parallel.
 dependencies {
     constraints {
-        for (artifact in listOf("activity:activity:1.13.0", "core:core:1.18.0", "core:core-ktx:1.18.0")) {
-            implementation("androidx.$artifact")
-        }
-        for (name in listOf("livedata", "livedata-core", "runtime", "viewmodel", "viewmodel-savedstate")) {
-            implementation("androidx.lifecycle:lifecycle-$name:2.11.0")
-        }
-        implementation("androidx.savedstate:savedstate:1.5.0")
-        implementation("androidx.collection:collection:1.5.0")
-        implementation("androidx.profileinstaller:profileinstaller:1.4.1")
-        implementation("androidx.compose.runtime:runtime-annotation:1.12.1")
-        implementation("androidx.compose.runtime:runtime-annotation-android:1.12.1")
+        implementation(libs.androidx.activity)
+        implementation(libs.androidx.core)
+        implementation(libs.androidx.core.ktx)
+        implementation(libs.androidx.savedstate)
+        implementation(libs.androidx.collection)
+        implementation(libs.androidx.profileinstaller)
+        implementation(libs.androidx.lifecycle.livedata)
+        implementation(libs.androidx.lifecycle.livedata.core)
+        implementation(libs.androidx.lifecycle.runtime)
+        implementation(libs.androidx.lifecycle.viewmodel)
+        implementation(libs.androidx.lifecycle.viewmodel.savedstate)
     }
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.runtime.annotation)
+    implementation(libs.androidx.compose.runtime.annotation.android)
 }
 
 // The shared tests reach a few `internal` app types (AndroidSystemTrust, StationBreakApp.AppStartEntryPoint,

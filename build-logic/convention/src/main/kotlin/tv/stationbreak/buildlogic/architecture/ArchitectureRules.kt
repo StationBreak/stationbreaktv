@@ -97,7 +97,7 @@ enum class Rule(
     ),
     SECURITY_TEST_FOR_KEEP_RULES_ONLY(
         "security-test-for-keep-rules-only",
-        "security-minified-test (#436) may be named only by app's securityTestClasses configuration: nothing that " +
+        "security-minified-test-hilt (#436) may be named only by app's securityTestClasses configuration: nothing that " +
             "ships depends on it",
     ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
@@ -129,7 +129,7 @@ object ArchitectureRules {
 
     private const val APP = ":app"
     private const val BENCHMARK = ":benchmark"
-    private const val SECURITY_TEST = ":security-minified-test"
+    private const val SECURITY_TEST = ":security-minified-test-hilt"
     private const val SECURITY_TEST_TRUST = ":security-minified-test-trust"
     private val SECURITY_TESTS = setOf(SECURITY_TEST, SECURITY_TEST_TRUST)
 

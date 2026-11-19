@@ -16,16 +16,22 @@ import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.register
 
-// #436: the security tests run against the R8-minified app from a small test APK (`:security-minified-test`). The app's
+// #436: the security tests run against the R8-minified app from a small test APK (`:security-minified-test-hilt`). The app's
 // R8 run for that build keeps what the test APK references, found by R8's own `tracereferences`, and nothing else.
 // This is only on when the build is asked for it: `-Pstationbreak.minifiedSecurityTest=true`.
 private const val MINIFIED_SECURITY_PROPERTY = "stationbreak.minifiedSecurityTest"
 private const val MINIFIED_VARIANT = "githubBenchmark"
-private val TEST_PROJECTS = listOf(":security-minified-test", ":security-minified-test-trust")
+private val TEST_PROJECTS = listOf(":security-minified-test-hilt", ":security-minified-test-trust")
 private const val CLASSES_USAGE = "stationbreak-security-test-classes"
 
+/** Only the value `true` turns the minified security run on; `=false`, or any other text, leaves the build as it is. */
+internal fun minifiedSecurityRequested(value: String?): Boolean = value.toBoolean()
+
+internal fun Project.minifiedSecurityTestOn(): Boolean =
+    providers.gradleProperty(MINIFIED_SECURITY_PROPERTY).map(::minifiedSecurityRequested).getOrElse(false)
+
 /**
- * For `:security-minified-test`: hands its classes, and everything its test APK carries, to the app as a jar, so the
+ * For `:security-minified-test-hilt`: hands its classes, and everything its test APK carries, to the app as a jar, so the
  * app can trace what they reference. Only the variant that targets the minified app has one.
  */
 class SecurityTestClassesPlugin : Plugin<Project> {
@@ -40,7 +46,7 @@ class SecurityTestClassesPlugin : Plugin<Project> {
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(CLASSES_USAGE))
                 outgoing.artifact(classesJar.flatMap { it.output })
             }
-            if (providers.gradleProperty(MINIFIED_SECURITY_PROPERTY).isPresent) {
+            if (minifiedSecurityTestOn()) {
                 // AGP makes the test module's Java compile wait for `checkTestedAppObfuscation`, which reads the app's
                 // finished R8 output. With the app's R8 reading this module's classes that is a cycle. The app keeps
                 // its class names (-dontobfuscate, guarded by R8ConfigCheck), and the check still runs before the
@@ -54,6 +60,8 @@ class SecurityTestClassesPlugin : Plugin<Project> {
             }
             pluginManager.withPlugin("com.android.test") {
                 val components = extensions.getByType(TestAndroidComponentsExtension::class.java)
+                // Only the variant that instruments the minified app is built: no Hilt KSP run for the others.
+                components.beforeVariants { it.enable = it.name == MINIFIED_VARIANT }
                 components.onVariants(components.selector().withName(MINIFIED_VARIANT)) { variant ->
                     variant.artifacts
                         .forScope(ScopedArtifacts.Scope.ALL)
@@ -71,7 +79,7 @@ class SecurityTestClassesPlugin : Plugin<Project> {
  * trust that one file (R8ConfigRules).
  */
 internal fun Project.minifiedSecurityKeepRules(variant: ApplicationVariant): Provider<RegularFile>? {
-    if (variant.name != MINIFIED_VARIANT || !providers.gradleProperty(MINIFIED_SECURITY_PROPERTY).isPresent) return null
+    if (variant.name != MINIFIED_VARIANT || !minifiedSecurityTestOn()) return null
     // Declared in `securityTestClasses` (the one configuration the architecture check lets name the test module), read
     // through the resolvable one beside it.
     val declared = configurations.dependencyScope("securityTestClasses")

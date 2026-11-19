@@ -28,5 +28,5 @@ include(":core:model", ":core:rules", ":core:engine", ":core:scheduler", ":core:
 include(":core:domain", ":data:jellyfin") // [JVM]
 include(":core:ui", ":core:playback", ":data:settings", ":data:library") // [Android]
 include(":benchmark") // [Android test] Baseline Profile generation (#416); nothing ships from it
-include(":security-minified-test", ":security-minified-test-trust") // [Android test] security tests on minified app (#436)
+include(":security-minified-test-hilt", ":security-minified-test-trust") // [Android test] security tests on minified app (#436)
 include(":feature:onboarding", ":feature:live", ":feature:guide", ":feature:channels", ":feature:settings") // [Android]

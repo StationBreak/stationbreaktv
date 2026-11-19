@@ -85,7 +85,7 @@ stationbreaktv/
 
 `benchmark/` (Macrobenchmark + Baseline Profile generation, F2.5, [#416](https://github.com/StationBreak/stationbreaktv/issues/416))
 is a `com.android.test` module that only the app's `baselineProfile` configuration points at; nothing ships from it and no
-module depends on it. `security-minified-test/` and `security-minified-test-trust/` ([#436](https://github.com/StationBreak/stationbreaktv/issues/436)) are the other
+module depends on it. `security-minified-test-hilt/` and `security-minified-test-trust/` ([#436](https://github.com/StationBreak/stationbreaktv/issues/436)) are the other
 `com.android.test` modules: the test APKs for the security tests that run against the R8-minified `githubBenchmark` build (see
 "Security tests on the minified build"). `core:common` is not created until something genuinely needs sharing.
 ```
@@ -632,7 +632,7 @@ Together they fail the build if
   `ForbiddenImport` on `okhttp3.logging.HttpLoggingInterceptor` is the second guard),
 - any module other than `app`, or `app` outside its `baselineProfile` configuration, depends on `benchmark`
   (`benchmark-for-profile-only`, #416),
-- any module other than `app`, or `app` outside its `securityTestClasses` configuration, depends on `security-minified-test` or `security-minified-test-trust`
+- any module other than `app`, or `app` outside its `securityTestClasses` configuration, depends on `security-minified-test-hilt` or `security-minified-test-trust`
   (`security-test-for-keep-rules-only`, #436),
 - any manifest uses `tools:overrideLibrary`.
 
@@ -641,7 +641,7 @@ Together they fail the build if
 The five security tests (`PinnedTrustOnApi25Test`, `NetworkSecurityConfigChainTest`, `NoPlaintextOnDiskTest`,
 `SecretPersistenceTest`, `AdapterLogBindingTest`) must also pass against shipped code. Their sources and helpers live once, in
 `app/src/androidTest/securityTest/{hilt,trust}/kotlin`; `app`'s `androidTest` (the debug `emulator` job) and the two test modules compile them:
-the `hilt` directory is `:security-minified-test`'s, the `trust` directory is `:security-minified-test-trust`'s (no name-based file lists). `:security-minified-test` is a `com.android.test` module with
+the `hilt` directory is `:security-minified-test-hilt`'s, the `trust` directory is `:security-minified-test-trust`'s (no name-based file lists). `:security-minified-test-hilt` is a `com.android.test` module with
 `targetProjectPath = ":app"` and a `benchmark` build type, so its `githubBenchmark` variant instruments the minified app. It
 holds the three `@HiltAndroidTest` classes, so it is the Hilt test application's host (`HiltTestRunner`) and depends on every
 module `app` wires. `:security-minified-test-trust` holds `PinnedTrustOnApi25Test` and `NetworkSecurityConfigChainTest` under

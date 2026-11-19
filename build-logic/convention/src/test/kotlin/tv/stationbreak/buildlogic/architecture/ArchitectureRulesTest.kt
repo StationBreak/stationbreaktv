@@ -93,18 +93,18 @@ class ArchitectureRulesTest {
 
     @Test
     fun appMayNameTheSecurityTestModuleInItsClassesConfiguration() {
-        assertEquals(emptyList(), rulesBroken(":app", project("securityTestClasses", ":security-minified-test")))
+        assertEquals(emptyList(), rulesBroken(":app", project("securityTestClasses", ":security-minified-test-hilt")))
     }
 
     @Test
     fun nothingElseMayNameTheSecurityTestModule() {
         assertEquals(
             listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
-            rulesBroken(":app", project("implementation", ":security-minified-test")),
+            rulesBroken(":app", project("implementation", ":security-minified-test-hilt")),
         )
         assertEquals(
             listOf(Rule.SECURITY_TEST_FOR_KEEP_RULES_ONLY),
-            rulesBroken(":feature:guide", project("securityTestClasses", ":security-minified-test")),
+            rulesBroken(":feature:guide", project("securityTestClasses", ":security-minified-test-hilt")),
         )
     }
 
@@ -113,7 +113,7 @@ class ArchitectureRulesTest {
         assertEquals(
             emptyList(),
             rulesBroken(
-                ":security-minified-test",
+                ":security-minified-test-hilt",
                 project("testedApks", ":app"),
                 project("compileOnly", ":app"),
                 project("implementation", ":data:jellyfin"),

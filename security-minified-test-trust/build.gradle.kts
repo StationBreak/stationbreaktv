@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
 // The two security tests that need no Hilt (PinnedTrustOnApi25Test, NetworkSecurityConfigChainTest), run against the
-// R8-minified app under the plain AndroidJUnitRunner (#436). Same shared sources as :security-minified-test, picked by file.
+// R8-minified app under the plain AndroidJUnitRunner (#436). Same shared sources as :security-minified-test-hilt, picked by file.
 plugins {
     alias(libs.plugins.android.test)
     id("stationbreak.security-test-classes")
