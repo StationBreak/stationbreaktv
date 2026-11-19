@@ -17,6 +17,7 @@
     -->
     <string name="live_stan_standby_headline">PLEASE\nSTAND BY</string>
     <string name="live_stan_tuning_status">TUNING CHANNEL %1$d</string>
+    <string name="live_stan_building_status">BUILDING YOUR CHANNELS</string>
     <string name="live_stan_programme">%1$s</string>
     <string name="live_stan_offair_headline">GONE TO BED</string>
     <string name="live_stan_offair_status">OFF THE AIR</string>
@@ -32,6 +33,7 @@
     <string name="live_stan_spoken_offair_returns">Off the air. %1$s returns at %2$s.</string>
     <string name="live_stan_spoken_offair_now_on">%1$s is off the air. Now on %2$d.</string>
     <string name="live_stan_spoken_trouble_status">Technical difficulties.</string>
+    <string name="live_stan_spoken_building">Please stand by. Building your channels.</string>
     <string name="live_stan_spoken_trouble">Technical difficulties. We\'ll be right back.</string>
 
     <string name="live_no_channels">No channels on the air yet</string>

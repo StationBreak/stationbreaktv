@@ -76,9 +76,10 @@ private const val TOP_OFFSET = 0.1f
 
 /**
  * The first-sync progress screen (spec 06, Unit 3), shown from the end of onboarding until the first sync of the
- * signed-in account ends. The first sync is queued here if it is not already, and the app moves on by itself when it
- * ends, with no button. Back is the platform's: the navigation graph puts nothing beneath this screen, so Back leaves
- * the app and the sync carries on in the background. Only during the cheer at the end does Back skip to live TV.
+ * signed-in account ends and its first lineup is built. The first sync is queued here if it is not already, and the app
+ * moves on by itself when it ends, with no button. Back is the platform's: the navigation graph puts nothing beneath
+ * this screen, so Back leaves the app and the sync carries on in the background. Only during the cheer at the end does
+ * Back skip to live TV.
  */
 @Composable
 fun FirstSyncDestination(
@@ -112,8 +113,9 @@ internal fun FirstSyncRoot(
  * The stateless screen, hosted by Stan. While it syncs nothing on it takes focus and Select and the arrow keys do
  * nothing; the count and the bar change at most twice a second and do not animate. Stan, in the corner, does: he works
  * the aerial for the whole sync (a busy Stan never dozes), at the host's 20 fps cap. On a failure the error from the
- * error table shows with Retry, which has default focus. When it is done Stan cheers us on the air, and any key
- * but volume, Back included, calls [onSkipCheer]: on to live TV, never out of the app.
+ * error table shows with Retry, which has default focus. While the channels are built he keeps working; once one is on
+ * the air he cheers us on it, and any key but volume, Back included, calls [onSkipCheer]: on to live TV, never out of
+ * the app.
  */
 @Composable
 internal fun FirstSyncScreen(
@@ -145,6 +147,7 @@ internal fun FirstSyncScreen(
                         FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
                         is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
                         is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
+                        FirstSyncPhase.Building -> BuildingChannels()
                         FirstSyncPhase.Done -> OnTheAir()
                     }
                 }
@@ -167,7 +170,28 @@ private fun skipsCheer(
 }
 
 /**
- * The moment between the end of the first sync and live TV: the full bar, and a headline that takes focus, so the
+ * While the first lineup is built, after the library is in: one line, said once to a screen reader as it appears, and
+ * a bar with no end in sight (indeterminate, never "complete"). No count and no percentage: there is nothing true to
+ * count.
+ */
+@Composable
+private fun BuildingChannels() {
+    val headline = stringResource(R.string.first_sync_building_headline)
+    Text(
+        text = headline,
+        modifier =
+            Modifier
+                .testTag(FirstSyncTags.BUILDING)
+                .politeLiveRegion()
+                .semantics { heading() },
+        style = MaterialTheme.typography.headlineLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    Bar(fraction = null, description = headline)
+}
+
+/**
+ * The moment between the first channel on the air and live TV: the full bar, and a headline that takes focus, so the
  * keys that skip the cheer reach this screen (nothing else on it is focusable).
  */
 @Composable
@@ -261,10 +285,13 @@ private fun Announcement(fraction: Float) {
     )
 }
 
-/** A plain bar with no animation of its own: it redraws only when the count changes (Stan beside it animates). */
+/**
+ * A plain bar with no animation of its own: it redraws only when the count changes (Stan beside it animates). A null
+ * [fraction] is a bar with no known end: an empty track that reads as indeterminate.
+ */
 @Composable
 private fun Bar(
-    fraction: Float,
+    fraction: Float?,
     description: String,
 ) {
     val track = MaterialTheme.colorScheme.surfaceVariant
@@ -279,10 +306,11 @@ private fun Bar(
                 .testTag(FirstSyncTags.BAR)
                 .semantics {
                     contentDescription = description
-                    progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
+                    progressBarRangeInfo =
+                        fraction?.let { ProgressBarRangeInfo(it, 0f..1f) } ?: ProgressBarRangeInfo.Indeterminate
                 },
     ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(fill))
+        fraction?.let { Box(Modifier.fillMaxHeight().fillMaxWidth(it).background(fill)) }
     }
 }
 

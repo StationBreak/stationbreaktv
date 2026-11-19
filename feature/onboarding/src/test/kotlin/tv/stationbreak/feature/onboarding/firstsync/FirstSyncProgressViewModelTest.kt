@@ -65,7 +65,7 @@ class FirstSyncProgressViewModelTest {
     fun withNobodySignedInThereIsNothingToWaitForAndNothingIsStarted() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(null)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
 
             runCurrent()
@@ -78,7 +78,7 @@ class FirstSyncProgressViewModelTest {
     fun anAccountWhoseFirstSyncEndedNeverSeesTheScreen() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(LibraryStatus(SyncState.Idle, finishedAt))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
 
             runCurrent()
@@ -91,7 +91,7 @@ class FirstSyncProgressViewModelTest {
     fun aLaterSyncIsNeverShownEvenWhileItRunsOrAfterItFails() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(LibraryStatus(SyncState.FirstSyncRunning(10, 100), finishedAt))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
 
             runCurrent()
@@ -106,7 +106,7 @@ class FirstSyncProgressViewModelTest {
     fun theScreenEndsWhenTheFirstSyncDoes() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(40, 100))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
             assertEquals(emptyList<FirstSyncEvent>(), seen)
@@ -127,7 +127,7 @@ class FirstSyncProgressViewModelTest {
     fun anAccountThatNeverSyncedHasTheFirstSyncStartedOnce() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(never)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
 
             runCurrent()
             assertEquals(FirstSyncPhase.Starting, vm.state.value)
@@ -143,7 +143,7 @@ class FirstSyncProgressViewModelTest {
     fun aSyncThatWasRunningWhenTheAppWasKilledIsEnsuredAgain() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(300, 1000))
-            FirstSyncViewModel(firstSync)
+            firstSyncViewModel(firstSync)
 
             runCurrent()
 
@@ -155,7 +155,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun theCountAndTotalAreWhatTheSavedLibraryReports() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(running(12_500, 15_000)))
+            val vm = firstSyncViewModel(InMemoryFirstSync(running(12_500, 15_000)))
 
             runCurrent()
 
@@ -165,7 +165,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun beforeTheTotalIsKnownThereIsOnlyACount() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(running(200, null)))
+            val vm = firstSyncViewModel(InMemoryFirstSync(running(200, null)))
 
             runCurrent()
 
@@ -186,7 +186,7 @@ class FirstSyncProgressViewModelTest {
     fun theCountChangesAtMostTwiceASecond() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(0, 1000))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val shown = mutableListOf<FirstSyncPhase>()
             backgroundScope.launch { vm.state.collect { shown += it } }
             runCurrent()
@@ -210,7 +210,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun aNetworkFailureShowsThePlainErrorFromTheTableWithRetry() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(failed(SyncFailure.Network)))
+            val vm = firstSyncViewModel(InMemoryFirstSync(failed(SyncFailure.Network)))
 
             runCurrent()
 
@@ -224,7 +224,7 @@ class FirstSyncProgressViewModelTest {
     fun aFailureShowsWithinHalfASecondOfTheLastCount() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(100, 1000))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             runCurrent()
 
             firstSync.current = failed(SyncFailure.Server)
@@ -238,7 +238,7 @@ class FirstSyncProgressViewModelTest {
     fun retryRunsTheSyncAgainAndGoesBackToWaiting() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(failed(SyncFailure.Network))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             runCurrent()
 
             vm.onRetry()
@@ -252,7 +252,7 @@ class FirstSyncProgressViewModelTest {
     fun aRejectedSessionOffersRetryThatGoesBackToSigningIn() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(failed(SyncFailure.SessionExpired))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
 
@@ -270,7 +270,7 @@ class FirstSyncProgressViewModelTest {
     fun anAccountThatVanishesWhileTheScreenShowsMeansTheSessionWasLost() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(10, 100))
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
 
@@ -287,7 +287,7 @@ class FirstSyncProgressViewModelTest {
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running(10, 100))
             val owner = ViewModelStore()
-            val factory = factoryOf(FirstSyncViewModel(firstSync))
+            val factory = factoryOf(firstSyncViewModel(firstSync))
             val vm = ViewModelProvider.create(owner, factory)[FirstSyncViewModel::class.java]
             runCurrent()
 
@@ -312,7 +312,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun withNoFirstPageForFifteenSecondsTheCountLineSaysItIsWaitingForTheNetwork() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(never))
+            val vm = firstSyncViewModel(InMemoryFirstSync(never))
             runCurrent()
 
             advanceTimeBy(14_900)
@@ -328,7 +328,7 @@ class FirstSyncProgressViewModelTest {
     fun theWaitingLineGoesAwayWhenProgressArrives() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(never)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             runCurrent()
             advanceTimeBy(16_000)
             runCurrent()
@@ -348,7 +348,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun withNoFirstPageForFiveMinutesTheFailureScreenShowsWithAPlainNetworkMessage() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(never))
+            val vm = firstSyncViewModel(InMemoryFirstSync(never))
             runCurrent()
 
             advanceTimeBy(299_000)
@@ -366,7 +366,7 @@ class FirstSyncProgressViewModelTest {
     fun retryAfterTheNetworkTimeoutRunsTheSyncAgainAndStartsTheClockOver() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(never)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             runCurrent()
             advanceTimeBy(302_000)
             runCurrent()
@@ -385,7 +385,7 @@ class FirstSyncProgressViewModelTest {
     @Test
     fun aRunningSyncWithNothingSavedYetIsStillWaitingAfterFifteenSeconds() =
         runTest(dispatcher) {
-            val vm = FirstSyncViewModel(InMemoryFirstSync(running(0, 1000)))
+            val vm = firstSyncViewModel(InMemoryFirstSync(running(0, 1000)))
             runCurrent()
 
             advanceTimeBy(16_000)

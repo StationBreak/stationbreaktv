@@ -193,6 +193,8 @@ class StanCuesTest {
                 FirstSyncPhase.WaitingForNetwork to StanCue(StanMood.Shrug, R.string.stan_first_sync_waiting),
                 FirstSyncPhase.Failed(error, copy, sessionLost = false) to
                     StanCue(StanMood.Shrug, R.string.stan_first_sync_failed),
+                // The library is in, the channels are not: Stan keeps working, and cheers only once they are.
+                FirstSyncPhase.Building to StanCue(StanMood.Busy, R.string.stan_first_sync_building),
                 FirstSyncPhase.Done to StanCue(StanMood.Cheer, R.string.stan_first_sync_done),
             )
         for ((phase, cue) in expected) assertEquals(phase.toString(), cue, firstSyncCue(phase))

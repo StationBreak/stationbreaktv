@@ -178,12 +178,29 @@ private fun PictureLayers(
     nowMs: () -> Long,
 ) {
     when (state) {
-        is LiveState.Tuning -> StationGround(state, changeStyle, nowMs, full = false)
-        is LiveState.Choosing -> if (!state.overPicture) StationGround(state, changeStyle, nowMs, full = false)
-        is LiveState.TechnicalDifficulties, is LiveState.Ident -> StationGround(state, changeStyle, nowMs, full = false)
-        LiveState.NoChannels -> NoChannelsSlate()
-        LiveState.NoLibraries -> NoLibrariesSlate()
-        is LiveState.Watching, LiveState.SignedOut -> Unit
+        is LiveState.Tuning -> {
+            StationGround(state, changeStyle, nowMs, full = false)
+        }
+
+        is LiveState.Choosing -> {
+            if (!state.overPicture) StationGround(state, changeStyle, nowMs, full = false)
+        }
+
+        is LiveState.TechnicalDifficulties, is LiveState.Ident, LiveState.BuildingChannels -> {
+            StationGround(state, changeStyle, nowMs, full = false)
+        }
+
+        LiveState.NoChannels -> {
+            NoChannelsSlate()
+        }
+
+        LiveState.NoLibraries -> {
+            NoLibrariesSlate()
+        }
+
+        is LiveState.Watching, LiveState.SignedOut -> {
+            Unit
+        }
     }
 }
 
@@ -238,6 +255,10 @@ private fun LiveLayers(
 
             LiveState.NoChannels -> {
                 NoChannelsSlate()
+            }
+
+            LiveState.BuildingChannels -> {
+                StationGround(state, changeStyle, nowMs)
             }
 
             LiveState.NoLibraries -> {

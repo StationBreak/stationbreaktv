@@ -124,6 +124,21 @@ class StanSpecsTest {
     }
 
     @Test
+    fun whileTheChannelsAreBuiltStanStandsByAndSaysSo() {
+        // Whichever the viewer chose for a channel change: no channel is changing.
+        for (change in ChannelChangeStyle.entries) {
+            val spec = checkNotNull(spec(LiveState.BuildingChannels, change))
+            assertEquals(StanScene.Standby, spec.scene)
+            assertEquals(Phrase(R.string.live_stan_standby_headline), spec.headline)
+            assertEquals(Phrase(R.string.live_stan_building_status), spec.status)
+            assertNull(spec.detail)
+            assertEquals(Phrase(R.string.live_stan_spoken_building), spec.spoken)
+            assertEquals(LiveTags.STAN_STANDBY, spec.tag)
+        }
+        assertFalse(isChangingChannel(LiveState.BuildingChannels))
+    }
+
+    @Test
     fun theInstructionCardsThePictureAndSignOutHaveNoStanScreen() {
         assertNull(spec(LiveState.NoChannels))
         assertNull(spec(LiveState.NoLibraries))

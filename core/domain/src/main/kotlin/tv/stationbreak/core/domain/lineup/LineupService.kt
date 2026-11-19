@@ -78,6 +78,7 @@ import kotlin.time.TimeSource
  * revision, so it is a cache key; a change of [meta] alone keeps the revision, since no channel changed. [writable]
  * is whether this session may write the account's file, as it stood when this was published (spec 21). [repairs] is the
  * per-TV repair record (spec 26) that is saved with the lineup; a change of it alone keeps the revision too.
+ * [firstChoiceMade] is whether the planner has made the lineup's first choice ([FirstLineup]).
  */
 internal data class Revisioned(
     val revision: Long,
@@ -85,7 +86,9 @@ internal data class Revisioned(
     val meta: RefreshMeta = RefreshMeta(),
     val repairs: TodayRepairs = TodayRepairs.NONE,
     val writable: Boolean = false,
-)
+) {
+    val firstChoiceMade: Boolean get() = firstChoiceMade(lineup, meta)
+}
 
 /**
  * The one owner of each account's channel lineup in memory (spec 12): it loads, plans and saves it, and everything
@@ -117,7 +120,8 @@ class LineupService internal constructor(
     private val seams: LineupSeams,
 ) : ChannelRepository,
     HouseholdSetting,
-    CollectionsAtSetup {
+    CollectionsAtSetup,
+    FirstLineup {
     /** For tests: a small catalog in place of the real one. */
     internal constructor(
         store: LineupStore,
@@ -472,8 +476,9 @@ class LineupService internal constructor(
                 plannedLibraries = libraries.map { it.value }.sorted(),
                 extrasFromMs = extrasBoundary(before.extrasFromMs, offsetFrom, newAccount, nowMs),
                 replanFromMs = planned.replanFromMs(),
+                plannedWithoutCollections = before.plannedWithoutCollections || read.giveUp,
             )
-        return planned to meta
+        return planned to meta.copy(plannedWithoutCollections = meta.givenUpMatters(planned))
     }
 
     internal fun nowMs(): Long = clock.now().toEpochMilliseconds()
@@ -1536,6 +1541,28 @@ class LineupService internal constructor(
             emitAll(entryOf(owner).state)
         }.map { held -> held?.lineup?.useMyCollections ?: true }.distinctUntilChanged()
     }
+
+    /**
+     * [FirstLineup.firstLineup]: the active account's lineup, settled once [Revisioned.firstChoiceMade]. An account
+     * whose IDs are not IDs never has a lineup, so there is nothing to wait for: settled.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun firstLineup(): Flow<FirstLineupState> =
+        library
+            .activeAccount()
+            .flatMapLatest { account ->
+                when {
+                    account == null -> flowOf(FirstLineupState.Building)
+                    ownerOf(account) == null -> flowOf(FirstLineupState.Settled)
+                    else -> firstLineupOf(account)
+                }
+            }.distinctUntilChanged()
+
+    private fun firstLineupOf(account: LibraryAccount): Flow<FirstLineupState> =
+        flow {
+            loaded(account)
+            emitAll(lineup(account))
+        }.map { held -> if (held?.firstChoiceMade == true) FirstLineupState.Settled else FirstLineupState.Building }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun activeChannels(): Flow<List<ChannelSummary>> =

@@ -51,7 +51,7 @@ internal fun pictureLabelOf(
         is LiveState.Ident -> cardLabel(state.upNext, state.channel)
         is LiveState.TechnicalDifficulties -> cardLabel(state.upNext, state.channel)
         is LiveState.Choosing -> state.target.alone()
-        LiveState.NoChannels, LiveState.NoLibraries, LiveState.SignedOut -> null
+        LiveState.NoChannels, LiveState.BuildingChannels, LiveState.NoLibraries, LiveState.SignedOut -> null
     }
 
 // A slate or ident: what is up next when it says, else the channel alone.

@@ -44,6 +44,7 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FakeFirstLineup
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
@@ -240,6 +241,7 @@ class LiveDestinationLifecycleTest {
             LiveTimings(),
             FakeLibraryChoices(null),
             DisplayOutput.Present,
+            FakeFirstLineup(),
         )
     }
 

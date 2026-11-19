@@ -18,6 +18,11 @@ import tv.stationbreak.core.engine.lineup.Lineup
  * - [replanFromMs] is the boundary at which a household change (spec 23) takes effect, while one is pending: from
  *   then on the lineup is behind, so the refresher plans it again though the library did not change (a starter whose
  *   switch-on was deferred to the boundary is then switched on). Null when no such change is pending.
+ * - [plannedWithoutCollections] is true once a plan of the lineup gave up waiting for the collection pass
+ *   (`GIVE_UP_AFTER` passes failed): its first choice was made without them. Stored, so the lineup is still known to
+ *   have its first choice ([firstChoiceMade]) after a restart, but only while it is the only thing that says so
+ *   ([givenUpMatters]): once a pass is taken in or the lineup is finalised it is cleared, and the file goes back to the
+ *   version it needs without it.
  */
 internal data class RefreshMeta(
     val plannedGeneration: Long? = null,
@@ -25,6 +30,7 @@ internal data class RefreshMeta(
     val plannedLibraries: List<String>? = null,
     val extrasFromMs: Long? = null,
     val replanFromMs: Long? = null,
+    val plannedWithoutCollections: Boolean = false,
 ) {
     /** True when the pending household change has reached its boundary at [nowMs]: the lineup is behind. */
     fun replanDue(nowMs: Long): Boolean = replanFromMs.let { it != null && nowMs >= it }
@@ -38,3 +44,21 @@ internal fun Lineup.replanFromMs(): Long? {
     val basis = curationBasis
     return if (basis != null && basis.household != useMyCollections) basis.fromMs else null
 }
+
+/**
+ * Whether [RefreshMeta.plannedWithoutCollections] still says something about [lineup]: no pass taken in and not
+ * finalised. Once either is so, it never goes back while the lineup is planned on (`collectionPassActedOn` keeps its
+ * value until a newer pass, and the planner never unfinalises a lineup; only a reset plans from nothing), so
+ * [firstChoiceMade] stays true without it.
+ */
+internal fun RefreshMeta.givenUpMatters(lineup: Lineup): Boolean =
+    plannedWithoutCollections && collectionPassActedOn == null && !lineup.finalised
+
+/**
+ * Whether the planner has made [lineup]'s first choice ([FirstLineup]): it is finalised, or a plan took in a collection
+ * pass (a thin library stays unfinalised after it), or a plan gave up waiting for one ([meta]).
+ */
+internal fun firstChoiceMade(
+    lineup: Lineup,
+    meta: RefreshMeta,
+): Boolean = lineup.finalised || meta.collectionPassActedOn != null || meta.plannedWithoutCollections

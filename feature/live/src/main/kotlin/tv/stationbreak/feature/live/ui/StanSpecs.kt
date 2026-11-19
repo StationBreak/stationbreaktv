@@ -46,6 +46,18 @@ internal fun tuningSpec(
         tag = LiveTags.STAN_STANDBY,
     )
 
+/** The standby screen while the lineup is still being built: no channel to name yet, so the status says why. */
+internal fun buildingSpec(): StanScreenSpec =
+    StanScreenSpec(
+        scene = StanScene.Standby,
+        headline = Phrase(R.string.live_stan_standby_headline),
+        status = Phrase(R.string.live_stan_building_status),
+        detail = null,
+        // No banner says it: the screen does, once.
+        spoken = Phrase(R.string.live_stan_spoken_building),
+        tag = LiveTags.STAN_STANDBY,
+    )
+
 private val PLAIN_TROUBLE = R.string.live_stan_spoken_trouble_status
 private val FULL_TROUBLE = R.string.live_stan_spoken_trouble
 
@@ -115,9 +127,10 @@ internal fun isChangingChannel(state: LiveState): Boolean {
 
 /**
  * Stan's screen for [state], or null when [state] has none: the picture, the sign-in hand-over and the two instruction
- * cards (no channels, no libraries) stay as they are, and a channel change shows snow when [change] says so. The
- * difficulties and ident screens are not part of the choice; only the change of channel is. [withBanner] is true on
- * the whole screen, where a banner is over the card, and false in the guide's corner, which has none.
+ * cards (no channels, no libraries) stay as they are, a lineup still being built has him stand by, and a channel
+ * change shows snow when [change] says so. The difficulties, ident and building screens are not part of the choice;
+ * only the change of channel is. [withBanner] is true on the whole screen, where a banner is over the card, and false
+ * in the guide's corner, which has none.
  */
 internal fun stanSpecOf(
     state: LiveState,
@@ -129,6 +142,7 @@ internal fun stanSpecOf(
         isChangingChannel(state) && change == ChannelChangeStyle.Snow -> null
         state is LiveState.Tuning -> tuningSpec(state.banner.number, state.banner.title)
         state is LiveState.Choosing -> if (state.overPicture) null else tuningSpec(state.target.number, null)
+        state == LiveState.BuildingChannels -> buildingSpec()
         state is LiveState.TechnicalDifficulties -> difficultiesSpec(withBanner && state.hasBanner())
         state is LiveState.Ident -> offAirSpec(state.upNext, state.note, withBanner && state.hasBanner(), time)
         else -> null

@@ -29,6 +29,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -142,7 +143,7 @@ internal class ControllerTunerFactory
  * fresh sitting that re-anchors to the clock (review of spec 14: one player at a time, none kept while stopped). Only
  * a paused place ([KeptPlace], in memory only) is kept across a stop, for `LiveTimings.pauseHoldMax` (ADR-0021 5).
  */
-@Suppress("LongParameterList") // The machine's ports, the tuner and the player's factory, one for one.
+@Suppress("LongParameterList", "TooManyFunctions") // The machine's ports one for one; a function per screen ask.
 @HiltViewModel
 internal class LiveViewModel
     @Inject
@@ -163,6 +164,8 @@ internal class LiveViewModel
         private val choices: LibrarySelectionView,
         // Whether the TV's output is there: while it is not, nothing is tuned or reported (#423).
         private val display: DisplayOutput,
+        // Whether the first lineup is still being built: Stan stands by then, not the no-channels card.
+        private val firstLineup: FirstLineup,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Ident(null))
         val state: StateFlow<LiveState> = shown.asStateFlow()
@@ -364,6 +367,30 @@ internal class LiveViewModel
             }
         }
 
+        /** The live channel of one period, tuning through [port]. */
+        private fun liveChannel(
+            port: TunePort,
+            log: (String) -> Unit,
+        ): LiveChannel =
+            LiveChannel(
+                schedule,
+                port,
+                lastChannel,
+                sessions,
+                library,
+                channels,
+                clock,
+                timings = timings,
+                // The measurements are numbers and fixed names only (TuneReport), so they may go to logcat.
+                report = { log(it.line()) },
+                server = server,
+                details = details,
+                selection = choices.selection,
+                output = display.present,
+                firstLineup = firstLineup,
+                onFirstVisit = ::openFirstVisitGuide,
+            )
+
         /** Runs [running]'s live channel until the session ends (true) or it is cancelled, then tears it down. */
         @Suppress("LongParameterList") // The period, its session, the sitting's Android parts and a kept place.
         private suspend fun period(
@@ -381,24 +408,8 @@ internal class LiveViewModel
             try {
                 player.attach(surface)
                 val port = tuners.create(player, session).also { tuner = it }
-                // The measurements are numbers and fixed names only (TuneReport), so they may go to logcat.
                 val machine =
-                    LiveChannel(
-                        schedule,
-                        port,
-                        lastChannel,
-                        sessions,
-                        library,
-                        channels,
-                        clock,
-                        timings = timings,
-                        report = { log(it.line()) },
-                        server = server,
-                        details = details,
-                        selection = choices.selection,
-                        output = display.present,
-                        onFirstVisit = ::openFirstVisitGuide,
-                    ).also {
+                    liveChannel(port, log).also {
                         live = it
                         running.machine = it
                     }

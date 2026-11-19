@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocusable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -88,6 +90,20 @@ class FirstSyncScreenTest {
         compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(200)} so far"))
         val range = compose.onNodeWithTag(FirstSyncTags.BAR).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
         assertEquals(0f, range.current, 0f)
+    }
+
+    // Building the channels
+
+    @Test
+    fun whileTheChannelsAreBuiltThereIsTheHeadlineNoCountAndABarWithNoEnd() {
+        show(FirstSyncPhase.Building)
+
+        compose.onNodeWithTag(FirstSyncTags.BUILDING).assert(hasText("Building your channels…"))
+        compose.onAllNodesWithTag(FirstSyncTags.COUNT).assertCountEquals(0)
+        compose.onAllNodesWithTag(FirstSyncTags.ANNOUNCE).assertCountEquals(0)
+        // TalkBack must not hear "complete": the bar reads as indeterminate.
+        val range = compose.onNodeWithTag(FirstSyncTags.BAR).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
+        assertEquals(ProgressBarRangeInfo.Indeterminate, range)
     }
 
     @Test

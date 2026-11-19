@@ -38,6 +38,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.app.di.FirstLineupModule
 import tv.stationbreak.app.di.MediaServerModule
 import tv.stationbreak.app.di.PlayerModule
 import tv.stationbreak.app.nav.AppNavHost
@@ -54,6 +55,9 @@ import tv.stationbreak.core.domain.ServerRecord
 import tv.stationbreak.core.domain.ServerResult
 import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
+import tv.stationbreak.core.domain.lineup.FakeFirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineup
+import tv.stationbreak.core.domain.lineup.FirstLineupState
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.CertificateEvidence
 import tv.stationbreak.core.model.ItemId
@@ -111,7 +115,7 @@ private object Launched {
  * with Continue and Switch user, and the live screen with Back leaving the app.
  */
 @HiltAndroidTest
-@UninstallModules(MediaServerModule::class, PlayerModule::class)
+@UninstallModules(MediaServerModule::class, PlayerModule::class, FirstLineupModule::class)
 @RunWith(AndroidJUnit4::class)
 @Suppress("TooManyFunctions") // One function per route and behaviour.
 class LaunchNavigationTest {
@@ -158,6 +162,11 @@ class LaunchNavigationTest {
 
         @Provides
         fun players(): VideoPlayerFactory = LiveTestBindings.players
+
+        // No refresher runs under HiltTestApplication, so nothing plans the first lineup from the sync: it is scripted
+        // as the refresher leaves it for this empty library, settled with nothing on the air.
+        @Provides
+        fun firstLineup(): FirstLineup = FakeFirstLineup(FirstLineupState.Settled)
     }
 
     private val info = ServerInfo("Home Server", ServerId("srv1"), ServerVersion(12, 2, 0))
@@ -813,12 +822,12 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN, LibrariesTags.COLLECTIONS)
         press(KeyEvent.KEYCODE_DPAD_CENTER, LibrariesTags.DONE)
 
-        // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would),
-        // after Stan's moment of cheer.
+        // Done opens the first sync's screen, and the live screen follows when the sync ends (run as the worker would).
+        // The library is empty, so no channel is on the air and Stan has nothing to cheer.
         awaitExists(FirstSyncTags.HEADLINE)
         runTheFirstSyncAsTheWorkerDoes(Launched.settings, Launched.store, Launched.server)
-        awaitExists(FirstSyncTags.DONE)
         awaitExists(LiveTags.NO_CHANNELS)
+        assertEquals(0, count(FirstSyncTags.DONE))
         assertEquals(setOf(movies.id), Launched.settings.currentLibraries)
         assertBackOpensTheGuideThenLeavesTheApp()
     }

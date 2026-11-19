@@ -20,6 +20,7 @@ import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ScheduleSource
+import tv.stationbreak.core.domain.lineup.TUNE_LOOK_AHEAD
 import tv.stationbreak.core.domain.logName
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -747,7 +748,7 @@ internal class Sitting(
 
     internal companion object {
         /** How many following blocks each look at the schedule asks for (the next one is pre-resolved). */
-        const val WINDOW = 3
+        const val WINDOW = TUNE_LOOK_AHEAD
 
         /** A kept place's dead tune: no play at all, held paused until the viewer presses Play. */
         internal val NO_PLAY = TuneOutcome.Playing(flow { awaitCancellation() }, PlayControl.None)

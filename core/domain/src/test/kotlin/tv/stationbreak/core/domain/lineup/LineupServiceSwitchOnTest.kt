@@ -191,7 +191,7 @@ class LineupServiceSwitchOnTest {
                     pairs++
                 }
             }
-            assertEquals(15, pairs)
+            assertEquals(21, pairs)
             assertEquals("v1", upgradeCopyTag(1, 3))
             assertEquals("v2", upgradeCopyTag(2, 3))
             assertEquals("v3", upgradeCopyTag(3, 4))
@@ -201,6 +201,7 @@ class LineupServiceSwitchOnTest {
             assertEquals("v2-to5", upgradeCopyTag(2, 5))
             assertEquals("v5-to6", upgradeCopyTag(5, 6))
             assertEquals("v3-to6", upgradeCopyTag(3, 6))
+            assertEquals("v3-to7", upgradeCopyTag(3, 7))
         }
 
     // `forget` removes the `-to` copies with the rest (the store's tags are one family).

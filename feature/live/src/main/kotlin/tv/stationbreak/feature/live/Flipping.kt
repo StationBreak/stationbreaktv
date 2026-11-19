@@ -82,7 +82,8 @@ internal class Tuned {
 }
 
 // The states with no channel on the screen: nothing to flip from.
-private val OFF_SCREEN: Set<LiveState> = setOf(LiveState.NoChannels, LiveState.NoLibraries, LiveState.SignedOut)
+private val OFF_SCREEN: Set<LiveState> =
+    setOf(LiveState.NoChannels, LiveState.BuildingChannels, LiveState.NoLibraries, LiveState.SignedOut)
 
 /**
  * Flipping (spec 15): follows the viewer's [LiveCommand]s and asks for a new sitting with [start] when a flip commits.

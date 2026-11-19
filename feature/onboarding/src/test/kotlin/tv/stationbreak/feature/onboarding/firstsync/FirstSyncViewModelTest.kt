@@ -3,6 +3,8 @@ package tv.stationbreak.feature.onboarding.firstsync
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -16,8 +18,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import tv.stationbreak.core.domain.InMemoryFirstSync
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryStatus
 import tv.stationbreak.core.domain.SyncState
+import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
+import tv.stationbreak.core.domain.lineup.FakeFirstLineup
+import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.FirstLineupState
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
+import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -45,7 +57,7 @@ class FirstSyncViewModelTest {
     /** A screen showing a running first sync, which then ends. */
     private fun TestScope.finishing(): Pair<FirstSyncViewModel, List<FirstSyncEvent>> {
         val firstSync = InMemoryFirstSync(running)
-        val vm = FirstSyncViewModel(firstSync)
+        val vm = firstSyncViewModel(firstSync)
         val seen = events(vm)
         runCurrent()
         firstSync.current = finished
@@ -112,7 +124,7 @@ class FirstSyncViewModelTest {
     fun aSkipBeforeTheCheerDoesNothing() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
 
@@ -132,7 +144,7 @@ class FirstSyncViewModelTest {
     fun aStaleCountNeverReplacesTheCheer() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             events(vm)
             runCurrent()
 
@@ -151,7 +163,7 @@ class FirstSyncViewModelTest {
     fun anAccountLostDuringTheCheerStillLeavesOnlyOnce() =
         runTest(dispatcher) {
             val firstSync = InMemoryFirstSync(running)
-            val vm = FirstSyncViewModel(firstSync)
+            val vm = firstSyncViewModel(firstSync)
             val seen = events(vm)
             runCurrent()
             firstSync.current = finished
@@ -170,12 +182,190 @@ class FirstSyncViewModelTest {
     fun withNothingToWaitForThereIsNoCheer() =
         runTest(dispatcher) {
             // The account's first sync had ended before the screen opened: it never shows, so nothing to cheer.
-            val vm = FirstSyncViewModel(InMemoryFirstSync(finished))
+            val vm = firstSyncViewModel(InMemoryFirstSync(finished))
             val seen = events(vm)
 
             runCurrent()
 
             assertEquals(listOf(FirstSyncEvent.Finished), seen)
             assertEquals(FirstSyncPhase.Starting, vm.state.value)
+        }
+
+    // The first lineup (Stan keeps working until a channel is on the air).
+
+    private class Building(
+        val vm: FirstSyncViewModel,
+        val firstSync: InMemoryFirstSync,
+        val firstLineup: FakeFirstLineup,
+        val schedule: FakeSchedule,
+        val changes: LineupChanges,
+        val seen: List<FirstSyncEvent>,
+    ) {
+        /** A channel comes on the air with the lineup's next change. */
+        fun channelOnTheAir() {
+            schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+            changes.changed()
+        }
+    }
+
+    /** A screen showing a running first sync that then ends, with the first lineup still building. */
+    private fun TestScope.building(schedule: FakeSchedule = FakeSchedule()): Building {
+        val firstSync = InMemoryFirstSync(running)
+        val firstLineup = FakeFirstLineup(FirstLineupState.Building)
+        val changes = LineupChanges()
+        val vm = firstSyncViewModel(firstSync, firstLineup, schedule, changes)
+        val seen = events(vm)
+        runCurrent()
+        firstSync.current = finished
+        runCurrent()
+        return Building(vm, firstSync, firstLineup, schedule, changes, seen)
+    }
+
+    private fun TestScope.holdsTheCheerThenFinishes(b: Building) {
+        assertEquals(FirstSyncPhase.Done, b.vm.state.value)
+        assertEquals(emptyList<FirstSyncEvent>(), b.seen)
+        advanceTimeBy(CHEER_HOLD_MS)
+        runCurrent()
+        assertEquals(listOf(FirstSyncEvent.Finished), b.seen)
+    }
+
+    @Test
+    fun withNothingOnTheAirStanKeepsWorking() =
+        runTest(dispatcher) {
+            val b = building()
+
+            assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+            b.changes.changed()
+            advanceTimeBy(FIRST_LINEUP_WAIT - 1.milliseconds)
+            runCurrent()
+            assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+            assertEquals(emptyList<FirstSyncEvent>(), b.seen)
+        }
+
+    @Test
+    fun aChannelOnTheAirCheersThoughTheLineupIsStillBuilding() =
+        runTest(dispatcher) {
+            // A thin library whose collection pass is slow: its channel airs long before the lineup settles.
+            val b = building()
+            advanceTimeBy(30_000)
+
+            b.channelOnTheAir()
+            runCurrent()
+
+            holdsTheCheerThenFinishes(b)
+        }
+
+    @Test
+    fun aChannelAlreadyOnTheAirCheersAtOnce() =
+        runTest(dispatcher) {
+            val b = building(schedule = onTheAir())
+
+            holdsTheCheerThenFinishes(b)
+        }
+
+    @Test
+    fun aSettledLineupWithAChannelOnTheAirCheers() =
+        runTest(dispatcher) {
+            val b = building()
+            b.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+
+            b.firstLineup.state.value = FirstLineupState.Settled
+            runCurrent()
+
+            holdsTheCheerThenFinishes(b)
+        }
+
+    @Test
+    fun aSettledLineupWithNothingOnTheAirFinishesWithNoCheer() =
+        runTest(dispatcher) {
+            val b = building()
+
+            b.firstLineup.state.value = FirstLineupState.Settled
+            runCurrent()
+
+            // Live TV says there are no channels: nothing to cheer.
+            assertEquals(listOf(FirstSyncEvent.Finished), b.seen)
+            b.channelOnTheAir()
+            advanceTimeBy(FIRST_LINEUP_WAIT * 2)
+            runCurrent()
+            assertEquals("once", listOf(FirstSyncEvent.Finished), b.seen)
+            assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+        }
+
+    @Test
+    fun aSettledLineupDecidesBeforeAnyChannelListArrives() =
+        runTest(dispatcher) {
+            // The channel list has said nothing yet (no active account in it, say): the lineup's state alone decides.
+            val silent =
+                object : ChannelRepository {
+                    override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = emptyFlow()
+
+                    override fun activeChannels(): Flow<List<ChannelSummary>> = emptyFlow()
+                }
+            val firstSync = InMemoryFirstSync(running)
+            val vm = firstSyncViewModel(firstSync, FakeFirstLineup(), FakeSchedule(), silent)
+            val seen = events(vm)
+            runCurrent()
+
+            firstSync.current = finished
+            runCurrent()
+
+            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+        }
+
+    @Test
+    fun theWaitWithNothingOnTheAirFinishesWithNoCheer() =
+        runTest(dispatcher) {
+            val b = building()
+
+            advanceTimeBy(FIRST_LINEUP_WAIT)
+            runCurrent()
+
+            // Setup never hangs: live TV goes on waiting for the channels itself.
+            assertEquals(listOf(FirstSyncEvent.Finished), b.seen)
+            assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+        }
+
+    @Test
+    fun theWaitLooksOnceMoreAndCheersForAChannelOnTheAir() =
+        runTest(dispatcher) {
+            val b = building()
+            // On the air with no change said: only the last look, at the end of the wait, sees it.
+            b.schedule.channel(CH7, 7, listOf(program(0, 60, 1)))
+
+            advanceTimeBy(FIRST_LINEUP_WAIT)
+            runCurrent()
+
+            holdsTheCheerThenFinishes(b)
+        }
+
+    @Test
+    fun aSessionLostWhileBuildingLeavesOnceForSignIn() =
+        runTest(dispatcher) {
+            val b = building()
+
+            b.firstSync.current = null
+            runCurrent()
+            b.channelOnTheAir()
+            runCurrent()
+            advanceTimeBy(FIRST_LINEUP_WAIT * 2)
+            runCurrent()
+
+            assertEquals(listOf(FirstSyncEvent.SessionLost), b.seen)
+            assertEquals(FirstSyncPhase.Building, b.vm.state.value)
+        }
+
+    @Test
+    fun aKeyWhileBuildingSkipsNothing() =
+        runTest(dispatcher) {
+            val b = building()
+
+            b.vm.skipCheer()
+            b.channelOnTheAir()
+            runCurrent()
+            advanceTimeBy(CHEER_HOLD_MS - 1)
+            runCurrent()
+
+            assertEquals("the cheer holds in full", emptyList<FirstSyncEvent>(), b.seen)
         }
 }

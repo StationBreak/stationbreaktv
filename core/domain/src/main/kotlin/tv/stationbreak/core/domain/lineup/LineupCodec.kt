@@ -32,7 +32,7 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3, 4, 5 or 6 ([VERSION] is the newest). Only
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3 to 7 ([VERSION] is the newest). Only
  * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
  * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
  * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
@@ -69,6 +69,18 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * [Decoded.NewerVersion]: unusable, never wrongly read, never written over; `"noNumber"` in a file below version 6 is
  * [Decoded.Unreadable]. A file that only says `"belowCap"` reads as before. The service keeps the usual copy
  * (`keepCopy`, tag `v{from}-to6`) before the first version-6 save.
+ *
+ * Version 7 (the first lineup, [FirstLineup]) adds the meta field `plannedWithoutCollections`, written only as `true`
+ * and only while it matters ([givenUpMatters]: a plan gave up waiting for the collection pass, no pass has been taken
+ * in since and the lineup is not finalised). It is in the same [AddedMark.versionFor] max, so a lineup without it is
+ * still 3 to 6 and every file written before it reads as it did (the field absent is false). The key in a file below
+ * version 7, or any value but `true` (`false`, `null`, any other type), is [Decoded.Unreadable]. The service keeps
+ * the usual copy (`keepCopy`, tag `v{from}-to7`) before the first version-7 save, so that copy exists only when an
+ * older file was replaced.
+ *
+ * A version-7 file opened by an older build is left alone ([Decoded.NewerVersion]): the lineup is read-only there, and
+ * on a cold start it has no lineup until the app is updated. The flag clears once a collection pass is taken in or the
+ * lineup finalises (the next save writes 3 to 6 again), which bounds how long a TV holds a version-7 file.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -125,8 +137,11 @@ internal object LineupCodec {
     /** The version that holds the `noNumber` shelf reason. */
     const val NO_NUMBER_VERSION = 6
 
-    /** The newest schema version this app reads and writes (6: the `noNumber` shelf reason). */
-    const val VERSION = NO_NUMBER_VERSION
+    /** The version that holds the meta field `plannedWithoutCollections`. */
+    const val GAVE_UP_VERSION = 7
+
+    /** The newest schema version this app reads and writes (7: the meta field `plannedWithoutCollections`). */
+    const val VERSION = GAVE_UP_VERSION
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -173,14 +188,14 @@ internal object LineupCodec {
         val ids = lineup.channels.mapTo(HashSet()) { it.id }
         val file =
             FileV1(
-                version = AddedMark.versionFor(lineup, repairs),
+                version = AddedMark.versionFor(lineup, repairs, meta),
                 serverId = lineup.serverId.value,
                 userId = lineup.userId.value,
                 catalogVersion = lineup.catalogVersion,
                 utcOffsetMinutes = lineup.utcOffsetMinutes,
                 finalised = lineup.finalised,
                 channels = lineup.channels.map(::channelOf),
-                meta = MetaV1.of(meta),
+                meta = MetaV1.of(meta, lineup),
                 useMyCollections = if (lineup.useMyCollections) null else false,
                 viewerChoicesKnown = if (lineup.viewerChoicesKnown) null else false,
                 curationBasis = lineup.curationBasis?.let { BasisV1.of(it, ids) },
@@ -212,7 +227,11 @@ internal object LineupCodec {
                 in 1..VERSION -> {
                     val hasRepairs = (root as JsonObject).containsKey("repairs")
                     val file = json.decodeFromJsonElement(FileV1.serializer(), root)
-                    lineupOf(file, version, hasRepairs, gatePassed, AddedMark.raw(root))
+                    if (strayGaveUp(root, version)) {
+                        Decoded.Unreadable
+                    } else {
+                        lineupOf(file, version, hasRepairs, gatePassed, AddedMark.raw(root))
+                    }
                 }
 
                 else -> {
@@ -449,12 +468,14 @@ private object AddedMark {
     fun versionFor(
         lineup: Lineup,
         repairs: TodayRepairs,
+        meta: RefreshMeta,
     ): Int =
         maxOf(
             LineupCodec.BASE_VERSION,
             if (repairs.isEmpty) 0 else LineupCodec.REPAIRS_VERSION,
             if (lineup.channels.any { holds(it) }) LineupCodec.SWITCH_ONS_VERSION else 0,
             if (lineup.channels.any { storesNoNumber(it) }) LineupCodec.NO_NUMBER_VERSION else 0,
+            if (meta.givenUpMatters(lineup)) LineupCodec.GAVE_UP_VERSION else 0,
         )
 
     // Whether the channel's stored reason is NoNumber: [channelOf] writes a reason on a starter only.
@@ -476,11 +497,6 @@ private object AddedMark {
     fun holds(channel: LineupChannel): Boolean {
         val added = channel.viewerChoice == ViewerChoice.Added
         return added && storedCanHoldAddedMark(channel.source)
-    }
-
-    private fun isTrue(element: JsonElement): Boolean {
-        val primitive = element as? JsonPrimitive
-        return primitive != null && !primitive.isString && primitive.booleanOrNull == true
     }
 }
 
@@ -699,14 +715,27 @@ private class MetaV1(
     val plannedLibraries: List<String>? = null,
     val extrasFromMs: Long? = null,
     val replanFromMs: Long? = null,
+    // Only `true` gets this far: the raw key is checked first (`LineupCodec.strayGaveUp`).
+    val plannedWithoutCollections: Boolean? = null,
 ) {
     val refreshMeta
-        get() = RefreshMeta(plannedGeneration, collectionPassActedOn, plannedLibraries, extrasFromMs, replanFromMs)
+        get() =
+            RefreshMeta(
+                plannedGeneration,
+                collectionPassActedOn,
+                plannedLibraries,
+                extrasFromMs,
+                replanFromMs,
+                plannedWithoutCollections == true,
+            )
 
     companion object {
         /** Null for an empty [meta], so a file with nothing to say holds no `meta` key. */
-        fun of(meta: RefreshMeta): MetaV1? =
-            if (meta == RefreshMeta()) {
+        fun of(
+            meta: RefreshMeta,
+            lineup: Lineup,
+        ): MetaV1? =
+            if (meta.copy(plannedWithoutCollections = meta.givenUpMatters(lineup)) == RefreshMeta()) {
                 null
             } else {
                 MetaV1(
@@ -715,6 +744,8 @@ private class MetaV1(
                     meta.plannedLibraries,
                     meta.extrasFromMs,
                     meta.replanFromMs,
+                    // Written only while it matters: a file that never gave up, or no longer needs to, stays below 7.
+                    if (meta.givenUpMatters(lineup)) true else null,
                 )
             }
     }
@@ -777,4 +808,22 @@ private enum class StateV1(
     companion object {
         fun of(state: ChannelState): StateV1 = entries.first { it.state == state }
     }
+}
+
+// A JSON `true`, and nothing else: not `false`, `null`, a string or a number.
+private fun isTrue(element: JsonElement): Boolean {
+    val primitive = element as? JsonPrimitive
+    return primitive != null && !primitive.isString && primitive.booleanOrNull == true
+}
+
+private const val GAVE_UP_KEY = "plannedWithoutCollections"
+
+// The meta key `plannedWithoutCollections` as the file wrote it (a `null` stays a value, unlike in [MetaV1]): stray
+// below version 7, or when it is anything but `true`.
+private fun strayGaveUp(
+    root: JsonElement,
+    fileVersion: Int,
+): Boolean {
+    val raw = ((root as JsonObject)["meta"] as? JsonObject)?.get(GAVE_UP_KEY) ?: return false
+    return fileVersion < LineupCodec.GAVE_UP_VERSION || !isTrue(raw)
 }
