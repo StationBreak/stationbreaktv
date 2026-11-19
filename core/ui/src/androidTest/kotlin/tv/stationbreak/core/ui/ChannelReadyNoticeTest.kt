@@ -63,13 +63,13 @@ class ChannelReadyNoticeTest {
     @Test
     fun oneChannelIsNamedByNumberAndName() {
         show(listOf(352 to "Neon Rain"))
-        compose.onNodeWithText("352 Neon Rain is ready").assertIsDisplayed()
+        compose.onNodeWithText("352 Neon Rain is on the air").assertIsDisplayed()
     }
 
     @Test
     fun severalChannelsAreCounted() {
         show(listOf(352 to "Neon Rain", 424 to "Noir"))
-        compose.onNodeWithText("2 channels are ready").assertIsDisplayed()
+        compose.onNodeWithText("2 channels are on the air").assertIsDisplayed()
     }
 
     @Test
@@ -81,7 +81,7 @@ class ChannelReadyNoticeTest {
     @Test
     fun isAnnouncedPolitelyOnceAsItAppears() {
         show(listOf(352 to "Neon Rain"))
-        val notice = compose.onNodeWithText("352 Neon Rain is ready").fetchSemanticsNode()
+        val notice = compose.onNodeWithText("352 Neon Rain is on the air").fetchSemanticsNode()
         assertEquals(LiveRegionMode.Polite, notice.config[SemanticsProperties.LiveRegion])
     }
 
@@ -89,7 +89,7 @@ class ChannelReadyNoticeTest {
     fun theKeysStillReachTheScreenUnderIt() {
         val keys = mutableListOf<Key>()
         show(listOf(352 to "Neon Rain"), keys)
-        compose.onNodeWithText("352 Neon Rain is ready").assertIsDisplayed()
+        compose.onNodeWithText("352 Neon Rain is on the air").assertIsDisplayed()
 
         compose.onRoot().performKeyInput {
             pressKey(Key.DirectionDown)

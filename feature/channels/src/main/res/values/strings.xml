@@ -6,9 +6,9 @@
 -->
 <resources>
     <string name="channels_title">Channels</string>
-    <string name="channels_group_on">On</string>
+    <string name="channels_group_on">On the air</string>
     <string name="channels_group_shelf">More channels</string>
-    <string name="channels_group_off">Off</string>
+    <string name="channels_group_off">Switched off</string>
     <!-- A group's flag: its name in capitals, a middle dot and how many channels it holds (shown, not spoken). -->
     <string name="channels_group_flag">%1$s · %2$d</string>
     <!-- What a screen reader says for the flag: the group's name, then its count. -->
@@ -30,10 +30,10 @@
     <string name="channels_confirm_opt_in">%1$s shows adult content. Switch it on?</string>
     <string name="channels_number_taken">Channel %1$d is %2$s. Swap numbers?</string>
     <string name="channels_refused_kids_band">Numbers %1$d to %2$d are for kids channels.</string>
-    <string name="channels_refused_last_on">At least one channel stays on.</string>
+    <string name="channels_refused_last_on">Keep at least one channel on.</string>
     <string name="channels_refused_no_number">There is no free number for this channel.</string>
     <string name="channels_getting_ready">Getting your channels ready</string>
-    <string name="channels_not_ready">Channels can\'t be changed right now.</string>
+    <string name="channels_not_ready">Channels are still getting ready. Try again in a moment.</string>
     <string name="channels_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>
     <string name="channels_save_failed">Couldn\'t save that change. Try again.</string>
     <string name="channels_failed">Something went wrong. Nothing was changed.</string>
@@ -42,12 +42,12 @@
     <!-- Provisional copy, for the design partner to settle. -->
     <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start at 6 AM.</string>
     <!-- A permanent line under the list (#785): said whatever the number of channels on, with no number in it. -->
-    <string name="channels_heads_up">The more channels you turn on, the longer the guide takes to get ready.</string>
+    <string name="channels_heads_up">The more channels you switch on, the longer the guide takes to get ready.</string>
     <string name="channels_shelf_empty">Nothing in your libraries fits this channel yet</string>
-    <string name="channels_shelf_thin">Too little fits here once every show has its best home</string>
-    <string name="channels_shelf_below_cap">Fits, but it isn\'t in your lineup right now</string>
+    <string name="channels_shelf_thin">Not enough left once other channels take their shows</string>
+    <string name="channels_shelf_below_cap">Fits, but your lineup is full. Switch it on to add it.</string>
     <string name="channels_shelf_no_number">There is no free channel number for this channel</string>
-    <string name="channels_shelf_opt_in">Only on if you switch it on</string>
+    <string name="channels_shelf_opt_in">Stays off until you switch it on</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
     <string name="spoken_pair">%1$s, %2$s</string>
@@ -57,7 +57,7 @@
     <string name="channels_reset_confirm">Reset channels? Your numbers and switched-off channels on this TV will be lost.</string>
     <string name="channels_reset_action">Reset</string>
     <string name="channels_choosing">Choosing channels…</string>
-    <string name="channels_reset_not_chosen">Channels will be chosen after the next library check.</string>
+    <string name="channels_reset_not_chosen">Channels will be chosen after the next library update.</string>
     <string name="channels_row_getting_ready">Getting ready</string>
     <string name="channels_reason_collections">Still reading your collections</string>
     <string name="channels_reason_household_off">Needs \"Use my collections\", which is off</string>
@@ -78,17 +78,17 @@
     <string name="builder_step_name">Name and number</string>
     <string name="builder_next">Next</string>
     <string name="builder_done">Done</string>
-    <string name="builder_next_needs_source">Pick at least one source to go on</string>
+    <string name="builder_next_needs_source">Choose at least one source to continue.</string>
     <string name="builder_source_libraries">Libraries</string>
     <string name="builder_source_collections">Collections</string>
     <string name="builder_source_tags">Tags</string>
     <string name="builder_source_genres">Genres</string>
     <string name="builder_source_pick">Pick shows and films</string>
-    <string name="builder_live">Live</string>
+    <string name="builder_live">Updates itself</string>
     <string name="builder_narrow_down">Narrow down</string>
     <string name="builder_leave_out">Leave out</string>
     <string name="builder_order_shuffle">Shuffle</string>
-    <string name="builder_order_shuffle_hint">Random order. No show runs on past its cap while something else is waiting.</string>
+    <string name="builder_order_shuffle_hint">Random order. No show plays more episodes in a row than its limit while others wait.</string>
     <string name="builder_order_rotation">Rotation</string>
     <string name="builder_order_rotation_hint">Shows and collections take turns, each keeping its place.</string>
     <string name="builder_order_in_order">In order</string>
@@ -128,12 +128,12 @@
     <string name="builder_copy_suffix">%1$s (copy)</string>
     <string name="builder_kept_from">Kept from %1$s</string>
     <string name="builder_kept_from_copied">Kept from the channel this was copied from</string>
-    <string name="builder_use_builder_settings">Use the builder\'s settings instead</string>
+    <string name="builder_use_builder_settings">Use the settings on this screen instead</string>
     <string name="builder_working">Working it out</string>
     <string name="builder_preview_empty">Nothing in your libraries fits this channel yet</string>
     <string name="builder_libraries_unavailable">Library names can\'t be read right now</string>
     <string name="builder_search_hint">Type part of a name (%1$d to %2$d characters)</string>
-    <string name="builder_save_failed">Couldn\'t save that. Try again.</string>
+    <string name="builder_save_failed">Couldn\'t save the channel. Try again.</string>
     <string name="builder_failed">Something went wrong. Nothing was changed.</string>
     <string name="builder_not_editable">Channels can\'t be changed on this TV until the app is updated.</string>
     <string name="builder_no_free_number">There is no free number for this channel.</string>
@@ -178,7 +178,7 @@
     <string name="builder_runtime_hours">%1$d h %2$d min</string>
     <string name="builder_runtime_minutes">%1$d min</string>
     <string name="builder_preview_unavailable">Preview not available right now</string>
-    <string name="builder_preview_next">Next up: %1$s</string>
+    <string name="builder_preview_next">Up next: %1$s</string>
     <string name="builder_skipped_pick">%1$s (%2$s)</string>
     <string name="builder_summary_sources">From %1$s</string>
     <string name="builder_summary_play">%1$s, %2$s</string>
@@ -193,7 +193,7 @@
     <string name="builder_number_taken_pick">That number is taken. Pick another.</string>
     <string name="builder_kids_band">Kids channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
     <string name="builder_out_of_range">That number isn\'t one a channel can have.</string>
-    <string name="builder_last_on">At least one channel stays on.</string>
+    <string name="builder_last_on">Keep at least one channel on.</string>
     <string name="builder_not_customisable">That channel can\'t be copied.</string>
     <string name="builder_not_changeable">That channel can\'t be changed here.</string>
     <string name="builder_not_shuffle">Only a shuffle channel can be reshuffled.</string>
@@ -203,7 +203,7 @@
     <string name="builder_kept_epoch_hours">Day cut into %1$d-hour blocks</string>
     <string name="builder_problem_name_empty">Give the channel a name.</string>
     <string name="builder_problem_name_too_long">That name is too long.</string>
-    <string name="builder_problem_no_sources">Tick at least one source.</string>
+    <string name="builder_problem_no_sources">Choose at least one source.</string>
     <string name="builder_problem_cap_out_of_range">Choose %1$d to %2$d in a row.</string>
     <string name="builder_problem_years_incomplete">Years need a start and an end.</string>
     <string name="builder_problem_years_out_of_range">Those years are out of range.</string>
@@ -249,11 +249,11 @@
     <string name="channel_props_order_programmed">Programmed</string>
     <string name="channel_props_new_day">New day at %1$s</string>
     <string name="channel_props_status_on_since">On since %1$s</string>
-    <string name="channel_props_status_showing">showing today</string>
-    <string name="channel_props_status_hidden">hidden today: %1$s</string>
+    <string name="channel_props_status_showing">in today\'s guide</string>
+    <string name="channel_props_status_hidden">not in today\'s guide: %1$s</string>
     <string name="channel_props_status_not_on">Not switched on</string>
     <string name="channel_props_status_off">Off</string>
-    <string name="channel_props_status_off_why">hidden by you</string>
+    <string name="channel_props_status_off_why">you switched it off</string>
     <string name="channel_props_hint_back">BACK</string>
     <string name="channel_props_hint_return">Return to Channels</string>
     <string name="channel_props_hint_return_guide">Return to the guide</string>

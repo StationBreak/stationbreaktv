@@ -203,7 +203,7 @@ class StanSpecsTest {
         assertEquals("NOTHING ON\\nTHE AIR", strings["live_stan_no_channels_headline"])
         assertEquals("NO CHANNELS YET", strings["live_stan_no_channels_status"])
         assertEquals("GUIDE · CHANNELS", strings["live_stan_no_channels_detail"])
-        assertEquals("No channels on the air yet.", strings["live_stan_spoken_no_channels"])
+        assertEquals("No channels on the air yet. Guide, Channels.", strings["live_stan_spoken_no_channels"])
         assertEquals("NOTHING ON\\nTHE SHELF", strings["live_stan_no_libraries_headline"])
         assertEquals("NO LIBRARIES", strings["live_stan_no_libraries_status"])
         assertEquals("GUIDE · SETTINGS · LIBRARIES", strings["live_stan_no_libraries_detail"])

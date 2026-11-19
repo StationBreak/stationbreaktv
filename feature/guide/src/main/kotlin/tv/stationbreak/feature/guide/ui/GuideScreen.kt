@@ -446,7 +446,7 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
  * its channel), "OK Watch channel" on a later program (OK tunes its channel), nothing for OK on a later slate or
  * unavailable cell, and "Back Exit live TV", since leaving from the guide is the one thing no one would guess, which
  * becomes "Back To what's playing"
- * while the focus is off the playing channel's cell and "Back To the menu" on it. Key names sit on the key pill; what
+ * while the focus is off the playing channel's cell and "Back Open the menu" on it. Key names sit on the key pill; what
  * they do is secondary. Recomposes only when the kind of the focused cell changes.
  */
 @Composable

@@ -17,14 +17,14 @@
     <!-- placeholder: design partner. The change would leave no library chosen. -->
     <string name="settings_libraries_last_library">Keep at least one library.</string>
     <!-- placeholder: design partner. The server could not be asked; the rows are the stored choice, read-only. -->
-    <string name="settings_libraries_unavailable">Can\'t reach the server. These are the libraries this TV uses.</string>
+    <string name="settings_libraries_unavailable">Can\'t reach the server. These are the libraries this TV uses. You can change them when it\'s back.</string>
     <!-- Not in the copy table: short placeholders for the design partner to reword. -->
     <!-- placeholder: design partner. While the server is asked for its libraries. -->
     <string name="settings_libraries_loading">Asking the server for its libraries…</string>
     <!-- placeholder: design partner. A change was stored. -->
     <string name="settings_libraries_saved">Saved.</string>
     <!-- placeholder: design partner. A change could not be stored, or an add could not be finished. -->
-    <string name="settings_libraries_failed">That didn\'t work. Try again.</string>
+    <string name="settings_libraries_failed">Couldn\'t change your libraries. Try again.</string>
     <!-- placeholder: design partner. A library to add was not in the server's last listing. -->
     <string name="settings_libraries_not_listed">The server isn\'t showing that library right now.</string>
     <!-- placeholder: design partner. A library this TV uses whose name no listing has given yet. -->
@@ -38,7 +38,7 @@
     <string name="settings_signed_in_to">Signed in to %1$s</string>
     <!-- The last row: a first Select arms it, a second signs out. -->
     <string name="settings_sign_out">Sign out</string>
-    <string name="settings_sign_out_armed">Select again to sign out</string>
+    <string name="settings_sign_out_armed">Press OK again to sign out</string>
     <string name="settings_signing_out">Signing out…</string>
     <string name="settings_sign_out_note">You\'ll need to sign in again on this TV.</string>
     <!-- Signed out here, but the server could not be told (offline, or it did not answer). -->

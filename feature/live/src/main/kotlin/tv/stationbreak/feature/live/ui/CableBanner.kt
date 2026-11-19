@@ -388,10 +388,10 @@ private fun BannerRow(
 }
 
 /**
- * The one 11 sp line under the title: the label (NOW, TUNING IN, UP NEXT or FILLING IN), the episode line when there is
- * one (a film's production year stands in), the slot, how far in the viewer joined (the tune banner only) and the
- * minutes left (not on a card for what comes next, which has not begun). The episode line gives way first when the line
- * is long.
+ * The one 11 sp line under the title: the label (NOW, TUNING IN, UP NEXT or PROGRAMME CHANGE), the episode line when
+ * there is one (a film's production year stands in), the slot, how far in the viewer joined (the tune banner only) and
+ * the minutes left (not on a card for what comes next, which has not begun). The episode line gives way first when the
+ * line is long.
  */
 @Composable
 private fun MetaLine(

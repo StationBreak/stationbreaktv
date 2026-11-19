@@ -149,7 +149,7 @@ class LibrariesScreenTest {
         repeat(3) { press(Key.DirectionDown) }
         compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertIsSelected()
         press(Key.DirectionCenter)
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Select again to sign out")
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Press OK again to sign out")
 
         press(Key.Back)
         assertEquals(0, done)

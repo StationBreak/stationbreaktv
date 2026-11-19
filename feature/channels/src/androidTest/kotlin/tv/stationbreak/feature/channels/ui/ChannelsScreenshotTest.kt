@@ -126,7 +126,7 @@ class ChannelsScreenshotTest {
     @Test
     fun theFreeTop() = shoot("channels-free-top.png", fullLineup(ChannelsFocus.Household, isPro = false))
 
-    /** The list scrolled to More channels: the shelf reasons, "Fits, but it isn't in your lineup right now" too. */
+    /** The list scrolled to More channels: the shelf reasons, "Fits, but your lineup is full" too. */
     @Test
     fun theFullLineupShelf() = shoot("channels-full-shelf.png", fullLineup(ChannelsFocus.Row(ChannelId("shelf2"))))
 

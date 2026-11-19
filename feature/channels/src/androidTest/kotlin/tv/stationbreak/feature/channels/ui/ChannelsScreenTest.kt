@@ -128,6 +128,9 @@ private val DELTA = ChannelId("ch-delta")
 private val NIGHT = ChannelId("ch-night")
 private val ECHO = ChannelId("ch-echo")
 
+// The shelf reason for a channel that fits but missed the cut.
+private const val LINEUP_FULL = "Fits, but your lineup is full. Switch it on to add it."
+
 @Suppress("LongParameterList") // A test builder: every field has a default.
 private fun summary(
     id: ChannelId,
@@ -456,11 +459,11 @@ class ChannelsScreenTest {
         until { exists(ChannelsTags.shelfReason(CHARLIE)) }
         compose
             .onNodeWithTag(ChannelsTags.shelfReason(CHARLIE), useUnmergedTree = true)
-            .assertTextContains("Fits, but it isn't in your lineup right now")
+            .assertTextContains(LINEUP_FULL)
         compose
             .onNodeWithTag(ChannelsTags.row(CHARLIE))
             .assertContentDescriptionContains("Charlie", substring = true)
-            .assertContentDescriptionContains("Fits, but it isn't in your lineup right now", substring = true)
+            .assertContentDescriptionContains(LINEUP_FULL, substring = true)
         // Bravo's "nothing to air" line is spoken with its row too; Alpha has no reason line at all.
         compose
             .onNodeWithTag(ChannelsTags.row(BRAVO))
@@ -656,14 +659,14 @@ class ChannelsScreenTest {
         show(ALPHA)
         until { exists(ChannelsTags.reason(BRAVO)) }
         // On: Alpha and Bravo; More channels: Charlie and Night; Off: Delta.
-        listOf("ON \u00B7 2", "MORE CHANNELS \u00B7 2", "OFF \u00B7 1").forEach { flag ->
+        listOf("ON THE AIR \u00B7 2", "MORE CHANNELS \u00B7 2", "SWITCHED OFF \u00B7 1").forEach { flag ->
             assertTrue(flag, compose.runOnUiThread { nodes(hasText(flag)).isNotEmpty() })
         }
         val spoken =
             mapOf(
-                ChannelsTags.HEADING_ON to "On, 2 channels",
+                ChannelsTags.HEADING_ON to "On the air, 2 channels",
                 ChannelsTags.HEADING_SHELF to "More channels, 2 channels",
-                ChannelsTags.HEADING_OFF to "Off, 1 channel",
+                ChannelsTags.HEADING_OFF to "Switched off, 1 channel",
             )
         spoken.forEach { (tag, words) ->
             val node = compose.runOnUiThread { nodes(hasTestTag(tag)).single() }
@@ -878,7 +881,7 @@ class ChannelsScreenTest {
             .assertTextContains("Noir Classics", substring = true)
         compose.onNodeWithTag(ChannelsTags.ABOUT_RUNS).assertTextContains("Programmed", substring = true)
         compose.onNodeWithTag(ChannelsTags.ABOUT_CODE).assertTextContains("07EE-7E07", substring = true)
-        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("showing today", substring = true)
+        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("in today's guide", substring = true)
 
         press(Pad.Back)
 
@@ -928,7 +931,7 @@ class ChannelsScreenTest {
                 .group == ChannelGroup.Off
         }
         until { exists(ChannelsTags.ABOUT) }
-        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("hidden by you", substring = true)
+        compose.onNodeWithTag(ChannelsTags.ABOUT_STATUS).assertTextContains("you switched it off", substring = true)
     }
 
     // The sheet as drawn, for the PR: written to the test package's external files, as the other screenshots are.

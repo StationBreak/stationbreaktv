@@ -3,7 +3,7 @@ package tv.stationbreak.feature.live
 
 /**
  * The word before the title on the picture's label while the guide is open (#722). Each is the banner's own label
- * ("Tuning in", "Up next", "Filling in", the switches), except that a banner's "Now" reads "Now playing" here.
+ * ("Tuning in", "Up next", "Programme change", the switches), except that a banner's "Now" reads "Now playing" here.
  */
 enum class PictureLead {
     NowPlaying,

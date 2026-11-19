@@ -111,14 +111,14 @@ class BannerTextTest {
     fun nextLineNamesTheProgramAndWhenItStarts() {
         val next = NextProgram("Test Movie B", 21 * 3_600_000L)
         val line = BannerText.nextLine(next, copy, ZoneOffset.UTC, false, Locale.US)
-        assertEquals("Next: Test Movie B at 9:00 PM", line)
+        assertEquals("Up next: Test Movie B at 9:00 PM", line)
     }
 
     @Test
     fun aLongNextTitleIsCutBeforeTheLineIsMadeSoTheTimeStaysInView() {
         val title = "A Very Long Synthetic Name ".repeat(5).trim()
         val line = BannerText.nextLine(NextProgram(title, 21 * 3_600_000L), copy, ZoneOffset.UTC, true, Locale.US)
-        assertEquals("Next: ${title.take(39)}\u2026 at 21:00", line)
+        assertEquals("Up next: ${title.take(39)}\u2026 at 21:00", line)
         assertEquals(40, BannerText.capTitle(title).length)
         assertEquals("Test Movie B", BannerText.capTitle("Test Movie B"))
     }

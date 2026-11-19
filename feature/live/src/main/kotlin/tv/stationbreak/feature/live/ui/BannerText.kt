@@ -100,8 +100,8 @@ internal object BannerText {
         }
 
     /**
-     * "Next: <title> at <time>". The title is cut first: one line that ellipsizes at its end would cut the time, which
-     * is the part that matters.
+     * "Up next: <title> at <time>". The title is cut first: one line that ellipsizes at its end would cut the time,
+     * which is the part that matters.
      */
     fun nextLine(
         next: NextProgram,

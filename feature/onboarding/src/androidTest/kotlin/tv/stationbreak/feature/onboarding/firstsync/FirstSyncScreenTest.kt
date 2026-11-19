@@ -78,7 +78,7 @@ class FirstSyncScreenTest {
     fun theCountReadsCopiedOfTotalAndTheBarShowsTheFraction() {
         show(FirstSyncPhase.Syncing(copied = 12_500, total = 15_000))
 
-        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(12_500)} of ${number(15_000)}"))
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(12_500)} of ${number(15_000)} programmes"))
         val range = compose.onNodeWithTag(FirstSyncTags.BAR).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
         assertEquals(12_500f / 15_000f, range.current, 0.001f)
     }
@@ -87,7 +87,7 @@ class FirstSyncScreenTest {
     fun beforeTheTotalIsKnownTheCountIsAloneAndTheBarIsEmpty() {
         show(FirstSyncPhase.Syncing(copied = 200, total = null))
 
-        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(200)} so far"))
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(200)} programmes so far"))
         val range = compose.onNodeWithTag(FirstSyncTags.BAR).fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
         assertEquals(0f, range.current, 0f)
     }
@@ -110,7 +110,7 @@ class FirstSyncScreenTest {
     fun beforeTheFirstPageThereIsAGettingStartedLine() {
         show(FirstSyncPhase.Starting)
 
-        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("Getting started…"))
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("Asking your server for your library…"))
     }
 
     @Test
@@ -120,7 +120,7 @@ class FirstSyncScreenTest {
         phase.value = FirstSyncPhase.Syncing(copied = 600, total = 1_000)
         compose.waitForIdle()
 
-        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(600)} of ${number(1_000)}"))
+        compose.onNodeWithTag(FirstSyncTags.COUNT).assert(hasText("${number(600)} of ${number(1_000)} programmes"))
     }
 
     @Test

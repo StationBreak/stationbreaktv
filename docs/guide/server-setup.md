@@ -32,7 +32,7 @@ encrypted, never the password. You can revoke that token from the server's dashb
 ## Choose libraries
 
 Pick which of the server's libraries feed the channels. Change the choice later from the guide: **Settings →
-Libraries**. **Settings → Sync now** reads the libraries again straight away.
+Libraries**. **Settings → Update library** reads the libraries again straight away.
 
 Channels are built from the metadata Jellyfin keeps for every title: genres, ratings, studios, tags and the like. The
 better your library's metadata, the better the channels. Library names and folder layout don't matter. If you made

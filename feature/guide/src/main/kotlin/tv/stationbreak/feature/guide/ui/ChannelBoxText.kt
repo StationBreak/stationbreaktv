@@ -163,7 +163,7 @@ internal const val ON_NOW_SEPARATOR = " · "
 
 /**
  * The On now / Next line in its three parts, so the box can give way inside it (#778 review): [onNow] ("On now:
- * <title>") is the part that ellipsizes, [minutesLeft] always shows whole, and [next] ("Next: <title> at <time>")
+ * <title>") is the part that ellipsizes, [minutesLeft] always shows whole, and [next] ("Up next: <title> at <time>")
  * shows only when it fits whole. [text] is the whole line, as it reads with room for all of it.
  */
 internal data class OnNowLine(
@@ -175,10 +175,10 @@ internal data class OnNowLine(
 }
 
 /**
- * "On now: <title> · <N> min left · Next: <title> at <time>" from the row's own [cells]: the cell airing at
+ * "On now: <title> · <N> min left · Up next: <title> at <time>" from the row's own [cells]: the cell airing at
  * [nowMs], and the first after it that is not a station break. A slate, a break or an unavailable program reads as
- * the grid labels it ("Off air", "Station break", "Unavailable"). The Next part is left out when nothing follows in
- * the row; null when nothing airs at [nowMs]. [time] words a start time.
+ * the grid labels it ("Off air", "Station break", "Removed from library"). The Next part is left out when nothing
+ * follows in the row; null when nothing airs at [nowMs]. [time] words a start time.
  */
 internal fun onNowNextLine(
     cells: List<GuideCell>,

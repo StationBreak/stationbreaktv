@@ -626,7 +626,8 @@ internal class Sitting(
         block: AiringBlock,
     ): Playing {
         lingering?.cancel()
-        // Once the picture plays, "Tuning in" (or a switch's "Switching ...") becomes "Now" (R22). Filling in stays.
+        // Once the picture plays, "Tuning in" (or a switch's "Switching ...") becomes "Now" (R22). Programme change
+        // stays.
         val label =
             when (banner.label) {
                 BannerLabel.TuningIn,

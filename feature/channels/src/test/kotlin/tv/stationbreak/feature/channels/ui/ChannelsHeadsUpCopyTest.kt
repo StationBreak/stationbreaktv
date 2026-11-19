@@ -18,7 +18,7 @@ class ChannelsHeadsUpCopyTest {
     @Test
     fun theCopyIsAStringResource() {
         assertNotNull("channels_heads_up is missing from strings.xml", copy)
-        assertEquals("The more channels you turn on, the longer the guide takes to get ready.", copy)
+        assertEquals("The more channels you switch on, the longer the guide takes to get ready.", copy)
     }
 
     @Test

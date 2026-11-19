@@ -538,8 +538,8 @@ class GuideScreenshotTest {
             compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
         }
         val gridTop = bounds(GuideTags.GRID).top
-        // The longest Sync now line the guide has is one line at this width, so a line more is added to each row's
-        // bottom: the fit holds when the line wraps too.
+        // When the Sync now line is one line at this width, a line more is added to each row's bottom: the fit holds
+        // when the line wraps too.
         val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
         val wrapExtra = if (lineCount(GuideTags.SETTINGS_SYNC_STATUS) >= 2) 0f else status.height
         for (tag in PANEL_ROW_TAGS) {

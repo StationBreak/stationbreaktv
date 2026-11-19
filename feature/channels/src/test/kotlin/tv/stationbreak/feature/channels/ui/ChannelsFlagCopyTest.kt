@@ -6,7 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.io.File
 
-/** The group flags' copy ("ON · 48") and its spoken form: string resources with placeholders, never joined. */
+/** The group flags' copy ("ON THE AIR · 48") and its spoken form: string resources with placeholders, never joined. */
 class ChannelsFlagCopyTest {
     private val xml = File("src/main/res/values/strings.xml").readText()
 
@@ -37,9 +37,9 @@ class ChannelsFlagCopyTest {
     @Test
     fun theFlagIsTheNameInCapitalsAMiddleDotAndTheCount() {
         assertNotNull(string("channels_group_flag"))
-        assertEquals("ON · 48", flag("channels_group_on", 48))
+        assertEquals("ON THE AIR · 48", flag("channels_group_on", 48))
         assertEquals("MORE CHANNELS · 112", flag("channels_group_shelf", 112))
-        assertEquals("OFF · 3", flag("channels_group_off", 3))
+        assertEquals("SWITCHED OFF · 3", flag("channels_group_off", 3))
     }
 
     @Test

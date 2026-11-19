@@ -74,7 +74,7 @@
     <string name="error_server_error_details">Server error</string>
     <string name="error_not_found_message">The server answered, but not with what StationBreak expected. Check the address.</string>
     <string name="error_not_found_details">Not found</string>
-    <string name="error_unknown_message">Something unexpected went wrong.</string>
+    <string name="error_unknown_message">Something unexpected went wrong. Try again.</string>
     <string name="error_unknown_details">Unknown error</string>
 
     <!-- A blank field: nothing was sent, so this is not a Jellyfin error. -->
@@ -183,7 +183,7 @@
 
     <!-- The library picker (S0.5.4). DRAFT wording for Adorabelle. Home videos start unselected (decision 7). -->
     <string name="libraries_headline">Choose your libraries</string>
-    <string name="libraries_subtitle">StationBreak will only use the libraries you select.</string>
+    <string name="libraries_subtitle">StationBreak will only use the libraries you choose.</string>
     <string name="libraries_loading">Loading your libraries…</string>
     <string name="libraries_progress_description">Loading your libraries</string>
     <string name="libraries_continue">Continue</string>
@@ -191,7 +191,7 @@
     <string name="libraries_collections_body">Collections are groups of movies or shows you\'ve made on your server. StationBreak can turn them into channels. Not sure? Leave this on.</string>
     <string name="libraries_collections_tomorrow">Takes effect tomorrow.</string>
     <string name="libraries_next">Next, StationBreak builds your channels. This can take a few minutes.</string>
-    <string name="libraries_none_ticked">Select at least one library to continue.</string>
+    <string name="libraries_none_ticked">Choose at least one library to continue.</string>
     <string name="libraries_kind_movies">Movies</string>
     <string name="libraries_kind_tv_shows">TV shows</string>
     <string name="libraries_kind_mixed">Mixed content</string>
@@ -219,9 +219,9 @@
     -->
     <string name="first_sync_headline">Getting your library ready</string>
     <string name="first_sync_second_line">This only happens once and can take a few minutes.</string>
-    <string name="first_sync_starting">Getting started…</string>
-    <string name="first_sync_count">%1$s of %2$s</string>
-    <string name="first_sync_count_only">%1$s so far</string>
+    <string name="first_sync_starting">Asking your server for your library…</string>
+    <string name="first_sync_count">%1$s of %2$s programmes</string>
+    <string name="first_sync_count_only">%1$s programmes so far</string>
     <string name="first_sync_progress_description">Getting your library ready: %1$s of %2$s</string>
     <string name="first_sync_progress_description_starting">Getting your library ready</string>
     <string name="first_sync_failed_headline">Your library isn’t ready yet</string>
@@ -231,7 +231,7 @@
     <string name="first_sync_building_headline">Building your channels…</string>
     <!-- The moment between the first channel on the air and live TV (about a second and a half). -->
     <string name="first_sync_done_headline">Your library is ready</string>
-    <string name="first_sync_done_second_line">Starting live TV…</string>
+    <string name="first_sync_done_second_line">Tuning in…</string>
     <!-- Said by TalkBack at each quarter: 25, 50, 75 and 100. -->
     <string name="first_sync_announce">%1$d percent</string>
 
