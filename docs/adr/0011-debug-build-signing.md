@@ -126,6 +126,12 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   of 2100000000 (`ReleaseVersion` in build-logic, with a unit test). A malformed value fails the build. A release
   build without `RELEASE_VERSION` keeps versionCode 1 and versionName 0.0.1. CI's debug and benchmark builds use the
   workflow run number as `versionCode` (#146) and are never shipped, so the two numbering schemes never meet.
+  A local or device-test release build (#966) sets `TEST_RELEASE_VERSION` instead (never both): it takes MAJOR 0 and a
+  `-alpha`, `-beta` or `-rc` suffix with a number 0 to 29 (`0.9.0-rc1`, `1.0.0-rc.2`), as `versionName`, with
+  `versionCode = (MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + stage`, where the stage is 99 for a final version and
+  below 90 for a pre-release, so an rc sorts below its final release (`TestReleaseVersion`, with a unit test). Those
+  codes are on a different scale from the tagged release's and are never compared with it. Only `RELEASE_VERSION`, the
+  tagged store path, keeps the strict check.
 - **A keyless build, a signing job, then a publishing job.** The `build` job checks out the repository and runs Gradle
   with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
   APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
