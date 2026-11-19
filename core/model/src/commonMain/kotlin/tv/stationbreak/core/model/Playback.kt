@@ -18,7 +18,9 @@ enum class SubtitleDelivery { IN_STREAM, SEPARATE, BURNED_IN, NONE }
  * stream and are null when the server did not say; the route oracle skips a limit it has no fact for. [title] is the
  * server's `Title` for the track (the file's own name for it, such as "Director's Commentary"), and [displayTitle] its
  * `DisplayTitle` (the server's generated label); both are display text only, null when the server sent none.
- * [isHearingImpaired] is the server's own flag for a track made for the deaf and hard of hearing (SDH).
+ * [isHearingImpaired] is the server's own flag for a track made for the deaf and hard of hearing (SDH). [frameRate]
+ * (frames per second, video) and [sampleRate] (Hz, audio) are the server's, null when it did not say; the player sizes
+ * a direct-play file's sample tables from them (#735).
  */
 data class MediaStreamInfo(
     val index: Int,
@@ -39,9 +41,14 @@ data class MediaStreamInfo(
     val title: String? = null,
     val displayTitle: String? = null,
     val isHearingImpaired: Boolean = false,
+    val frameRate: Double? = null,
+    val sampleRate: Int? = null,
 )
 
-/** One playable version of an item. The server's file path is deliberately not here (R2). */
+/**
+ * One playable version of an item. The server's file path is deliberately not here (R2). [sizeBytes] is the file's
+ * size as the server reports it, null when it did not say.
+ */
 data class MediaSource(
     val id: MediaSourceId,
     val name: String?,
@@ -55,6 +62,7 @@ data class MediaSource(
     val defaultSubtitleIndex: Int? = null,
     val bitrate: Int? = null,
     val transcodeReasons: Set<String> = emptySet(),
+    val sizeBytes: Long? = null,
 )
 
 /**

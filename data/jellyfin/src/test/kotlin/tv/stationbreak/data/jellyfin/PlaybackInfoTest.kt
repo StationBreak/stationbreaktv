@@ -171,6 +171,41 @@ class PlaybackInfoTest {
     }
 
     @Test
+    fun aSourceCarriesItsSizeAndTracksTheirFrameAndSampleRates() {
+        runBlocking {
+            val body =
+                """{"MediaSources":[{"Id":"src1","Size":6683000000,"MediaStreams":[
+                |{"Index":0,"Type":"Video","Codec":"h264","RealFrameRate":23.976,"AverageFrameRate":24},
+                |{"Index":1,"Type":"Video","Codec":"h264","AverageFrameRate":59.94},
+                |{"Index":2,"Type":"Video","Codec":"h264","RealFrameRate":"odd"},
+                |{"Index":3,"Type":"Audio","Codec":"aac","SampleRate":48000},
+                |{"Index":4,"Type":"Audio","Codec":"ac3","SampleRate":0},
+                |{"Index":5,"Type":"Subtitle","Codec":"subrip","SampleRate":48000}]},
+                |{"Id":"src2","Size":0},{"Id":"src3","Size":"odd"}],"PlaySessionId":"play-1"}
+                """.trimMargin().replace("\n", "")
+            jellyfin.on("POST", "/PlaybackInfo") { jellyfin.json(body) }
+
+            val sources =
+                testAdapter()
+                    .playbackInfo(testSession(jellyfin.address), ItemId("i1"))
+                    .getOrNull()!!
+                    .sources
+            val streams = sources[0].streams
+
+            assertEquals(6_683_000_000L, sources[0].sizeBytes)
+            assertNull(sources[1].sizeBytes, "a zero size is no size")
+            assertNull(sources[2].sizeBytes, "an odd size is no size, and the answer still parses")
+            assertEquals(23.976, streams[0].frameRate)
+            assertEquals(59.94, streams[1].frameRate, "the average rate when no real rate is sent")
+            assertNull(streams[2].frameRate)
+            assertEquals(48_000, streams[3].sampleRate)
+            assertNull(streams[3].frameRate)
+            assertNull(streams[4].sampleRate, "a zero rate is no rate")
+            assertNull(streams[5].sampleRate, "a sample rate is an audio fact only")
+        }
+    }
+
+    @Test
     fun aTrackCarriesTheServersTitleAndDisplayTitle() {
         runBlocking {
             val body =

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.playback
 
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.ServerResult
@@ -25,11 +27,16 @@ import kotlin.time.TimeSource
  * Decides how to play an item from the server's answer and the device's [capabilities]. It asks the server once,
  * chooses one of its sources (see [choose]), and picks the cheapest route the client agrees with. The client overrules
  * the server's `SupportsDirectPlay` where the chosen audio could not be decoded here or the subtitle is burned in
- * (ADR-0016, 8). A [prefer]red source that is in the answer is the only one resolved.
+ * (ADR-0016, 8). A [prefer]red source that is in the answer is the only one resolved. It also refuses direct play of an
+ * MP4 whose header would take more than [headerBudgetBytes] of the heap to parse ([Mp4HeaderCost], #735): that file
+ * takes the server's direct stream (or a transcode) instead. The app passes the device's budget
+ * ([Mp4HeaderCost.budgetFor]); the default, [Mp4HeaderCost.NO_GUARD], refuses nothing, so the route never depends on
+ * the heap of the JVM a test runs in.
  */
 @Suppress("TooManyFunctions") // The resolve calls and the per-source decisions; the pure helpers are below.
 class PlaybackResolver(
     private val server: MediaServer,
+    private val headerBudgetBytes: Long = Mp4HeaderCost.NO_GUARD,
     private val capabilities: () -> DeviceCapabilities,
 ) {
     /**
@@ -218,6 +225,7 @@ class PlaybackResolver(
                 audioPick = audio?.pick(),
                 subtitlePick = subtitle?.takeIf { it.delivery == SubtitleDelivery.IN_STREAM }?.pick(),
                 levelKey = media.id.value,
+                fileFacts = fileFacts(media),
             )
         return ResolvedPlayback(source, route, info.playSessionId, media, audio, subtitle, start, limits = limits)
     }
@@ -232,10 +240,23 @@ class PlaybackResolver(
         when {
             forceTranscode -> Route.TRANSCODE
             burnedIn -> Route.TRANSCODE
-            media.supportsDirectPlay && audioPlays(limits, audio) -> Route.DIRECT_PLAY
+            media.supportsDirectPlay && audioPlays(limits, audio) && headerFits(media) -> Route.DIRECT_PLAY
             media.supportsDirectStream -> Route.DIRECT_STREAM
             else -> Route.TRANSCODE
         }
+
+    /** True when [media]'s MP4 header fits the heap budget; a refusal is logged with the estimate. */
+    @OptIn(UnstableApi::class) // PlaybackLog is the player's log, which uses Media3's unstable types.
+    private fun headerFits(media: MediaSource): Boolean {
+        val fits = Mp4HeaderCost.fits(media, headerBudgetBytes)
+        if (!fits && PlaybackLog.on) {
+            PlaybackLog.line(
+                "route headerGuard estMb=${Mp4HeaderCost.estimatedBytes(media) / MIB} " +
+                    "budgetMb=${headerBudgetBytes / MIB} ${fileFacts(media)}",
+            )
+        }
+        return fits
+    }
 
     private fun MediaStreamInfo.inStreamText() = delivery == SubtitleDelivery.IN_STREAM && Codecs.isTextSubtitle(codec)
 
@@ -265,6 +286,23 @@ internal fun audioPlays(
         codec in capabilities.audioDecoders -> (audio.channels ?: 0) <= capabilities.maxAudioChannels
         else -> false
     }
+}
+
+private const val MIB = 1_024L * 1_024L
+
+/**
+ * The file's facts for the player's error line ([PlayerSource.fileFacts]): container, size, runtime, each embedded
+ * track's codec in file order, and the header estimate ([Mp4HeaderCost]). No title, path or id.
+ */
+internal fun fileFacts(media: MediaSource): String {
+    val codecs =
+        media.streams
+            .filter { !it.isExternal && it.kind != StreamKind.SUBTITLE }
+            .joinToString(",") { Codecs.normalize(it.codec) ?: "unknown" }
+    val subtitles = media.streams.count { !it.isExternal && it.kind == StreamKind.SUBTITLE }
+    return "container=${media.container ?: "unknown"} sizeMb=${media.sizeBytes?.div(MIB) ?: -1} " +
+        "runtimeMin=${media.runtime?.inWholeMinutes ?: -1} codecs=$codecs subs=$subtitles " +
+        "samples=${Mp4HeaderCost.samples(media)} headerEstMb=${Mp4HeaderCost.estimatedBytes(media) / MIB}"
 }
 
 /** The facts of one resolve call, passed on unchanged to every source's resolution. */

@@ -6,7 +6,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.longOrNull
 import tv.stationbreak.core.domain.DeviceIdProvider
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
@@ -467,6 +469,7 @@ internal class MediaCalls(
             defaultSubtitleIndex = dto.defaultSubtitleStreamIndex,
             bitrate = dto.bitrate?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt(),
             transcodeReasons = reasons(dto.transcodeReasons),
+            sizeBytes = (dto.size as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.takeIf { it > 0 },
         )
 
     /**
@@ -511,10 +514,16 @@ internal class MediaCalls(
             title = dto.title?.takeIf { it.isNotBlank() },
             displayTitle = dto.displayTitle?.takeIf { it.isNotBlank() },
             isHearingImpaired = dto.isHearingImpaired,
+            frameRate = (rate(dto.realFrameRate) ?: rate(dto.averageFrameRate)).takeIf { kind == StreamKind.VIDEO },
+            sampleRate = number(dto.sampleRate)?.takeIf { kind == StreamKind.AUDIO && it > 0 },
         )
     }
 
     private fun number(value: JsonElement?): Int? = (value as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
+
+    /** A positive, finite rate the server sent as a number; anything else is no fact. */
+    private fun rate(value: JsonElement?): Double? =
+        (value as? JsonPrimitive)?.takeUnless { it.isString }?.doubleOrNull?.takeIf { it.isFinite() && it > 0.0 }
 
     private fun reasons(value: JsonElement?): Set<String> =
         when (value) {

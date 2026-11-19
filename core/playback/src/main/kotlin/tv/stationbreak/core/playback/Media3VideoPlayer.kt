@@ -777,7 +777,10 @@ class Media3VideoPlayer internal constructor(
         ) {
             // The play ends here: a pending seek will not finish, and says nothing.
             seeking = false
-            PlaybackLog.playerError(error) { "playerError role=front generation=$active posMs=${exo.currentPosition}" }
+            PlaybackLog.playerError(error) {
+                val file = current?.fileFacts ?: "file=unknown"
+                "playerError role=front generation=$active posMs=${exo.currentPosition} $file"
+            }
             emit(playerFailure(error, active, clock(), exo.currentPosition, exo.totalBufferedDuration))
         }
     }

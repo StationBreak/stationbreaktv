@@ -14,6 +14,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.playback.Mp4HeaderCost
 import tv.stationbreak.core.playback.PlaybackResolver
 import tv.stationbreak.core.playback.probe.AndroidCodecInventory
 import tv.stationbreak.core.playback.probe.CapabilityProbe
@@ -61,5 +62,11 @@ internal object PlaybackModule {
     fun playbackResolver(
         server: MediaServer,
         capabilities: DeviceCapabilitiesCache,
-    ): PlaybackResolver = PlaybackResolver(server, capabilities::get)
+    ): PlaybackResolver =
+        PlaybackResolver(
+            server,
+            // #735: the direct-play MP4 header budget, a share of this process's heap limit.
+            headerBudgetBytes = Mp4HeaderCost.budgetFor(Runtime.getRuntime().maxMemory()),
+            capabilities = capabilities::get,
+        )
 }

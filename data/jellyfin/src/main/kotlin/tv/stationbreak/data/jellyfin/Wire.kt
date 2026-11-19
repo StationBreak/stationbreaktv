@@ -280,6 +280,8 @@ internal class MediaSourceDto(
     // A list on current servers; read as a JSON value so a comma-separated string can't fail the whole answer.
     @SerialName("TranscodeReasons") val transcodeReasons: JsonElement? = null,
     @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto> = emptyList(),
+    // Read as a JSON value so an odd size can't fail the whole answer; it is a log fact only.
+    @SerialName("Size") val size: JsonElement? = null,
 )
 
 /** One track. Text is read as text so a type or delivery method a newer server invents is unknown, not an error. */
@@ -305,6 +307,10 @@ internal class MediaStreamDto(
     @SerialName("Title") val title: String? = null,
     @SerialName("DisplayTitle") val displayTitle: String? = null,
     @SerialName("IsHearingImpaired") val isHearingImpaired: Boolean = false,
+    // Read as JSON values, like the level, so one odd value can't fail the whole answer.
+    @SerialName("RealFrameRate") val realFrameRate: JsonElement? = null,
+    @SerialName("AverageFrameRate") val averageFrameRate: JsonElement? = null,
+    @SerialName("SampleRate") val sampleRate: JsonElement? = null,
 )
 
 /**
