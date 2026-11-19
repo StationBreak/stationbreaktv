@@ -3,6 +3,7 @@
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
 import tv.stationbreak.buildlogic.ReleaseVersion
+import tv.stationbreak.buildlogic.TestReleaseVersion
 
 plugins {
     // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
@@ -34,6 +35,15 @@ val ciVersionCode: Int =
 // which fails the build on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1.
 val releaseVersion: ReleaseVersion? =
     providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
+
+// A local or device-test release build (#966): TEST_RELEASE_VERSION takes 0.x versions and a -rc.N, -beta.N or -alpha.N
+// suffix (TestReleaseVersion), so a test APK is told apart from the store build. Only RELEASE_VERSION, which the
+// tagged release passes, stays strict. Never set both.
+val testReleaseVersion: TestReleaseVersion? =
+    providers.environmentVariable("TEST_RELEASE_VERSION").orNull?.let {
+        check(releaseVersion == null) { "Set RELEASE_VERSION (a tagged release) or TEST_RELEASE_VERSION, not both" }
+        TestReleaseVersion.parse(it)
+    }
 
 // The build types the Baseline Profile plugin generates (#416): (nonMinified, benchmark) x (release, benchmark).
 val profileBuildTypes: Set<String> =
@@ -100,6 +110,11 @@ androidComponents {
             variant.outputs.forEach {
                 it.versionCode.set(releaseVersion.code)
                 it.versionName.set(releaseVersion.name)
+            }
+        } else if (testReleaseVersion != null) {
+            variant.outputs.forEach {
+                it.versionCode.set(testReleaseVersion.code)
+                it.versionName.set(testReleaseVersion.name)
             }
         }
     }
