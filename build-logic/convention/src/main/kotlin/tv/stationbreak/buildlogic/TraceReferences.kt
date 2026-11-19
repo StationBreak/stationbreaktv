@@ -150,6 +150,9 @@ abstract class TraceReferencesKeepRules
             }
             val output = messages.toString(Charsets.UTF_8)
             logger.warn(output)
+            if (unreadableMissingReport(output)) {
+                throw GradleException("tracereferences reported missing definitions in a format this build cannot read (#436):\n$output")
+            }
             val ours = missingOwnDefinitions(output)
             if (ours.isNotEmpty()) {
                 throw GradleException(
@@ -168,19 +171,19 @@ abstract class TraceReferencesKeepRules
 
 private const val MAX_MISSING = 10
 internal const val MIN_KEEP_RULES = 100
-private val ownNames = Regex("(?<![A-Za-z0-9_$])(tv\\.stationbreak|okhttp3)\\.")
+private val missingAnywhere = Regex("Missing (class|method|field) ")
+
+// `Missing class a.B (referenced from: ...)`: the text up to the first "(" names the missing thing (a method's arguments
+// follow it). Searched over the whole output, so a different layout or indentation cannot hide a line.
+private val missingOwn = Regex("Missing (class|method|field) [^(\\n]*\\b(tv\\.stationbreak|okhttp3)\\.[^(\\n]*")
 
 /**
  * The missing definitions tracereferences reported that are ours or OkHttp's. Third-party names (annotations, hidden
- * platform API) are only warnings; a class of ours the target lacks means the target is not the whole app. Only the
- * part of a line before "(referenced from" names the missing thing.
+ * platform API) are only warnings; a class of ours the target lacks means the target is not the whole app.
  */
-internal fun missingOwnDefinitions(output: String): List<String> =
-    output
-        .lines()
-        .map { it.removePrefix("Warning: ").removePrefix("Error: ") }
-        .filter { it.startsWith("Missing ") }
-        .map { it.substringBefore(" (referenced from") }
-        .filter { ownNames.containsMatchIn(it) }
+internal fun missingOwnDefinitions(output: String): List<String> = missingOwn.findAll(output).map { it.value.trim() }.toList()
+
+/** True when R8 reported missing definitions that the reader above did not recognise: a format change must be loud. */
+internal fun unreadableMissingReport(output: String): Boolean = "Missing" in output && !missingAnywhere.containsMatchIn(output)
 
 internal fun keepRuleCount(rules: String): Int = rules.lines().count { it.startsWith("-keep") }

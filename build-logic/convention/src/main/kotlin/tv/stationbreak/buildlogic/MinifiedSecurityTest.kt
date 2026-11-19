@@ -78,15 +78,6 @@ class SecurityTestClassesPlugin : Plugin<Project> {
 // Android loads the instrumentation APK first: a class in both it and the app would run unminified from the test APK.
 // The module's `assemble` fails if its APK holds any class of the app's R8 input (CheckTestApkOverlap).
 private fun Project.registerOverlapCheck(variant: com.android.build.api.variant.TestVariant) {
-    val own =
-        tasks.register<ClassesJar>("securityTestOwnClassesJar") {
-            description = "Packs this test module's own compiled classes, which may not count as overlap (#436)."
-            output.set(layout.buildDirectory.file("security-test/own-classes.jar"))
-        }
-    variant.artifacts
-        .forScope(ScopedArtifacts.Scope.PROJECT)
-        .use(own)
-        .toGet(ScopedArtifact.CLASSES, ClassesJar::jars, ClassesJar::dirs)
     val declared = configurations.dependencyScope("securityTargetClasses")
     val target =
         configurations.resolvable("securityTargetClassesPath") {
@@ -100,12 +91,15 @@ private fun Project.registerOverlapCheck(variant: com.android.build.api.variant.
             group = org.gradle.language.base.plugins.LifecycleBasePlugin.VERIFICATION_GROUP
             apkDir.set(variant.artifacts.get(com.android.build.api.artifact.SingleArtifact.APK))
             appClasses.from(target)
-            ownClasses.set(own.flatMap { it.output })
             report.set(layout.buildDirectory.file("reports/security-test/apk-overlap.txt"))
         }
-    tasks.matching { it.name == "assemble${MINIFIED_VARIANT.replaceFirstChar { c -> c.uppercase() }}" }.configureEach {
-        dependsOn(check)
-    }
+    // Every task that builds, installs or runs the test APK, so a one-step connected run cannot skip the check.
+    val variantName = MINIFIED_VARIANT.replaceFirstChar { c -> c.uppercase() }
+    val consumers = listOf("assemble", "connected", "install", "device").map { "$it$variantName" }
+    val aggregates = setOf("connectedAndroidTest", "deviceAndroidTest", "assembleAndroidTest", "connectedCheck")
+    tasks
+        .matching { task -> task.name != check.name && (consumers.any { task.name.startsWith(it) } || task.name in aggregates) }
+        .configureEach { dependsOn(check) }
 }
 
 /**

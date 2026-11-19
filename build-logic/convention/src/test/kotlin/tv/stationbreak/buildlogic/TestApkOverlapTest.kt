@@ -6,24 +6,30 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class TestApkOverlapTest {
     @Test
     fun aClassInBothIsAHit() {
         assertEquals(
             listOf("okhttp3/OkHttpClient"),
-            classOverlap(setOf("okhttp3/OkHttpClient", "a/T"), setOf("okhttp3/OkHttpClient", "b/X"), emptySet()),
+            classOverlap(setOf("okhttp3/OkHttpClient", "a/T"), setOf("okhttp3/OkHttpClient", "b/X")),
         )
     }
 
     @Test
     fun noOverlapPasses() {
-        assertEquals(emptyList(), classOverlap(setOf("a/T"), setOf("b/X"), emptySet()))
+        assertEquals(emptyList(), classOverlap(setOf("a/T"), setOf("b/X")))
     }
 
     @Test
-    fun theModulesOwnClassesAreNotHits() {
-        assertEquals(emptyList(), classOverlap(setOf("a/T"), setOf("a/T"), setOf("a/T")))
+    fun aClassOfTheModulesOwnThatTheAppAlsoHasIsAHit() {
+        // Own test classes are never in the app's R8 input; one that is would shadow the minified copy.
+        assertEquals(
+            listOf("tv/stationbreak/app/SecretFixtures"),
+            classOverlap(setOf("tv/stationbreak/app/SecretFixtures"), setOf("tv/stationbreak/app/SecretFixtures")),
+        )
     }
 
     @Test
@@ -31,22 +37,34 @@ class TestApkOverlapTest {
         assertEquals(setOf("a/b/C"), dexClassNames(dexWithOneClass("La/b/C;")))
     }
 
+    // The layout of a real tracereferences run (from the build log): the first line has a "Warning: " prefix.
+    @Suppress("ktlint:standard:max-line-length")
+    private val realThirdPartyOutput =
+        "Warning: Missing class android.test.AndroidTestCase (referenced from: void androidx.test.internal.runner.junit3.AndroidTestResult.run(junit.framework.TestCase))\n" +
+            "Missing method void android.test.AndroidTestCase.setContext(android.content.Context) (referenced from: void androidx.test.internal.runner.junit3.AndroidTestResult.run(junit.framework.TestCase))\n" +
+            "Missing method android.app.Instrumentation\$ActivityResult androidx.test.internal.runner.hidden.ExposedInstrumentationApi.execStartActivity(android.content.Context, android.os.IBinder, int) (referenced from: android.app.Instrumentation\$ActivityResult androidx.test.runner.MonitoringInstrumentation.execStartActivity(android.content.Context))\n" +
+            "Missing class com.google.errorprone.annotations.CanIgnoreReturnValue (referenced from: java.lang.Object androidx.test.internal.util.Checks.checkNotNull(java.lang.Object) and 3 other contexts)\n" +
+            "Missing class org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement (referenced from: javax.net.ssl.X509TrustManager okhttp3.tls.internal.TlsUtil.newTrustManager(java.lang.String) and 3 other contexts)\n"
+
     @Test
-    fun ourOwnOrOkHttpDefinitionsMissingFail() {
-        val output =
-            """
-            Warning: Missing class androidx.annotation.NonNull (referenced from: a.B.f)
-            Missing method void android.test.X.set(android.content.Context) (referenced from: tv.stationbreak.app.Y.z)
-            Missing class tv.stationbreak.core.domain.Port (referenced from: a.B)
-            Missing method void okhttp3.OkHttpClient.newCall() (referenced from: a.B)
-            """.trimIndent()
-        assertEquals(2, missingOwnDefinitions(output).size)
+    fun thirdPartyMissingNamesAreOnlyWarningsEvenWhenOurClassesReferToThem() {
+        assertEquals(emptyList(), missingOwnDefinitions(realThirdPartyOutput))
+        assertFalse(unreadableMissingReport(realThirdPartyOutput))
     }
 
     @Test
-    fun thirdPartyMissingNamesAreOnlyWarnings() {
-        val output = "Missing class com.google.errorprone.annotations.InlineMe (referenced from: tv.stationbreak.app.Y)"
-        assertEquals(emptyList(), missingOwnDefinitions(output))
+    fun ourOwnOrOkHttpDefinitionsMissingFailInTheRealLayout() {
+        val output =
+            realThirdPartyOutput +
+                "Missing class tv.stationbreak.core.domain.Port (referenced from: a.B)\n" +
+                "Missing method void okhttp3.OkHttpClient.newCall(okhttp3.Request) (referenced from: a.B)\n" +
+                "  Missing field int tv.stationbreak.app.Y.z (referenced from: a.B)\n"
+        assertEquals(3, missingOwnDefinitions(output).size)
+    }
+
+    @Test
+    fun aMissingReportInAnUnknownFormatIsLoud() {
+        assertTrue(unreadableMissingReport("Error: the definition of a.B is Missing from the target"))
     }
 
     @Test

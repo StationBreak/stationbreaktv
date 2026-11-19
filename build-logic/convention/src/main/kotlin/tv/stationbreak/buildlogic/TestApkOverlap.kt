@@ -7,7 +7,6 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -20,15 +19,15 @@ import java.util.zip.ZipFile
 private const val MAX_LISTED = 20
 
 /**
- * The classes both a test APK and the app carry, less the test module's own (#436). Android loads the instrumentation APK
+ * The classes both a test APK and the app carry (#436). The test module's own classes are not subtracted: they are never in
+ * the app's R8 input, so one that is would be a real shadowing collision. Android loads the instrumentation APK
  * first, so a class in both runs from the test APK's unminified copy and the minified app is not what the test meets.
  * Names are internal names (`okhttp3/OkHttpClient`).
  */
 internal fun classOverlap(
     testApk: Set<String>,
     app: Set<String>,
-    own: Set<String>,
-): List<String> = (testApk intersect app).minus(own).sorted()
+): List<String> = (testApk intersect app).sorted()
 
 /** The class names a dex file defines, as internal names (`a/b/C`). */
 internal fun dexClassNames(dex: ByteArray): Set<String> {
@@ -84,11 +83,6 @@ abstract class CheckTestApkOverlap : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val appClasses: ConfigurableFileCollection
 
-    /** The test module's own compiled classes, one jar: never a hit. */
-    @get:InputFile
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val ownClasses: RegularFileProperty
-
     @get:OutputFile
     abstract val report: RegularFileProperty
 
@@ -114,7 +108,7 @@ abstract class CheckTestApkOverlap : DefaultTask() {
         // A reader that finds nothing would pass for ever.
         if (testClasses.isEmpty()) throw GradleException("No classes were read from the test APK in ${apkDir.get().asFile}")
         val app = classNamesOfJar(appClasses.singleFile)
-        val hits = classOverlap(testClasses, app, classNamesOfJar(ownClasses.get().asFile))
+        val hits = classOverlap(testClasses, app)
         report.get().asFile.writeText("test APK classes: ${testClasses.size}, app classes: ${app.size}, overlap: ${hits.size}\n")
         if (hits.isNotEmpty()) {
             throw GradleException(
