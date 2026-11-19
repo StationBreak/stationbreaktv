@@ -16,7 +16,7 @@ To help us help you, include:
 **Never send your password, sign-in token or server address.** We don't need them to help, and we will never ask for
 them.
 
-Many questions are answered in the [guide](index.md#guide) and the [FAQ](guide/faq.md).
+Many questions are answered in the [guide](guide/index.md) and the [FAQ](guide/faq.md).
 
 ## Bugs and ideas
 

@@ -1,0 +1,70 @@
+---
+layout: default
+body_class: landing
+title: Live TV channels built from your own Jellyfin library
+description: StationBreak plays your own Jellyfin library as live TV channels on Fire TV, with a program guide and channel flipping. Free, with no ads and no tracking.
+---
+<section class="hero" aria-labelledby="top">
+  <div class="hero-in">
+    <div class="hero-copy">
+      <p class="flag">Now on the air</p>
+      <h1 id="top"><span class="wordmark">Station Break</span></h1>
+      <p class="tagline">Put your feet up</p>
+      <p class="pitch">Live TV channels, built from your own Jellyfin library.</p>
+      <div class="cta">
+        <span class="soon">Coming soon to Fire TV</span>
+        <!-- AMAZON APPSTORE LISTING: when the listing is live, replace the "Coming soon" span above with a link
+             of class "soon" to the listing, reading "Get it on Amazon Appstore". -->
+        <a class="ghost" href="{{ '/guide/' | relative_url }}">Read the guide</a>
+      </div>
+      <p class="fine">Free to use. Pro coming soon.</p>
+    </div>
+    <div class="hero-art">
+      <img src="{{ '/assets/stan.svg' | relative_url }}" alt="Stan, the StationBreak mascot: a console TV with rabbit ears, awake and smiling" width="600" height="520">
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="what">
+  <p class="flag">What it is</p>
+  <h2 id="what">Turn it on and something is already playing</h2>
+  <ul class="tiles">
+    <li class="tile">
+      <p class="flag">Live</p>
+      <h3>Live channels from your library</h3>
+      <p>Your shows and films play on a schedule across themed channels, the way cable does. Tune in part-way through and join whatever is on.</p>
+    </li>
+    <li class="tile">
+      <p class="flag">Guide</p>
+      <h3>A guide, and flipping</h3>
+      <p>Flip channels with the remote and browse what is on now and next. Pause, go back to the start of the show, and skip ahead again.</p>
+    </li>
+    <li class="tile">
+      <p class="flag">Kids</p>
+      <h3>Kids channels that stay kids</h3>
+      <p>Kids channels show only titles made for kids and rated within the kids limit. Unrated titles stay off.</p>
+    </li>
+  </ul>
+</section>
+
+<hr class="rule">
+
+<section class="band" aria-labelledby="need">
+  <div class="two">
+    <div>
+      <p class="flag">What you need</p>
+      <h2 id="need">A server and a Fire TV</h2>
+      <ul class="plain">
+        <li>A <a href="https://jellyfin.org">Jellyfin</a> server on your network, version 12.0 or later, with your own media on it.</li>
+        <li>A Fire TV device running Fire OS 6 or later. It works with the remote alone.</li>
+      </ul>
+      <p><a href="{{ '/guide/server-setup.html' | relative_url }}">How to set up your server</a></p>
+    </div>
+    <div>
+      <p class="flag">Free now</p>
+      <h2>Free to use. Pro coming soon.</h2>
+      <p>StationBreak is free, open source software. It plays only your own media. It has no content of its own, no ads and no tracking, and no account with us.</p>
+      <p><a href="{{ '/privacy/' | relative_url }}">Read the privacy policy</a></p>
+    </div>
+  </div>
+</section>

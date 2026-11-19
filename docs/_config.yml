@@ -1,7 +1,13 @@
 # GitHub Pages site (issue #37). Pages builds this folder with Jekyll: Settings → Pages → Deploy from a branch,
-# main, /docs. Only index.md and guide/ are the site; everything else in docs/ is project documentation and is
+# main, /docs. Only index.html, support.md, assets/ and guide/ are the site; everything else in docs/ is project documentation and is
 # excluded, also because some of it holds `{{ }}` text that Jekyll would try to run as Liquid.
 title: StationBreak
+description: Live TV channels built from your own Jellyfin library, for Fire TV.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
 exclude:
   - adr
   - beta
