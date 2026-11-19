@@ -54,6 +54,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -854,6 +855,37 @@ abstract class ContractSuite {
                 ?.items
                 .orEmpty()
         assertTrue(itemsSince.none { it.kind == ItemKind.Series }, "the item walk never returns a series")
+    }
+
+    /**
+     * `seriesById` (#612, #604): one series read by its id (`GET /Items/{id}`) is the info the series list gives. An
+     * unknown id, and an item that is not a series, are "no such series" (null), not an error.
+     */
+    @Test
+    fun seriesByIdReadsOneSeries() {
+        runBlocking {
+            val adapter = adapter()
+            val session = session(adapter)
+            val shows = Library(ItemId(server.seeded.tvLibrary), "Shows", LibraryKind.TvShows)
+            val listed =
+                adapter
+                    .librarySeries(session, shows, 0, BIG_PAGE)
+                    .getOrNull()
+                    ?.series
+                    ?.single()
+            assertNotNull(listed)
+
+            val byId = adapter.seriesById(session, ItemId(server.seeded.seriesId))
+            assertEquals(listed, byId.getOrNull(), "the by-id read maps the same info as the list: $byId")
+            finding("seriesById arrives as ${byId.getOrNull()}")
+
+            val unknown = adapter.seriesById(session, ItemId(UUID.randomUUID().toString().replace("-", "")))
+            assertIs<ServerResult.Success<SeriesInfo?>>(unknown, "an unknown id is no such series: $unknown")
+            assertNull(unknown.value)
+            val movie = adapter.seriesById(session, ItemId(server.seeded.movieIds[0]))
+            assertIs<ServerResult.Success<SeriesInfo?>>(movie, "a movie is not a series: $movie")
+            assertNull(movie.value)
+        }
     }
 
     @Test
