@@ -184,6 +184,16 @@ class LiveScreenGuideModeTest {
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
 
+    @Test
+    fun startingStandsByInTheCornerUnderTheGuide() {
+        show(LiveState.Starting)
+        compose.onNodeWithTag(GUIDE).assertExists()
+        assertRect(corner, compose.onNodeWithTag(LiveTags.STAN_STAGE).bounds())
+        compose.onNodeWithTag(LiveTags.STAN_STARTING, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(LiveTags.STAN_OFF_AIR, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
+    }
+
     private val nowPlaying = PictureLabel(4, "Test Channel", null, PictureLead.NowPlaying, "Test Movie A")
 
     @Test

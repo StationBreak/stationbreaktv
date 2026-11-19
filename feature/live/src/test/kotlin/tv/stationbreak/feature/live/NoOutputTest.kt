@@ -19,8 +19,8 @@ import kotlin.time.Duration.Companion.minutes
 
 /**
  * The TV's output is gone (#423): the stick has no HDMI sink, so every tune would time out, retry and report a play
- * nobody sees. Live holds the StationBreak card, tunes nothing, reports nothing, and tunes once when the output
- * returns.
+ * nobody sees. Live holds the screen a start shows (Stan standing by), tunes nothing, reports nothing, and tunes once
+ * when the output returns.
  */
 class NoOutputTest {
     private val facts = ReportFacts(MediaSourceId("src"), PlaySessionId("ps"), PlayMethod.DirectPlay, 50.minutes)
@@ -32,7 +32,7 @@ class NoOutputTest {
     }
 
     @Test
-    fun noOutputAtStart_holdsTheCard_playsNothing_thenTunesOnceWhenItReturns() =
+    fun noOutputAtStart_standsBy_playsNothing_thenTunesOnceWhenItReturns() =
         runTest {
             val r = Rig(this)
             r.oneChannel()
@@ -40,7 +40,7 @@ class NoOutputTest {
             r.start()
             r.at(5 * MIN)
 
-            assertEquals(LiveState.Ident(null), r.state)
+            assertEquals(LiveState.Starting, r.state)
             assertTrue("nothing is tuned: ${r.tunes}", r.tunes.isEmpty())
 
             r.output.value = true
@@ -62,7 +62,7 @@ class NoOutputTest {
             // Minutes of a TV that is off: no tune, no retry, no stand-in.
             r.at(20 * MIN)
 
-            assertEquals(LiveState.Ident(null), r.state)
+            assertEquals(LiveState.Starting, r.state)
             assertTrue("the picture was stopped", r.tune.calls.last() is Call.Stop)
             assertEquals("nothing else was tuned", 1, r.tunes.size)
         }

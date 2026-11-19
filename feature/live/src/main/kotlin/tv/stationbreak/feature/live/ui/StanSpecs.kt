@@ -6,6 +6,7 @@ import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.stan.StanScene
 import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.CardNote
+import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
 import tv.stationbreak.feature.live.R
 
@@ -56,6 +57,18 @@ internal fun buildingSpec(): StanScreenSpec =
         // No banner says it: the screen does, once.
         spoken = Phrase(R.string.live_stan_spoken_building),
         tag = LiveTags.STAN_STANDBY,
+    )
+
+/** The standby screen while live starts, before anything is chosen: no channel to name, and no banner over it. */
+internal fun startingSpec(): StanScreenSpec =
+    StanScreenSpec(
+        scene = StanScene.Standby,
+        headline = Phrase(R.string.live_stan_standby_headline),
+        status = Phrase(R.string.live_stan_starting_status),
+        detail = null,
+        // No banner says it: the screen does, once.
+        spoken = Phrase(R.string.live_stan_spoken_starting),
+        tag = LiveTags.STAN_STARTING,
     )
 
 /** Signed in, but no channel is on the air: Stan shrugs, and the detail says where channels are switched on. */
@@ -148,11 +161,11 @@ internal fun isChangingChannel(state: LiveState): Boolean {
 }
 
 /**
- * Stan's screen for [state], or null when [state] has none: the picture and the sign-in hand-over have none, a lineup
- * still being built has him stand by, no channels or no libraries has him shrug, and a channel change shows snow when
- * [change] says so. The difficulties, ident, building and empty screens are not part of the choice; only the change
- * of channel is. [withBanner] is true on the whole screen, where a banner is over the card, and false
- * in the guide's corner, which has none.
+ * Stan's screen for [state], or null when [state] has none: the picture and the sign-in hand-over have none, a start
+ * or a lineup still being built has him stand by, no channels or no libraries has him shrug, and a channel change
+ * shows snow when [change] says so. The difficulties, ident, starting, building and empty screens are not part of the
+ * choice; only the change of channel is. [withBanner] is true on the whole screen, where a banner is over the card,
+ * and false in the guide's corner, which has none.
  */
 internal fun stanSpecOf(
     state: LiveState,
@@ -161,18 +174,43 @@ internal fun stanSpecOf(
     time: (Long) -> String,
 ): StanScreenSpec? =
     when {
-        isChangingChannel(state) && change == ChannelChangeStyle.Snow -> null
-        state is LiveState.Tuning -> tuningSpec(state.banner.number, state.banner.title)
-        state is LiveState.Choosing -> if (state.overPicture) null else tuningSpec(state.target.number, null)
-        state == LiveState.BuildingChannels -> buildingSpec()
-        state == LiveState.NoChannels -> noChannelsSpec()
-        state == LiveState.NoLibraries -> noLibrariesSpec()
-        state is LiveState.TechnicalDifficulties -> difficultiesSpec(withBanner && state.hasBanner())
-        state is LiveState.Ident -> offAirSpec(state.upNext, state.note, withBanner && state.hasBanner(), time)
+        isChangingChannel(state) && change == ChannelChangeStyle.Snow -> {
+            null
+        }
+
+        state is LiveState.Tuning -> {
+            tuningSpec(state.banner.number, state.banner.title)
+        }
+
+        state is LiveState.Choosing -> {
+            if (state.overPicture) null else tuningSpec(state.target.number, null)
+        }
+
+        state is LiveState.TechnicalDifficulties -> {
+            difficultiesSpec(withBanner && hasBanner(state.upNext, state.channel))
+        }
+
+        state is LiveState.Ident -> {
+            offAirSpec(state.upNext, state.note, withBanner && hasBanner(state.upNext, state.channel), time)
+        }
+
+        else -> {
+            namelessSpecOf(state)
+        }
+    }
+
+// The screens that name no channel: each of these states has its one, and any other state none.
+private fun namelessSpecOf(state: LiveState): StanScreenSpec? =
+    when (state) {
+        LiveState.Starting -> startingSpec()
+        LiveState.BuildingChannels -> buildingSpec()
+        LiveState.NoChannels -> noChannelsSpec()
+        LiveState.NoLibraries -> noLibrariesSpec()
         else -> null
     }
 
 // A card's banner is the up-next one, or the channel's own strip.
-private fun LiveState.TechnicalDifficulties.hasBanner() = upNext != null || channel != null
-
-private fun LiveState.Ident.hasBanner() = upNext != null || channel != null
+private fun hasBanner(
+    upNext: Banner?,
+    channel: ChannelTag?,
+) = upNext != null || channel != null

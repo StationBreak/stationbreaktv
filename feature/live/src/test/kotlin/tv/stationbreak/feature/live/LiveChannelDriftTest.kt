@@ -55,6 +55,7 @@ class LiveChannelDriftTest {
             assertEquals(itemOf(2), last.item)
             assertEquals(40.minutes + 3.seconds, last.start)
             assertEquals(endOfDrifted, last.at)
-            assertTrue(r.seen.drop(1).none { it == LiveState.Ident(null) })
+            assertEquals(LiveState.Starting, r.seen.first())
+            assertTrue(r.seen.none { it == LiveState.Ident(null) })
         }
 }

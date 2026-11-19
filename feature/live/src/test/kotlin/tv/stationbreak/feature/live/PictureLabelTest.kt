@@ -97,6 +97,7 @@ class PictureLabelTest {
 
     @Test
     fun noChannelNamedMeansNoLabel() {
+        assertNull(pictureLabelOf(LiveState.Starting, banner()))
         assertNull(pictureLabelOf(LiveState.Ident(null), null))
         assertNull(pictureLabelOf(LiveState.TechnicalDifficulties(null), null))
         assertNull(pictureLabelOf(LiveState.NoChannels, banner()))
