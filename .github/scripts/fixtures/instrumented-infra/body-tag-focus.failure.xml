@@ -1,0 +1,2 @@
+<failure>androidx.compose.ui.test.ComposeTimeoutException: Condition (signin:username is focused and its window has input focus) still not satisfied after 5000 ms
+	at tv.stationbreak.app.KeyFocusKt.awaitFocusedForKeys(KeyFocus.kt:45)</failure>

@@ -1,0 +1,2 @@
+<failure>java.lang.AssertionError: expected the guide up but saw: androidx.compose.ui.test.ComposeTimeoutException: Condition (a window of the test has input focus) still not satisfied after 10000 ms
+	at c.t(C.kt:1)</failure>
