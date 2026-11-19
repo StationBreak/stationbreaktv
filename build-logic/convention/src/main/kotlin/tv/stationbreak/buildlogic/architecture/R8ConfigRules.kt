@@ -2,6 +2,7 @@
 package tv.stationbreak.buildlogic.architecture
 
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 
 /** One forbidden rule in the merged R8 configuration: the rule's first line, and the file or artifact it came from. */
@@ -110,6 +111,7 @@ object R8ConfigRules {
     private val inComment = Regex("(?<![A-Za-z_$.])-($optionNames)\\b")
     private const val APP_RULES = "app/proguard-rules.pro"
     private const val MAX_RULE = 200
+    private const val MAX_RULES_FILE = 1L shl 20
     private val atToken = Regex("(?<=\\s)@\\S")
     private val extractedPath = Regex("\\(extracted file: (.+)\\)$")
 
@@ -153,18 +155,20 @@ object R8ConfigRules {
 
     /**
      * [appRules] is the app's own rules file, as AGP prints its header: the only section the app's allowances reach.
-     * [trustedRoots] are the Gradle user home and the root project: a library header is believed only if the file it
-     * names exists under one of them, as R8 prints an included file's path as written (`-include "a:b:1 (extracted
-     * file: x)"` prints a header that looks like a library's).
+     * [rulesFiles] are the consumer rules files AGP gave R8 (normalised absolute paths): a library header is believed
+     * only if the file it names is one of them, named by no other header, and holds the section's text. R8 prints an
+     * included file's path as written (`-include "a:b:1 (extracted file: x)"` prints a header that looks like a
+     * library's), so a path that merely exists, under any root, proves nothing.
      */
     fun violations(
         configuration: String,
         appRules: String,
-        trustedRoots: List<String>,
+        rulesFiles: Set<Path>,
     ): List<R8Violation> {
         val found = mutableListOf<R8Violation>()
         val seen = mutableSetOf<String>()
         val bodies = sectionBodies(configuration)
+        val headerPaths = headerPaths(configuration)
         var source = "unknown"
         var open: String? = null
         var directive = StringBuilder()
@@ -247,7 +251,7 @@ object R8ConfigRules {
                     val shapeOk =
                         text == appRules ||
                             libraryHeaders.any { it.matches(text) } &&
-                            (text == "<unknown>" || extractedFileIsReal(text, trustedRoots, bodies[text]))
+                            (text == "<unknown>" || extractedFileIsReal(text, rulesFiles, headerPaths, bodies[text]))
                     // A header of an unknown shape never reaches the app's allowance, whatever its text says.
                     val name = if (shapeOk || coordinateHeader.matches(text)) normalise(text, appRules) else "unknown header: $text"
                     if (open != null) found += R8Violation("a section header inside an open section", name)
@@ -337,19 +341,34 @@ object R8ConfigRules {
     private fun comparable(text: String): String =
         text.lines().map { it.trimEnd() }.dropWhile { it.isEmpty() }.dropLastWhile { it.isEmpty() }.joinToString("\n")
 
+    // The distinct header texts that name each extracted file: a file named by two headers is not trusted for either.
+    private fun headerPaths(configuration: String): Map<Path, Set<String>> {
+        val result = mutableMapOf<Path, MutableSet<String>>()
+        for (line in configuration.lines()) {
+            val text = sectionHeader.matchEntire(line.trim())?.groupValues?.get(1) ?: continue
+            val path = extractedPathOf(text) ?: continue
+            result.getOrPut(path) { mutableSetOf() } += text
+        }
+        return result
+    }
+
+    private fun extractedPathOf(header: String): Path? {
+        val raw = extractedPath.find(header)?.groupValues?.get(1) ?: return null
+        val path = runCatching { Path.of(raw) }.getOrNull() ?: return null
+        return if (path.isAbsolute) path.normalize() else null
+    }
+
     private fun extractedFileIsReal(
         header: String,
-        roots: List<String>,
+        rulesFiles: Set<Path>,
+        headerPaths: Map<Path, Set<String>>,
         body: String?,
     ): Boolean {
-        val raw = extractedPath.find(header)?.groupValues?.get(1) ?: return false
-        val path = runCatching { Path.of(raw) }.getOrNull() ?: return false
-        if (!path.isAbsolute || !Files.exists(path)) return false
-        // Normalised, not resolved: a symlink under a root does not make a path outside it.
-        val normal = path.normalize()
-        if (roots.none { normal.startsWith(Path.of(it).normalize()) }) return false
-        // The header is believed only if the file it names is the text R8 read for this section: a forged header can
-        // name any real file under a root, but not make that file's content equal its own rules.
+        val path = extractedPathOf(header) ?: return false
+        if (path !in rulesFiles || headerPaths[path]?.size != 1) return false
+        // A rules file is text of a sane size; a link, a device or a huge file is not read.
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) || Files.size(path) > MAX_RULES_FILE) return false
+        // Second layer: the file is the text R8 read for this section, not just a file it was given.
         val content = runCatching { Files.readString(path) }.getOrNull() ?: return false
         return body != null && comparable(content) == comparable(body)
     }

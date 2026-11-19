@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.buildlogic.architecture
 
+import java.nio.file.Files
+import java.nio.file.Path
+
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -22,20 +26,23 @@ abstract class R8ConfigCheck : DefaultTask() {
     @get:Input
     abstract val appRules: Property<String>
 
-    // Where a library's extracted rules file may live: the Gradle user home and the root project. Machine paths, so
-    // @Internal: they must not vary the cache key; a different path changes the configuration's headers anyway.
-    @get:Internal
-    abstract val gradleUserHome: Property<String>
-
-    @get:Internal
-    abstract val rootProjectDir: Property<String>
+    // The rules files AGP gave R8 (see AndroidAppPlugin): the only files a library header may name. Directories stand for
+    // the files inside them.
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.ABSOLUTE)
+    abstract val rulesGivenToR8: ConfigurableFileCollection
 
     @get:OutputFile
     abstract val report: RegularFileProperty
 
+    private fun ruleFiles(): Set<Path> =
+        rulesGivenToR8.files.flatMap { file ->
+            if (file.isDirectory) Files.walk(file.toPath()).use { walk -> walk.filter { Files.isRegularFile(it) }.toList() } else listOf(file.toPath())
+        }.map { it.toAbsolutePath().normalize() }.toSet()
+
     @TaskAction
     fun check() {
-        val violations = R8ConfigRules.violations(configuration.get().asFile.readText(), appRules.get(), listOf(gradleUserHome.get(), rootProjectDir.get()))
+        val violations = R8ConfigRules.violations(configuration.get().asFile.readText(), appRules.get(), ruleFiles())
         report.writeReportOrFail(
             violations.map { "${it.rule}  (from ${it.source})" },
             "The merged R8 configuration holds a rule that weakens the release build (#437). Read it; if it is " +

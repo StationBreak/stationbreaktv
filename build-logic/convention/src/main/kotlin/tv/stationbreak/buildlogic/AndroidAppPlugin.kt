@@ -5,6 +5,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.attributes.Attribute
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.register
 import org.gradle.language.base.plugins.LifecycleBasePlugin
@@ -37,6 +38,14 @@ class AndroidAppPlugin : Plugin<Project> {
                 onVariants { variant ->
                     if (!variant.isMinifyEnabled) return@onVariants
                     val capitalised = variant.name.replaceFirstChar { it.uppercase() }
+                    val consumerRules =
+                        variant.runtimeConfiguration.incoming
+                            .artifactView {
+                                isLenient = true
+                                attributes { attribute(Attribute.of("artifactType", String::class.java), "android-consumer-proguard-rules") }
+                            }.files
+                    val defaultRules =
+                        extensions.getByType(ApplicationExtension::class.java).getDefaultProguardFile("proguard-android-optimize.txt")
                     val guard =
                         tasks.register<R8ConfigCheck>("checkR8Config$capitalised") {
                             group = LifecycleBasePlugin.VERIFICATION_GROUP
@@ -45,8 +54,9 @@ class AndroidAppPlugin : Plugin<Project> {
                             configuration.set(layout.buildDirectory.file("outputs/mapping/${variant.name}/configuration.txt"))
                             report.set(layout.buildDirectory.file("reports/r8/${variant.name}.txt"))
                             appRules.set(layout.projectDirectory.file("proguard-rules.pro").asFile.absolutePath)
-                            gradleUserHome.set(gradle.gradleUserHomeDir.absolutePath)
-                            rootProjectDir.set(rootProject.projectDir.absolutePath)
+                            // The same set AGP feeds R8: the consumer proguard rules of the variant's runtime classpath
+                            // (the artifact type R8Task reads), plus the default file the app lists in proguardFiles.
+                            rulesGivenToR8.from(consumerRules, defaultRules)
                             dependsOn("minify${capitalised}WithR8")
                         }
                     tasks.named { it == "minify${capitalised}WithR8" }.configureEach { finalizedBy(guard) }

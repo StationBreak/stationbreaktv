@@ -14,7 +14,13 @@ class R8ConfigRulesTest {
     private fun extractedFile(
         name: String,
         content: String,
-    ) = root.resolve(name).also { Files.writeString(it, content + "\n") }
+    ) = root.resolve(name).also {
+        Files.writeString(it, content + "\n")
+        given.add(it)
+    }
+
+    // The rules files AGP "gave R8" in these tests: only the ones made through extractedFile.
+    private val given = mutableSetOf<Path>()
 
     // The file R8 would have read for a section with these rules; one file per distinct text.
     private fun fileWith(vararg rules: String): Path {
@@ -36,7 +42,7 @@ class R8ConfigRulesTest {
 
     private val appRules = "/home/dev/stationbreaktv/app/proguard-rules.pro"
 
-    private fun scan(config: String) = R8ConfigRules.violations(config, appRules, listOf(root.toString()))
+    private fun scan(config: String) = R8ConfigRules.violations(config, appRules, given.toSet())
 
     private fun violations(vararg rules: String) = scan(section("com.evil:lib:1.0", *rules))
 
@@ -787,7 +793,8 @@ class R8ConfigRulesTest {
 
     @Test
     fun theFileMayDifferInLineEndingsTrailingSpacesAndEdgeBlankLines() {
-        val file = root.resolve("crlf.txt").also { Files.writeString(it, "\r\n-keep class a.B  \r\n-keep class a.C\t\r\n\r\n") }
+        val file =
+            extractedFile("crlf.txt", "").also { Files.writeString(it, "\r\n-keep class a.B  \r\n-keep class a.C\t\r\n\r\n") }
         assertEquals(emptyList(), scan(forgedHeader(file, "-keep class a.B", "-keep class a.C")))
     }
 
@@ -804,5 +811,28 @@ class R8ConfigRulesTest {
         assertOnly("-if class**", "-if class**", "-keep class <1>")
         assertOnly("-if class** -keep class <1>", "-if class** -keep class <1>")
         assertEquals(emptyList(), violations("-if class a.B", "-keep class <1>"))
+    }
+
+    // #933 fix 6: a header may name only a file AGP gave R8.
+    @Test
+    fun aMatchingFileUnderTheRootThatWasNotGivenToR8IsFlagged() {
+        val stray = root.resolve("stray.txt").also { Files.writeString(it, "-keep class a.B\n") }
+        val found = scan(headerOnly("a:b:1 (extracted file: $stray)"))
+        assertEquals(listOf("a section header of an unknown shape"), found.map { it.rule })
+    }
+
+    @Test
+    fun theSamePathInTwoHeadersIsNotTrusted() {
+        val config = headerOnly("a:b:1 (extracted file: $proguardFile)") + headerOnly("a:c:1 (extracted file: $proguardFile)")
+        assertEquals(List(2) { "a section header of an unknown shape" }, scan(config).map { it.rule })
+    }
+
+    @Test
+    fun aLinkOrAnOversizeFileIsNotRead() {
+        val link = root.resolve("link.txt").also { Files.createSymbolicLink(it, proguardFile) }
+        given.add(link)
+        assertEquals(listOf("a section header of an unknown shape"), scan(headerOnly("a:b:1 (extracted file: $link)")).map { it.rule })
+        val big = extractedFile("big.txt", "x".repeat((1 shl 20) + 1))
+        assertEquals(listOf("a section header of an unknown shape"), scan(headerOnly("a:b:1 (extracted file: $big)")).map { it.rule })
     }
 }
