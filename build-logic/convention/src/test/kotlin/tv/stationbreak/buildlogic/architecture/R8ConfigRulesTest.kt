@@ -97,7 +97,11 @@ class R8ConfigRulesTest {
     fun anAnnotatedKeepIsNarrow() = assertEquals(emptyList(), violations("-keep @androidx.annotation.Keep class * {", "    *;", "}"))
 
     @Test
-    fun aCommentedRuleIsNotARule() = assertEquals(emptyList(), violations("# -dontoptimize", "-keep class a.B"))
+    fun aCommentedRuleIsNotARule() = assertEquals(emptyList(), violations("# -keep class ** { *; }", "-keep class a.B"))
+
+    // #933: the backstop reads comments too, as it cannot tell a comment from a quote it did not understand.
+    @Test
+    fun aForbiddenOptionNamedInACommentIsFlagged() = assertOnly("-dontoptimize", "# -dontoptimize", "-keep class a.B")
 
     @Test
     fun theSourceHasNoBuildMachinePath() {
@@ -486,10 +490,13 @@ class R8ConfigRulesTest {
 
     // R8 reads a quoted `#` as text in `-printconfiguration`, so the option after it still counts.
     @Test
-    fun aQuotedHashDoesNotHideTheRestOfTheLine() = assertOnly("-dontshrink", "-printconfiguration \"x#y\" -dontshrink")
+    fun aQuotedHashDoesNotHideTheRestOfTheLine() = assertEquals(
+            listOf(R8Violation("-printconfiguration \"x#y\"", "com.evil:lib:1.0"), R8Violation("-dontshrink", "com.evil:lib:1.0")),
+            violations("-printconfiguration \"x#y\" -dontshrink"),
+        )
 
     @Test
-    fun aHashOutsideQuotesStillStartsAComment() = assertEquals(emptyList(), violations("-keep class a.B # -dontshrink"))
+    fun aHashOutsideQuotesStillStartsAComment() = assertEquals(emptyList(), violations("-keep class a.B # -keep class ** { *; }"))
 
     @Test
     fun severalMembersOnOneLine() {
@@ -511,4 +518,60 @@ class R8ConfigRulesTest {
 
     @Test
     fun aKeepAfterTheClosingBraceOfAnIfBody() = assertFlagged("-if class ** {", "    *;", "} -keep class <1> { *; }")
+
+    // #933 fix 2: a fail-closed scan of every line, comments and quotes included, outside the app's own rules.
+    @Test
+    fun aSingleQuotedHashDoesNotHideAnOption() = assertOnly("-dontshrink", "-dontwarn 'x#y' -dontshrink")
+
+    @Test
+    fun aQuoteRunningAcrossALineDoesNotHideAnOption() = assertOnly("-dontshrink", "-keep class a.B \"a", "# b\" -dontshrink")
+
+    @Test
+    fun anOptionGluedAfterAQuoteADigitAndAComma() {
+        assertOnly("-dontshrink", "-keep class a.B \"x\"-dontshrink")
+        assertOnly("-dontshrink", "-optimizationpasses 5-dontshrink")
+        assertOnly("-dontshrink", "-keep class a.B,-dontshrink")
+    }
+
+    @Test
+    fun anIncludeInALibrarySection() = assertOnly("-include other.pro", "-include other.pro")
+
+    @Test
+    fun aFileIncludeInALibrarySection() = assertOnly("@file", "@other.pro")
+
+    @Test
+    fun aFileIncludeAfterAnotherDirective() = assertOnly("@file", "-keep class a.B", "@other.pro")
+
+    @Test
+    fun aBasedirectoryInALibrarySection() = assertOnly("-basedirectory /x", "-basedirectory /x")
+
+    @Test
+    fun aPrintconfigurationInALibrarySection() = assertOnly("-printconfiguration out.txt", "-printconfiguration out.txt")
+
+    @Test
+    fun everyMethodWildcardWithAllFields() {
+        assertFlagged("-keepclassmembers class **\$* { *** *(...); <fields>; }")
+        assertFlagged("-keepclassmembers class **\$* { public *(...); * *; }")
+    }
+
+    @Test
+    fun annotationRulesAndBodiesAreNotFileIncludes() {
+        assertEquals(emptyList(), violations("-keep @a.B class *"))
+        assertEquals(emptyList(), violations("-keep", "@a.B class *"))
+        assertEquals(emptyList(), violations("-keepclassmembers class a.B {", "    @androidx.annotation.Keep <methods>;", "}"))
+    }
+
+    @Test
+    fun theAppMayUsePrintconfigurationAndIncludes() {
+        val config =
+            section("/home/dev/stationbreaktv/app/proguard-rules.pro", "-printconfiguration out.txt", "-include x.pro # -dontshrink")
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
+    }
+
+    @Test
+    fun aListedSourceStillPassesTheBackstop() {
+        val config =
+            section("androidx.startup:startup-runtime:1.2.0", "-keep class a.B", "-assumenosideeffects class a.C {", "}", "# -assumenosideeffects")
+        assertEquals(emptyList(), R8ConfigRules.violations(config))
+    }
 }

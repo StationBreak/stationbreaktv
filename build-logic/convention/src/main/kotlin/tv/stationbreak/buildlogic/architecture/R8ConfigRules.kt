@@ -79,7 +79,20 @@ object R8ConfigRules {
             "-dontoptimize",
             "-dontshrink",
             "-ignorewarnings",
+            // Includes and file options pull in or write files; no library needs them (#933).
+            "-include",
+            "-basedirectory",
+            "-printconfiguration",
         )
+
+    // The fail-closed backstop (#933): a forbidden option anywhere in a line, in a comment or after a quote that the
+    // splitting did not understand. `-` after a letter is part of a name (`a.B-dontshrink`), so it is skipped; after a digit it may end a number.
+    private val anywhere =
+        Regex(
+            "(?<![A-Za-z_$.])-(dontshrink|dontoptimize|dontobfuscate|ignorewarnings|assumenosideeffects|" +
+                "assumevalues|include|basedirectory|printconfiguration)\\b",
+        )
+    private const val APP_RULES = "app/proguard-rules.pro"
 
     // Rules that are fine from a named source: a Maven "group:artifact:" prefix, or the app's own rules file. Each is
     // what the build prints today: a first-party library's own debug-stripping or constant-folding rule (Compose's
@@ -104,7 +117,10 @@ object R8ConfigRules {
                     "androidx.compose.runtime:runtime-android:",
                 ),
             // Deliberate (#331): logs print class simple names.
-            "-dontobfuscate" to listOf("app/proguard-rules.pro"),
+            "-dontobfuscate" to listOf(APP_RULES),
+            "-include" to listOf(APP_RULES),
+            "-basedirectory" to listOf(APP_RULES),
+            "-printconfiguration" to listOf(APP_RULES),
         )
 
     fun violations(configuration: String): List<R8Violation> {
@@ -116,6 +132,10 @@ object R8ConfigRules {
 
         // An `-if` whose keep is on a later line (the usual layout) applies to the next directive if it is a keep (#909).
         var pendingIf: String? = null
+
+        // Options the normal scan flagged, and what the backstop saw anywhere: (source, option) pairs.
+        val reported = mutableSetOf<Pair<String, String>>()
+        val backstop = mutableListOf<Pair<String, String>>()
 
         fun flush() {
             var text = directive.toString().trim()
@@ -133,7 +153,18 @@ object R8ConfigRules {
             val option = text.split(separators).first()
             if (allowed[option]?.any { source.startsWith(it) } != true) {
                 found += R8Violation(text.lines().first().trim(), source)
+                reported += source to option
             }
+        }
+
+        // `@file` reads a file of options. It is that only where a directive starts: `@a.B` after a class keyword or
+        // inside a body is an annotation (`-keep @a.B class *`).
+        fun startsFileInclude(): Boolean {
+            val text = directive.toString().trim()
+            if (text.isEmpty()) return true
+            if (text.count { it == '{' } != text.count { it == '}' }) return false
+            val tokens = text.split(separators)
+            return tokens.first() !in keepFamily && tokens.first() != "-if" || tokens.any { it in classKeywords }
         }
         for (raw in configuration.lines()) {
             val whole = raw.trim()
@@ -141,8 +172,12 @@ object R8ConfigRules {
             val end = sectionEnd.matchEntire(whole)
             // R8 reads `#` as the start of a comment anywhere on a line, so `-keep class ** # @a.B` keeps every class
             // (checked with R8's -printseeds): the rule is read without it (#851). A `#` inside double quotes is text
-            // (`-printconfiguration "x#y" -dontshrink` still shrinks nothing, checked with 9.3.16) (#933).
+            // (`-printconfiguration "x#y" -dontshrink` turns shrinking off, checked with 9.3.16) (#933).
             val line = if (whole.startsWith("#")) whole else uncommented(whole)
+            if (header == null && end == null) {
+                // The raw line contains the uncommented one, so one pass covers both (#933).
+                anywhere.findAll(whole).forEach { backstop += source to it.value }
+            }
             when {
                 end != null -> {
                     flush()
@@ -178,6 +213,7 @@ object R8ConfigRules {
                 // each whitespace followed by an option and every part is checked (#933). Over-splitting only checks more.
                 else -> {
                     for ((i, part) in line.split(nextOption).withIndex()) {
+                        if (part.startsWith("@") && part.length > 1 && startsFileInclude()) backstop += source to "@file"
                         if (i > 0 && part.split(separators).first() in keepFamily && directive.startsWith("-if") && ifKeep.find(directive) == null) {
                             // An `-if` and its own keep stay one directive, as when they are on two lines (#909).
                             directive.append(' ').append(part)
@@ -193,6 +229,10 @@ object R8ConfigRules {
             }
         }
         flush()
+        for ((hitSource, option) in backstop) {
+            val trusted = hitSource == APP_RULES || allowed[option]?.any { hitSource.startsWith(it) } == true
+            if (!trusted && reported.add(hitSource to option)) found += R8Violation(option, hitSource)
+        }
         if (open != null) found += R8Violation("a section that is never closed", source)
         return found
     }
@@ -269,7 +309,16 @@ object R8ConfigRules {
                 .filter { it.isNotEmpty() }
         // `*`, `* *` and `*** *` are every member; several members may share a line (#933).
         val everything = members.any { member -> member.split(' ').all { wildcardOnly.matches(it) } }
-        return members.isEmpty() || everything || ("<fields>" in members && "<methods>" in members)
+        val fields = "<fields>" in members || members.any { '(' !in it && namesNothing(it) }
+        val methods = "<methods>" in members || members.any { allMethods(it) }
+        return members.isEmpty() || everything || (fields && methods)
+    }
+
+    // `*(...)`, `* *(...)`, `*** *(...)`, with modifiers or primitive types before the name: every method (#933).
+    private fun allMethods(member: String): Boolean {
+        if (member.substringAfter('(', "").substringBefore(')').trim() != "...") return false
+        val head = member.substringBefore('(').split(' ').filter { it.isNotEmpty() }
+        return head.isNotEmpty() && head.all { it in memberKeywords || wildcardOnly.matches(it) }
     }
 
     // A name whose leading wildcards reach every package and don't stop at a package boundary names classes in every
