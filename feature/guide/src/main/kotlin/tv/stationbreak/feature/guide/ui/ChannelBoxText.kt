@@ -177,7 +177,7 @@ internal data class OnNowLine(
 /**
  * "On now: <title> · <N> min left · Up next: <title> at <time>" from the row's own [cells]: the cell airing at
  * [nowMs], and the first after it that is not a station break. A slate, a break or an unavailable program reads as
- * the grid labels it ("Off air", "Station break", "Removed from library"). The Next part is left out when nothing
+ * the grid labels it ("Off air", "Station break", "Removed"). The Next part is left out when nothing
  * follows in the row; null when nothing airs at [nowMs]. [time] words a start time.
  */
 internal fun onNowNextLine(

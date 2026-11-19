@@ -40,8 +40,11 @@ import tv.stationbreak.feature.live.Banner
 import tv.stationbreak.feature.live.BannerLabel
 import tv.stationbreak.feature.live.ChannelTag
 import tv.stationbreak.feature.live.LiveState
+import tv.stationbreak.feature.live.NextProgram
 import tv.stationbreak.feature.live.PickerKind
 import tv.stationbreak.feature.live.TransportView
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Long text in the banners (spec 14, device finding): every single-line text is one line that ends in an ellipsis, and
@@ -159,6 +162,29 @@ class LiveBannerOverflowTest {
         val density = compose.activity.resources.displayMetrics.density
         // The tagged node is inside the 1 dp border on each side of the 58 dp bar.
         assertEquals((58f - 2f) * density, frame().tagged.getValue(LiveTags.BANNER).height, density)
+    }
+
+    /**
+     * The "Up next" line with a title cut to its longest and a wide time (12:59 PM, or 12:59 on a 24-hour TV): the
+     * whole line, time included, fits the column, so the line's own ellipsis never cuts the time.
+     */
+    @Test
+    fun aLongNextTitleIsCutSoTheWholeLineAndItsTimeFit() {
+        val at =
+            LocalDateTime
+                .of(2026, 1, 1, 12, 59)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+        show(LiveState.Watching(banner(longEpisode).copy(next = NextProgram("Test Movie $longWords", at))))
+        val result = layout(compose.onNodeWithTag(LiveTags.BANNER_NEXT))
+        val text = result.layoutInput.text.text
+        assertTrue("the title is cut: $text", "…" in text)
+        assertEquals("$text is one line", 1, result.lineCount)
+        assertTrue("$text is not ellipsized", !result.isLineEllipsized(0))
+        assertTrue("$text has no visual overflow", !result.hasVisualOverflow)
+        assertEquals("$text shows whole", text.length, result.getLineEnd(0, visibleEnd = true))
+        assertInside(LiveTags.BANNER_NEXT)
     }
 
     @Test

@@ -109,7 +109,7 @@
     <string name="guide_channel_on_now">On now: %1$s</string>
 
     <!-- DESIGN(#633): placeholder. A program whose item left the library: the cell's title and the panel's line, instead of a blank. -->
-    <string name="guide_unavailable">Removed from library</string>
+    <string name="guide_unavailable">Removed</string>
 
     <!-- What a screen reader says about a cell: its title and slot, then "on now" for the program airing. -->
     <string name="guide_cell_description">%1$s, %2$s</string>

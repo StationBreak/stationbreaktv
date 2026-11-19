@@ -51,8 +51,13 @@ internal class SpokenCopy(
 
 /** What the banner says about progress, the next program and episodes (spec 14); the shared rules are [ProgramText]. */
 internal object BannerText {
-    /** The longest title the "Next" line shows, ellipsis included: the time after it must stay in view. */
-    private const val NEXT_TITLE_MAX = 40
+    /**
+     * The longest title the "Up next" line shows, ellipsis included: the time after it must stay in view. With "Up
+     * next: " and " at 12:59 PM", a mixed-case title this long measures about 255 to 270 dp in 11 sp Manrope, inside
+     * the banner's 280 dp column (`LiveBannerOverflowTest` checks it on the device). A title in capitals is wider and
+     * can still lose the time to the line's ellipsis.
+     */
+    private const val NEXT_TITLE_MAX = 28
     private const val ELLIPSIS = "\u2026"
 
     /** How far through [startMs]..[endMs] the clock is at [nowMs], from 0 to 1; 0 for a slot with no length. */

@@ -118,8 +118,9 @@ class BannerTextTest {
     fun aLongNextTitleIsCutBeforeTheLineIsMadeSoTheTimeStaysInView() {
         val title = "A Very Long Synthetic Name ".repeat(5).trim()
         val line = BannerText.nextLine(NextProgram(title, 21 * 3_600_000L), copy, ZoneOffset.UTC, true, Locale.US)
-        assertEquals("Up next: ${title.take(39)}\u2026 at 21:00", line)
-        assertEquals(40, BannerText.capTitle(title).length)
+        assertEquals("Up next: ${title.take(27)}\u2026 at 21:00", line)
+        assertEquals(28, BannerText.capTitle(title).length)
+        assertEquals(title.take(28), BannerText.capTitle(title.take(28)))
         assertEquals("Test Movie B", BannerText.capTitle("Test Movie B"))
     }
 }

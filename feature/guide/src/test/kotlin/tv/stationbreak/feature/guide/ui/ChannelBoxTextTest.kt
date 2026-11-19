@@ -40,7 +40,7 @@ class ChannelBoxTextTest {
             next = { title, time -> "Up next: $title at $time" },
             offAir = "Off air",
             stationBreak = "Station break",
-            unavailable = "Removed from library",
+            unavailable = "Removed",
         )
 
     private val builtIn =
@@ -171,7 +171,7 @@ class ChannelBoxTextTest {
     fun anUnavailableProgramReadsUnavailableAndNothingAiringGivesNoLine() {
         val cells = listOf(cell(0, 30, CellKind.Unavailable), cell(30, 60))
         assertEquals(
-            "On now: Removed from library · 20 min left · Up next: Show 30 at t30",
+            "On now: Removed · 20 min left · Up next: Show 30 at t30",
             onNowNextLine(cells, 10 * MIN, onNow, time)?.text,
         )
         assertNull(onNowNextLine(cells, 60 * MIN, onNow, time)?.text)
