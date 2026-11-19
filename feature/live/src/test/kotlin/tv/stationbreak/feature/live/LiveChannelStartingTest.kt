@@ -31,6 +31,6 @@ class LiveChannelStartingTest {
             assertEquals(LiveState.Starting, r.seen.first())
             val beforeTune = r.seen.takeWhile { it !is LiveState.Tuning }
             assertTrue("no card before the tune: $beforeTune", beforeTune.none { it is LiveState.Ident })
-            assertIs<LiveState.Tuning>(r.seen.first { it is LiveState.Tuning })
+            assertTrue("the first channel tunes: ${r.seen}", r.seen.any { it is LiveState.Tuning })
         }
 }

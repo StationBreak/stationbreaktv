@@ -199,14 +199,25 @@ internal fun stanSpecOf(
         }
     }
 
-// The screens that name no channel: each of these states has its one, and any other state none.
+// The screens that name no channel: each of these states has its one. Every state is listed, so a new one has to
+// say what it shows; the states [stanSpecOf] handles before this, the picture and the sign-in hand-over have none here.
 private fun namelessSpecOf(state: LiveState): StanScreenSpec? =
     when (state) {
         LiveState.Starting -> startingSpec()
+
         LiveState.BuildingChannels -> buildingSpec()
+
         LiveState.NoChannels -> noChannelsSpec()
+
         LiveState.NoLibraries -> noLibrariesSpec()
-        else -> null
+
+        is LiveState.Tuning,
+        is LiveState.Choosing,
+        is LiveState.TechnicalDifficulties,
+        is LiveState.Ident,
+        is LiveState.Watching,
+        LiveState.SignedOut,
+        -> null
     }
 
 // A card's banner is the up-next one, or the channel's own strip.

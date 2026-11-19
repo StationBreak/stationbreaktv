@@ -611,9 +611,10 @@ class LiveChannel(
 
     /**
      * An unexpected exception (a failed schedule or library read, say) must not end the screen: report its class name
-     * (never its message, which may hold an id), put the card up with the channel if one was chosen, stop what plays,
-     * and wait [LiveTimings.crashBackoff] so a fault that repeats cannot spin. The loop then starts a fresh sitting
-     * from the clock. Only cancellation is ever rethrown.
+     * (never its message, which may hold an id), put the card up with the channel if one was chosen (Stan stands by as
+     * at a start when none was: no channel is off the air), stop what plays, and wait [LiveTimings.crashBackoff] so a
+     * fault that repeats cannot spin. The loop then starts a fresh sitting from the clock. Only cancellation is ever
+     * rethrown.
      */
     private suspend fun recoverFrom(
         error: Exception,
@@ -622,7 +623,7 @@ class LiveChannel(
         known: ChannelTag?,
     ) {
         report(TuneReport.Failed(error.javaClass.logName().ifEmpty { "Unknown" }))
-        screen.value = LiveState.Ident(null, known)
+        screen.value = known?.let { LiveState.Ident(null, it) } ?: LiveState.Starting
         withContext(NonCancellable) {
             try {
                 sitting?.release()

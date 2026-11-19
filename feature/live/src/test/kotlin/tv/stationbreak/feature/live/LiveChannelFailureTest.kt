@@ -36,7 +36,8 @@ class LiveChannelFailureTest {
             val job = r.start()
 
             assertTrue(job.isActive)
-            assertEquals(LiveState.Ident(null, null), r.state)
+            // No channel was chosen yet: Stan stands by as at a start, never the off-air card.
+            assertEquals(LiveState.Starting, r.state)
             assertTrue(r.tunes.isEmpty())
 
             r.at(5_000 - 1)

@@ -287,10 +287,10 @@ class LiveScreenTest {
         show(LiveState.Starting, ChannelChangeStyle.Snow)
         compose
             .onNodeWithTag(LiveTags.STAN_STARTING)
-            .assertContentDescriptionEquals("Please stand by. Starting up.")
+            .assertContentDescriptionEquals("Please stand by. Warming up.")
         compose.onNodeWithText("PLEASE").assertExists()
         compose.onNodeWithText("STAND BY").assertExists()
-        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("STARTING UP")
+        compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("WARMING UP")
         compose.onNodeWithTag(LiveTags.STAN_OFF_AIR).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
