@@ -78,6 +78,20 @@ class StanHostRecorder {
         internal set
 }
 
+/**
+ * The moment a host draws: [freezeAt] when frozen (its time and its talk, whatever the clock says), else the clock's
+ * time ([clockNanos]) and whether he is [talking]. With reduced motion it is always the still frame, not talking.
+ */
+internal fun hostMoment(
+    freezeAt: StanHostMoment?,
+    reduced: Boolean,
+    clockNanos: Long,
+    talking: Boolean,
+): StanHostMoment {
+    val seconds = stanTimeSeconds(freezeAt?.seconds, reduced, clockNanos)
+    return StanHostMoment(seconds, (freezeAt?.talking ?: talking) && !reduced)
+}
+
 /** Test tags for the host. The bubble's is for tests only: the host is hidden from accessibility. */
 internal object StanHostTags {
     const val BUBBLE = "stanHost.bubble"
@@ -180,9 +194,7 @@ private fun StanFigure(
     val clock = rememberStanClock(mood, freezeAt?.seconds, HOST_FPS)
     val moment =
         remember(mood, reduced, freezeAt) {
-            derivedStateOf {
-                StanHostMoment(stanTimeSeconds(freezeAt?.seconds, reduced, clock.longValue), talking.value && !reduced)
-            }
+            derivedStateOf { hostMoment(freezeAt, reduced, clock.longValue, talking.value) }
         }
     val frame =
         remember(mood, moment) {

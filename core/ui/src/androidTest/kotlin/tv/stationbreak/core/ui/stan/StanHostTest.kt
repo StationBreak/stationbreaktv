@@ -42,36 +42,24 @@ class StanHostTest {
     }
 
     @Test
-    fun aHostFrozenOnAnotherHostsMomentDrawsThatMomentAndNothingMoves() {
-        // The animated host records the frame it drew last; a host frozen on that moment draws the same one, still.
-        // Motion is on here whatever the device says (the CI emulator runs with animations off, where every host is on
-        // the still frame and nothing would be proven). The recorders are written in the draw phase, which runs on the
-        // device's own frames, not the test clock: each read waits for a draw.
-        val animated = StanHostRecorder()
+    fun aFrozenHostDrawsTheMomentItIsGivenAndRecordsIt() {
+        // A host frozen on a moment (as the cheer's still is, on the moment the cheer last drew) draws that moment, and
+        // its recorder says so: the draw phase writes it. Which moment a host draws, frozen or not, is pure logic and
+        // is proven on the JVM (StanHostMomentTest); an animated host cannot be the source here, because its clock is
+        // an infinite animation, which a Compose test holds still. Motion is on whatever the device says, so the
+        // frozen time is not replaced by the reduced-motion still frame.
+        val moment = StanHostMoment(seconds = 1.25, talking = false)
         val frozen = StanHostRecorder()
-        var still by mutableStateOf<StanHostMoment?>(null)
         compose.setContent {
             StationBreakTheme {
                 CompositionLocalProvider(LocalMotionReduced provides false) {
-                    val at = still
-                    if (at == null) {
-                        StanHost(StanMood.Cheer, "ON THE AIR!", recorder = animated)
-                    } else {
-                        StanHost(StanMood.Cheer, "ON THE AIR!", freezeAt = at, recorder = frozen)
-                    }
+                    StanHost(StanMood.Cheer, "ON THE AIR!", freezeAt = moment, recorder = frozen)
                 }
             }
         }
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeBy(HALF_SECOND_MS)
-        compose.waitUntil(DRAW_TIMEOUT_MS) { animated.last.seconds > 0.0 }
-        val moment = animated.last
-
-        compose.runOnUiThread { still = moment }
-        compose.mainClock.advanceTimeByFrame()
         compose.waitUntil(DRAW_TIMEOUT_MS) { frozen.last == moment }
 
-        // Time goes on and the frozen host draws again (a new frame): still the same moment.
+        // Time goes on: a frozen host has no clock, so whatever it draws is the same moment.
         compose.mainClock.advanceTimeBy(HALF_SECOND_MS * 2)
         compose.waitForIdle()
         assertEquals(moment, frozen.last)
