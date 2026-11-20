@@ -8,15 +8,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,7 +28,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +38,7 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RemoteAppTip
+import tv.stationbreak.feature.onboarding.SetupColumn
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
@@ -55,10 +48,8 @@ import tv.stationbreak.feature.onboarding.server.Gap
 import tv.stationbreak.feature.onboarding.server.NotEncryptedNotice
 import tv.stationbreak.feature.onboarding.server.ServerButton
 import tv.stationbreak.feature.onboarding.server.detailsText
-import tv.stationbreak.feature.onboarding.withTop
 
 // Sizes only this screen uses; the rest are the server screen's (one look across onboarding).
-private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -147,57 +138,43 @@ internal fun SignInScreen(
     BackHandler(enabled = phase is SignInPhase.QuickConnect, onBack = onCancelQuickConnect)
 
     SetupScaffold(signInCue(phase), modifier) { contentPadding ->
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    val quickConnecting = phase as? SignInPhase.QuickConnect
-                    StepHeadline(
-                        headline =
-                            if (quickConnecting == null) {
-                                stringResource(R.string.signin_headline, state.serverName)
-                            } else {
-                                stringResource(R.string.quick_connect_headline)
-                            },
-                        // Quick Connect is a side trip, not a step.
-                        step = if (showStep && quickConnecting == null) 2 else null,
-                    )
-                    // The password is typed here, so a connection the user accepted without encryption says so here
-                    // too.
-                    if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
-                    if (quickConnecting != null) {
-                        QuickConnectPanel(quickConnecting.code, focus.quickConnectCancel, onCancelQuickConnect)
-                    } else if (phase == SignInPhase.SignedIn) {
-                        // Done: the form has nothing left to ask, so only the status stays.
-                        SignedInStatus()
+        SetupColumn(contentPadding, TOP_OFFSET) {
+            val quickConnecting = phase as? SignInPhase.QuickConnect
+            StepHeadline(
+                headline =
+                    if (quickConnecting == null) {
+                        stringResource(R.string.signin_headline, state.serverName)
                     } else {
-                        Text(
-                            text = stringResource(R.string.signin_help),
-                            style = MaterialTheme.typography.screenBody,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        RemoteAppTip(SignInTags.TIP)
-                        Form(
-                            state,
-                            focus,
-                            onUsernameChange,
-                            onPasswordChange,
-                            onToggleShowPassword,
-                            onSignIn,
-                            onQuickConnect,
-                        )
-                        Outcome(phase, focus, onEditAddress)
-                    }
-                }
+                        stringResource(R.string.quick_connect_headline)
+                    },
+                // Quick Connect is a side trip, not a step.
+                step = if (showStep && quickConnecting == null) 2 else null,
+            )
+            // The password is typed here, so a connection the user accepted without encryption says so here
+            // too.
+            if (state.cleartext) NotEncryptedNotice(SignInTags.NOT_ENCRYPTED)
+            if (quickConnecting != null) {
+                QuickConnectPanel(quickConnecting.code, focus.quickConnectCancel, onCancelQuickConnect)
+            } else if (phase == SignInPhase.SignedIn) {
+                // Done: the form has nothing left to ask, so only the status stays.
+                SignedInStatus()
+            } else {
+                Text(
+                    text = stringResource(R.string.signin_help),
+                    style = MaterialTheme.typography.screenBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                RemoteAppTip(SignInTags.TIP)
+                Form(
+                    state,
+                    focus,
+                    onUsernameChange,
+                    onPasswordChange,
+                    onToggleShowPassword,
+                    onSignIn,
+                    onQuickConnect,
+                )
+                Outcome(phase, focus, onEditAddress)
             }
         }
     }

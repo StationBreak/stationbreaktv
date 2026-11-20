@@ -2,29 +2,20 @@
 package tv.stationbreak.feature.onboarding.server
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -39,7 +30,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -59,14 +49,13 @@ import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.feature.onboarding.FieldKeyboard
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.RemoteAppTip
+import tv.stationbreak.feature.onboarding.SetupColumn
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.TvTextField
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
-import tv.stationbreak.feature.onboarding.withTop
 
 // Sizes only this screen uses.
-private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -127,73 +116,59 @@ internal fun ServerScreen(
     }
 
     SetupScaffold(serverCue(phase), modifier, covered = serverCovered(phase)) { contentPadding ->
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            // The safe area (overscan), Stan's column taking the end side. The content starts at a fixed height, so
-            // the headline and the field don't move when a result appears below them.
-            // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area.
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    StepHeadline(
-                        headline =
-                            stringResource(R.string.server_headline, stringResource(R.string.server_product_name)),
-                        step = if (showStep) 1 else null,
-                    )
-                    Text(
-                        text = stringResource(R.string.server_help, stringResource(R.string.server_product_name)),
-                        style = MaterialTheme.typography.screenBody,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    RemoteAppTip(ServerTags.TIP)
-                    AddressField(
-                        value = state.input,
-                        onValueChange = onInputChange,
-                        onGo = runTest,
-                        fieldFocus = focus.field,
-                        error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
-                    )
-                    (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
-                    ServerButton(
-                        label = R.string.server_test,
-                        onClick = runTest,
-                        enabled = phase != ServerPhase.Testing,
-                        modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
-                    )
-                    if (phase == ServerPhase.NotTrusted) NotTrustedNotice()
-                    if (phase == ServerPhase.Testing) {
-                        TestingStatus()
-                        ServerButton(
-                            label = R.string.server_cancel,
-                            onClick = onCancel,
-                            modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
-                        )
-                    }
-                    if (phase is ServerPhase.Connected) {
-                        ConnectedPanel(phase, focus.continueButton) {
-                            onContinue(ConnectedServer(phase.server, phase.acknowledgement))
-                        }
-                    }
-                    if (phase is ServerPhase.Failed) {
-                        ErrorPanel(
-                            phase = phase,
-                            actionFocus = focus.action,
-                            onRetry = onTest,
-                            onEditAddress = {
-                                onEditAddress()
-                                focus.field.requestFocus()
-                            },
-                        )
-                    }
+        // The safe area (overscan), Stan's column taking the end side. The content starts at a fixed height, so
+        // the headline and the field don't move when a result appears below them.
+        // The page scrolls if a large font or a long error doesn't fit; the padding is inside the scroll area.
+        SetupColumn(contentPadding, TOP_OFFSET) {
+            StepHeadline(
+                headline =
+                    stringResource(R.string.server_headline, stringResource(R.string.server_product_name)),
+                step = if (showStep) 1 else null,
+            )
+            Text(
+                text = stringResource(R.string.server_help, stringResource(R.string.server_product_name)),
+                style = MaterialTheme.typography.screenBody,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            RemoteAppTip(ServerTags.TIP)
+            AddressField(
+                value = state.input,
+                onValueChange = onInputChange,
+                onGo = runTest,
+                fieldFocus = focus.field,
+                error = (phase as? ServerPhase.InvalidInput)?.let { stringResource(it.copy.message) },
+            )
+            (phase as? ServerPhase.InvalidInput)?.let { FieldError(it.copy) }
+            ServerButton(
+                label = R.string.server_test,
+                onClick = runTest,
+                enabled = phase != ServerPhase.Testing,
+                modifier = Modifier.focusRequester(focus.test).testTag(ServerTags.TEST),
+            )
+            if (phase == ServerPhase.NotTrusted) NotTrustedNotice()
+            if (phase == ServerPhase.Testing) {
+                TestingStatus()
+                ServerButton(
+                    label = R.string.server_cancel,
+                    onClick = onCancel,
+                    modifier = Modifier.focusRequester(focus.cancel).testTag(ServerTags.CANCEL),
+                )
+            }
+            if (phase is ServerPhase.Connected) {
+                ConnectedPanel(phase, focus.continueButton) {
+                    onContinue(ConnectedServer(phase.server, phase.acknowledgement))
                 }
+            }
+            if (phase is ServerPhase.Failed) {
+                ErrorPanel(
+                    phase = phase,
+                    actionFocus = focus.action,
+                    onRetry = onTest,
+                    onEditAddress = {
+                        onEditAddress()
+                        focus.field.requestFocus()
+                    },
+                )
             }
         }
     }
