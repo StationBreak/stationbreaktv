@@ -190,7 +190,7 @@ Cream on orange and orange on cream (2.9:1) are for shapes only, never text; on 
 
 ### Hierarchy
 - **Name** (Ranchers, "Station Break", capital S and capital B): the wordmark and the station screens' sign-off.
-- **Stan's line** (Ranchers, capitals, a few words at most): "PLEASE STAND BY", "GONE TO BED", "ANYBODY OUT THERE?". Never more than a few words.
+- **Stan's line** (Ranchers, capitals, a few words at most): "PLEASE STAND BY", "GONE TO BED", "ANYBODY OUT THERE?". Never more than a few words. No closing mark on a statement, "?" on a question, "…" while he waits, and "!" only at the big moments of setup (welcome, server found, "YOU'RE IN!", on the air).
 - **Teletype status** (Space Mono Bold, capitals, +13% tracking): "TUNING CHANNEL 212", "OFF THE AIR · RETURNS AT 6:00 AM". Orange for the status, grey for the detail.
 - **Headline** (reading face, SemiBold, 24sp, -0.015em): the guide panel's programme title, the info overlay title.
 - **Screen body** (reading face, 20sp): setup messages, buttons and fields.

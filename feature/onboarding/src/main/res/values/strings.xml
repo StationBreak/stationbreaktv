@@ -262,9 +262,9 @@
     <string name="stan_libraries_choosing">WHAT ARE WE SHOWING?</string>
     <string name="stan_libraries_busy">STAND BY…</string>
     <string name="stan_libraries_empty">NOTHING ON THE SHELF</string>
-    <string name="stan_signed_in">STILL HERE.</string>
+    <string name="stan_signed_in">STILL HERE</string>
     <string name="stan_first_sync_busy">WARMING UP THE CHANNELS</string>
-    <string name="stan_first_sync_waiting">NO SIGNAL. STILL TRYING.</string>
+    <string name="stan_first_sync_waiting">NO SIGNAL. STILL TRYING…</string>
     <string name="stan_first_sync_failed">BIT OF TROUBLE</string>
     <string name="stan_first_sync_building">BUILDING YOUR CHANNELS</string>
     <string name="stan_first_sync_done">WE\'RE ON THE AIR!</string>
