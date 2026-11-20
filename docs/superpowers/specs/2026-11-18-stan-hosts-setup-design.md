@@ -114,7 +114,7 @@ One pure function per screen, `phase → (mood, line)`, in feature:onboarding, i
 
 | Screen | Moment | Mood | Draft line |
 | --- | --- | --- | --- |
-| Welcome | arrives | Talking, then Idle | "EVENING! LET'S TUNE IN." |
+| Welcome | arrives | Talking, then Idle | "EVENING! LET'S TUNE IN" |
 | Server | idle | Idle | "WHAT'S ON TONIGHT?" |
 | Server | testing | Busy | "FIDDLING WITH THE AERIAL" |
 | Server | found | Pleased | "THERE IT IS!" |
