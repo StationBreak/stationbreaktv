@@ -1112,7 +1112,7 @@ jobs:
   # can't be a false green again.
   emulator-minified:
     needs: checks
-    if: ${{ false && !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
+    if: ${{ !cancelled() && needs.checks.outputs.emulator == 'true' && needs.checks.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     # Setup 3 + cold build ~12 + attempt 18 (step limit) + uploads 2.
     timeout-minutes: 40
@@ -1156,9 +1156,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # The instrumented tests run against the benchmark build type for this job only (app/build.gradle.kts).
+      # The property adds the tracereferences keep rules for the two security test APKs to the githubBenchmark R8 run,
+      # in this job only (#436). The APK it builds is not the device-timing benchmark APK and is never uploaded.
+      # Building the test APKs also runs checkSecurityTestApkOverlap, which fails if a test APK carries an app class.
       - name: Build the minified app and test APKs
-        run: ./gradlew -Pstationbreak.testBuildType=benchmark :app:assembleGithubBenchmark :app:assembleGithubBenchmarkAndroidTest
+        run: >-
+          ./gradlew -Pstationbreak.minifiedSecurityTest=true :app:assembleGithubBenchmark
+          :security-minified-test-hilt:assembleGithubBenchmark :security-minified-test-trust:assembleGithubBenchmark
 
       - name: Security tests on the minified build (API 25 Android TV)
         timeout-minutes: 18
@@ -1173,8 +1177,9 @@ jobs:
           # The logcat is saved whatever Gradle says: a crashed instrumentation process still ends BUILD SUCCESSFUL
           # (#489), and its stack trace is only in the device log.
           script: >-
-            ./gradlew -Pstationbreak.testBuildType=benchmark :app:connectedGithubBenchmarkAndroidTest
-            -Pandroid.testInstrumentationRunnerArguments.class=tv.stationbreak.app.PinnedTrustOnApi25Test,tv.stationbreak.app.NetworkSecurityConfigChainTest,tv.stationbreak.app.NoPlaintextOnDiskTest,tv.stationbreak.app.SecretPersistenceTest,tv.stationbreak.app.AdapterLogBindingTest;
+            ./gradlew -Pstationbreak.minifiedSecurityTest=true --continue
+            :security-minified-test-hilt:connectedGithubBenchmarkAndroidTest
+            :security-minified-test-trust:connectedGithubBenchmarkAndroidTest;
             status=$?;
             mkdir -p instrumented-minified-diag;
             adb logcat -d > instrumented-minified-diag/logcat.txt;
@@ -1199,7 +1204,17 @@ jobs:
               instrumented-minified-diag/logcat.txt | head -200 || true
             echo "::endgroup::"
           fi
-          results=(app/build/outputs/androidTest-results/connected/**/TEST-*.xml)
+          failed=0
+          # A test APK holding its own copy of an app class would shadow the minified one (#436).
+          for module in security-minified-test-hilt security-minified-test-trust; do
+            report="$module/build/reports/security-test/apk-overlap.txt"
+            if ! grep -q 'overlap: 0$' "$report" 2>/dev/null; then
+              echo "::error::$module: no clean APK overlap report ($report)."
+              failed=1
+            fi
+          done
+          results=(security-minified-test-hilt/build/outputs/androidTest-results/connected/**/TEST-*.xml
+            security-minified-test-trust/build/outputs/androidTest-results/connected/**/TEST-*.xml)
           if [ "${#results[@]}" -eq 0 ]; then
             echo "::error::No instrumented test results from the minified build."
             exit 1
@@ -1211,7 +1226,6 @@ jobs:
             grep -A5 '<failure' "$f" || true
             echo "::endgroup::"
           done
-          failed=0
           if grep -lE '<failure|testRunFailed' "${results[@]}" >/dev/null; then
             echo "::error::The minified security tests failed or did not complete (see the results above)."
             failed=1
@@ -1231,8 +1245,8 @@ jobs:
         with:
           name: instrumented-minified-reports
           path: |
-            app/build/reports/androidTests/
-            app/build/outputs/androidTest-results/
+            security-minified-test-*/build/reports/
+            security-minified-test-*/build/outputs/androidTest-results/
             instrumented-minified-diag/
           retention-days: 7
           if-no-files-found: ignore
