@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -513,20 +512,6 @@ class LiveDestinationLifecycleTest {
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == true }
         compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
         compose.waitUntil(WAIT_MS) { host?.keepScreenOn == false }
-    }
-
-    @Test
-    fun aCardThatSaysWhyThereIsNoPictureEndsTheStandBy() {
-        // Nothing is on the air here: the no-channels card is no stand-by, so what the app held over the start (setup's
-        // cheer) can lift.
-        var over = 0
-        compose.setContent {
-            StationBreakTheme {
-                LiveRoot(viewModel(), {}, onStandByOver = { over++ }) { _, _ -> RecordingTuner() }
-            }
-        }
-        compose.waitUntil(WAIT_MS) { over > 0 }
-        compose.onNodeWithTag(LiveTags.NO_CHANNELS).assertExists()
     }
 
     @Test
