@@ -32,10 +32,9 @@
     <!-- Back while the focus is away from the channel playing: it goes back to what is on now there. -->
     <string name="guide_hint_playing">To what\'s playing</string>
 
-    <!-- Back on the playing channel's cell: it opens the menu sheet. -->
-    <string name="guide_hint_menu">Open the menu</string>
     <!-- The Menu key (#756) opens the menu sheet from anywhere in the guide; in the sheet, Back and Menu close it. -->
     <string name="guide_key_menu">Menu</string>
+    <!-- What opens the menu sheet: the Menu key, and Back on the playing channel's cell (the hint says it once). -->
     <string name="guide_hint_open_menu">Open the menu</string>
     <string name="guide_hint_close_menu">Close the menu</string>
 

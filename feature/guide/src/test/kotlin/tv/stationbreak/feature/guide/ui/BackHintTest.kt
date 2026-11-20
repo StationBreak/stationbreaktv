@@ -36,7 +36,15 @@ class BackHintTest {
     fun outOfTheSheetBackGoesOutwardsAsItDid() {
         assertEquals(R.string.guide_hint_programs, hint(onChannel = true, away = true))
         assertEquals(R.string.guide_hint_playing, hint(away = true))
-        assertEquals(R.string.guide_hint_menu, hint(toMenu = true))
+        assertEquals(R.string.guide_hint_open_menu, hint(toMenu = true))
         assertEquals(R.string.guide_hint_exit, hint())
+    }
+
+    @Test
+    fun theMenuPairShowsUnlessInTheSheetOrBackAlreadyOpensTheMenu() {
+        assertEquals(true, showsMenuHint(sheet = false, backHint = R.string.guide_hint_exit))
+        assertEquals(true, showsMenuHint(sheet = false, backHint = R.string.guide_hint_playing))
+        assertEquals(false, showsMenuHint(sheet = false, backHint = R.string.guide_hint_open_menu))
+        assertEquals(false, showsMenuHint(sheet = true, backHint = R.string.guide_hint_close_menu))
     }
 }

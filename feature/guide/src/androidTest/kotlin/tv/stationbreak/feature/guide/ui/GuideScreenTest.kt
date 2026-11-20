@@ -327,9 +327,9 @@ class GuideScreenTest {
     @Test
     fun theHintRowSaysLeftReachesTheChannelOnTheEarliestCellOnly() {
         showReady(CH7)
-        // On the row's earliest cell: OK, the left-arrow hint, Back, Menu, in that order.
+        // On the row's earliest cell: OK, the left-arrow hint, Back; Menu is left out, Back opens it.
         assertEquals(
-            "OK Watch   ◂ About this channel   Back Open the menu   Menu Open the menu",
+            "OK Watch   ◂ About this channel   Back Open the menu",
             text(GuideTags.HINT),
         )
         press(Key.DirectionRight)
@@ -538,7 +538,7 @@ class GuideScreenTest {
     fun dpadMovesFocusAndPanelFollows() {
         showReady(CH7)
         assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).startsWith("OK Watch"))
-        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Open the menu   Menu Open the menu"))
+        assertTrue(text(GuideTags.HINT), text(GuideTags.HINT).endsWith("Back Open the menu"))
         press(Key.DirectionRight)
         cell(CH7, 90).assertIsSelected()
         cell(CH7, 60).assertIsNotSelected()

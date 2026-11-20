@@ -24,6 +24,12 @@ internal fun backHintOf(
         sheet -> R.string.guide_hint_exit
         onChannel -> R.string.guide_hint_programs
         away -> R.string.guide_hint_playing
-        toMenu -> R.string.guide_hint_menu
+        toMenu -> R.string.guide_hint_open_menu
         else -> R.string.guide_hint_exit
     }
+
+/** Whether the hint row shows the Menu pair: not in the sheet, and not when Back already says "Open the menu". */
+internal fun showsMenuHint(
+    sheet: Boolean,
+    @StringRes backHint: Int,
+): Boolean = !sheet && backHint != R.string.guide_hint_open_menu
