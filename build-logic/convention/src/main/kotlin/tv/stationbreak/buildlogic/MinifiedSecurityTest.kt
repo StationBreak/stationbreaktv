@@ -61,8 +61,10 @@ class SecurityTestClassesPlugin : Plugin<Project> {
             }
             pluginManager.withPlugin("com.android.test") {
                 val components = extensions.getByType(TestAndroidComponentsExtension::class.java)
-                // Only the variant that instruments the minified app is built: no Hilt KSP run for the others.
-                components.beforeVariants { it.enable = it.name == MINIFIED_VARIANT }
+                // Only the variant that instruments the minified app is built, and only in the minified security run:
+                // otherwise the shrunk benchmark app (#970) makes AGP's checkTestedAppObfuscation fail the assemble.
+                val on = minifiedSecurityTestOn()
+                components.beforeVariants { it.enable = on && it.name == MINIFIED_VARIANT }
                 components.onVariants(components.selector().withName(MINIFIED_VARIANT)) { variant ->
                     variant.artifacts
                         .forScope(ScopedArtifacts.Scope.ALL)
