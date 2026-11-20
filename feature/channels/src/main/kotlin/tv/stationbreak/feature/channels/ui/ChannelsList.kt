@@ -64,7 +64,10 @@ private sealed interface Line {
     data object Reset : Line
 }
 
-private fun linesOf(rows: List<ChannelRow>): List<Line> =
+private fun linesOf(
+    rows: List<ChannelRow>,
+    isPro: Boolean,
+): List<Line> =
     buildList {
         add(Line.Household)
         add(Line.New)
@@ -74,7 +77,8 @@ private fun linesOf(rows: List<ChannelRow>): List<Line> =
             add(Line.Heading(group, inGroup.size))
             inGroup.forEach { add(Line.Channel(it)) }
         }
-        add(Line.Reset)
+        // Reset is Pro: a free viewer is not shown it.
+        if (isPro) add(Line.Reset)
     }
 
 @Composable
@@ -82,7 +86,7 @@ internal fun ChannelList(
     ui: ChannelsUi,
     modifier: Modifier = Modifier,
 ) {
-    val lines = remember(ui.rows) { linesOf(ui.rows) }
+    val lines = remember(ui.rows, ui.isPro) { linesOf(ui.rows, ui.isPro) }
     val state = rememberLazyListState()
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
@@ -96,10 +100,10 @@ internal fun ChannelList(
         items(lines.size, key = { lines[it].key() }, contentType = { lines[it]::class }) { i ->
             when (val line = lines[i]) {
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
-                Line.New -> NewLine(focused = i == focused, locked = !ui.canAddCustom)
+                Line.New -> NewLine(focused = i == focused)
                 is Line.Heading -> HeadingLine(line.group, line.count)
                 is Line.Channel -> RowLine(line.row, focused = i == focused)
-                Line.Reset -> ResetLine(focused = i == focused, locked = !ui.isPro)
+                Line.Reset -> ResetLine(focused = i == focused)
             }
         }
     }

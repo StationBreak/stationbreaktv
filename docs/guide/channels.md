@@ -16,22 +16,21 @@ Open it from the guide's menu: **Channels**. Channels are grouped as **On the ai
 - **Watch** it;
 - **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
   edit freely;
-- **Switch on** or **Switch off**. Keep at least one channel on. A channel with adult content asks before it comes
-  on;
-- **Change number**. If the number is taken, the app offers to **Swap** the two channels. **Default number** puts it
-  back.
+- **Switch on** or **Switch off** your own channels. Keep at least one channel on. A channel with adult content
+  asks before it comes on;
+- **Change number** of your own channels. If another of your own channels has the number, the app offers to **Swap**
+  the two. **Default number** puts it back.
 
-Channel numbers and switched-off channels are kept per TV. **Reset channels** puts them back to the defaults on
-this TV.
+Channel numbers and switched-off channels are kept per TV.
 
-### Free and Pro
+### Custom channels
 
-The free app plays the built-in lineup as it is chosen for your library, and you can make up to 5 channels of your
-own (a copy of a built-in channel counts as one). Changing the built-in lineup (switching built-in channels on or off, renumbering them, and **Reset channels**)
-and a sixth channel of your own are part of Pro, which isn't available yet. Those choices stay in their place,
-marked **(Pro)**, with the note "Pro coming soon".
+You can make up to 5 channels of your own (a copy of a built-in channel counts as one). To make another, delete one
+first. The built-in lineup is chosen for your library; you can't switch built-in channels on or off or renumber them,
+and you can't reset your channels. Your own channels can be switched on and off and renumbered freely, and can swap
+numbers with each other. A number a built-in channel holds is taken.
 
-**Use my collections** is free.
+**Use my collections** can be switched on or off at any time.
 
 ## Build your own channel
 

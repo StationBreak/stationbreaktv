@@ -29,13 +29,9 @@ internal sealed interface Announced {
         val on: Boolean,
     ) : Announced
 
-    data class New(
-        val locked: Boolean,
-    ) : Announced
+    data object New : Announced
 
-    data class Reset(
-        val locked: Boolean,
-    ) : Announced
+    data object Reset : Announced
 
     data class Channel(
         val row: ChannelRow,
@@ -45,7 +41,6 @@ internal sealed interface Announced {
     data class Pick(
         val choice: Choice,
         val panel: ChannelsPanel?,
-        val locked: Boolean,
         val asking: Asking?,
     ) : Announced
 
@@ -82,8 +77,7 @@ private fun announcedInDialog(ui: ChannelsUi): Announced {
         }
 
         else -> {
-            val row = ui.rows.firstOrNull { it.id == (panel?.id ?: ui.about) }
-            Announced.Pick(choice, panel, isLocked(choice, row, ui), askingOf(ui))
+            Announced.Pick(choice, panel, askingOf(ui))
         }
     }
 }
@@ -99,8 +93,8 @@ private fun askingOf(ui: ChannelsUi): Asking? =
 private fun announcedInList(ui: ChannelsUi): Announced =
     when (val focus = ui.focus) {
         ChannelsFocus.Household -> Announced.Household(ui.useMyCollections)
-        ChannelsFocus.New -> Announced.New(locked = !ui.canAddCustom)
-        ChannelsFocus.Reset -> Announced.Reset(locked = !ui.isPro)
+        ChannelsFocus.New -> Announced.New
+        ChannelsFocus.Reset -> Announced.Reset
         is ChannelsFocus.Row -> ui.rows.firstOrNull { it.id == focus.id }?.let(Announced::Channel) ?: Announced.Nothing
         null -> Announced.Nothing
     }
@@ -128,12 +122,12 @@ internal fun speechOf(
             )
         }
 
-        is Announced.New -> {
-            Speech(markedLabel(R.string.builder_new_channel, announced.locked), null)
+        Announced.New -> {
+            Speech(stringResource(R.string.builder_new_channel), null)
         }
 
-        is Announced.Reset -> {
-            Speech(markedLabel(R.string.channels_reset, announced.locked), null)
+        Announced.Reset -> {
+            Speech(stringResource(R.string.channels_reset), null)
         }
 
         is Announced.Channel -> {
@@ -141,7 +135,7 @@ internal fun speechOf(
         }
 
         is Announced.Pick -> {
-            val label = labelOf(announced.choice, announced.panel, announced.locked)
+            val label = labelOf(announced.choice, announced.panel)
             Speech(spokenParts(question(announced, ui), label, join = joiner(R.string.spoken_sentence)), null)
         }
 
@@ -149,15 +143,6 @@ internal fun speechOf(
             Speech(stringResource(R.string.channels_picker_digit, announced.place, announced.of, announced.value), null)
         }
     }
-
-@Composable
-private fun markedLabel(
-    res: Int,
-    locked: Boolean,
-): String {
-    val label = stringResource(res)
-    return if (locked) stringResource(R.string.pro_marked_label, label) else label
-}
 
 @Composable
 private fun question(

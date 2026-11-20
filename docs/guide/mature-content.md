@@ -6,9 +6,8 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
 
 ## What the app does by default
 
-- **Mature content is off until you ask for it.** The one built-in channel for adult content, **After Hours**, is
-  never chosen for your lineup. It comes on only if you switch it on, and the app asks first ("After Hours shows
-  adult content. Switch it on?").
+- **Mature content is off.** The one built-in channel for adult content, **After Hours**, is
+  never chosen for your lineup, and the app has no way to switch it on for you.
 - **Kids channels show only titles made for kids**, rated within the kids limit: at most G, TV-G, TV-Y, TV-Y7 or PG
   (TV-PG is above it). Unrated titles are left out. This holds whatever a kids channel's sources say. A messy library gives
   thinner kids channels, never less safe ones.

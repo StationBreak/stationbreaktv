@@ -29,7 +29,7 @@ class ChannelsGettingReadyTest {
                     .first { it.id == B }
                     .gettingReady,
             )
-            assertFalse(actionsOf(row, LineupAccess.Editable, reasonsRead = true).contains(Choice.Watch))
+            assertFalse(actionsOf(row, LineupAccess.Editable, reasonsRead = true, isPro = true).contains(Choice.Watch))
         }
 
     @Test

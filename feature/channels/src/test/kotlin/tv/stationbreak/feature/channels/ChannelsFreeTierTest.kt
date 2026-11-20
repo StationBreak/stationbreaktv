@@ -8,7 +8,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
@@ -18,9 +20,8 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.feature.channels.builder.BuilderMode
-import tv.stationbreak.feature.channels.ui.isLocked
 
-/** The free tier on the channel screen (#793): gated choices stay, are marked, and show a note instead of acting. */
+/** The free tier on the channel screen (#793): the Pro choices are not offered at all; the cap shows its note. */
 class ChannelsFreeTierTest {
     private val lineup = listOf(summary(A, 5), summary(B, 7, kind = ChannelKind.Custom))
 
@@ -47,53 +48,37 @@ class ChannelsFreeTierTest {
     }
 
     @Test
-    fun aStarterChoiceStaysListedAndIsMarkedWhenFree() =
+    fun aStarterIsOfferedNoSwitchingOrNumberingWhenFree() =
         channelsTest(lineup) { rig ->
             rig.free()
             openRow(rig, A)
 
             val choices = choicesOf(rig.ui)
-            val row = rig.ui.rows.first { it.id == A }
-            assertTrue(Choice.SwitchOff in choices && Choice.ChangeNumber in choices)
-            assertEquals(ChannelsMessage.NeedsPro, lockOf(Choice.SwitchOff, row, rig.ui.isPro, rig.ui.canAddCustom))
-            assertEquals(ChannelsMessage.NeedsPro, lockOf(Choice.ChangeNumber, row, rig.ui.isPro, rig.ui.canAddCustom))
+            assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), choices)
         }
 
     @Test
-    fun selectingAMarkedChoiceShowsTheNoteAndChangesNothing() =
+    fun aHiddenChoiceCannotBePickedAndChangesNothing() =
         channelsTest(lineup) { rig ->
             rig.free()
             openRow(rig, A)
 
-            rig.pick(Choice.SwitchOff)
+            listOf(Choice.SwitchOff, Choice.SwitchOn, Choice.ChangeNumber, Choice.DefaultNumber).forEach {
+                assertThrows(IllegalStateException::class.java) { rig.pick(it) }
+            }
             runCurrent()
 
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
-            assertNull(rig.ui.panel)
-            assertTrue(rig.editor.changes.isEmpty())
-        }
-
-    @Test
-    fun aMarkedNumberChoiceAlsoOnlyShowsTheNote() =
-        channelsTest(lineup) { rig ->
-            rig.free()
-            openRow(rig, A)
-
-            rig.pick(Choice.ChangeNumber)
-            runCurrent()
-
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertNull(rig.ui.message)
             assertNull(rig.ui.picker)
             assertTrue(rig.editor.changes.isEmpty())
         }
 
     @Test
-    fun theViewersOwnCustomChannelIsNotMarkedAndSwitchesOff() =
+    fun theViewersOwnCustomChannelStillSwitchesOff() =
         channelsTest(lineup) { rig ->
             rig.free()
             openRow(rig, B)
-            val row = rig.ui.rows.first { it.id == B }
-            assertNull(lockOf(Choice.SwitchOff, row, rig.ui.isPro, rig.ui.canAddCustom))
+            assertTrue(Choice.SwitchOff in choicesOf(rig.ui))
 
             rig.pick(Choice.SwitchOff)
             runCurrent()
@@ -127,15 +112,27 @@ class ChannelsFreeTierTest {
         }
 
     @Test
-    fun resetWhenFreeShowsTheNoteAndAsksNothing() =
+    fun resetIsNotAStopWhenFreeAndAsksNothing() =
         channelsTest(lineup) { rig ->
             rig.free()
             rig.open(this)
+            repeat(10) { rig.vm.move(up = false) }
+            assertNotEquals(ChannelsFocus.Reset, rig.ui.focus)
+
             rig.vm.askReset()
 
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertNull(rig.ui.message)
             assertFalse(rig.ui.confirmingReset)
             assertTrue(rig.editor.resets.isEmpty())
+        }
+
+    @Test
+    fun resetIsTheLastStopWhenPro() =
+        channelsTest(lineup) { rig ->
+            rig.open(this)
+            repeat(10) { rig.vm.move(up = false) }
+
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
         }
 
     @Test
@@ -199,8 +196,7 @@ class ChannelsFreeTierTest {
         channelsTest(lineup) { rig ->
             rig.builder.canAdd.value = false
             openRow(rig, A)
-            val row = rig.ui.rows.first { it.id == A }
-            assertEquals(ChannelsMessage.CustomLimit, lockOf(Choice.CopyToCustomise, row, true, false))
+            assertTrue(Choice.CopyToCustomise in choicesOf(rig.ui))
 
             rig.pick(Choice.CopyToCustomise)
             runCurrent()
@@ -222,7 +218,7 @@ class ChannelsFreeTierTest {
         }
 
     @Test
-    fun aDomainRefusalForProShowsTheNote() =
+    fun aDomainRefusalForProIsNeverWordedAsPro() =
         channelsTest(lineup) { rig ->
             rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NeedsPro)
             openRow(rig, A)
@@ -230,11 +226,11 @@ class ChannelsFreeTierTest {
             rig.pick(Choice.SwitchOff)
             runCurrent()
 
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertEquals(ChannelsMessage.Failed, rig.ui.message)
         }
 
     @Test
-    fun aDomainResetNeedsProShowsTheNote() =
+    fun aDomainResetRefusalForProIsNeverWordedAsPro() =
         channelsTest(lineup) { rig ->
             rig.editor.resetResult = ResetResult.NeedsPro
             rig.open(this)
@@ -242,7 +238,7 @@ class ChannelsFreeTierTest {
             rig.vm.reset()
             runCurrent()
 
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertEquals(ChannelsMessage.Failed, rig.ui.message)
         }
 
     @Test
@@ -280,19 +276,18 @@ class ChannelsFreeTierTest {
     }
 
     @Test
-    fun aSwapWithAStarterIsMarkedAndShowsTheNoteWhenFree() =
+    fun aNumberAStarterHoldsIsOnlyTakenWhenFree() =
         channelsTest(swapLineup) { rig ->
             rig.free()
-            openSwap(rig, A)
+            rig.open(this)
+            rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NumberTaken(A))
             val calls = rig.editor.changes.size
-            assertTrue(isLocked(Choice.Confirm, null, rig.ui))
-
-            rig.pick(Choice.Confirm)
+            rig.vm.setNumber(B, 5)
             runCurrent()
 
-            assertEquals(ChannelsMessage.NeedsPro, rig.ui.message)
+            assertEquals(ChannelsMessage.NumberTaken, rig.ui.message)
             assertNull(rig.ui.panel)
-            assertEquals(calls, rig.editor.changes.size)
+            assertEquals(calls + 1, rig.editor.changes.size)
         }
 
     @Test
@@ -300,7 +295,6 @@ class ChannelsFreeTierTest {
         channelsTest(swapLineup) { rig ->
             rig.free()
             openSwap(rig, C)
-            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
 
             rig.pick(Choice.Confirm)
             runCurrent()
@@ -314,10 +308,9 @@ class ChannelsFreeTierTest {
         }
 
     @Test
-    fun aSwapWithAStarterIsUnmarkedForPro() =
+    fun aSwapWithAStarterIsOfferedToPro() =
         channelsTest(swapLineup) { rig ->
             openSwap(rig, A)
-            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
 
             rig.pick(Choice.Confirm)
             runCurrent()
@@ -329,41 +322,4 @@ class ChannelsFreeTierTest {
                     .second,
             )
         }
-
-    @Test
-    fun theSwapMarkFollowsTheEntitlementLive() =
-        channelsTest(swapLineup) { rig ->
-            rig.free()
-            openSwap(rig, A)
-            assertTrue(isLocked(Choice.Confirm, null, rig.ui))
-
-            rig.pro.set(true)
-            runCurrent()
-
-            assertFalse(isLocked(Choice.Confirm, null, rig.ui))
-        }
-
-    @Test
-    fun theProMarkFollowsTheEntitlementAndTheCap() {
-        val ui = ChannelsUi.Empty.copy(rows = listOf(starterRow()))
-        val row = ui.rows.single()
-        assertTrue(isLocked(Choice.SwitchOff, row, ui.copy(isPro = false)))
-        assertFalse(isLocked(Choice.SwitchOff, row, ui.copy(isPro = true)))
-        assertTrue(isLocked(Choice.CopyToCustomise, row, ui.copy(canAddCustom = false)))
-        assertFalse(isLocked(Choice.CopyToCustomise, row, ui.copy(canAddCustom = true)))
-        assertFalse(isLocked(Choice.Watch, row, ui.copy(isPro = false, canAddCustom = false)))
-    }
-
-    private fun starterRow() =
-        ChannelRow(
-            A,
-            5,
-            "A",
-            ChannelGroup.On,
-            ChannelKind.Starter,
-            kid = false,
-            optIn = false,
-            reason = null,
-            hasOverride = false,
-        )
 }

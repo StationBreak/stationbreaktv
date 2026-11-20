@@ -2,6 +2,8 @@
 package tv.stationbreak.feature.channels
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
@@ -26,6 +28,11 @@ class ChannelsChoicesTest {
         reason = reason,
         hasOverride = override,
     )
+
+    private fun proActions(
+        row: ChannelRow,
+        access: LineupAccess,
+    ) = actionsOf(row, access, reasonsRead = true, isPro = true)
 
     @Test
     fun pickerStartsZeroPadded() {
@@ -69,15 +76,15 @@ class ChannelsChoicesTest {
     @Test
     fun onlyWatchWhenTheLineupCannotBeWritten() {
         val on = row(ChannelGroup.On, override = true)
-        assertEquals(listOf(Choice.Watch, Choice.About), actionsOf(on, LineupAccess.ReadOnly, reasonsRead = true))
-        assertEquals(listOf(Choice.Watch, Choice.About), actionsOf(on, LineupAccess.Loading, reasonsRead = true))
+        assertEquals(listOf(Choice.Watch, Choice.About), proActions(on, LineupAccess.ReadOnly))
+        assertEquals(listOf(Choice.Watch, Choice.About), proActions(on, LineupAccess.Loading))
     }
 
     @Test
     fun watchWaitsForTheFirstReadOfTheReasons() {
         assertEquals(
             listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
-            actionsOf(row(ChannelGroup.On), LineupAccess.Editable, reasonsRead = false),
+            actionsOf(row(ChannelGroup.On), LineupAccess.Editable, reasonsRead = false, isPro = true),
         )
     }
 
@@ -92,11 +99,11 @@ class ChannelsChoicesTest {
                 Choice.DefaultNumber,
                 Choice.About,
             ),
-            actionsOf(row(ChannelGroup.On, override = true), LineupAccess.Editable, reasonsRead = true),
+            actionsOf(row(ChannelGroup.On, override = true), LineupAccess.Editable, reasonsRead = true, isPro = true),
         )
         assertEquals(
             listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
-            actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true),
+            actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true, isPro = true),
         )
         assertEquals(
             listOf(Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
@@ -104,42 +111,43 @@ class ChannelsChoicesTest {
                 row(ChannelGroup.On, reason = HiddenReason.EmptyToday),
                 LineupAccess.Editable,
                 reasonsRead = true,
+                isPro = true,
             ),
         )
         val unusable = row(ChannelGroup.Off, ChannelKind.Unusable)
-        assertEquals(listOf(Choice.About), actionsOf(unusable, LineupAccess.Editable, reasonsRead = true))
+        assertEquals(listOf(Choice.About), actionsOf(unusable, LineupAccess.Editable, reasonsRead = true, isPro = true))
     }
 
     @Test
     fun aBuiltInChannelOffersCopyToCustomise() {
-        val choices = actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true)
+        val choices = actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true, isPro = true)
         assertEquals(listOf(Choice.SwitchOn, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About), choices)
     }
 
     @Test
     fun aLeftoversChannelOffersNeitherCopyNorEdit() {
-        val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Leftovers), LineupAccess.Editable, reasonsRead = true)
+        val choices = proActions(row(ChannelGroup.On, ChannelKind.Leftovers), LineupAccess.Editable)
         assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.ChangeNumber, Choice.About), choices)
     }
 
     @Test
     fun anUnusableChannelOffersNeitherCopyNorEdit() {
-        val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Unusable), LineupAccess.Editable, reasonsRead = true)
+        val choices = proActions(row(ChannelGroup.On, ChannelKind.Unusable), LineupAccess.Editable)
         assertEquals(listOf(Choice.Watch, Choice.About), choices)
-        val off = actionsOf(row(ChannelGroup.Off, ChannelKind.Unusable), LineupAccess.Editable, reasonsRead = true)
+        val off = proActions(row(ChannelGroup.Off, ChannelKind.Unusable), LineupAccess.Editable)
         assertEquals(listOf(Choice.About), off)
     }
 
     @Test
     fun aCustomChannelFromANewerAppOffersNeitherCopyNorEdit() {
         val kind = ChannelKind.UnusableCustom
-        val choices = actionsOf(row(ChannelGroup.On, kind), LineupAccess.Editable, reasonsRead = true)
+        val choices = actionsOf(row(ChannelGroup.On, kind), LineupAccess.Editable, reasonsRead = true, isPro = true)
         assertEquals(listOf(Choice.Watch, Choice.About), choices)
     }
 
     @Test
     fun aCustomChannelOffersEdit() {
-        val choices = actionsOf(row(ChannelGroup.On, ChannelKind.Custom), LineupAccess.Editable, reasonsRead = true)
+        val choices = proActions(row(ChannelGroup.On, ChannelKind.Custom), LineupAccess.Editable)
         assertEquals(listOf(Choice.Watch, Choice.SwitchOff, Choice.Edit, Choice.ChangeNumber, Choice.About), choices)
     }
 
@@ -147,83 +155,83 @@ class ChannelsChoicesTest {
     fun readOnlyAccessOffersNoBuilder() {
         for (access in listOf(LineupAccess.ReadOnly, LineupAccess.Loading)) {
             for (kind in listOf(ChannelKind.Starter, ChannelKind.Custom)) {
-                val choices = actionsOf(row(ChannelGroup.On, kind), access, reasonsRead = true)
+                val choices = actionsOf(row(ChannelGroup.On, kind), access, reasonsRead = true, isPro = true)
                 assertEquals(listOf(Choice.Watch, Choice.About), choices)
             }
         }
     }
 
+    private val reshaping = listOf(Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber)
+
     @Test
-    fun theFreeTierMarksReshapingOfTheLineup() {
+    fun theFreeTierDoesNotOfferReshapingOfTheLineup() {
         val starter = row(ChannelGroup.On)
-        val marked = listOf(Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber)
-        marked.forEach {
-            assertEquals(ChannelsMessage.NeedsPro, lockOf(it, starter, isPro = false, canAddCustom = true))
-            assertEquals(null, lockOf(it, starter, isPro = true, canAddCustom = true))
+        reshaping.forEach {
+            assertFalse("$it free", isAvailable(it, starter, isPro = false))
+            assertTrue("$it pro", isAvailable(it, starter, isPro = true))
         }
-        assertEquals(null, lockOf(Choice.Watch, starter, isPro = false, canAddCustom = false))
-        assertEquals(null, lockOf(Choice.About, starter, isPro = false, canAddCustom = false))
+        assertTrue(isAvailable(Choice.Watch, starter, isPro = false))
+        assertTrue(isAvailable(Choice.About, starter, isPro = false))
     }
 
     @Test
-    fun theFreeTierDoesNotMarkTheViewersOwnCustomChannels() {
-        val custom = row(ChannelGroup.On, ChannelKind.Custom)
-        listOf(Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber, Choice.Edit).forEach {
-            assertEquals(null, lockOf(it, custom, isPro = false, canAddCustom = false))
-        }
+    fun aFreeViewerIsListedNoSwitchingOrNumberingOnABuiltInChannel() {
+        val on = row(ChannelGroup.On, override = true)
+        val expected = listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About)
+        assertEquals(expected, actionsOf(on, LineupAccess.Editable, reasonsRead = true, isPro = false))
+        val shelf = actionsOf(row(ChannelGroup.Shelf), LineupAccess.Editable, reasonsRead = true, isPro = false)
+        assertEquals(listOf(Choice.CopyToCustomise, Choice.About), shelf)
+        val sheet = sheetActionsOf(on, LineupAccess.Editable, reasonsRead = true, isPro = false)
+        assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise), sheet)
     }
 
     @Test
-    fun aRetiredStarterIsMarkedLikeAPlannerChannel() {
+    fun aFreeViewerKeepsEveryChoiceOnTheirOwnCustomChannel() {
+        val custom = row(ChannelGroup.On, ChannelKind.Custom, override = true).copy(viewerMade = true)
+        assertEquals(
+            listOf(
+                Choice.Watch,
+                Choice.SwitchOff,
+                Choice.Edit,
+                Choice.ChangeNumber,
+                Choice.DefaultNumber,
+                Choice.About,
+            ),
+            actionsOf(custom, LineupAccess.Editable, reasonsRead = true, isPro = false),
+        )
+    }
+
+    @Test
+    fun aRetiredStarterIsHiddenLikeAPlannerChannel() {
         // A starter whose recipe left the catalog is kind Custom but not the viewer's own (#805).
         val retired = row(ChannelGroup.On, ChannelKind.Custom).copy(viewerMade = false)
-        listOf(Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber).forEach {
-            assertEquals(ChannelsMessage.NeedsPro, lockOf(it, retired, isPro = false, canAddCustom = true))
-        }
-    }
-
-    private fun swapUi(
-        renumbered: ChannelRow,
-        holder: ChannelRow,
-        isPro: Boolean = false,
-    ) = ChannelsUi.Empty.copy(
-        rows = listOf(renumbered, holder),
-        panel = ChannelsPanel.Swap(renumbered.id, 5, holder.name, toDefault = false),
-        holder = holder.id,
-        isPro = isPro,
-    )
-
-    private fun owned(id: String) = row(ChannelGroup.On, ChannelKind.Custom).copy(id = ChannelId(id), viewerMade = true)
-
-    @Test
-    fun aSwapOfTwoOwnChannelsIsFree() {
-        assertEquals(null, swapLockOf(swapUi(owned("a"), owned("b"))))
+        val choices = actionsOf(retired, LineupAccess.Editable, reasonsRead = true, isPro = false)
+        assertEquals(listOf(Choice.Watch, Choice.Edit, Choice.About), choices)
     }
 
     @Test
-    fun aSwapIsMarkedWhenEitherChannelIsNotTheViewers() {
-        val starter = row(ChannelGroup.On).copy(id = ChannelId("s"))
-        val retired = row(ChannelGroup.On, ChannelKind.Custom).copy(id = ChannelId("r"), viewerMade = false)
-        val unreadable = row(ChannelGroup.On, ChannelKind.Unusable).copy(id = ChannelId("u"))
-        listOf(starter, retired, unreadable).forEach { other ->
-            assertEquals("holder ${other.id}", ChannelsMessage.NeedsPro, swapLockOf(swapUi(owned("a"), other)))
-            assertEquals("renumbered ${other.id}", ChannelsMessage.NeedsPro, swapLockOf(swapUi(other, owned("a"))))
-        }
+    fun theChoicesOfAnOpenFreePanelAreTheListedOnes() {
+        val on = row(ChannelGroup.On)
+        val ui =
+            ChannelsUi.Empty.copy(
+                rows = listOf(on),
+                access = LineupAccess.Editable,
+                reasonsRead = true,
+                isPro = false,
+                panel = ChannelsPanel.Actions(on.id),
+            )
+        assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), choicesOf(ui))
+        assertEquals(
+            listOf(Choice.Watch, Choice.CopyToCustomise),
+            choicesOf(ui.copy(panel = null, about = on.id)),
+        )
     }
 
     @Test
-    fun aSwapIsNeverMarkedForProOrWithNoSwapOpen() {
-        val starter = row(ChannelGroup.On).copy(id = ChannelId("s"))
-        assertEquals(null, swapLockOf(swapUi(owned("a"), starter, isPro = true)))
-        assertEquals(null, swapLockOf(swapUi(owned("a"), starter).copy(panel = null)))
-    }
-
-    @Test
-    fun copyToCustomiseIsMarkedOnlyAtTheCap() {
-        val starter = row(ChannelGroup.On)
-        val atCap = lockOf(Choice.CopyToCustomise, starter, isPro = false, canAddCustom = false)
-        assertEquals(ChannelsMessage.CustomLimit, atCap)
-        assertEquals(null, lockOf(Choice.CopyToCustomise, starter, isPro = false, canAddCustom = true))
-        assertEquals(null, lockOf(Choice.CopyToCustomise, starter, isPro = true, canAddCustom = true))
+    fun copyToCustomiseAnswersWithTheLimitOnlyAtTheCap() {
+        assertEquals(ChannelsMessage.CustomLimit, limitOf(Choice.CopyToCustomise, canAddCustom = false))
+        assertEquals(null, limitOf(Choice.CopyToCustomise, canAddCustom = true))
+        assertEquals(null, limitOf(Choice.SwitchOff, canAddCustom = false))
+        assertEquals(null, limitOf(Choice.Watch, canAddCustom = false))
     }
 }

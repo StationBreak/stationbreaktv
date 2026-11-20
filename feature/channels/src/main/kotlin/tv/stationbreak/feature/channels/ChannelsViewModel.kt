@@ -471,13 +471,7 @@ internal class ChannelsViewModel
                 }
 
                 choice == Choice.Confirm -> {
-                    // A marked swap shows the note and makes no change (#804).
-                    val locked = swapLockOf(ui)
-                    if (locked != null) {
-                        synchronized(lock) { apply { it.copy(panel = null, holder = null, message = locked) } }
-                    } else {
-                        confirm(panel)
-                    }
+                    confirm(panel)
                     null
                 }
 
@@ -491,42 +485,56 @@ internal class ChannelsViewModel
             }
         }
 
-        // The choice of an actions panel; the channel to tune for Watch, else null.
+        // The choice of an actions panel; the channel to tune for Watch, else null. A choice that is not offered does
+        // nothing (#793); one held to the cap shows its note. The domain refuses both too.
         private fun choose(
             choice: Choice,
             id: ChannelId,
             ui: ChannelsUi,
         ): ChannelId? {
-            // A marked choice shows its note and does nothing else (#793); the domain refuses it too.
             val row = ui.rows.firstOrNull { it.id == id }
-            val locked = row?.let { lockOf(choice, it, ui.isPro, ui.canAddCustom) }
-            if (locked != null) {
-                synchronized(lock) {
-                    apply { it.copy(panel = null, holder = null, about = null, properties = null, message = locked) }
+            val note = limitOf(choice, ui.canAddCustom)
+            return when {
+                row != null && !isAvailable(choice, row, ui.isPro) -> {
+                    null
                 }
-                return null
+
+                note != null -> {
+                    synchronized(lock) {
+                        apply { it.copy(panel = null, holder = null, about = null, properties = null, message = note) }
+                    }
+                    null
+                }
+
+                else -> {
+                    act(choice, id)
+                    id.takeIf { choice == Choice.Watch }
+                }
             }
-            when (choice) {
-                // The panel is closed in the model first, so the screen is finished with nothing open over it.
-                Choice.Watch -> dismiss()
+        }
 
-                Choice.SwitchOn -> switchOn(id)
+        private fun act(
+            choice: Choice,
+            id: ChannelId,
+        ) = when (choice) {
+            // The panel is closed in the model first, so the screen is finished with nothing open over it.
+            Choice.Watch -> dismiss()
 
-                Choice.SwitchOff -> switchOff(id)
+            Choice.SwitchOn -> switchOn(id)
 
-                Choice.CopyToCustomise -> openBuilder(BuilderMode.Copy(id))
+            Choice.SwitchOff -> switchOff(id)
 
-                Choice.Edit -> openBuilder(BuilderMode.Edit(id))
+            Choice.CopyToCustomise -> openBuilder(BuilderMode.Copy(id))
 
-                Choice.ChangeNumber -> startNumber(id)
+            Choice.Edit -> openBuilder(BuilderMode.Edit(id))
 
-                Choice.DefaultNumber -> defaultNumber(id)
+            Choice.ChangeNumber -> startNumber(id)
 
-                Choice.About -> openAbout(id)
+            Choice.DefaultNumber -> defaultNumber(id)
 
-                Choice.Confirm, Choice.Cancel -> Unit
-            }
-            return id.takeIf { choice == Choice.Watch }
+            Choice.About -> openAbout(id)
+
+            Choice.Confirm, Choice.Cancel -> Unit
         }
 
         private fun confirm(panel: ChannelsPanel?) {
@@ -545,9 +553,11 @@ internal class ChannelsViewModel
             val focus = m.focus
             return when {
                 focus == null -> firstFocus(m, ids)
-                focus == ChannelsFocus.Reset || focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
+                focus == ChannelsFocus.Reset && m.isPro -> focus
+                focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
                 focus.id in ids -> focus
-                ids.isEmpty() -> ChannelsFocus.Reset
+                ids.isEmpty() -> resetStop(m) ?: ChannelsFocus.New
+                focus == ChannelsFocus.Reset -> ChannelsFocus.Row(ids.last())
                 else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
             }
         }
@@ -595,13 +605,16 @@ internal class ChannelsViewModel
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
 
+        // Reset is the last stop, for a viewer who can reset: a free viewer has no Reset line.
+        private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { m.isPro }
+
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
             synchronized(lock) {
                 if (model.builder != null) return
                 val ids = model.rows.map { it.id }
                 val rows = ids.map { ChannelsFocus.Row(it) }
-                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + ChannelsFocus.Reset
+                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + listOfNotNull(resetStop(model))
                 val at = stops.indexOf(model.focus)
                 val step = if (up) at - 1 else at + 1
                 val to = if (at < 0) stops.indexOf(ChannelsFocus.New) else step.coerceIn(0, stops.lastIndex)
@@ -872,7 +885,6 @@ internal class ChannelsViewModel
                 ChangeRefusal.KidsBandOnly -> closed.copy(message = ChannelsMessage.KidsBand)
                 ChangeRefusal.LastOn -> closed.copy(message = ChannelsMessage.LastOn)
                 ChangeRefusal.NoFreeNumber -> closed.copy(message = ChannelsMessage.NoNumber)
-                ChangeRefusal.NeedsPro -> closed.copy(message = ChannelsMessage.NeedsPro)
                 else -> closed.copy(message = ChannelsMessage.Failed)
             }
 
@@ -885,6 +897,10 @@ internal class ChannelsViewModel
             val panel = swapPanelFor(change, m.channels, holder)
             return if (panel == null) {
                 closed.copy(message = ChannelsMessage.Failed)
+            } else if (!m.isPro && m.rows.firstOrNull { it.id == holder }?.viewerMade != true) {
+                // Free: a custom channel takes a number that is free or another custom channel's, never a built-in
+                // channel's, so there is no swap to offer (#804).
+                closed.copy(message = ChannelsMessage.NumberTaken)
             } else {
                 closed.copy(panel = panel, holder = holder, message = null)
             }
@@ -894,7 +910,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 when {
                     notEditable() -> Unit
-                    !model.isPro -> apply { it.copy(panel = null, message = ChannelsMessage.NeedsPro) }
+                    !model.isPro -> Unit
                     else -> apply { it.copy(confirmingReset = true, panel = null) }
                 }
             }
@@ -930,12 +946,17 @@ internal class ChannelsViewModel
             val done = m.copy(choosing = false)
             return when (result) {
                 ResetResult.Chosen -> done.copy(reset = result, awaitingList = m.listsDuringReset == 0)
+
                 ResetResult.NotChosenYet -> done.copy(reset = result, message = ChannelsMessage.NotChosenYet)
+
                 ResetResult.NotEditable -> done.copy(message = ChannelsMessage.NotEditable)
+
                 ResetResult.SaveFailed -> done.copy(message = ChannelsMessage.SaveFailed)
-                ResetResult.Failed -> done.copy(message = ChannelsMessage.Failed)
+
+                // The reset line is not shown to a free viewer, so the domain's refusal is not expected.
+                ResetResult.Failed, ResetResult.NeedsPro -> done.copy(message = ChannelsMessage.Failed)
+
                 ResetResult.LibrariesUnavailable -> done.copy(message = ChannelsMessage.LibrariesUnavailable)
-                ResetResult.NeedsPro -> done.copy(message = ChannelsMessage.NeedsPro)
             }
         }
 
