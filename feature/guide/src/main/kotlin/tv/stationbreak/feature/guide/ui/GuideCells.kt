@@ -26,25 +26,22 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
@@ -54,7 +51,6 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.R
@@ -68,42 +64,11 @@ private val MinCellWidth = 20.dp
 // (45.5 dp) and anything shorter, such as a 5-minute filler (32.5 dp), is compact.
 internal val CompactBelow = 48.dp
 
-/**
- * The least of a cell in view that has room for a "…". Budget: the glyph is about 16 dp wide at 16 sp, up to about
- * 24 dp at the largest font scale (1.5), and the cell's own 1 dp inset takes 2 dp, so 32 dp leaves it clear of both
- * edges even then.
- */
-internal val EllipsisFrom = 32.dp
-internal const val ELLIPSIS = "…"
-private val ProgramStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
+/** A programme's title in its cell, and a run's label ([RunLabelView]). */
+internal val CellTitleStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 
-/** The "…" on a slate, in the same face as its "OFF AIR" plate. */
+/** A slate's "OFF AIR" and a break's "STATION BREAK" plate. */
 private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
-
-/**
- * The "…" laid out once for the whole grid (a program's style and a slate's), so a cell only draws it, in its own
- * colour, and measures nothing.
- */
-@Immutable
-internal class EllipsisMarks(
-    val program: TextLayoutResult,
-    val slate: TextLayoutResult,
-)
-
-/** Provided by the grid; without it (null) no cell draws a "…". */
-internal val LocalEllipsisMarks = staticCompositionLocalOf<EllipsisMarks?> { null }
-
-/** The grid's [EllipsisMarks], measured once for the current font and density. */
-@Composable
-internal fun rememberEllipsisMarks(): EllipsisMarks {
-    val measurer = rememberTextMeasurer()
-    val base = LocalTextStyle.current
-    val density = LocalDensity.current
-    return remember(measurer, base, density) {
-        fun mark(style: TextStyle) = measurer.measure(ELLIPSIS, base.merge(style), softWrap = false, density = density)
-        EllipsisMarks(program = mark(ProgramStyle), slate = mark(SlateStyle))
-    }
-}
 
 private val EpisodeFrom = 110.dp
 private val TextStart = 12.dp
@@ -113,6 +78,25 @@ private val TextStart = 12.dp
  * the focus fill extends in the draw and does not move the title.
  */
 private val TextEnd = 12.dp
+
+/**
+ * The width a cell's title (or a run's label) is laid out in between [left] and [right] of a cell [width] wide (from
+ * its outer left edge): [placeText]'s room, in dp, [TextStart] in from the left or past the "‹" when [earlier], and
+ * [TextEnd] short of the right or of the "›" when [later].
+ */
+@Suppress("LongParameterList") // The span, the cell it is in, and its two edges.
+internal fun textRoom(
+    left: Dp,
+    right: Dp,
+    width: Dp,
+    earlier: Boolean,
+    later: Boolean,
+): Dp {
+    val start = (left - CellInset).coerceAtLeast(0.dp) + TextStart + if (earlier) ChevronRoom else 0.dp
+    val end = (right - CellInset).coerceAtMost(width - CellInset * 2) - if (later) ChevronRoom else TextEnd
+    return end - start
+}
+
 private val ChevronInset = 6.dp
 private val ChevronStroke = 1.5.dp
 private val ProgressHeight = 1.5.dp
@@ -154,19 +138,6 @@ internal class CellPlace(
     val compact: Boolean = width < CompactBelow
 
     /**
-     * Where a "…" goes with the viewport at [viewportStartMs], as the span of the cell in view (from the cell's left
-     * edge): when no part of the title fits ([compactIn]) but [EllipsisFrom] of the cell is in view, so something is
-     * seen to air there. Null otherwise: the title fits, or too little shows even for a "…". Plain arithmetic, read
-     * while drawing, so paging composes and measures nothing.
-     */
-    fun ellipsisIn(viewportStartMs: Long): ClosedRange<Dp>? {
-        if (!compactIn(viewportStartMs)) return null
-        val from = visibleLeft(viewportStartMs)
-        val to = visibleRight(viewportStartMs)
-        return if (to - from >= EllipsisFrom) from..to else null
-    }
-
-    /**
      * Compact with the viewport at [viewportStartMs]: [compact], or so little of the cell in view (a long program
      * scrolled to a sliver at either edge) that a title would not fit there either. Read while laying out and drawing,
      * so paging composes nothing.
@@ -194,11 +165,19 @@ internal class CellPlace(
     /** [ms] on the row, from this cell's left edge: where the progress line ends for the time now. */
     fun xAt(ms: Long): Dp = geometry.widthOf(ms - originMs) - x
 
-    /** "‹": the cell runs on before the viewport, and that earlier time can be scrolled to (not at the origin). */
-    fun continuesEarlier(viewportStartMs: Long): Boolean = viewportStartMs > originMs && startMs < viewportStartMs
+    /**
+     * "‹", drawn at the viewport's left edge when unfocused: the cell runs on before the viewport, that earlier time
+     * can be scrolled to (not at the origin), and enough of it is in view for text ([compactIn]). Its title keeps
+     * clear of it.
+     */
+    fun drawsEarlier(viewportStartMs: Long): Boolean =
+        !compactIn(viewportStartMs) && viewportStartMs > originMs && startMs < viewportStartMs
 
-    /** "›": the cell runs on after the viewport. */
-    fun continuesLater(viewportStartMs: Long): Boolean = endMs > viewportStartMs + geometry.spanMs
+    /** "›", drawn at the viewport's right edge when unfocused: the cell runs on after it and is not [compactIn]. */
+    fun drawsLater(viewportStartMs: Long): Boolean {
+        val viewportEndMs = viewportStartMs + geometry.spanMs
+        return !compactIn(viewportStartMs) && endMs > viewportEndMs
+    }
 
     /**
      * What the cell draws over its fill with the viewport at [viewportStartMs], [focused] or not: see [CellMarks]. The
@@ -212,13 +191,13 @@ internal class CellPlace(
         val inner = width - CellInset * 2
         val from = (visibleLeft(viewportStartMs) - CellInset).coerceIn(0.dp, inner)
         // The fill ends at the viewport's right edge, or at the screen's edge for a cell that runs past it, as the
-        // cell's surface does; the title, the chevron and the ellipsis keep to the viewport ([visibleRight]).
+        // cell's surface does; the title and the chevron keep to the viewport ([visibleRight]).
         val fillRight = (viewportRight(viewportStartMs) + bleed - x).coerceIn(0.dp, width)
         val to = (fillRight - CellInset).coerceIn(from, inner)
         return CellMarks(
             ring = if (focused) from..to else null,
-            earlier = !focused && !compactIn(viewportStartMs) && continuesEarlier(viewportStartMs),
-            later = !focused && !compactIn(viewportStartMs) && continuesLater(viewportStartMs),
+            earlier = !focused && drawsEarlier(viewportStartMs),
+            later = !focused && drawsLater(viewportStartMs),
         )
     }
 }
@@ -238,10 +217,10 @@ internal data class CellMarks(
  * identity: channel and start), so a focus move recomposes the cell it left and the one it reached, and a horizontal
  * page recomposes none: [viewportOf] is read only while laying out (the sticky title) and drawing (the fill and the
  * chevrons). The card and its focus fill are drawn. A cell does not scale ([CONTENT_SCALE]): a scale would reflow the
- * row. A compact cell writes no title, focused or not (the details panel names the focused cell), only a "…" if it has
- * room ([EllipsisFrom]).
+ * row. A compact cell writes nothing, focused or not (the details panel names the focused cell), and a cell [inRun] of
+ * short programmes writes its title only while focused ([titleShown]): the run's label names the rest.
  */
-@Suppress("LongParameterList") // One cell's identity, place and the three readers it needs.
+@Suppress("LongParameterList") // One cell's identity, place, run and the three readers it needs.
 @Composable
 internal fun GuideCellView(
     channel: ChannelId,
@@ -251,6 +230,7 @@ internal fun GuideCellView(
     viewportOf: () -> Long,
     nowOf: () -> Long?,
     playing: Boolean = false,
+    inRun: Boolean = false,
 ) {
     val focused by remember(channel, cell.startMs, focusOf) {
         derivedStateOf { focusOf()?.let { it.channel == channel && it.cellStartMs == cell.startMs } == true }
@@ -267,9 +247,7 @@ internal fun GuideCellView(
         }.value
     val resources = LocalResources.current
     val is24h = is24Hour()
-    val marks = LocalEllipsisMarks.current
     val plate = cell.kind.isPlate()
-    val mark = if (plate) marks?.slate else marks?.program
     val colors = LocalGuideColors.current
     // The fill animates. The title does not: its weight stays put, so a focus move recolours it and does not lay it
     // out again.
@@ -288,12 +266,10 @@ internal fun GuideCellView(
                 CellPaint(
                     resting = colors.card,
                     colors = colors,
-                    slate = plate,
                     focusAmount = { focusAmount },
                 ),
                 place,
                 viewportOf,
-                mark.takeIf { title.isNotEmpty() },
                 nowOf.takeIf { !plate },
             ).testTag(GuideTags.cell(channel, cell.startMs))
             // The description carries the title, so the title Text's own semantics are cleared from the merged tree
@@ -305,7 +281,7 @@ internal fun GuideCellView(
             },
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (!place.compact && title.isNotEmpty()) {
+        if (titleShown(place.compact, inRun, focused) && title.isNotEmpty()) {
             val slots =
                 CellTextSlots(
                     titleTag = Modifier.testTag(GuideTags.cellText(channel, cell.startMs)),
@@ -331,16 +307,39 @@ private fun Modifier.stickyText(
         val viewport = viewportOf()
         // Not measured at all: a title measured to no width is still laid out, on every pass.
         if (place.compactIn(viewport)) return@layout layout(constraints.maxWidth, 0) {}
-        val inset = CellInset.roundToPx()
-        val start =
-            (place.visibleLeft(viewport).roundToPx() - inset).coerceAtLeast(0) +
-                (TextStart + if (place.continuesEarlier(viewport)) ChevronRoom else 0.dp).roundToPx()
-        val end =
-            (place.visibleRight(viewport).roundToPx() - inset).coerceAtMost(constraints.maxWidth) -
-                (if (place.continuesLater(viewport)) ChevronRoom else TextEnd).roundToPx()
-        val text = measurable.measure(Constraints(maxWidth = (end - start).coerceAtLeast(0)))
-        layout(constraints.maxWidth, text.height) { text.placeRelative(start, 0) }
+        placeText(
+            measurable,
+            constraints,
+            place.visibleLeft(viewport),
+            place.visibleRight(viewport),
+            earlier = place.drawsEarlier(viewport),
+            later = place.drawsLater(viewport),
+        )
     }
+
+/**
+ * Places a cell's title (or a run's label) between [left] and [right] (from the cell's outer left edge, so its inset is
+ * taken off), [TextStart] in from the left, or past the "‹" when [earlier], and [TextEnd] short of the right, or of
+ * the "›" when [later]. In dp that room is [textRoom], which a title and a run's label are measured against.
+ */
+@Suppress("LongParameterList") // The measure pass's own two, the span and its two edges.
+internal fun MeasureScope.placeText(
+    measurable: Measurable,
+    constraints: Constraints,
+    left: Dp,
+    right: Dp,
+    earlier: Boolean,
+    later: Boolean,
+): MeasureResult {
+    val inset = CellInset.roundToPx()
+    val start =
+        (left.roundToPx() - inset).coerceAtLeast(0) + (TextStart + if (earlier) ChevronRoom else 0.dp).roundToPx()
+    val end =
+        (right.roundToPx() - inset).coerceAtMost(constraints.maxWidth) -
+            (if (later) ChevronRoom else TextEnd).roundToPx()
+    val text = measurable.measure(Constraints(maxWidth = (end - start).coerceAtLeast(0)))
+    return layout(constraints.maxWidth, text.height) { text.placeRelative(start, 0) }
+}
 
 /** What [CellText] is given by its cell: the title's test tag, the second line's, and the sticky layout. */
 private class CellTextSlots(
@@ -374,7 +373,7 @@ private fun CellText(
             modifier = own,
             color = main,
             // One style focused or not: a move recolours the title and does not lay it out again.
-            style = if (slate) SlateStyle else ProgramStyle,
+            style = if (slate) SlateStyle else CellTitleStyle,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
@@ -458,19 +457,6 @@ private fun cellDescription(
     return if (playing && onNow) resources.getString(R.string.guide_cell_playing, now) else now
 }
 
-/** Draws [ellipsis] in [color], centred on [span] (the part of the cell in view, from its outer edge) if any. */
-private fun DrawScope.drawEllipsis(
-    ellipsis: TextLayoutResult,
-    span: ClosedRange<Dp>?,
-    color: Color,
-    inset: Float,
-) {
-    if (span == null) return
-    val centre = (span.start.toPx() + span.endInclusive.toPx()) / 2 - inset
-    val top = (size.height - ellipsis.size.height) / 2
-    drawText(ellipsis, color, Offset(centre - ellipsis.size.width / 2, top))
-}
-
 /** The 1.5 dp line along a current program's bottom edge, filled up to [end] (the now-line's x in cell coordinates). */
 private fun DrawScope.drawProgress(
     paint: CellPaint,
@@ -490,21 +476,18 @@ private fun DrawScope.drawProgress(
 private class CellPaint(
     val resting: Color,
     val colors: GuideColors,
-    val slate: Boolean,
     val focusAmount: () -> Float,
 )
 
 /**
  * The cell's card, drawn. Focus amount 0 is the resting card and 1 is the filled focus, extended in the draw, with
  * no ring. Chevrons mark a program running on past either edge of the viewport, at that edge, unless it is focused;
- * they read [viewportOf] while drawing. A compact cell has no chevrons; one with no title in view draws [ellipsis]
- * (a "…" laid out once, null for a cell with no title) centred in the part in view.
+ * they read [viewportOf] while drawing. A compact cell has no chevrons and no text: its fill alone.
  */
 private fun Modifier.cellLook(
     paint: CellPaint,
     place: CellPlace,
     viewportOf: () -> Long,
-    ellipsis: TextLayoutResult?,
     nowOf: (() -> Long?)?,
 ): Modifier =
     drawWithCache {
@@ -527,14 +510,12 @@ private fun Modifier.cellLook(
                 lineTo(-edge, middle)
                 lineTo(-edge - half, middle + half)
             }
-        val restingMark = if (paint.slate) paint.colors.textSecondary else paint.colors.programmeText
         onDrawBehind {
             val amount = paint.focusAmount()
             val isFocused = amount > 0f
             drawGuideCard(paint.colors, paint.resting, amount)
             val at = viewportOf()
             val marks = place.marks(at, isFocused)
-            val mark = lerp(restingMark, paint.colors.focusText, amount)
             val from = place.visibleLeft(at).toPx() - inset
             val to = place.visibleRight(at).toPx() - inset
             val chevronColor = paint.colors.textSupporting
@@ -543,6 +524,5 @@ private fun Modifier.cellLook(
             nowOf?.invoke()?.takeIf { place.airsAt(it) }?.let { now ->
                 drawProgress(paint, place.xAt(now).toPx() - inset, progress, amount)
             }
-            if (ellipsis != null) drawEllipsis(ellipsis, place.ellipsisIn(at), mark, inset)
         }
     }

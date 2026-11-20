@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -91,6 +92,9 @@ private val OutlineWidth = 2.dp
 private val OutlineRadius = 3.dp
 private const val MARK_LOOKAHEAD = 2
 
+// Keeps a run's label apart from its first cell, which is keyed by the same start.
+private const val RUN_KEY = "run"
+
 /**
  * The clock strip over [GUIDE_VISIBLE_ROWS] rows from [firstVisibleRow] (the vertical window the model chooses),
  * and the "now" line. Horizontally every row is laid out by time from the origin and moved by the one viewport offset
@@ -120,7 +124,7 @@ internal fun GuideGrid(
         val to = minOf(model.rows.size, last + MARK_LOOKAHEAD)
         marks?.request((from until to).mapNotNull { model.rows[it].markKey }, markVariant)
     }
-    val ellipsis = rememberEllipsisMarks()
+    val titles = rememberTitleWidths()
     val markText = rememberTextMeasurer()
     Box(
         modifier
@@ -128,7 +132,7 @@ internal fun GuideGrid(
             .testTag(GuideTags.GRID)
             .tracedLayout(TRACE_GRID_MEASURE, TRACE_GRID_PLACE),
     ) {
-        CompositionLocalProvider(LocalEllipsisMarks provides ellipsis, LocalMarkTextMeasurer provides markText) {
+        CompositionLocalProvider(LocalMarkTextMeasurer provides markText) {
             Column {
                 ClockStrip(nowOf, viewportOf, geometry)
                 for (index in firstVisibleRow until last) {
@@ -142,6 +146,7 @@ internal fun GuideGrid(
                                 row.cells,
                                 model.originMs,
                                 geometry,
+                                titles,
                                 focusOf,
                                 viewportOf,
                                 nowOf,
@@ -160,27 +165,40 @@ internal fun GuideGrid(
  * All the cells of one row, at their times from [originMs], clipped to the time columns. The row is moved left by the
  * viewport's distance from the origin when it is placed (the shared horizontal offset of ADR-0008), which reads
  * [viewportOf] in the layout phase only. Every cell of the row is composed, so a page brings none into composition
- * either; the model holds a few hours, a few dozen cells a row at most.
+ * either; the model holds a few hours, a few dozen cells a row at most. The row's runs of short programmes
+ * ([rowRuns]) are worked out once per row model, with [titles], and each run's one label is composed after the cells,
+ * so it is drawn over them.
  */
-@Suppress("LongParameterList") // One row's identity and cells, the origin, the layout and three readers.
+@Suppress("LongParameterList") // One row's identity and cells, the origin, the layout, the titles and three readers.
 @Composable
 private fun GuideRowCells(
     channel: ChannelId,
     cells: List<GuideCell>,
     originMs: Long,
     geometry: GuideGeometry,
+    titles: TitleWidths,
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
     nowOf: () -> Long?,
     playing: Boolean,
 ) {
+    val resources = LocalResources.current
+    val runs =
+        remember(cells, originMs, geometry, titles, resources) {
+            rowRuns(cells, originMs, geometry, titles) { resources.getString(R.string.guide_run_count, it) }
+        }
     Layout(
         content = {
-            for (cell in cells) {
+            cells.forEachIndexed { index, cell ->
                 key(cell.startMs) {
                     val place =
                         remember(cell, originMs, geometry) { CellPlace(cell.startMs, cell.endMs, originMs, geometry) }
-                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf, playing)
+                    GuideCellView(channel, cell, place, focusOf, viewportOf, nowOf, playing, runs.inRun(index))
+                }
+            }
+            runs.runs.forEachIndexed { index, run ->
+                key(RUN_KEY, run.startMs) {
+                    RunLabelView(channel, run, runs.places[index], runs.counts[index], focusOf, viewportOf)
                 }
             }
         },
