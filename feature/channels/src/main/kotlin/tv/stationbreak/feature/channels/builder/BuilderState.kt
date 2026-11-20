@@ -111,7 +111,7 @@ internal sealed interface PickerView {
     ) : PickerView
 }
 
-/** The "Narrow down" rows' own state: the genres to tick and where the cursor is, and whether ticks leave out. */
+/** The "Only include" rows' own state: the genres to tick and where the cursor is, and whether ticks leave out. */
 internal data class NarrowView(
     val genres: PickerView,
     val genreCursor: Int,

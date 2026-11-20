@@ -12,7 +12,7 @@
     <string name="program_episode_number">E%1$d · %2$s</string>
 
     <string name="program_next">Up next: %1$s at %2$s</string>
-    <string name="program_off_air_until">Off air until %1$s</string>
+    <string name="program_off_air_until">Off the air until %1$s</string>
     <!-- A station break (leftover time spread through the day): the time is when the next programme starts. -->
     <string name="program_station_break_up_next">Station break · Up next at %1$s</string>
     <string name="program_starts_in">Starts in %1$d min</string>
@@ -51,7 +51,7 @@
          channel one way. The tags: the kind, and the kids tag with the channel's rating ceiling when it has one. -->
     <string name="channel_tag_builtin">Built-in</string>
     <string name="channel_tag_custom">Custom</string>
-    <string name="channel_tag_leftovers">Leftovers</string>
+    <string name="channel_tag_leftovers">Everything else</string>
     <string name="channel_tag_kids">Kids \u00B7 up to %1$s</string>
     <string name="channel_tag_kids_plain">Kids</string>
     <!-- What a channel plays: the sheet's "What it plays" rows, and the box's tag line for a channel with no

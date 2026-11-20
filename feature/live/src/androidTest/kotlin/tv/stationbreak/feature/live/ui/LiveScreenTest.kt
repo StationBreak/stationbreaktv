@@ -241,7 +241,7 @@ class LiveScreenTest {
         show(LiveState.TechnicalDifficulties(banner(BannerLabel.UpNext, joinedMs = null)))
         compose.onNodeWithTag(LiveTags.DIFFICULTIES).assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("TECHNICAL DIFFICULTIES")
-        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("WE'LL BE RIGHT BACK")
+        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("PLAYING SOMETHING ELSE SHORTLY")
         compose.onNodeWithText("UP NEXT").assertExists()
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
     }
@@ -301,12 +301,13 @@ class LiveScreenTest {
         show(LiveState.NoChannels)
         compose
             .onNodeWithTag(LiveTags.NO_CHANNELS)
-            .assertContentDescriptionEquals("No channels on the air yet. Guide, Channels.")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+            .assertContentDescriptionEquals(
+                "No channels on the air yet. Press Back for the guide, then Menu, then Channels.",
+            ).assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("NOTHING ON").assertExists()
         compose.onNodeWithText("THE AIR").assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("NO CHANNELS YET")
-        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("GUIDE · CHANNELS")
+        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("BACK, THEN MENU › CHANNELS")
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }
@@ -317,12 +318,13 @@ class LiveScreenTest {
         show(LiveState.NoLibraries, ChannelChangeStyle.Snow)
         compose
             .onNodeWithTag(LiveTags.NO_LIBRARIES)
-            .assertContentDescriptionEquals("No libraries available. Guide, Settings, Libraries.")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+            .assertContentDescriptionEquals(
+                "No libraries available. Press Back for the guide, then Menu, then Settings, then Libraries.",
+            ).assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("NOTHING ON").assertExists()
         compose.onNodeWithText("THE SHELF").assertExists()
         compose.onNodeWithTag(LiveTags.STAN_STATUS).assertTextEquals("NO LIBRARIES")
-        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("GUIDE · SETTINGS · LIBRARIES")
+        compose.onNodeWithTag(LiveTags.STAN_DETAIL).assertTextEquals("BACK, THEN MENU › SETTINGS › LIBRARIES")
         compose.onNodeWithTag(LiveTags.SNOW).assertDoesNotExist()
         compose.onNodeWithTag(LiveTags.BANNER).assertDoesNotExist()
     }

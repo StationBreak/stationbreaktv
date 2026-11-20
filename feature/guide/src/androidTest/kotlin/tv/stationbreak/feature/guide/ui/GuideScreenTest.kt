@@ -734,8 +734,8 @@ class GuideScreenTest {
         press(Key.DirectionRight)
         cell(CH9, 150).assertIsSelected()
         val slate = text(GuideTags.cellText(CH9, min(150)))
-        assertEquals("OFF AIR", slate)
-        assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off air until "))
+        assertEquals("OFF THE AIR", slate)
+        assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off the air until "))
         // Nothing to watch or read about: the hint says what Back does (here, back to the playing channel) and Menu.
         assertEquals("Back To what's playing   Menu Open the menu", text(GuideTags.HINT))
     }

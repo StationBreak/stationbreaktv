@@ -202,12 +202,21 @@ class StanSpecsTest {
                 .associate { (name, text) -> name to text }
         assertEquals("NOTHING ON\\nTHE AIR", strings["live_stan_no_channels_headline"])
         assertEquals("NO CHANNELS YET", strings["live_stan_no_channels_status"])
-        assertEquals("GUIDE · CHANNELS", strings["live_stan_no_channels_detail"])
-        assertEquals("No channels on the air yet. Guide, Channels.", strings["live_stan_spoken_no_channels"])
+        assertEquals("BACK, THEN MENU › CHANNELS", strings["live_stan_no_channels_detail"])
+        assertEquals(
+            "No channels on the air yet. Press Back for the guide, then Menu, then Channels.",
+            strings["live_stan_spoken_no_channels"],
+        )
         assertEquals("NOTHING ON\\nTHE SHELF", strings["live_stan_no_libraries_headline"])
         assertEquals("NO LIBRARIES", strings["live_stan_no_libraries_status"])
-        assertEquals("GUIDE · SETTINGS · LIBRARIES", strings["live_stan_no_libraries_detail"])
-        assertEquals("No libraries available. Guide, Settings, Libraries.", strings["live_stan_spoken_no_libraries"])
+        assertEquals("BACK, THEN MENU › SETTINGS › LIBRARIES", strings["live_stan_no_libraries_detail"])
+        assertEquals(
+            "No libraries available. Press Back for the guide, then Menu, then Settings, then Libraries.",
+            strings["live_stan_spoken_no_libraries"],
+        )
+        // The slate holds a few seconds and then plays something else: it never promises a retry.
+        assertEquals("PLAYING SOMETHING ELSE SHORTLY", strings["live_stan_trouble_detail"])
+        assertEquals("Technical difficulties. Playing something else shortly.", strings["live_stan_spoken_trouble"])
     }
 
     @Test

@@ -67,7 +67,7 @@ internal val CompactBelow = 48.dp
 /** A programme's title in its cell, and a run's label ([RunLabelView]). */
 internal val CellTitleStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 
-/** A slate's "OFF AIR" and a break's "STATION BREAK" plate. */
+/** A slate's "OFF THE AIR" and a break's "STATION BREAK" plate. */
 private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
 
 private val EpisodeFrom = 110.dp
@@ -349,9 +349,9 @@ private class CellTextSlots(
 )
 
 /**
- * The cell's title, a slate's "OFF AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5" when two
- * lines fit ([secondLineOf]). The one or two lines are a block, centred in the cell by the box around it; the sticky
- * layout [modifier] places the block ([CellTextSlots.layout]) and the title alone is tagged.
+ * The cell's title, a slate's "OFF THE AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5"
+ * when two lines fit ([secondLineOf]). The one or two lines are a block, centred in the cell by the box around it;
+ * the sticky layout [modifier] places the block ([CellTextSlots.layout]) and the title alone is tagged.
  */
 @Composable
 private fun CellText(

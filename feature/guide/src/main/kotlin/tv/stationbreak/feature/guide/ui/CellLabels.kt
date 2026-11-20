@@ -15,7 +15,7 @@ internal class CellLabels(
 
 /**
  * [cell]'s labels. All the strings are always read, so a cell that changes kind does not change which composables run.
- * A slate on the grid is the "OFF AIR" plate and a break the "STATION BREAK" plate; the panel keeps [cellTitle]'s
+ * A slate on the grid is the "OFF THE AIR" plate and a break the "STATION BREAK" plate; the panel keeps [cellTitle]'s
  * longer lines. A screen reader hears a break's panel title and meta line ("Station break · Up next: News at 9:30 PM"),
  * not the plate.
  */

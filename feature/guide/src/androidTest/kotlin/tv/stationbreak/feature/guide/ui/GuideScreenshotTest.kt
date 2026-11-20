@@ -195,7 +195,7 @@ private object ScreenshotLineup : ChannelRepository {
  * the test app's external files in [SCREENSHOT_DIR]. The lineup, the 960 by 540 host and the keys are the guide screen
  * test's. Dark is the default. The same frames are taken again in Light. The focused cell is a wide episode with
  * its "S1 E19" line and the panel's year, runtime and genres; a long movie title elsewhere is cut at its cell's end. A
- * focused slate reads OFF AIR and the panel still says when it returns.
+ * focused slate reads OFF THE AIR and the panel still says when it returns.
  */
 @Suppress("LargeClass") // One function per frame of the guide, over one shared rig of fixtures.
 @RunWith(AndroidJUnit4::class)
@@ -320,7 +320,7 @@ class GuideScreenshotTest {
             shoot("$CHANNEL_BOX_FRAME-custom$suffix.png")
             repeat(3) { press(Key.DirectionDown) }
             awaitTagLine("Plays whatever nothing else does")
-            assertEquals("LEFTOVERS", text(GuideTags.CHANNEL_PANEL_TAG + 0))
+            assertEquals("EVERYTHING ELSE", text(GuideTags.CHANNEL_PANEL_TAG + 0))
             shoot("$CHANNEL_BOX_FRAME-leftovers$suffix.png")
         }
     }
@@ -801,8 +801,8 @@ class GuideScreenshotTest {
         if (shown != GuideTheme.Dark) return
         press(Key.DirectionRight)
         cell(CH9, 150).assertIsSelected()
-        assertEquals("OFF AIR", text(GuideTags.cellText(CH9, T0 + 150 * MIN)))
-        assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off air until "))
+        assertEquals("OFF THE AIR", text(GuideTags.cellText(CH9, T0 + 150 * MIN)))
+        assertTrue(text(GuideTags.PANEL_TITLE).startsWith("Off the air until "))
         shoot(OFF_AIR)
     }
 
