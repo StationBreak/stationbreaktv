@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -70,6 +71,11 @@ class CheerHandOverTest {
     private var standingBy by mutableStateOf(true)
     private var keysBeneath by mutableIntStateOf(0)
 
+    // Whether the stand-in has asked for the focus yet. Live TV is built after the cheer ends and asks only once it is
+    // started, so it never asks before the cover begins; a test can hold the ask back for longer.
+    private var liveTakesFocus by mutableStateOf(false)
+    private var liveAsksWithTheCheer = true
+
     @Before
     fun inject() = hilt.inject()
 
@@ -91,6 +97,10 @@ class CheerHandOverTest {
         }
         compose.runOnIdle { handOver.begin() }
         compose.waitForIdle()
+        if (liveAsksWithTheCheer) {
+            compose.runOnIdle { liveTakesFocus = true }
+            compose.waitForIdle()
+        }
     }
 
     /** Live TV as the cover sees it: a stand-by until the picture, the first-visit note, and the focus. */
@@ -98,7 +108,7 @@ class CheerHandOverTest {
     private fun StandInLive() {
         val focus = remember { FocusRequester() }
         var note by remember { mutableStateOf(true) }
-        LaunchedEffect(Unit) { focus.requestFocus() }
+        LaunchedEffect(liveTakesFocus) { if (liveTakesFocus) focus.requestFocus() }
         LaunchedEffect(standingBy) { if (!standingBy) handOver.end() }
         Column(
             Modifier
@@ -161,6 +171,26 @@ class CheerHandOverTest {
         assertEquals("lifted", 0, count(STILL))
         assertEquals("no key reached live TV: nothing tuned", 0, keysBeneath)
         assertEquals("the first-visit note is still there", 1, count(NOTE))
+    }
+
+    @Test
+    fun backBeforeLiveTvHasTheFocusStillLiftsTheStillAndStaysInTheApp() {
+        // The cheer's focused headline is gone and live TV has not asked for the focus yet: the cover holds it, so
+        // Back is the cover's and never leaves the app on the first run.
+        liveAsksWithTheCheer = false
+        handOver()
+        compose.onNodeWithTag(BENEATH).assertIsNotFocused()
+
+        press(KeyEvent.KEYCODE_BACK)
+
+        assertFalse("Back before live TV has the focus never leaves the app", compose.activity.isFinishing)
+        assertEquals("lifted", 0, count(STILL))
+        assertEquals(0, keysBeneath)
+
+        // Live TV's own request, when it comes, still wins.
+        compose.runOnIdle { liveTakesFocus = true }
+        compose.waitForIdle()
+        compose.onNodeWithTag(BENEATH).assertIsFocused()
     }
 
     @Test

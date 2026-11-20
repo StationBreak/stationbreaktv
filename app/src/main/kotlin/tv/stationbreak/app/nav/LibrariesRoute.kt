@@ -27,8 +27,9 @@ data object FirstSyncRoute
 /**
  * The live channel (spec 14): where the app opens once setup is finished. Nothing is under it on the back stack, so
  * Back leaves the app. [fromCheer] is true when it was entered straight from setup's cheer, which is then held still
- * over it ([SetupHandOver]): decided once, in the navigation call, so the transitions never depend on a key pressed
- * after it.
+ * over it ([SetupHandOver]). It is only a hint for the transitions, decided once in the navigation call, so they never
+ * depend on a key pressed after it. After process death it is restored with the back stack and means nothing then,
+ * which is harmless: no transition into the restored entry reads it.
  */
 @Serializable
 data class LiveRoute(

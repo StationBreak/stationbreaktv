@@ -82,7 +82,10 @@ internal fun AppNavGraph(
     var launchReady by remember { mutableStateOf(false) }
     var skip by remember { mutableStateOf(false) }
     val handOver = remember { SetupHandOver() }
-    val cheerFrame = rememberFirstSyncCheerFrame()
+    // The cheer's frame (its Stan renderer), held from the cheer's end only until the still lifts: before that the
+    // first-sync entry owns it, and after it nothing does, so it is not kept for the rest of the session.
+    var heldCheer by remember { mutableStateOf<FirstSyncCheerFrame?>(null) }
+    LaunchedEffect(handOver.covering) { if (!handOver.covering) heldCheer = null }
     val activity = LocalActivity.current
     val opening = phase == OpeningPhase.Playing
     // Cosmetic and asynchronous: the navigation itself is already done when the still starts waiting.
@@ -100,7 +103,7 @@ internal fun AppNavGraph(
     GraphCoverHost(
         covers,
         overlays = {
-            if (handOver.covering) FirstSyncCheerStill(cheerFrame)
+            heldCheer?.takeIf { handOver.covering }?.let { FirstSyncCheerStill(it) }
             if (phase != OpeningPhase.Gone) {
                 StanOpening(
                     appReady = launchReady,
@@ -114,7 +117,12 @@ internal fun AppNavGraph(
         AppNavHostContent(
             navController,
             startDestination,
-            remember(opening, handOver, cheerFrame) { GraphParts(opening, handOver, cheerFrame) },
+            remember(opening, handOver) {
+                GraphParts(opening, handOver) { frame ->
+                    heldCheer = frame
+                    handOver.begin()
+                }
+            },
             onLaunchReady = { launchReady = true },
             onLaunchNeedsScreen = {
                 launchReady = true
@@ -142,11 +150,14 @@ private class OpeningCover(
     override fun onBack() = back()
 }
 
-/** What the graph above shares with its routes: whether the opening covers them, and setup's hand-over to live TV. */
+/**
+ * What the graph above shares with its routes: whether the opening covers them, setup's hand-over to live TV, and
+ * [holdCheer], which holds the cheer's frame over live TV and begins the hand-over.
+ */
 private class GraphParts(
     val openingCovers: Boolean,
     val handOver: SetupHandOver,
-    val cheerFrame: FirstSyncCheerFrame,
+    val holdCheer: (FirstSyncCheerFrame) -> Unit,
 )
 
 /** True when this entry is live TV entered from setup's cheer: decided once, in the navigation call. */
@@ -262,6 +273,8 @@ private fun AppNavHostContent(
                 if (targetState.isLiveFromCheer()) ExitTransition.None else fadeOut(tween(DEFAULT_FADE_MILLIS))
             },
         ) {
+            // The entry's own: dropped with it, unless the cheer hands it to the still.
+            val cheerFrame = rememberFirstSyncCheerFrame()
             FirstSyncDestination(
                 // No button: when the first sync ends with nothing to cheer, the app moves on to the live channel.
                 onFinished = { navController.replaceAll(LiveRoute()) },
@@ -272,10 +285,10 @@ private fun AppNavHostContent(
                 // in the same frame as live TV's first, heavy one, and is what that frame shows, frozen on the
                 // cheer's last drawn frame. Nothing is deferred, so a recreation can never strand the viewer here.
                 onCheered = {
-                    handOver.begin()
+                    parts.holdCheer(cheerFrame)
                     navController.replaceAll(LiveRoute(fromCheer = true))
                 },
-                cheerFrame = parts.cheerFrame,
+                cheerFrame = cheerFrame,
             )
         }
         composable<LiveRoute> {

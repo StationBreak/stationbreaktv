@@ -24,7 +24,8 @@ internal fun FirstSyncEvent.sendTo(
 /**
  * What the cheer and its still share, so the still is the cheer's own last frame: one Stan renderer (his parsed paths
  * and glyphs, made once, so the still's first frame builds nothing) and the recorder of the moment Stan last drew. The
- * graph remembers one ([rememberFirstSyncCheerFrame]) and hands it to [FirstSyncDestination] and [FirstSyncCheerStill].
+ * first-sync destination's caller remembers one ([rememberFirstSyncCheerFrame]) and hands it to [FirstSyncDestination];
+ * after the cheer it is held for [FirstSyncCheerStill] only until the still lifts, then let go.
  */
 @Stable
 class FirstSyncCheerFrame internal constructor(

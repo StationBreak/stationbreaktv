@@ -26,9 +26,10 @@ internal val SETUP_HAND_OVER_WAIT: Duration = 5.seconds
  * [end] (live TV stopped standing by, or a key) for [wait] at most, and lifts the still either way. Live TV not entered
  * from the cheer is never covered: [end] alone does nothing.
  *
- * The hold deliberately does not survive a recreation of the graph (process death; the activity keeps itself across
- * configuration changes): it is in memory only, and a recreated graph shows live TV as it is, with its own stand-by
- * card if it is still tuning. The navigation is never left half done, since it happens with [begin].
+ * The hold deliberately does not survive a recreation of the graph (process death, or a configuration change the
+ * activity does not handle itself; it handles most, see the manifest): it is in memory only, and a recreated graph
+ * shows live TV as it is, with its own stand-by card if it is still tuning. The navigation is never left half done,
+ * since it happens with [begin].
  */
 @Stable
 internal class SetupHandOver(

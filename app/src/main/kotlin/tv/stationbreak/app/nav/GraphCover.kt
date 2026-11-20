@@ -45,14 +45,17 @@ internal interface GraphCover {
 
 /**
  * Setup's cheer held over live TV ([SetupHandOver]): a key or Back lifts it and goes no further, as during the cheer
- * itself. Live TV and its first-visit guide take the focus beneath it themselves, so it holds none: the focus is
- * already where it belongs when the cover lifts.
+ * itself. It holds the focus: the cheer's focused headline goes in the frame that builds live TV, and live TV asks for
+ * the focus only once it is started, so without it nothing would hold the focus in between and a key (Back above all,
+ * which could leave the app on its first run) would pass the cover by. The host asks in the frame the cover begins,
+ * before live TV is started, so live TV's own request comes later and wins, and the focus is where it belongs when the
+ * cover lifts.
  */
 internal class CheerCover(
     private val handOver: SetupHandOver,
 ) : GraphCover {
     override val active: Boolean get() = handOver.covering
-    override val holdsFocus: Boolean = false
+    override val holdsFocus: Boolean = true
 
     override fun onKey() = handOver.end()
 
