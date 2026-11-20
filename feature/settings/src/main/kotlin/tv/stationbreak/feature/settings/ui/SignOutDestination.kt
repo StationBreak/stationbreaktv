@@ -28,7 +28,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -143,8 +142,9 @@ internal class SignOutActions(
 }
 
 /**
- * The question as [state] has it. A screen reader hears the question and the note once, as the pane's title when it
- * opens; the root says only the answer under the D-pad ("Stay signed in" or "Sign out"). Two live regions, never at
+ * The question as [state] has it. Until the viewer moves, the root's description is the question, the note and the
+ * answer under the D-pad, so a screen reader says all of it on open (VoiceView on Fire OS 6, API 25, reads no pane
+ * title); after the first move it is the answer alone ("Stay signed in" or "Sign out"). Two live regions, never at
  * once on open: the answers, which say the one under the D-pad after each move while it asks, and the status line, for
  * what happens after a choice: signing out, signed out with the server not told, or a failure.
  */
@@ -158,16 +158,15 @@ internal fun SignOutScreen(
     val stay = stringResource(R.string.settings_sign_out_stay)
     val signOut = stringResource(R.string.settings_sign_out)
     val note = stringResource(R.string.settings_sign_out_note)
-    val title = listOf(question, note).joinToString(" ")
     val focused = if (state.focus == SignOutChoice.Stay) stay else signOut
+    val described = if (state.moved) focused else listOf(question, note, focused).joinToString(" ")
     val status = signOutStatus(state)
     LeftSheet(
         SheetMeasures.Width,
         modifier
             .testTag(SettingsTags.SIGN_OUT)
             .semantics {
-                paneTitle = title
-                contentDescription = focused
+                contentDescription = described
             },
         scrim = false,
     ) {

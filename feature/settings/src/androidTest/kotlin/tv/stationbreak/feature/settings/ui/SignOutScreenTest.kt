@@ -129,8 +129,9 @@ class SignOutScreenTest {
         show()
         compose
             .onNodeWithTag(SettingsTags.SIGN_OUT)
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, QUESTION_AND_NOTE))
-            .assertContentDescriptionEquals("Stay signed in")
+            // The whole of it on open, as its description: VoiceView on API 25 reads no pane title.
+            .assertContentDescriptionEquals("$QUESTION_AND_NOTE Stay signed in")
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.PaneTitle))
         // On open nothing is a live region: the pane title and the root's description say it once.
         assertEquals(0, liveRegions())
         // Each move is said, short: the answers' live region holds only the answer, never the question again.
@@ -139,6 +140,8 @@ class SignOutScreenTest {
         answers().assertContentDescriptionEquals("Sign out").assert(polite)
         assertEquals(1, liveRegions())
         press(Key.DirectionUp)
+        // After the first move, the answer alone: the question is not said again.
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Stay signed in")
         answers().assertContentDescriptionEquals("Stay signed in").assert(polite)
         assertEquals(1, liveRegions())
     }

@@ -38,8 +38,8 @@ import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.LocalScreenFit
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
@@ -97,40 +97,38 @@ fun GuideDestination(
     // What live TV shows while the channel changes: the guide only sets it.
     val changes = rememberChannelChangeStore()
     val channelChange by changes.style.collectAsStateWithLifecycle()
-    CompositionLocalProvider(
-        LocalGuideColors provides theme.colors,
-        LocalPanelColors provides theme.colors.panel,
-        LocalMarkCache provides MarkCaches.get(LocalContext.current),
-    ) {
-        GuideRoot(
-            viewModel,
-            opening,
-            pictureHole,
-            onTune,
-            channels,
-            modifier,
-            viewModel.measure,
-            theme,
-            themes::choose,
-            fits::choose,
-            properties,
-            libraries,
-            signOut,
-            levelling = levelling,
-            onLevelling = { enabled, from -> levellings.choose(enabled, from) },
-            channelChange = channelChange,
-            onChannelChange = { style, from -> changes.choose(style, from) },
-            // The stores as they stand at the key, not as the last frame saw them: two presses inside one frame both
-            // step, each from the value the one before chose.
-            valuesNow = {
-                SettingsValues(
-                    themes.theme.value,
-                    fits.fit.value,
-                    changes.style.value,
-                    levellings.enabled.value,
-                )
-            },
-        )
+    ProvideGuideColors(theme.colors) {
+        CompositionLocalProvider(LocalMarkCache provides MarkCaches.get(LocalContext.current)) {
+            GuideRoot(
+                viewModel,
+                opening,
+                pictureHole,
+                onTune,
+                channels,
+                modifier,
+                viewModel.measure,
+                theme,
+                themes::choose,
+                fits::choose,
+                properties,
+                libraries,
+                signOut,
+                levelling = levelling,
+                onLevelling = { enabled, from -> levellings.choose(enabled, from) },
+                channelChange = channelChange,
+                onChannelChange = { style, from -> changes.choose(style, from) },
+                // The stores as they stand at the key, not as the last frame saw them: two presses inside one frame
+                // both step, each from the value the one before chose.
+                valuesNow = {
+                    SettingsValues(
+                        themes.theme.value,
+                        fits.fit.value,
+                        changes.style.value,
+                        levellings.enabled.value,
+                    )
+                },
+            )
+        }
     }
 }
 
