@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,7 +32,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.hideFromAccessibility
@@ -47,10 +45,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
-import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
+import tv.stationbreak.core.ui.stan.StanHostMoment
 import tv.stationbreak.core.ui.stan.StanOpeningKey
+import tv.stationbreak.core.ui.stan.rememberStanRenderer
 import tv.stationbreak.core.ui.stan.stanOpeningKey
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.SetupColumn
@@ -77,53 +76,36 @@ private const val TOP_OFFSET = 0.1f
  * moves on by itself when it ends, with no button. Back is the platform's: the navigation graph puts nothing beneath
  * this screen, so Back leaves the app and the sync carries on in the background. Only during the cheer at the end does
  * Back skip to live TV.
+ *
+ * [onFinished] is called when the sync ends with nothing to cheer, [onCheered] after Stan's cheer, and [onSessionLost]
+ * when the sign-in is gone. [cheerFrame] is shared with [FirstSyncCheerStill], so a still of the cheer is its last
+ * frame.
  */
 @Composable
 fun FirstSyncDestination(
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
-    onCheered: () -> Unit = onFinished,
+    onCheered: () -> Unit,
+    cheerFrame: FirstSyncCheerFrame,
 ) {
     val viewModel: FirstSyncViewModel = hiltViewModel()
-    FirstSyncRoot(viewModel, onFinished, onSessionLost, onCheered)
+    FirstSyncRoot(viewModel, onFinished, onSessionLost, onCheered, cheerFrame)
 }
 
-/**
- * [FirstSyncDestination] without Hilt, so a test can bring its own ViewModel. [onCheered] stands in for [onFinished]
- * after Stan's cheer (the same by default): the caller can keep [FirstSyncCheerStill] up over what follows.
- */
+/** [FirstSyncDestination] without Hilt, so a test can bring its own ViewModel. */
 @Composable
 internal fun FirstSyncRoot(
     viewModel: FirstSyncViewModel,
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
-    onCheered: () -> Unit = onFinished,
+    onCheered: () -> Unit,
+    cheerFrame: FirstSyncCheerFrame,
 ) {
     val phase by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
-        viewModel.events.collect {
-            when (it) {
-                FirstSyncEvent.Finished -> onFinished()
-                FirstSyncEvent.Cheered -> onCheered()
-                FirstSyncEvent.SessionLost -> onSessionLost()
-            }
-        }
+        viewModel.events.collect { it.sendTo(onFinished, onSessionLost, onCheered) }
     }
-    FirstSyncScreen(phase, onRetry = viewModel::onRetry, onSkipCheer = viewModel::skipCheer)
-}
-
-/**
- * The cheer's look held still: the screen as it is at the end of Stan's cheer, with Stan on his still frame (the one
- * "Remove animations" shows). The app draws it over live TV after [FirstSyncEvent.Cheered] while live TV gets its
- * first picture, so the first session goes from the cheer to a programme with no stand-by card in between; still, so
- * nothing in it can drop frames while the next screen is built underneath. It takes no key and no focus, and a screen
- * reader skips it: the cheer has already been said.
- */
-@Composable
-fun FirstSyncCheerStill(modifier: Modifier = Modifier) {
-    CompositionLocalProvider(LocalMotionReduced provides true) {
-        FirstSyncScreen(FirstSyncPhase.Done, onRetry = {}, modifier = modifier.clearAndSetSemantics {}, still = true)
-    }
+    FirstSyncScreen(phase, onRetry = viewModel::onRetry, onSkipCheer = viewModel::skipCheer, cheerFrame = cheerFrame)
 }
 
 /**
@@ -132,19 +114,29 @@ fun FirstSyncCheerStill(modifier: Modifier = Modifier) {
  * the aerial for the whole sync (a busy Stan never dozes), at the host's 20 fps cap. On a failure the error from the
  * error table shows with Retry, which has default focus. While the channels are built he keeps working; once one is on
  * the air he cheers us on it, and any key but volume, Back included, calls [onSkipCheer]: on to live TV, never out of
- * the app. [still] is the cheer held over the next screen ([FirstSyncCheerStill]): nothing on it takes focus or keys.
+ * the app. With [cheerFrame] Stan is drawn with its renderer and his frames are recorded; with [frozenAt] as well he is
+ * held on that moment and the screen is the cheer's still ([FirstSyncCheerStill]): nothing on it takes focus or keys.
  */
+@Suppress("LongParameterList") // The phase, its two actions, and the cheer's frame and freeze.
 @Composable
 internal fun FirstSyncScreen(
     phase: FirstSyncPhase,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onSkipCheer: () -> Unit = {},
-    still: Boolean = false,
+    cheerFrame: FirstSyncCheerFrame? = null,
+    frozenAt: StanHostMoment? = null,
 ) {
+    val still = frozenAt != null
     val cheering = phase == FirstSyncPhase.Done && !still
     val keys = if (cheering) Modifier.onPreviewKeyEvent { skipsCheer(it, onSkipCheer) } else Modifier
-    SetupScaffold(firstSyncCue(phase), modifier.then(keys)) { contentPadding ->
+    SetupScaffold(
+        firstSyncCue(phase),
+        modifier.then(keys),
+        renderer = cheerFrame?.renderer ?: rememberStanRenderer(),
+        stanRecorder = cheerFrame?.recorder?.takeIf { !still },
+        stanFreezeAt = frozenAt,
+    ) { contentPadding ->
         // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
         SetupColumn(
             contentPadding,

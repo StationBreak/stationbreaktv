@@ -21,10 +21,14 @@ internal val SETUP_HAND_OVER_WAIT: Duration = 5.seconds
  * on a stand-by card. While [covering], the graph draws the cheer's still over live TV, which is built and tunes
  * beneath it.
  *
- * [begin] when the cheer ends: the still covers from that frame, before live TV is built, so the heavy frames that
- * build it show a still picture and drop nothing that moves. [hold] then waits for [end] (live TV stopped standing by,
- * or a key) for [wait] at most, and lifts the still either way. Live TV not entered from the cheer is never covered:
- * [end] alone does nothing.
+ * [begin] when the cheer ends, in the same callback as the navigation to live TV: the still is composed in the frame
+ * that builds live TV, so that heavy frame shows a still picture and drops nothing that moves. [hold] then waits for
+ * [end] (live TV stopped standing by, or a key) for [wait] at most, and lifts the still either way. Live TV not entered
+ * from the cheer is never covered: [end] alone does nothing.
+ *
+ * The hold deliberately does not survive a recreation of the graph (process death; the activity keeps itself across
+ * configuration changes): it is in memory only, and a recreated graph shows live TV as it is, with its own stand-by
+ * card if it is still tuning. The navigation is never left half done, since it happens with [begin].
  */
 @Stable
 internal class SetupHandOver(

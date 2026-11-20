@@ -26,7 +26,11 @@ data object FirstSyncRoute
 
 /**
  * The live channel (spec 14): where the app opens once setup is finished. Nothing is under it on the back stack, so
- * Back leaves the app.
+ * Back leaves the app. [fromCheer] is true when it was entered straight from setup's cheer, which is then held still
+ * over it ([SetupHandOver]): decided once, in the navigation call, so the transitions never depend on a key pressed
+ * after it.
  */
 @Serializable
-data object LiveRoute
+data class LiveRoute(
+    val fromCheer: Boolean = false,
+)

@@ -5,8 +5,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -82,12 +84,26 @@ class SetupHandOverTest {
         }
 
     @Test
+    fun liftedBeforeTheHoldBeginsTheHoldReturnsAtOnce() =
+        runTest {
+            val handOver = SetupHandOver(wait)
+            handOver.begin()
+            handOver.end()
+
+            val began = currentTime
+            handOver.hold()
+
+            assertEquals("no wait", began, currentTime)
+            assertFalse(handOver.covering)
+        }
+
+    @Test
     fun theStillCoversFromTheMomentTheCheerEndsBeforeAnyWaitBegins() {
         val handOver = SetupHandOver(wait)
 
         handOver.begin()
 
-        // Drawn in the frame before live TV is built, so the heavy frames show the still.
+        // Composed in the same frame as live TV's first, so that heavy frame shows the still.
         assertTrue(handOver.covering)
     }
 }

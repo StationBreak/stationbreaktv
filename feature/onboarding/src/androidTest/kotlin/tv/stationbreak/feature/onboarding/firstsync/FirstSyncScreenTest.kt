@@ -36,6 +36,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.awaitFocusedForKeys
 import tv.stationbreak.feature.onboarding.awaitWindowFocus
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -307,7 +308,7 @@ class FirstSyncScreenTest {
                     val beneath = remember { FocusRequester() }
                     Box(Modifier.testTag(BENEATH).focusRequester(beneath).focusable())
                     LaunchedEffect(Unit) { beneath.requestFocus() }
-                    FirstSyncCheerStill()
+                    FirstSyncCheerStill(rememberFirstSyncCheerFrame())
                 }
             }
         }
@@ -317,7 +318,10 @@ class FirstSyncScreenTest {
 
         compose.onNodeWithTag(BENEATH).assertIsFocused()
         compose.onAllNodes(isFocusable()).assertCountEquals(1)
-        compose.onAllNodes(hasText("Your library is ready", substring = true)).assertCountEquals(0)
+        val ready = compose.activity.getString(R.string.first_sync_done_headline)
+        compose.onAllNodes(hasText(ready, substring = true), useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithTag(FirstSyncTags.DONE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(FirstSyncTags.SCREEN, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,6 +39,33 @@ class StanHostTest {
         compose.onNodeWithText("THERE IT IS!").assertDoesNotExist()
         compose.onNodeWithText("THERE IT IS!", useUnmergedTree = true).assertDoesNotExist()
         compose.onAllNodes(isFocusable(), useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aHostFrozenOnAnotherHostsMomentDrawsThatMomentAndNothingMoves() {
+        // The animated host records the frame it drew last; a host frozen on that moment draws the same one, still.
+        val animated = StanHostRecorder()
+        val frozen = StanHostRecorder()
+        var still by mutableStateOf<StanHostMoment?>(null)
+        compose.setContent {
+            StationBreakTheme {
+                val at = still
+                if (at == null) {
+                    StanHost(StanMood.Cheer, "ON THE AIR!", recorder = animated)
+                } else {
+                    StanHost(StanMood.Cheer, "ON THE AIR!", freezeAt = at, recorder = frozen)
+                }
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(HALF_SECOND_MS)
+        val moment = animated.last
+        assertTrue("the animated host ran", moment.seconds > 0.0)
+
+        compose.runOnUiThread { still = moment }
+        compose.mainClock.advanceTimeBy(HALF_SECOND_MS * 2)
+
+        assertEquals(moment, frozen.last)
     }
 
     @Test

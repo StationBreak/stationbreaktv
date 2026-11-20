@@ -62,6 +62,22 @@ enum class StanMood {
     Dozing,
 }
 
+/** One moment of a host's Stan: [seconds] on his mood's clock, and whether he was [talking]. */
+data class StanHostMoment(
+    val seconds: Double,
+    val talking: Boolean,
+)
+
+/**
+ * Keeps the moment of the frame a [StanHost] last drew ([last]), so another host can freeze on it. Written in the draw
+ * phase as a plain field: recording costs no recomposition.
+ */
+class StanHostRecorder {
+    /** The last frame drawn; the start of the clock before any. */
+    var last: StanHostMoment = StanHostMoment(0.0, talking = false)
+        internal set
+}
+
 /** Test tags for the host. The bubble's is for tests only: the host is hidden from accessibility. */
 internal object StanHostTags {
     const val BUBBLE = "stanHost.bubble"
@@ -97,7 +113,12 @@ private val TAIL_TIP = TransformOrigin(pivotFractionX = 0.5f, pivotFractionY = 1
  *
  * Placement: the host is 320 dp wide (the widest bubble) and as tall as Stan plus the bubble. Lay it as an overlay in
  * a `Box`, aligned `BottomEnd` (or `BottomStart`) inside the safe area, so Stan stays put as lines come and go.
+ *
+ * Freezing: [recorder] keeps the moment of the frame last drawn, and a host given [freezeAt] (that moment, read from
+ * another host's recorder) draws exactly that frame and nothing moves: no clock, no talk timer and no bubble pop. So a
+ * still of a screen can stand in for the screen itself with no jump. Reduced motion still wins: its still frame.
  */
+@Suppress("LongParameterList") // The host's look, and the freeze: each defaulted.
 @Composable
 fun StanHost(
     mood: StanMood,
@@ -105,11 +126,14 @@ fun StanHost(
     modifier: Modifier = Modifier,
     palette: StanPalette = StanPalette.Dark,
     renderer: StanRenderer = rememberStanRenderer(palette),
+    freezeAt: StanHostMoment? = null,
+    recorder: StanHostRecorder? = null,
 ) {
     val reduced = LocalMotionReduced.current
     val shown = hostLine(mood, line)
-    val talking = remember { mutableStateOf(false) }
-    LaunchedEffect(shown, reduced) {
+    val talking = remember { mutableStateOf(freezeAt?.talking == true) }
+    LaunchedEffect(shown, reduced, freezeAt) {
+        if (freezeAt != null) return@LaunchedEffect
         talking.value = shown != null && !reduced
         if (talking.value) {
             delay(TALK_MILLIS)
@@ -127,38 +151,51 @@ fun StanHost(
         // The root's clearing hides the bubble from the merged tree (what a screen reader reads), but the unmerged tree
         // still lists replaced nodes. Clearing on the text itself also drops the text BasicText sets further in on the
         // same node, so no tree has the line.
-        StanBubble(shown, palette, textModifier = Modifier.clearAndSetSemantics {})
+        StanBubble(shown, palette, textModifier = Modifier.clearAndSetSemantics {}, frozen = freezeAt != null)
         Crossfade(
             targetState = mood,
             animationSpec = if (reduced) snap() else tween(FADE_MILLIS),
             label = "stanHostMood",
         ) { shown ->
-            StanFigure(shown, talking, renderer, Modifier.size(FIGURE_W, FIGURE_H))
+            StanFigure(shown, talking, renderer, Modifier.size(FIGURE_W, FIGURE_H), freezeAt, recorder)
         }
     }
 }
 
-/** Stan in [mood] on his own clock, read only while drawing, so each tick redraws without recomposing. */
+/**
+ * Stan in [mood] on his own clock, read only while drawing, so each tick redraws without recomposing; or held on
+ * [freezeAt]. Each frame drawn is told to [recorder].
+ */
+@Suppress("LongParameterList") // The figure, its talk, how it is drawn, and the freeze.
 @Composable
 private fun StanFigure(
     mood: StanMood,
     talking: State<Boolean>,
     renderer: StanRenderer,
     modifier: Modifier,
+    freezeAt: StanHostMoment?,
+    recorder: StanHostRecorder?,
 ) {
     val reduced = LocalMotionReduced.current
-    val clock = rememberStanClock(mood, null, HOST_FPS)
-    val frame =
-        remember(mood, reduced) {
+    val clock = rememberStanClock(mood, freezeAt?.seconds, HOST_FPS)
+    val moment =
+        remember(mood, reduced, freezeAt) {
             derivedStateOf {
-                hostFrame(mood, stanTimeSeconds(null, reduced, clock.longValue), talking.value && !reduced)
+                StanHostMoment(stanTimeSeconds(freezeAt?.seconds, reduced, clock.longValue), talking.value && !reduced)
             }
+        }
+    val frame =
+        remember(mood, moment) {
+            derivedStateOf { moment.value.let { hostFrame(mood, it.seconds, it.talking) } }
         }
     val painter = renderer.painter
     Spacer(
         modifier.drawWithCache {
             val transform = hostTransform(size.width, size.height)
-            onDrawBehind { painter.drawPicture(this, transform, frame.value) }
+            onDrawBehind {
+                recorder?.last = moment.value
+                painter.drawPicture(this, transform, frame.value)
+            }
         },
     )
 }
@@ -176,10 +213,11 @@ internal fun StanBubble(
     line: String?,
     palette: StanPalette,
     textModifier: Modifier = Modifier.testTag(StanHostTags.BUBBLE),
+    frozen: Boolean = false,
 ) {
     if (line == null) return
     val reduced = LocalMotionReduced.current
-    val pop = remember(line) { Animatable(if (reduced) 1f else POP_FROM) }
+    val pop = remember(line) { Animatable(if (reduced || frozen) 1f else POP_FROM) }
     LaunchedEffect(pop) { pop.animateTo(1f, tween(POP_MILLIS)) }
     Column(
         Modifier
