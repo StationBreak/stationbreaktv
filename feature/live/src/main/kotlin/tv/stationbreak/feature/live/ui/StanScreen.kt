@@ -236,7 +236,7 @@ private fun StanStageScope.SignOffAndClock(
                 .atStageBaseline(left, baseline, right - left)
                 .semantics { hideFromAccessibility() }
                 .testTag(LiveTags.STAN_SIGN_OFF),
-        style = copyStyle(BroadcastType.Display, SIGN_OFF_SIZE, FontWeight.Normal),
+        style = copyStyle(BroadcastType.Voice, SIGN_OFF_SIZE, FontWeight.Normal),
         color = StanInk.cream,
         maxLines = 1,
     )
