@@ -159,7 +159,7 @@ private fun <T> inList(
 
 /**
  * The lines of the Sources list the D-pad stops on, top to bottom. The rule is filters first, then the metadata
- * sources: Narrow down comes first, with its rows under it when open; the Pick tab's search line is next; the tab's
+ * sources: Only include comes first, with its rows under it when open; the Pick tab's search line is next; the tab's
  * entries come last. A new filter kind goes in the filter block, so it lands at the top too. The list draws in this
  * order.
  */

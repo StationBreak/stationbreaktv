@@ -22,7 +22,7 @@ class ChannelBoxTextTest {
         ChannelLineCopy(
             builtIn = "Built-in",
             custom = "Custom",
-            leftovers = "Leftovers",
+            leftovers = "Everything else",
             kids = { "Kids · up to $it" },
             kidsPlain = "Kids",
             playsLeftovers = "Plays whatever nothing else does",
@@ -38,7 +38,7 @@ class ChannelBoxTextTest {
             onNow = { "On now: $it" },
             minutesLeft = { "$it min left" },
             next = { title, time -> "Up next: $title at $time" },
-            offAir = "Off air",
+            offAir = "Off the air",
             stationBreak = "Station break",
             unavailable = "Removed",
         )
@@ -112,11 +112,11 @@ class ChannelBoxTextTest {
     @Test
     fun leftoversSayWhatTheSheetSaysAndAreTaggedLeftovers() {
         assertEquals(TagLine("Plays whatever nothing else does", personality = false), tagLineOf(leftovers, lines))
-        assertEquals(listOf(PanelTag.Plain("LEFTOVERS")), channelTagsOf(leftovers, lines))
+        assertEquals(listOf(PanelTag.Plain("EVERYTHING ELSE")), channelTagsOf(leftovers, lines))
         val kidsLeftovers = leftovers.copy(kid = true, ceiling = "PG")
         assertEquals("Plays whatever nothing else does", tagLineOf(kidsLeftovers, lines)?.text)
         assertEquals(
-            listOf(PanelTag.Plain("KIDS · UP TO PG"), PanelTag.Plain("LEFTOVERS")),
+            listOf(PanelTag.Plain("KIDS · UP TO PG"), PanelTag.Plain("EVERYTHING ELSE")),
             channelTagsOf(kidsLeftovers, lines),
         )
     }
@@ -161,10 +161,10 @@ class ChannelBoxTextTest {
             onNowNextLine(cells, 32 * MIN, onNow, time)?.text,
         )
         assertEquals(
-            "On now: Show 35 · 15 min left · Up next: Off air at t62",
+            "On now: Show 35 · 15 min left · Up next: Off the air at t62",
             onNowNextLine(cells, 45 * MIN, onNow, time)?.text,
         )
-        assertEquals("On now: Off air · 50 min left", onNowNextLine(cells, 70 * MIN, onNow, time)?.text)
+        assertEquals("On now: Off the air · 50 min left", onNowNextLine(cells, 70 * MIN, onNow, time)?.text)
     }
 
     @Test

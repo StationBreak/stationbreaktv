@@ -37,8 +37,8 @@ marked **(Pro)**, with the note "Pro coming soon".
 
 Choose **New channel**. Three steps:
 
-1. **Sources**: what can air. Libraries, Collections, Tags, Genres, or **Pick shows and films** by name. Then
-   **Narrow down** (genres, years, runtime, only films or only shows, a rating limit) and **Leave out** anything you
+1. **Sources**: what can air. Libraries, Collections, Tags, Genres, or **Choose shows and films** by name. Then
+   **Only include** (genres, years, runtime, only films or only shows, a rating limit) and **Leave out** anything you
    don't want.
 2. **How it plays**:
    - **Shuffle**: random order; no show plays more episodes in a row than its limit while others wait.

@@ -24,7 +24,7 @@
     <string name="live_stan_offair_now_on">NOW ON %1$d</string>
     <string name="live_stan_trouble_headline">WELL, THAT\'S\nNOT RIGHT</string>
     <string name="live_stan_trouble_status">TECHNICAL DIFFICULTIES</string>
-    <string name="live_stan_trouble_detail">WE\'LL BE RIGHT BACK</string>
+    <string name="live_stan_trouble_detail">PLAYING SOMETHING ELSE SHORTLY</string>
     <string name="live_stan_sign_off" translatable="false">Station Break</string>
     <string name="live_stan_spoken_offair">Off the air.</string>
     <string name="live_stan_spoken_offair_next">Off the air. Back with the next programme.</string>
@@ -33,18 +33,18 @@
     <string name="live_stan_spoken_trouble_status">Technical difficulties.</string>
     <string name="live_stan_spoken_building">Please stand by. Building your channels.</string>
     <string name="live_stan_spoken_starting">Please stand by. Warming up.</string>
-    <string name="live_stan_spoken_trouble">Technical difficulties. We\'ll be right back.</string>
+    <string name="live_stan_spoken_trouble">Technical difficulties. Playing something else shortly.</string>
 
-    <!-- Signed in, but no channel is on the air: the detail is where channels are switched on (the guide's menu, Channels). -->
+    <!-- Signed in, but no channel is on the air: the detail is the keys to where channels are switched on (Back for the guide, then Menu, Channels). -->
     <string name="live_stan_no_channels_headline">NOTHING ON\nTHE AIR</string>
     <string name="live_stan_no_channels_status">NO CHANNELS YET</string>
-    <string name="live_stan_no_channels_detail">GUIDE · CHANNELS</string>
-    <string name="live_stan_spoken_no_channels">No channels on the air yet. Guide, Channels.</string>
-    <!-- Every library this TV chose is gone from the server (spec 26): the detail is where to choose them again. -->
+    <string name="live_stan_no_channels_detail">BACK, THEN MENU › CHANNELS</string>
+    <string name="live_stan_spoken_no_channels">No channels on the air yet. Press Back for the guide, then Menu, then Channels.</string>
+    <!-- Every library this TV chose is gone from the server (spec 26): the detail is the keys to where to choose them again (Back for the guide, then Menu, Settings, Libraries). -->
     <string name="live_stan_no_libraries_headline">NOTHING ON\nTHE SHELF</string>
     <string name="live_stan_no_libraries_status">NO LIBRARIES</string>
-    <string name="live_stan_no_libraries_detail">GUIDE · SETTINGS · LIBRARIES</string>
-    <string name="live_stan_spoken_no_libraries">No libraries available. Guide, Settings, Libraries.</string>
+    <string name="live_stan_no_libraries_detail">BACK, THEN MENU › SETTINGS › LIBRARIES</string>
+    <string name="live_stan_spoken_no_libraries">No libraries available. Press Back for the guide, then Menu, then Settings, then Libraries.</string>
 
     <!-- The banner's label line. -->
     <string name="live_label_tuning_in">Tuning in</string>
@@ -93,8 +93,8 @@
     <string name="live_just_started">Just started</string>
     <string name="live_min_in">%1$d min in</string>
 
-    <!-- "Transcoding": the Select banner's label at the right end of the chips row while the server re-encodes; no word for direct play or direct stream. -->
-    <string name="live_stream_transcoding">Transcoding</string>
+    <!-- "Converting for this TV": the Select banner's label at the right end of the chips row while the server re-encodes; no word for direct play or direct stream. -->
+    <string name="live_stream_transcoding">Converting for this TV</string>
     <string name="live_stream_subtitles_off">Subtitles off</string>
     <string name="live_stream_subtitles_none">No subtitles</string>
     <string name="live_stream_subtitles">Subtitles %1$s</string>
@@ -102,8 +102,8 @@
     <!-- The words of the audio, subtitle and version rows (design doc B2.8). -->
     <string name="live_track_unknown">Unknown</string>
     <string name="live_track_commentary">Commentary</string>
-    <string name="live_track_sdh">SDH</string>
-    <string name="live_track_forced">Forced</string>
+    <string name="live_track_sdh">With sound descriptions</string>
+    <string name="live_track_forced">Foreign parts only</string>
     <string name="live_track_text">Text</string>
     <string name="live_track_picture">Picture</string>
     <string name="live_track_off">Off</string>

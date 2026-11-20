@@ -2,7 +2,7 @@
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
-  The copy for the program guide (spec 17). The program words it shares with the banner (episode lines, "Off air
+  The copy for the program guide (spec 17). The program words it shares with the banner (episode lines, "Off the air
   until", countdowns) are in core:ui.
 -->
 <resources>
@@ -93,7 +93,7 @@
     <string name="guide_now">Now</string>
 
     <!-- A slate cell on the grid: a plate, not a missing title. The panel still says when it comes back. -->
-    <string name="guide_off_air">Off air</string>
+    <string name="guide_off_air">Off the air</string>
 
     <!-- A station-break cell on the grid (leftover time spread through the day): a plate in the slate's style. The panel says what is up next. -->
     <string name="guide_station_break">Station break</string>

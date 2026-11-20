@@ -77,7 +77,7 @@ internal val EllipsisFrom = 32.dp
 internal const val ELLIPSIS = "…"
 private val ProgramStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 
-/** The "…" on a slate, in the same face as its "OFF AIR" plate. */
+/** The "…" on a slate, in the same face as its "OFF THE AIR" plate. */
 private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
 
 /**
@@ -350,9 +350,9 @@ private class CellTextSlots(
 )
 
 /**
- * The cell's title, a slate's "OFF AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5" when two
- * lines fit ([secondLineOf]). The one or two lines are a block, centred in the cell by the box around it; the sticky
- * layout [modifier] places the block ([CellTextSlots.layout]) and the title alone is tagged.
+ * The cell's title, a slate's "OFF THE AIR" or a break's "STATION BREAK", and under an episode's title its "S2 E5"
+ * when two lines fit ([secondLineOf]). The one or two lines are a block, centred in the cell by the box around it;
+ * the sticky layout [modifier] places the block ([CellTextSlots.layout]) and the title alone is tagged.
  */
 @Composable
 private fun CellText(

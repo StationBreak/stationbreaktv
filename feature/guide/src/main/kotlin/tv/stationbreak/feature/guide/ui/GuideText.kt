@@ -23,9 +23,9 @@ internal fun channelLine(
 ) = "$number · $name" + playing?.let { " · $it" }.orEmpty()
 
 /**
- * What the panel and the info overlay call a cell: its display title, "Off air until 8:30 PM" for a slate, "Station
+ * What the panel and the info overlay call a cell: its display title, "Off the air until 8:30 PM" for a slate, "Station
  * break" for a break (its meta line says what is up next: [upNextLine]), "Removed" for a program that
- * left the library. A slate or a break on the grid itself is the "OFF AIR" or "STATION BREAK" plate, not this line.
+ * left the library. A slate or a break on the grid itself is the "OFF THE AIR" or "STATION BREAK" plate, not this line.
  */
 @Composable
 internal fun cellTitle(

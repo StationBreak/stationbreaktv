@@ -252,9 +252,9 @@ class LiveBannerOverflowTest {
 
     /**
      * The widest the chips row gets (design doc B2.7): the Live button (behind), Info, Last, a transcode's
-     * "Transcoding", the longest Version value in the fixtures, a subtitle in use, and the used chip saying "Couldn't
-     * switch". At the Safe screen fit (the default). Every text is whole, and every node ends inside the banner and
-     * the safe area.
+     * "Converting for this TV", the longest Version value in the fixtures, a subtitle in use, and the used chip saying
+     * "Couldn't switch". At the Safe screen fit (the default). Every text is whole, and every node ends inside the
+     * banner and the safe area.
      */
     @Test
     fun theChipsRowAfterAFailedSwitchFitsAtTheSafeScreenFitWithLiveAndTheLongestVersion() {
@@ -263,7 +263,7 @@ class LiveBannerOverflowTest {
         compose.waitForIdle()
         compose.onNodeWithTag(LiveTags.BANNER_ACTION_LIVE).assertExists()
         for (tag in WIDE_ROW) assertInside(tag)
-        for (text in listOf("Couldn't switch", LONGEST_VERSION, "English", "Transcoding")) {
+        for (text in listOf("Couldn't switch", LONGEST_VERSION, "English", "Converting for this TV")) {
             val node = compose.onNode(hasText(text, substring = true), useUnmergedTree = true)
             val result = layout(node)
             assertTrue("$text is not clipped: width overflow", !result.didOverflowWidth)

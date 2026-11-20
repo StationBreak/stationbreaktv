@@ -247,11 +247,20 @@ internal object StreamLabels {
         }
     }
 
-    /** A title tells twins apart only if it says something the row does not: not a bare number, not words it has. */
+    /**
+     * A title tells twins apart only if it says something the row does not: not a bare number, not words it has, and
+     * not a server's own name for a flag ("Forced", "SDH"), which the row says in plain words.
+     */
     private fun informs(
         title: String,
         text: String,
-    ): Boolean = title.any { it.isLetter() } && !text.contains(title, ignoreCase = true)
+    ): Boolean =
+        title.any { it.isLetter() } &&
+            !text.contains(title, ignoreCase = true) &&
+            title.lowercase() !in SERVER_FLAG_NAMES
+
+    // How the server's own track titles name the flags that the rows say in plain words.
+    private val SERVER_FLAG_NAMES = setOf("forced", "sdh")
 
     private fun distinction(row: PickerRow): String? =
         when (row) {

@@ -122,7 +122,7 @@ private fun SourceLine.isFocus(focus: BuilderFocus?): Boolean =
         is SourceLine.Note -> false
     }
 
-/** The open tab's entries with ticks, the search line for titles, and the Narrow down rows after them. */
+/** The open tab's entries with ticks, the search line for titles, and the Only include rows after them. */
 @Composable
 internal fun SourceList(
     ui: BuilderUi,
@@ -151,7 +151,7 @@ private fun NoteLine(
     val text =
         when (view) {
             PickerView.Loading -> {
-                stringResource(R.string.builder_working)
+                stringResource(R.string.channel_props_loading)
             }
 
             PickerView.Empty -> {
@@ -302,7 +302,7 @@ private fun genresText(ui: BuilderUi): String {
     val at = rows.getOrNull(ui.narrow?.genreCursor ?: 0)
     return when {
         at != null -> labelled(label, stringResource(R.string.builder_labelled_on, at.label, onOff(at.ticked)))
-        view == PickerView.Loading -> labelled(label, stringResource(R.string.builder_working))
+        view == PickerView.Loading -> labelled(label, stringResource(R.string.channel_props_loading))
         view == PickerView.Unavailable -> labelled(label, stringResource(R.string.builder_list_unavailable))
         else -> labelled(label, stringResource(R.string.builder_list_empty))
     }

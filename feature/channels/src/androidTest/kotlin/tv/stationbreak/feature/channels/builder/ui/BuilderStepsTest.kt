@@ -342,7 +342,7 @@ class BuilderStepsTest {
         show(previews)
         press(Pad.Right, Pad.Select)
         until { exists(BuilderTags.PREVIEW) }
-        compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("Working it out")
+        compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("Counting what fits")
         previews.gate.complete(Unit)
         until { vm.ui.value.preview is PreviewView.Ready }
         compose.onNodeWithTag(BuilderTags.PREVIEW).assertTextContains("Film (95 min)", substring = true)
