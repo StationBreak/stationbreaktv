@@ -50,12 +50,15 @@ internal fun reasonOf(row: ChannelRow): String? =
 
 /** What a screen reader says for [row]: the same words the row's own node carries. */
 @Composable
-internal fun spokenOf(row: ChannelRow): String =
+internal fun spokenOf(
+    row: ChannelRow,
+    isPro: Boolean,
+): String =
     spokenRow(
         row.number,
         row.name,
         labelsOf(row),
         reasonOf(row),
-        row.shelfReason?.let { stringResource(shelfReasonText(it)) },
+        row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) },
         joiner(R.string.spoken_pair),
     )

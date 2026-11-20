@@ -118,7 +118,7 @@ class FirstSyncProgressViewModelTest {
             advanceTimeBy(CHEER_HOLD_MS)
             runCurrent()
 
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
         }
 
     // The first sync is started by the screen, once.

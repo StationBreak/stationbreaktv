@@ -659,26 +659,27 @@ class GuideScreenTest {
     }
 
     @Test
-    fun compactCellDrawsAnEllipsisAndNamesItsTitleInThePanelOnly() {
+    fun compactCellIsBlankAndNamesItsTitleInThePanelOnly() {
         showReady(ch3)
         val short = GuideTags.cell(ch3, min(70))
-        // Five minutes is too narrow for a title: no title is written in the cell, focused or not, and nothing floats
-        // over its neighbours. A "\u2026" is drawn, not a text node, so a screen reader hears only the cell's
-        // description, which carries the full title; the panel names it when it is focused.
+        // Five minutes is too narrow for a title: nothing is written in the cell, focused or not, not even a "\u2026",
+        // and nothing floats over its neighbours. A screen reader hears the cell's description, which carries the full
+        // title; the panel names it when it is focused.
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
         compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)
         // The text colour has an alpha: what is on screen is it composited over the card, over the page.
         val dark = GuideColors.Dark
         val seen = dark.programmeText.compositeOver(dark.card.compositeOver(dark.page))
-        assertTrue("an ellipsis in the programme text", pixelsNear(short, seen) > 0)
-        // Negative control: the scan is for the mark's own colour, not just any drawing; unfocused, nothing is the
-        // focus fill's orange.
+        assertEquals("no text drawn in the cell", 0, pixelsNear(short, seen))
+        // Positive control: the scan finds the card itself, so a blank cell is not a scan that sees nothing.
+        assertTrue("the card is drawn", pixelsNear(short, dark.card.compositeOver(dark.page)) > 0)
         assertEquals("no focus fill in an unfocused cell", 0, pixelsNear(short, dark.focusFill))
         press(Key.DirectionRight)
         cell(ch3, 70).assertIsSelected()
         compose.onNodeWithTag(GuideTags.cellText(ch3, min(70)), useUnmergedTree = true).assertDoesNotExist()
-        assertTrue("an ellipsis in the focus text", pixelsNear(short, GuideColors.Dark.focusText) > 0)
+        assertEquals("no text drawn on the focus fill", 0, pixelsNear(short, GuideColors.Dark.focusText))
+        assertTrue("the focus fill is drawn", pixelsNear(short, dark.focusFill) > 0)
         assertEquals("Test Movie 401", text(GuideTags.PANEL_TITLE))
         compose.onAllNodesWithText("Test Movie 401", useUnmergedTree = true).assertCountEquals(1)
         cell(ch3, 70).assertContentDescriptionContains("Test Movie 401, ", substring = true)

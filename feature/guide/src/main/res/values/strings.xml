@@ -97,6 +97,8 @@
 
     <!-- A station-break cell on the grid (leftover time spread through the day): a plate in the slate's style. The panel says what is up next. -->
     <string name="guide_station_break">Station break</string>
+    <!-- After the title written once over a run of short programmes of one title (shorts, cartoons, music videos): how many programmes the run holds, as in "Big Buck Bunny · 12". The leading space separates it from the title. Drawn only; a screen reader hears each programme's own cell. -->
+    <string name="guide_run_count">" · %1$d"</string>
     <!-- The brand name beside Stan's head on the panel's top line; decorative, never read out. -->
     <string name="guide_station_bug" translatable="false">Station Break</string>
     <!-- The meta line of a focused station break in the panel: the title of the program that follows it and its start time. -->
@@ -117,9 +119,10 @@
     <string name="guide_cell_playing">%1$s, playing</string>
     <!-- The state a screen reader gives the playing channel's tile, and the panel's channel line says. -->
     <string name="guide_playing">Playing</string>
-    <!-- The first visit's note, in the info panel's place until the first key press (#94). -->
-    <string name="first_visit_title">You’re on the air.</string>
-    <string name="first_visit_body">Here are your channels. Pick one to watch, or press OK to keep watching this one.</string>
+    <!-- The first visit's note, in the info panel's place until the first key press (#94). Setup's cheer has just said
+         "on the air", so the note does not say it again. A title with no closing mark, as the panel's titles have. -->
+    <string name="first_visit_title">Here are your channels</string>
+    <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
     <!-- The meta line under the title in the panel: runtime, then it is joined with the year and genres. -->
     <string name="guide_runtime_minutes">%1$d min</string>

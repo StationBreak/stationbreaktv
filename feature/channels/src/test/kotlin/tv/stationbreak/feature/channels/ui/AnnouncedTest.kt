@@ -4,6 +4,7 @@ package tv.stationbreak.feature.channels.ui
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelKind
+import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
@@ -45,11 +46,9 @@ class AnnouncedTest {
     }
 
     @Test
-    fun newAndResetAreMarkedWhenTheyAreLocked() {
-        val locked = base.copy(focus = ChannelsFocus.New, canAddCustom = false)
-        assertEquals(Announced.New(locked = true), announcedOf(locked))
-        assertEquals(Announced.Reset(locked = true), announcedOf(base.copy(focus = ChannelsFocus.Reset, isPro = false)))
-        assertEquals(Announced.Reset(locked = false), announcedOf(base.copy(focus = ChannelsFocus.Reset)))
+    fun newAndResetAreAnnouncedPlainly() {
+        assertEquals(Announced.New, announcedOf(base.copy(focus = ChannelsFocus.New, canAddCustom = false)))
+        assertEquals(Announced.Reset, announcedOf(base.copy(focus = ChannelsFocus.Reset)))
     }
 
     @Test
@@ -66,6 +65,20 @@ class AnnouncedTest {
             val said = announcedOf(panel.copy(choice = i)) as Announced.Pick
             assertEquals(choices[i], said.choice)
         }
+    }
+
+    @Test
+    fun aFreePanelAnnouncesOnlyTheChoicesItLists() {
+        val panel =
+            base.copy(
+                panel = ChannelsPanel.Actions(id),
+                reasonsRead = true,
+                isPro = false,
+                access = LineupAccess.Editable,
+            )
+        val said = choicesOf(panel).indices.map { (announcedOf(panel.copy(choice = it)) as Announced.Pick).choice }
+
+        assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), said)
     }
 
     @Test

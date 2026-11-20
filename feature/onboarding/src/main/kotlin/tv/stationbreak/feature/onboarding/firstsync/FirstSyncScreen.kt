@@ -47,7 +47,9 @@ import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
+import tv.stationbreak.core.ui.stan.StanHostMoment
 import tv.stationbreak.core.ui.stan.StanOpeningKey
+import tv.stationbreak.core.ui.stan.rememberStanRenderer
 import tv.stationbreak.core.ui.stan.stanOpeningKey
 import tv.stationbreak.feature.onboarding.R
 import tv.stationbreak.feature.onboarding.SetupColumn
@@ -74,14 +76,20 @@ private const val TOP_OFFSET = 0.1f
  * moves on by itself when it ends, with no button. Back is the platform's: the navigation graph puts nothing beneath
  * this screen, so Back leaves the app and the sync carries on in the background. Only during the cheer at the end does
  * Back skip to live TV.
+ *
+ * [onFinished] is called when the sync ends with nothing to cheer, [onCheered] after Stan's cheer, and [onSessionLost]
+ * when the sign-in is gone. [cheerFrame] is shared with [FirstSyncCheerStill], so a still of the cheer is its last
+ * frame.
  */
 @Composable
 fun FirstSyncDestination(
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
+    onCheered: () -> Unit,
+    cheerFrame: FirstSyncCheerFrame,
 ) {
     val viewModel: FirstSyncViewModel = hiltViewModel()
-    FirstSyncRoot(viewModel, onFinished, onSessionLost)
+    FirstSyncRoot(viewModel, onFinished, onSessionLost, onCheered, cheerFrame)
 }
 
 /** [FirstSyncDestination] without Hilt, so a test can bring its own ViewModel. */
@@ -90,17 +98,14 @@ internal fun FirstSyncRoot(
     viewModel: FirstSyncViewModel,
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
+    onCheered: () -> Unit,
+    cheerFrame: FirstSyncCheerFrame,
 ) {
     val phase by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
-        viewModel.events.collect {
-            when (it) {
-                FirstSyncEvent.Finished -> onFinished()
-                FirstSyncEvent.SessionLost -> onSessionLost()
-            }
-        }
+        viewModel.events.collect { it.sendTo(onFinished, onSessionLost, onCheered) }
     }
-    FirstSyncScreen(phase, onRetry = viewModel::onRetry, onSkipCheer = viewModel::skipCheer)
+    FirstSyncScreen(phase, onRetry = viewModel::onRetry, onSkipCheer = viewModel::skipCheer, cheerFrame = cheerFrame)
 }
 
 /**
@@ -109,18 +114,29 @@ internal fun FirstSyncRoot(
  * the aerial for the whole sync (a busy Stan never dozes), at the host's 20 fps cap. On a failure the error from the
  * error table shows with Retry, which has default focus. While the channels are built he keeps working; once one is on
  * the air he cheers us on it, and any key but volume, Back included, calls [onSkipCheer]: on to live TV, never out of
- * the app.
+ * the app. With [cheerFrame] Stan is drawn with its renderer and his frames are recorded; with [frozenAt] as well he is
+ * held on that moment and the screen is the cheer's still ([FirstSyncCheerStill]): nothing on it takes focus or keys.
  */
+@Suppress("LongParameterList") // The phase, its two actions, and the cheer's frame and freeze.
 @Composable
 internal fun FirstSyncScreen(
     phase: FirstSyncPhase,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onSkipCheer: () -> Unit = {},
+    cheerFrame: FirstSyncCheerFrame? = null,
+    frozenAt: StanHostMoment? = null,
 ) {
-    val cheering = phase == FirstSyncPhase.Done
+    val still = frozenAt != null
+    val cheering = phase == FirstSyncPhase.Done && !still
     val keys = if (cheering) Modifier.onPreviewKeyEvent { skipsCheer(it, onSkipCheer) } else Modifier
-    SetupScaffold(firstSyncCue(phase), modifier.then(keys)) { contentPadding ->
+    SetupScaffold(
+        firstSyncCue(phase),
+        modifier.then(keys),
+        renderer = cheerFrame?.renderer ?: rememberStanRenderer(),
+        stanRecorder = cheerFrame?.recorder?.takeIf { !still },
+        stanFreezeAt = frozenAt,
+    ) { contentPadding ->
         // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
         SetupColumn(
             contentPadding,
@@ -134,7 +150,7 @@ internal fun FirstSyncScreen(
                 is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
                 is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
                 FirstSyncPhase.Building -> BuildingChannels()
-                FirstSyncPhase.Done -> OnTheAir()
+                FirstSyncPhase.Done -> OnTheAir(takesFocus = !still)
             }
         }
     }
@@ -175,21 +191,21 @@ private fun BuildingChannels() {
 }
 
 /**
- * The moment between the first channel on the air and live TV: the full bar, and a headline that takes focus, so the
- * keys that skip the cheer reach this screen (nothing else on it is focusable).
+ * The moment between the first channel on the air and live TV: the full bar, and a headline that [takesFocus], so the
+ * keys that skip the cheer reach this screen (nothing else on it is focusable). Held still over live TV it takes none.
  */
 @Composable
-private fun OnTheAir() {
+private fun OnTheAir(takesFocus: Boolean) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    LaunchedEffect(takesFocus) { if (takesFocus) focus.requestFocus() }
     val headline = stringResource(R.string.first_sync_done_headline)
+    val focusing = if (takesFocus) Modifier.focusRequester(focus).focusable() else Modifier
     Text(
         text = headline,
         modifier =
             Modifier
                 .testTag(FirstSyncTags.DONE)
-                .focusRequester(focus)
-                .focusable()
+                .then(focusing)
                 .semantics { heading() },
         style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,

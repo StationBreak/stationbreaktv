@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore -->
-<!-- Owner-approved copy (2026-11-16, #793). Pro can't be bought until the Pro update ships, so the notes say
-     "Pro coming soon" rather than asking the viewer to get it. Change them when purchase arrives (#36). -->
+<!-- Owner decision (2026-11-19): a free viewer never sees Pro. The choices Pro will unlock are not shown until Pro
+     arrives (#36), so the only free-tier copy left is the custom channel limit. -->
 <resources>
-    <string name="pro_needs_note">Pro coming soon.</string>
-    <string name="pro_custom_limit_note">Free includes 5 custom channels. Delete one to make another. Pro coming soon.</string>
-    <!-- A gated choice keeps its place and ends with this mark. -->
-    <string name="pro_marked_label">%1$s (Pro)</string>
+    <string name="pro_custom_limit_note">Free includes 5 custom channels. Delete one to make another.</string>
 </resources>

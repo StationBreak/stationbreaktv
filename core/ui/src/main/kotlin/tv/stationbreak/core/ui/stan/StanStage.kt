@@ -119,6 +119,8 @@ internal fun rememberStanClock(
  * What draws Stan: his painter, with the parsed paths, strokes and measured glyphs it keeps. Make one with
  * [rememberStanRenderer] where it will outlive the stages (a screen that shows Stan on and off), and hand it to each
  * stage, so a stage coming back does not parse and measure again. It is made lazily, on the first frame drawn.
+ * It keeps no per-draw state, only caches and one layer paint set just before each use, and draws run one at a time on
+ * the draw thread, so two hosts may draw from one renderer in the same frame.
  */
 class StanRenderer internal constructor(
     palette: StanPalette,

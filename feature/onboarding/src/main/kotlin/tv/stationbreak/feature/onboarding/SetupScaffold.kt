@@ -30,6 +30,8 @@ import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.screenLift
 import tv.stationbreak.core.ui.stan.StanHost
+import tv.stationbreak.core.ui.stan.StanHostMoment
+import tv.stationbreak.core.ui.stan.StanHostRecorder
 import tv.stationbreak.core.ui.stan.StanMood
 import tv.stationbreak.core.ui.stan.StanRenderer
 import tv.stationbreak.core.ui.stan.rememberStanRenderer
@@ -110,7 +112,8 @@ internal fun dozes(
  * [fullWidth] (only with no [cue]) lets [content] span the whole screen, with the full safe area, so a plain line is
  * centred on the screen; the column stays reserved, and [content] keeps its place in the tree, so nothing restarts
  * when it narrows again. [renderer] defaults to one per screen; the app may hoist one across the setup destinations
- * later.
+ * later. [stanRecorder] and [stanFreezeAt] are [StanHost]'s freeze: the one keeps Stan's last drawn moment, the other
+ * holds him on one.
  */
 @Suppress("LongParameterList") // A scaffold's slots and switches, each defaulted, as Material's Scaffold has.
 @Composable
@@ -120,6 +123,8 @@ internal fun SetupScaffold(
     covered: Boolean = false,
     fullWidth: Boolean = false,
     renderer: StanRenderer = rememberStanRenderer(),
+    stanRecorder: StanHostRecorder? = null,
+    stanFreezeAt: StanHostMoment? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val timer = remember { DozeTimer() }
@@ -158,6 +163,8 @@ internal fun SetupScaffold(
                             mood = if (dozing) StanMood.Dozing else cue.mood,
                             line = cue.line?.let { stringResource(it) },
                             renderer = renderer,
+                            freezeAt = stanFreezeAt,
+                            recorder = stanRecorder,
                         )
                     }
                 }
