@@ -69,7 +69,7 @@ Tag style: 10 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radiu
 **Owner decision:** the grid shows **120 minutes**, up from 90 (`GUIDE_VIEWPORT_SPAN`). At 780 dp that is 6.5 dp per minute.
 
 - Tick labels stay every 30 minutes (four of them).
-- An 11-minute programme becomes about 71 dp wide and a 5-minute one about 32 dp. A cell under `CompactBelow` (48 dp) shows no title and no "…": it is blank, which is acceptable for fillers. Back-to-back programmes of one title that are each too narrow to write it are labelled once across the run, with a count ("Big Buck Bunny · 12"); each stays its own cell.
+- An 11-minute programme becomes about 71 dp wide and a 5-minute one about 32 dp. A cell under `CompactBelow` (48 dp) shows no title and no "…", focused or not: it is blank, which is acceptable for fillers. Back-to-back programmes of one title, each too narrow to write it and under `EpisodeFrom` (110 dp, so no "S3 E4" line is lost), are labelled once across the run in 13 sp Medium: the title, then the count of the run's programmes in the loaded guide ("Big Buck Bunny · 12"). The label is pinned to the part of the run in view, leaves room only for chevrons the edge cells actually draw, steps aside to the wider side of the focused cell, and is dropped where it cannot hold the whole count and some of the title. Each programme stays its own cell; wider episode cells are unchanged.
 - Paging and the "extend when scrolled near the end" logic follow the constant; verify they do.
 
 ## Acceptance

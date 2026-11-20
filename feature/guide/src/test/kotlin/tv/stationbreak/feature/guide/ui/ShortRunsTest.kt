@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -59,7 +60,7 @@ class ShortRunsTest {
 
     private fun runsOf(cells: List<GuideCell>): List<CellRun> =
         shortRuns(cells) { cell ->
-            titleCut(CellPlace(cell.startMs, cell.endMs, origin, geometry).width) { titleWidth }
+            runCut(CellPlace(cell.startMs, cell.endMs, origin, geometry).width) { titleWidth }
         }
 
     @Test
@@ -167,7 +168,13 @@ class ShortRunsTest {
         assertFalse(titleShown(compact = true, inRun = true, focused = true))
     }
 
-    private fun runPlace(cells: List<GuideCell>) = RunPlace(runsOf(cells).single(), cells, origin, geometry)
+    // The room a label needs in these tests: a count and some of the title, about what " · 12" and 23 dp come to.
+    private val need = 50.dp
+
+    private fun runPlace(
+        cells: List<GuideCell>,
+        needs: Dp = need,
+    ) = RunPlace(shortRuns(cells) { true }.single(), cells, origin, geometry, needs)
 
     private fun assertDp(
         expected: Dp,
@@ -190,17 +197,14 @@ class ShortRunsTest {
         val place = runPlace(shorts(60, 12))
         assertDp(wide(60), place.labelLeft(at(120), null))
         assertDp(wide(120), place.labelRight(at(120), null))
-        assertTrue(place.continuesEarlier(at(120)))
-        // Viewport at 0: only 60 to 120 of the run shows, and it runs on past the right edge.
+        // Viewport at 0: only 60 to 120 of the run shows.
         assertDp(0.dp, place.labelLeft(at(0), null))
         assertDp(wide(60), place.labelRight(at(0), null))
-        assertTrue(place.continuesLater(at(0)))
     }
 
     @Test
     fun theLabelStepsAsideForTheFocusedCellToTheWiderSide() {
-        val cells = shorts(60, 12)
-        val place = runPlace(cells)
+        val place = runPlace(shorts(60, 12))
         // Focus on the third short (80 to 90): the nine after it are wider than the two before.
         assertDp(wide(30), place.labelLeft(at(60), at(80)))
         assertDp(wide(120), place.labelRight(at(60), at(80)))
@@ -213,22 +217,130 @@ class ShortRunsTest {
     }
 
     @Test
-    fun noLabelWhereTooLittleOfTheRunIsLeft() {
+    fun onATieTheLabelTakesTheSideAfterTheFocusedCell() {
+        val place = runPlace(shorts(60, 3))
+        assertDp(wide(20), place.labelLeft(at(60), at(70)))
+        assertDp(wide(30), place.labelRight(at(60), at(70)))
+    }
+
+    @Test
+    fun theSideIsChosenFromThePartInView() {
+        // The viewport at 120 shows 390 to 780 dp of the run. Focus on 130 to 140 (455 to 520 dp): 65 dp in view
+        // before it, 260 after, so after it. Focus on 170 to 180 (715 to 780 dp): nothing in view after, so before.
+        val place = runPlace(shorts(60, 12))
+        assertDp(wide(80), place.labelLeft(at(120), at(130)))
+        assertDp(wide(120), place.labelRight(at(120), at(130)))
+        assertDp(wide(60), place.labelLeft(at(120), at(170)))
+        assertDp(wide(110), place.labelRight(at(120), at(170)))
+    }
+
+    @Test
+    fun aRunThatBeganBeforeTheOriginIsPlacedFromIt() {
+        // The first short airs from 5 minutes before the origin: the run and that cell start at the origin.
+        val cells = listOf(short(-5, 5)) + shorts(5, 3)
+        val place = runPlace(cells)
+        assertDp(0.dp, place.span.x)
+        assertDp(wide(35), place.span.width)
+        // Focused, its drawn 32.5 dp is what the label steps past.
+        assertDp(wide(5), place.labelLeft(at(0), at(-5)))
+    }
+
+    @Test
+    fun aCellRaisedToTheLeastWidthIsSteppedPastAtItsDrawnWidth() {
+        // Two-minute cells are 13 dp of time, drawn 20 dp wide: the second (13 dp in) ends at 33 dp, not 26.
+        val cells = (0 until 4).map { short(60L + it * 2, 62L + it * 2) }
+        val place = runPlace(cells)
+        assertDp(33.dp, place.labelLeft(at(60), at(62)))
+    }
+
+    @Test
+    fun noLabelWhereTheRoomLeftIsUnderWhatItNeeds() {
+        // Two 65 dp shorts: 130 dp less the 25 dp of insets leaves 105 dp, over the 50 needed.
         val place = runPlace(shorts(60, 2))
         assertTrue(place.labelShown(at(60), null))
-        // Focus on one of two 65 dp cells leaves 65 dp: still room.
-        assertTrue(place.labelShown(at(60), at(60)))
-        // Scrolled so 7 minutes (45.5 dp) of the run show: under the compact width, so no label.
+        // Focus on the first leaves the second: 65 dp, 40.5 dp once inset. Under 50, so no label; over 40, a label.
+        assertFalse(place.labelShown(at(60), at(60)))
+        assertTrue(runPlace(shorts(60, 2), needs = 40.dp).labelShown(at(60), at(60)))
+        // Scrolled so 7 minutes (45.5 dp) of the run show: too little for any.
         assertFalse(place.labelShown(at(73), null))
-        // Two 5-minute fillers (32.5 dp each): 65 dp together, but one focused leaves 32.5 dp.
-        val fillers = listOf(short(60, 65), short(65, 70))
-        val small = RunPlace(shortRuns(fillers) { true }.single(), fillers, origin, geometry)
-        assertTrue(small.labelShown(at(60), null))
-        assertFalse(small.labelShown(at(60), at(65)))
+        // Room exactly what is needed is enough.
+        assertTrue(runPlace(shorts(60, 2), needs = 105.dp).labelShown(at(60), null))
+        assertFalse(runPlace(shorts(60, 2), needs = 105.5.dp).labelShown(at(60), null))
+    }
+
+    @Test
+    fun chevronRoomOnlyWhereTheEdgeCellDrawsAChevron() {
+        // The run is 60 to 180. With the viewport at 8 (to 128) the short from 120 crosses the right edge with 8
+        // minutes (52 dp) in view, so it draws "›" and the label leaves room for it; at 5 (to 125) only 32.5 dp of it
+        // shows, compact, no chevron, and no room is kept though the run goes on.
+        val place = runPlace(shorts(60, 12))
+        assertTrue(place.laterRoom(at(8), null))
+        assertFalse(place.laterRoom(at(5), null))
+        assertTrue(place.labelRight(at(5), null) == place.span.visibleRight(at(5)))
+        // The same at the left edge: from 62 the short from 60 shows 52 dp and draws "‹"; from 65, 32.5 dp, none.
+        assertTrue(place.earlierRoom(at(62), null))
+        assertFalse(place.earlierRoom(at(65), null))
+        // A focused edge cell draws no chevron, and the label is beside it, not at the edge.
+        assertFalse(place.earlierRoom(at(62), at(60)))
+        // No room where the run does not reach the edge at all.
+        assertFalse(place.laterRoom(at(60), null))
+    }
+
+    private class CountingWidths {
+        val asked = mutableListOf<String>()
+        val widths =
+            TitleWidths(
+                measure = { text ->
+                    asked += text
+                    text.length * CHAR_PX
+                },
+                density = Density(1f),
+            )
+    }
+
+    @Test
+    fun rowRunsMarkTheCellsInARunAndMeasureEachTextOnce() {
+        val counting = CountingWidths()
+        val cells = listOf(program(60, 90, info(2, "A Movie"))) + shorts(90, 3) + program(120, 150, info(3, "Other"))
+        val runs = rowRuns(cells, origin, geometry, counting.widths) { " · $it" }
+        assertEquals(listOf(false, true, true, true, false), cells.indices.map { runs.inRun(it) })
+        assertEquals(listOf(" · 3"), runs.counts)
+        // "Test Short" is 70 dp here: the count's 28 dp and the least of the title, 23 dp.
+        assertDp(28.dp + MinLabelTitle, runs.places.single().need)
+        assertEquals(listOf(SHORT, " · 3"), counting.asked)
+        // The grid keeps what it measured: a row paged back into view measures nothing again.
+        rowRuns(cells, origin, geometry, counting.widths) { " · $it" }
+        assertEquals(listOf(SHORT, " · 3"), counting.asked)
+    }
+
+    @Test
+    fun aShortTitleNeedsOnlyItsOwnWidth() {
+        val counting = CountingWidths()
+        val cells = (0 until 3).map { program(60L + it * 5, 65L + it * 5, info(1, "Hi")) }
+        val runs = rowRuns(cells, origin, geometry, counting.widths) { " · $it" }
+        assertDp(28.dp + 14.dp, runs.places.single().need)
+    }
+
+    @Test
+    fun episodesWithTheirSecondLineAreNotARun() {
+        // Half-hour episodes of a series whose name is longer than its 195 dp cells: each keeps its own cut title
+        // and its "S3 E4" line, as before runs.
+        val name = "A Series With a Name Far Too Long to Fit Its Half-Hour Cell"
+        val cells = (0 until 4).map { program(60L + it * 30, 90L + it * 30, episodeInfo(20 + it, name, 3, 4 + it)) }
+        val runs = rowRuns(cells, origin, geometry, CountingWidths().widths) { " · $it" }
+        assertEquals(emptyList<CellRun>(), runs.runs)
+        assertFalse(runs.inRun(0))
+        val width = CellPlace(cells[0].startMs, cells[0].endMs, origin, geometry).width
+        assertEquals("S3 E4", secondLineOf(cells[0].info, width.value, 1f, RowHeight.value))
+        // The same series in ten-minute slots, which have no second line, is one run.
+        val short = (0 until 4).map { program(60L + it * 10, 70L + it * 10, episodeInfo(20 + it, name, 3, 4 + it)) }
+        assertEquals(4, rowRuns(short, origin, geometry, CountingWidths().widths) { " · $it" }.runs.single().count)
+        assertEquals(null, secondLineOf(short[0].info, wide(10).value, 1f, RowHeight.value))
     }
 
     private companion object {
         const val SHORT = "Test Short"
         const val SERIES = "Test Cartoons"
+        const val CHAR_PX = 7
     }
 }

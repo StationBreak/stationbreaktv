@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -30,13 +29,13 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
-import tv.stationbreak.feature.guide.R
 
 /**
  * Consecutive cells of one row, [first] to [last] (their indexes in the row), that air the same [title] back to back,
- * each too narrow to write it ([titleCut]): a channel of shorts, cartoons or music videos. The grid writes the title
- * once across them, with how many programmes the run holds ([count]), instead of cutting it in every cell. Each cell
- * stays its own focus stop, panel and description; only the drawn label is shared.
+ * each too narrow to write it and to have an episode line ([runCut]): a channel of shorts, cartoons or music videos.
+ * The grid writes the title once across them, with how many programmes the run holds in the guide ([count]), instead
+ * of cutting it in every cell. Each cell stays its own focus stop, panel and description; only the drawn label is
+ * shared.
  */
 @Immutable
 internal data class CellRun(
@@ -46,7 +45,10 @@ internal data class CellRun(
     val startMs: Long,
     val endMs: Long,
 ) {
-    /** The programmes in the run: true for repeats of one short as much as for episodes of a series. */
+    /**
+     * How many programmes the run holds in the loaded guide window (from the half hour now to the end of the model;
+     * airings beyond it are not counted): true for repeats of one short as much as for episodes of a series.
+     */
     val count: Int get() = last - first + 1
 }
 
@@ -101,10 +103,36 @@ private fun joins(
 ): Boolean = after.startMs == before.endMs && runKey(after) == key
 
 /**
+ * Whether a title [titleWidth] wide is cut in a cell [width] wide, all of it in view: the room the cell's title is laid
+ * out in ([textRoom]) is narrower than the title, or the cell is compact and writes no title at all, in which case
+ * [titleWidth] is not asked.
+ */
+internal fun titleCut(
+    width: Dp,
+    titleWidth: () -> Dp,
+): Boolean = width < CompactBelow || titleWidth() > textRoom(0.dp, width, width, earlier = false, later = false)
+
+/**
+ * Whether a cell [width] wide joins a run of short programmes ([shortRuns]): its title is cut ([titleCut]) and it is
+ * narrower than [EpisodeFrom], so it has no second line ("S3 E4") to lose. A wider cell keeps its own title and line,
+ * as before runs.
+ */
+internal fun runCut(
+    width: Dp,
+    titleWidth: () -> Dp,
+): Boolean = width < EpisodeFrom && titleCut(width, titleWidth)
+
+/** The least of a title a run's label must show: what the narrowest titled cell ([CompactBelow]) has room for. */
+internal val MinLabelTitle: Dp
+    get() = textRoom(0.dp, CompactBelow, CompactBelow, earlier = false, later = false)
+
+/**
  * Where a run's label goes, in the run's own coordinates (from its left edge): [span] is the run laid out as one cell,
  * and the label is pinned to the part of it in view, as a long programme's title is. While one of the run's cells has
- * the focus, that cell writes its own title, so the label takes the wider side of the run in view beside it. Plain
- * arithmetic over arrays made once per row model: read while laying out, it allocates nothing.
+ * the focus, that cell writes its own title (or, compact, carries the focus fill, which the label's cream must not
+ * cross), so the label takes the wider side of the run in view beside it; on a tie, the side after it. [need] is the
+ * least room the label is shown in: its count whole and at least [MinLabelTitle] of its title. Plain arithmetic over
+ * arrays made once per row model: read while laying out, it allocates nothing.
  */
 @Immutable
 internal class RunPlace(
@@ -112,20 +140,16 @@ internal class RunPlace(
     cells: List<GuideCell>,
     originMs: Long,
     geometry: GuideGeometry,
+    val need: Dp,
 ) {
     val span = CellPlace(run.startMs, run.endMs, originMs, geometry)
+    private val places =
+        Array(run.count) { cells[run.first + it].let { c -> CellPlace(c.startMs, c.endMs, originMs, geometry) } }
     private val starts = LongArray(run.count) { cells[run.first + it].startMs }
-    private val lefts = FloatArray(run.count)
-    private val rights = FloatArray(run.count)
 
-    init {
-        for (k in 0 until run.count) {
-            val cell = cells[run.first + k]
-            val place = CellPlace(cell.startMs, cell.endMs, originMs, geometry)
-            lefts[k] = (place.x - span.x).value
-            rights[k] = (place.x + place.width - span.x).value
-        }
-    }
+    // Each cell's drawn edges from the run's left edge (a cell under the least width is drawn that wide).
+    private val lefts = FloatArray(run.count) { (places[it].x - span.x).value }
+    private val rights = FloatArray(run.count) { (places[it].x + places[it].width - span.x).value }
 
     private fun focusedIndex(focusStartMs: Long?): Int = if (focusStartMs == null) -1 else starts.indexOf(focusStartMs)
 
@@ -166,17 +190,52 @@ internal class RunPlace(
         return minOf(to, lefts[k].dp)
     }
 
-    /** Whether the label has room: as a cell has for a title, [CompactBelow] or more. */
+    /**
+     * Room for the "‹" before the label: the label starts at the viewport's left edge and the run's cell there draws
+     * the chevron ([CellPlace.drawsEarlier]: it crosses that edge, is not compact there and is not focused). A run that
+     * merely began earlier, its cell at the edge a sliver, draws none, so none is kept, as with a sticky title.
+     */
+    fun earlierRoom(
+        viewportStartMs: Long,
+        focusStartMs: Long?,
+    ): Boolean =
+        labelLeft(viewportStartMs, focusStartMs) == span.visibleLeft(viewportStartMs) &&
+            edgeChevron(focusStartMs) { it.drawsEarlier(viewportStartMs) }
+
+    /** Room for the "›" after the label, as [earlierRoom] at the viewport's right edge. */
+    fun laterRoom(
+        viewportStartMs: Long,
+        focusStartMs: Long?,
+    ): Boolean =
+        labelRight(viewportStartMs, focusStartMs) == span.visibleRight(viewportStartMs) &&
+            edgeChevron(focusStartMs) { it.drawsLater(viewportStartMs) }
+
+    // Whether a cell of the run other than the focused one [draws] its chevron. Inline: no lambda is made.
+    private inline fun edgeChevron(
+        focusStartMs: Long?,
+        draws: (CellPlace) -> Boolean,
+    ): Boolean {
+        val k = focusedIndex(focusStartMs)
+        var any = false
+        for (i in places.indices) any = any || (i != k && draws(places[i]))
+        return any
+    }
+
+    /**
+     * Whether the label is shown: the room it is laid out in ([textRoom], less the chevrons' where they are drawn)
+     * holds [need]. Where it does not, no label is drawn rather than a clipped count.
+     */
     fun labelShown(
         viewportStartMs: Long,
         focusStartMs: Long?,
-    ): Boolean = labelRight(viewportStartMs, focusStartMs) - labelLeft(viewportStartMs, focusStartMs) >= CompactBelow
-
-    /** "‹" room: the run goes on before the viewport (its first cell in view draws the chevron). */
-    fun continuesEarlier(viewportStartMs: Long): Boolean = span.continuesEarlier(viewportStartMs)
-
-    /** "›" room: the run goes on after the viewport. */
-    fun continuesLater(viewportStartMs: Long): Boolean = span.continuesLater(viewportStartMs)
+    ): Boolean =
+        textRoom(
+            labelLeft(viewportStartMs, focusStartMs),
+            labelRight(viewportStartMs, focusStartMs),
+            span.width,
+            earlierRoom(viewportStartMs, focusStartMs),
+            laterRoom(viewportStartMs, focusStartMs),
+        ) >= need
 }
 
 /**
@@ -190,43 +249,60 @@ internal fun titleShown(
     focused: Boolean,
 ): Boolean = !compact && (!inRun || focused)
 
-/** One row's runs, their places, and which of its cells are in one: worked out once per row model. */
+/** One row's runs, their places and count lines, and which of its cells are in one: worked out once per row model. */
 @Immutable
 internal class RowRuns(
     val runs: List<CellRun>,
     val places: List<RunPlace>,
+    val counts: List<String>,
     private val inRun: BooleanArray,
 ) {
     /** Whether the row's cell at [index] is in a run, so writes no title of its own unless focused. */
     fun inRun(index: Int): Boolean = inRun[index]
 }
 
-/** [cells]' runs, measuring titles with [titles]. A row of distinct titles measures nothing. */
+/**
+ * [cells]' runs ([runCut]), each with its count line ([countLine], " · 12") and the room its label needs: the count's
+ * measured width and [MinLabelTitle] of the title (all of it, if shorter). Titles and counts are measured with
+ * [titles], which keeps what it has measured, so a row of distinct titles measures nothing and a row paged back into
+ * view measures nothing again.
+ */
 internal fun rowRuns(
     cells: List<GuideCell>,
     originMs: Long,
     geometry: GuideGeometry,
     titles: TitleWidths,
+    countLine: (Int) -> String,
 ): RowRuns {
-    val widths = HashMap<String, Dp>()
     val runs =
         shortRuns(cells) { cell ->
-            val width = CellPlace(cell.startMs, cell.endMs, originMs, geometry).width
-            val title = cell.title.orEmpty()
-            titleCut(width) { widths.getOrPut(title) { titles.of(title) } }
+            runCut(CellPlace(cell.startMs, cell.endMs, originMs, geometry).width) { titles.of(cell.title.orEmpty()) }
         }
     val inRun = BooleanArray(cells.size)
     for (run in runs) inRun.fill(true, run.first, run.last + 1)
-    return RowRuns(runs, runs.map { RunPlace(it, cells, originMs, geometry) }, inRun)
+    val counts = runs.map { countLine(it.count) }
+    val places =
+        runs.mapIndexed { i, run ->
+            val need = titles.of(counts[i]) + minOf(titles.of(run.title), MinLabelTitle)
+            RunPlace(run, cells, originMs, geometry, need)
+        }
+    return RowRuns(runs, places, counts, inRun)
 }
 
-/** How wide a cell's title is, in its own style, measured with the grid's measurer. */
+/**
+ * How wide a title (or a count line) is in a cell's title face, measured with the grid's measurer once and kept: one
+ * per grid, for one font and density ([rememberTitleWidths] makes a new one when either changes), so paging and rows
+ * coming back into view measure nothing they have measured before.
+ */
 @Immutable
 internal class TitleWidths(
     private val measure: (String) -> Int,
     private val density: Density,
 ) {
-    fun of(title: String): Dp = with(density) { measure(title).toDp() }
+    private val widths = HashMap<String, Dp>()
+
+    /** [title]'s width, measured the first time it is asked for. */
+    fun of(title: String): Dp = widths.getOrPut(title) { with(density) { measure(title).toDp() } }
 }
 
 /** The grid's [TitleWidths] for the current font and density; one per grid, not per row. */
@@ -247,15 +323,19 @@ internal fun rememberTitleWidths(): TitleWidths {
 }
 
 /**
- * A run's one label: its title, cut if it must, then how many programmes it holds ("Big Buck Bunny · 12"), in the
- * cells' title face. Drawing only: a screen reader hears each cell's own description and not this ([clearAndSetSemantics]
- * with nothing set). The focus and the viewport are read while laying it out, so a move or a page recomposes nothing.
+ * A run's one label: its title, cut if it must, then how many programmes of the run the guide holds ([count], " · 12"),
+ * both in the cells' 13 sp Medium title face, the count in the second line's colour. The count is never cut: where
+ * there is no room for it and some of the title, there is no label ([RunPlace.labelShown]). Drawing only: a screen
+ * reader hears each cell's own description and not this ([clearAndSetSemantics] with nothing set). The focus and the
+ * viewport are read while laying it out, so a move or a page recomposes nothing.
  */
+@Suppress("LongParameterList") // The row, the run, its place and count, and the two readers.
 @Composable
 internal fun RunLabelView(
     channel: ChannelId,
     run: CellRun,
     place: RunPlace,
+    count: String,
     focusOf: () -> GuideFocus?,
     viewportOf: () -> Long,
 ) {
@@ -281,7 +361,7 @@ internal fun RunLabelView(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.guide_run_count, run.count),
+                text = count,
                 modifier = Modifier.testTag(GuideTags.runLabelCount(channel, run.startMs)),
                 color = colors.textSecondary,
                 style = CellTitleStyle,
@@ -303,10 +383,12 @@ private fun Modifier.runLabelLayout(
         val viewport = viewportOf()
         val focus = focusOf()?.takeIf { it.channel == channel }?.cellStartMs
         if (!place.labelShown(viewport, focus)) return@layout layout(constraints.maxWidth, 0) {}
-        val left = place.labelLeft(viewport, focus)
-        val right = place.labelRight(viewport, focus)
-        // The chevrons are drawn by the cells at the viewport's edges; leave them their room, as a long title does.
-        val earlier = place.continuesEarlier(viewport) && left == place.span.visibleLeft(viewport)
-        val later = place.continuesLater(viewport) && right == place.span.visibleRight(viewport)
-        placeText(measurable, constraints, left, right, earlier, later)
+        placeText(
+            measurable,
+            constraints,
+            place.labelLeft(viewport, focus),
+            place.labelRight(viewport, focus),
+            earlier = place.earlierRoom(viewport, focus),
+            later = place.laterRoom(viewport, focus),
+        )
     }

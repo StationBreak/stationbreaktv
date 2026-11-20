@@ -33,21 +33,15 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
@@ -57,7 +51,6 @@ import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.PROSE_LINE_HEIGHT
 import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GuideCell
 import tv.stationbreak.feature.guide.GuideFocus
 import tv.stationbreak.feature.guide.R
@@ -77,7 +70,8 @@ internal val CellTitleStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 /** A slate's "OFF AIR" and a break's "STATION BREAK" plate. */
 private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
 
-private val EpisodeFrom = 110.dp
+/** The least width of a cell with an episode's second line ("S1 E19"). */
+internal val EpisodeFrom = 110.dp
 private val TextStart = 12.dp
 
 /**
@@ -87,14 +81,22 @@ private val TextStart = 12.dp
 private val TextEnd = 12.dp
 
 /**
- * Whether a title [titleWidth] wide is cut in a cell [width] wide, all of it in view: the room the cell's title is laid
- * out in ([placeText]: the cell's inset on both sides, [TextStart] and [TextEnd]) is narrower than the title, or the
- * cell is compact and writes no title at all, in which case [titleWidth] is not asked.
+ * The width a cell's title (or a run's label) is laid out in between [left] and [right] of a cell [width] wide (from
+ * its outer left edge): [placeText]'s room, in dp, [TextStart] in from the left or past the "‹" when [earlier], and
+ * [TextEnd] short of the right or of the "›" when [later].
  */
-internal fun titleCut(
+@Suppress("LongParameterList") // The span, the cell it is in, and its two edges.
+internal fun textRoom(
+    left: Dp,
+    right: Dp,
     width: Dp,
-    titleWidth: () -> Dp,
-): Boolean = width < CompactBelow || titleWidth() > width - CellInset * 2 - TextStart - TextEnd
+    earlier: Boolean,
+    later: Boolean,
+): Dp {
+    val start = (left - CellInset).coerceAtLeast(0.dp) + TextStart + if (earlier) ChevronRoom else 0.dp
+    val end = (right - CellInset).coerceAtMost(width - CellInset * 2) - if (later) ChevronRoom else TextEnd
+    return end - start
+}
 
 private val ChevronInset = 6.dp
 private val ChevronStroke = 1.5.dp
@@ -164,11 +166,19 @@ internal class CellPlace(
     /** [ms] on the row, from this cell's left edge: where the progress line ends for the time now. */
     fun xAt(ms: Long): Dp = geometry.widthOf(ms - originMs) - x
 
-    /** "‹": the cell runs on before the viewport, and that earlier time can be scrolled to (not at the origin). */
-    fun continuesEarlier(viewportStartMs: Long): Boolean = viewportStartMs > originMs && startMs < viewportStartMs
+    /**
+     * "‹", drawn at the viewport's left edge when unfocused: the cell runs on before the viewport, that earlier time
+     * can be scrolled to (not at the origin), and enough of it is in view for text ([compactIn]). Its title keeps
+     * clear of it.
+     */
+    fun drawsEarlier(viewportStartMs: Long): Boolean =
+        !compactIn(viewportStartMs) && viewportStartMs > originMs && startMs < viewportStartMs
 
-    /** "›": the cell runs on after the viewport. */
-    fun continuesLater(viewportStartMs: Long): Boolean = endMs > viewportStartMs + geometry.spanMs
+    /** "›", drawn at the viewport's right edge when unfocused: the cell runs on after it and is not [compactIn]. */
+    fun drawsLater(viewportStartMs: Long): Boolean {
+        val viewportEndMs = viewportStartMs + geometry.spanMs
+        return !compactIn(viewportStartMs) && endMs > viewportEndMs
+    }
 
     /**
      * What the cell draws over its fill with the viewport at [viewportStartMs], [focused] or not: see [CellMarks]. The
@@ -182,13 +192,13 @@ internal class CellPlace(
         val inner = width - CellInset * 2
         val from = (visibleLeft(viewportStartMs) - CellInset).coerceIn(0.dp, inner)
         // The fill ends at the viewport's right edge, or at the screen's edge for a cell that runs past it, as the
-        // cell's surface does; the title, the chevron and the ellipsis keep to the viewport ([visibleRight]).
+        // cell's surface does; the title and the chevron keep to the viewport ([visibleRight]).
         val fillRight = (viewportRight(viewportStartMs) + bleed - x).coerceIn(0.dp, width)
         val to = (fillRight - CellInset).coerceIn(from, inner)
         return CellMarks(
             ring = if (focused) from..to else null,
-            earlier = !focused && !compactIn(viewportStartMs) && continuesEarlier(viewportStartMs),
-            later = !focused && !compactIn(viewportStartMs) && continuesLater(viewportStartMs),
+            earlier = !focused && drawsEarlier(viewportStartMs),
+            later = !focused && drawsLater(viewportStartMs),
         )
     }
 }
@@ -303,15 +313,15 @@ private fun Modifier.stickyText(
             constraints,
             place.visibleLeft(viewport),
             place.visibleRight(viewport),
-            earlier = place.continuesEarlier(viewport),
-            later = place.continuesLater(viewport),
+            earlier = place.drawsEarlier(viewport),
+            later = place.drawsLater(viewport),
         )
     }
 
 /**
  * Places a cell's title (or a run's label) between [left] and [right] (from the cell's outer left edge, so its inset is
  * taken off), [TextStart] in from the left, or past the "‹" when [earlier], and [TextEnd] short of the right, or of
- * the "›" when [later]. The same room [titleCut] measures a title against.
+ * the "›" when [later]. In dp that room is [textRoom], which a title and a run's label are measured against.
  */
 @Suppress("LongParameterList") // The measure pass's own two, the span and its two edges.
 internal fun MeasureScope.placeText(

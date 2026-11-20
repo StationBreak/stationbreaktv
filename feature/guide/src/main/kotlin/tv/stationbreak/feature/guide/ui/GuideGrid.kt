@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -181,7 +182,11 @@ private fun GuideRowCells(
     nowOf: () -> Long?,
     playing: Boolean,
 ) {
-    val runs = remember(cells, originMs, geometry, titles) { rowRuns(cells, originMs, geometry, titles) }
+    val resources = LocalResources.current
+    val runs =
+        remember(cells, originMs, geometry, titles, resources) {
+            rowRuns(cells, originMs, geometry, titles) { resources.getString(R.string.guide_run_count, it) }
+        }
     Layout(
         content = {
             cells.forEachIndexed { index, cell ->
@@ -192,7 +197,9 @@ private fun GuideRowCells(
                 }
             }
             runs.runs.forEachIndexed { index, run ->
-                key(RUN_KEY, run.startMs) { RunLabelView(channel, run, runs.places[index], focusOf, viewportOf) }
+                key(RUN_KEY, run.startMs) {
+                    RunLabelView(channel, run, runs.places[index], runs.counts[index], focusOf, viewportOf)
+                }
             }
         },
         // The surfaces run on past the viewport to the screen's edge; the cells' text stops at the viewport's.
