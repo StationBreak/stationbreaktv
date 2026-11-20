@@ -318,10 +318,12 @@ class FirstSyncScreenTest {
 
         compose.onNodeWithTag(BENEATH).assertIsFocused()
         compose.onAllNodes(isFocusable()).assertCountEquals(1)
+        // What a screen reader reaches is the merged tree. The unmerged tree still lists the nodes the still's
+        // clearAndSetSemantics replaced, so it is no measure of what is said.
         val ready = compose.activity.getString(R.string.first_sync_done_headline)
-        compose.onAllNodes(hasText(ready, substring = true), useUnmergedTree = true).assertCountEquals(0)
-        compose.onNodeWithTag(FirstSyncTags.DONE, useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithTag(FirstSyncTags.SCREEN, useUnmergedTree = true).assertDoesNotExist()
+        compose.onAllNodes(hasText(ready, substring = true)).assertCountEquals(0)
+        compose.onNodeWithTag(FirstSyncTags.DONE).assertDoesNotExist()
+        compose.onNodeWithTag(FirstSyncTags.SCREEN).assertDoesNotExist()
     }
 
     @Test
