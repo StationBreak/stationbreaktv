@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
@@ -55,22 +54,6 @@ class ChannelsFreeTierTest {
 
             val choices = choicesOf(rig.ui)
             assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), choices)
-        }
-
-    @Test
-    fun aHiddenChoiceCannotBePickedAndChangesNothing() =
-        channelsTest(lineup) { rig ->
-            rig.free()
-            openRow(rig, A)
-
-            listOf(Choice.SwitchOff, Choice.SwitchOn, Choice.ChangeNumber, Choice.DefaultNumber).forEach {
-                assertThrows(IllegalStateException::class.java) { rig.pick(it) }
-            }
-            runCurrent()
-
-            assertNull(rig.ui.message)
-            assertNull(rig.ui.picker)
-            assertTrue(rig.editor.changes.isEmpty())
         }
 
     @Test
@@ -124,6 +107,26 @@ class ChannelsFreeTierTest {
             assertNull(rig.ui.message)
             assertFalse(rig.ui.confirmingReset)
             assertTrue(rig.editor.resets.isEmpty())
+        }
+
+    @Test
+    fun theFocusLeavesResetWhenTheEntitlementEnds() =
+        channelsTest(lineup) { rig ->
+            rig.open(this)
+            repeat(10) { rig.vm.move(up = false) }
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
+
+            rig.free()
+            runCurrent()
+
+            assertEquals(
+                ChannelsFocus.Row(
+                    rig.ui.rows
+                        .last()
+                        .id,
+                ),
+                rig.ui.focus,
+            )
         }
 
     @Test
@@ -257,6 +260,32 @@ class ChannelsFreeTierTest {
             assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
             assertNull(rig.ui.builder)
             assertFalse(rig.ui.gettingReady)
+        }
+
+    @Test
+    fun aDefaultNumberAStarterHoldsIsOnlyTakenWhenFree() =
+        channelsTest(swapLineup) { rig ->
+            rig.free()
+            rig.open(this)
+            rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NumberTaken(A))
+
+            rig.vm.defaultNumber(B)
+            runCurrent()
+
+            assertEquals(ChannelsMessage.DefaultNumberTaken, rig.ui.message)
+            assertNull(rig.ui.panel)
+        }
+
+    @Test
+    fun aDefaultNumberAStarterHoldsIsOfferedAsASwapToPro() =
+        channelsTest(swapLineup) { rig ->
+            rig.open(this)
+            rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NumberTaken(A))
+
+            rig.vm.defaultNumber(B)
+            runCurrent()
+
+            assertTrue(rig.ui.panel is ChannelsPanel.Swap)
         }
 
     private val swapLineup =

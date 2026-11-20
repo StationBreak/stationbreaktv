@@ -118,7 +118,7 @@ internal fun ChannelPropertiesSheet(
                         } else {
                             Rules(row, properties)
                         }
-                        Status(row, properties)
+                        Status(row, properties, ui.isPro)
                     }
                     Actions(ui, toGuide)
                 }

@@ -4,6 +4,7 @@ package tv.stationbreak.feature.channels
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.model.ChannelId
 
 /** One thing the viewer can pick in a panel. [Confirm] is the panel's own yes: Switch on, Swap or Reset. */
 internal enum class Choice {
@@ -77,6 +78,19 @@ internal fun isAvailable(
         Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber -> isPro || row.viewerMade
         else -> true
     }
+
+/** Whether the Reset channels line is offered: resetting the planner's lineup is Pro, so free is not shown it. */
+internal fun canReset(isPro: Boolean): Boolean = isPro
+
+/**
+ * Whether the Swap panel may be offered for the number [holder] has: a free viewer swaps only with a custom
+ * channel they made, so a number a built-in channel holds is just taken. A holder that is not listed counts as not
+ * the viewer's.
+ */
+internal fun swapOffered(
+    ui: ChannelsUi,
+    holder: ChannelId,
+): Boolean = ui.isPro || ui.rows.firstOrNull { it.id == holder }?.viewerMade == true
 
 /**
  * The note Select on [choice] shows instead of acting, or null: Copy to customise makes a custom channel, so it is

@@ -131,7 +131,7 @@ internal fun speechOf(
         }
 
         is Announced.Channel -> {
-            Speech(spokenOf(announced.row), null)
+            Speech(spokenOf(announced.row, ui.isPro), null)
         }
 
         is Announced.Pick -> {

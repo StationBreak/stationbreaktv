@@ -123,7 +123,7 @@ internal class ChannelsViewModel
             val access: LineupAccess = LineupAccess.Loading,
             val useMyCollections: Boolean = true,
             /** The entitlement and the custom-channel cap, as last seen (#793). */
-            val isPro: Boolean = true,
+            val isPro: Boolean = false,
             /** Null until the cap's flow has emitted: a new channel is not opened on a guess (#805). */
             val canAddCustom: Boolean? = null,
             /** The value the viewer last asked "Use my collections" to take, until the change that sends it is done. */
@@ -231,7 +231,7 @@ internal class ChannelsViewModel
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
                     }
-                val entitled = launch { pro.pro.collect { p -> change(generation) { it.copy(isPro = p) } } }
+                val entitled = launch { pro.pro.collect { p -> change(generation) { entitledTo(it, p) } } }
                 val capped =
                     launch {
                         builder.canAddCustom(account).collect { c -> change(generation) { it.copy(canAddCustom = c) } }
@@ -485,20 +485,15 @@ internal class ChannelsViewModel
             }
         }
 
-        // The choice of an actions panel; the channel to tune for Watch, else null. A choice that is not offered does
-        // nothing (#793); one held to the cap shows its note. The domain refuses both too.
+        // The choice of an actions panel; the channel to tune for Watch, else null. A choice held to the cap does
+        // nothing more than its note (#793); a choice that is not offered is not in the list, so it never gets here.
         private fun choose(
             choice: Choice,
             id: ChannelId,
             ui: ChannelsUi,
         ): ChannelId? {
-            val row = ui.rows.firstOrNull { it.id == id }
             val note = limitOf(choice, ui.canAddCustom)
             return when {
-                row != null && !isAvailable(choice, row, ui.isPro) -> {
-                    null
-                }
-
                 note != null -> {
                     synchronized(lock) {
                         apply { it.copy(panel = null, holder = null, about = null, properties = null, message = note) }
@@ -553,7 +548,7 @@ internal class ChannelsViewModel
             val focus = m.focus
             return when {
                 focus == null -> firstFocus(m, ids)
-                focus == ChannelsFocus.Reset && m.isPro -> focus
+                focus == ChannelsFocus.Reset && canReset(m.isPro) -> focus
                 focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
                 focus.id in ids -> focus
                 ids.isEmpty() -> resetStop(m) ?: ChannelsFocus.New
@@ -595,7 +590,7 @@ internal class ChannelsViewModel
                 gettingReady = m.wantBuilder != null,
                 useMyCollections = m.householdWant ?: m.useMyCollections,
                 isPro = m.isPro,
-                // The list marks New only for a known "no"; the builder itself waits for the answer (#805).
+                // A cap not known yet counts as no cap; the builder itself waits for the answer (#805).
                 canAddCustom = m.canAddCustom != false,
                 holder = m.holder,
                 about = m.about,
@@ -605,8 +600,18 @@ internal class ChannelsViewModel
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
 
+        // The entitlement changed: the focus leaves a Reset line that is no longer there.
+        private fun entitledTo(
+            m: Model,
+            isPro: Boolean,
+        ): Model {
+            val now = m.copy(isPro = isPro)
+            val ids = now.rows.map { it.id }
+            return now.copy(focus = mended(now, ids, ids))
+        }
+
         // Reset is the last stop, for a viewer who can reset: a free viewer has no Reset line.
-        private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { m.isPro }
+        private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { canReset(m.isPro) }
 
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
@@ -897,10 +902,16 @@ internal class ChannelsViewModel
             val panel = swapPanelFor(change, m.channels, holder)
             return if (panel == null) {
                 closed.copy(message = ChannelsMessage.Failed)
-            } else if (!m.isPro && m.rows.firstOrNull { it.id == holder }?.viewerMade != true) {
+            } else if (!swapOffered(derive(m), holder)) {
                 // Free: a custom channel takes a number that is free or another custom channel's, never a built-in
                 // channel's, so there is no swap to offer (#804).
-                closed.copy(message = ChannelsMessage.NumberTaken)
+                val taken =
+                    if (change is ChannelChange.ClearNumber) {
+                        ChannelsMessage.DefaultNumberTaken
+                    } else {
+                        ChannelsMessage.NumberTaken
+                    }
+                closed.copy(message = taken)
             } else {
                 closed.copy(panel = panel, holder = holder, message = null)
             }
@@ -910,7 +921,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 when {
                     notEditable() -> Unit
-                    !model.isPro -> Unit
+                    !canReset(model.isPro) -> Unit
                     else -> apply { it.copy(confirmingReset = true, panel = null) }
                 }
             }

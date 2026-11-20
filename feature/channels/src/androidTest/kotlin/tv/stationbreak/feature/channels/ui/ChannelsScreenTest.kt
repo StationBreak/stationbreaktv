@@ -129,7 +129,7 @@ private val NIGHT = ChannelId("ch-night")
 private val ECHO = ChannelId("ch-echo")
 
 // The shelf reason for a channel that fits but missed the cut.
-private const val LINEUP_FULL = "Fits, but your lineup is full."
+private const val LINEUP_FULL = "Fits, but your lineup is full. Switch it on to add it."
 
 @Suppress("LongParameterList") // A test builder: every field has a default.
 private fun summary(
@@ -964,8 +964,15 @@ class ChannelsScreenTest {
     // #811: the free tier on a real screen, with the entitlement closed, then opened while the screen is open. A free
     // viewer is never shown a Pro choice, a Pro mark or a "coming soon" note: the choices are not listed.
 
+    // The word Pro on its own, not a longer word that starts with it.
+    private val hasBareWordPro =
+        SemanticsMatcher("has the word Pro") { node ->
+            node.config.getOrNull(SemanticsProperties.Text)?.any { Regex("\\bPro\\b").containsMatchIn(it.text) } == true
+        }
+
     private fun noProWords() =
         nodes(hasText("(Pro)", substring = true)).isEmpty() &&
+            nodes(hasBareWordPro).isEmpty() &&
             nodes(hasText("coming soon", substring = true)).isEmpty()
 
     private fun messageIs(text: String) =

@@ -42,6 +42,7 @@ import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
+import tv.stationbreak.feature.channels.canReset
 
 /**
  * One line of the list: the "Use my collections" switch, the New channel row, a group's heading, a channel, or the
@@ -77,8 +78,7 @@ private fun linesOf(
             add(Line.Heading(group, inGroup.size))
             inGroup.forEach { add(Line.Channel(it)) }
         }
-        // Reset is Pro: a free viewer is not shown it.
-        if (isPro) add(Line.Reset)
+        if (canReset(isPro)) add(Line.Reset)
     }
 
 @Composable
@@ -102,7 +102,7 @@ internal fun ChannelList(
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
                 Line.New -> NewLine(focused = i == focused)
                 is Line.Heading -> HeadingLine(line.group, line.count)
-                is Line.Channel -> RowLine(line.row, focused = i == focused)
+                is Line.Channel -> RowLine(line.row, focused = i == focused, isPro = ui.isPro)
                 Line.Reset -> ResetLine(focused = i == focused)
             }
         }
@@ -131,9 +131,10 @@ private fun Line.key(): String =
 private fun RowLine(
     row: ChannelRow,
     focused: Boolean,
+    isPro: Boolean,
 ) {
     val reason = reasonOf(row)
-    val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it)) }
+    val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
     Row(
@@ -217,13 +218,17 @@ private fun RequestVisibleMarks(
 
 private const val MARK_LOOKAHEAD = 12
 
-internal fun shelfReasonText(reason: ShelfReason): Int =
+/** The shelf line for [reason]: a free viewer cannot switch a channel on, so its lines do not offer it. */
+internal fun shelfReasonText(
+    reason: ShelfReason,
+    isPro: Boolean,
+): Int =
     when (reason) {
         ShelfReason.Empty -> R.string.channels_shelf_empty
         ShelfReason.TooThin -> R.string.channels_shelf_thin
-        ShelfReason.BelowCap -> R.string.channels_shelf_below_cap
+        ShelfReason.BelowCap -> if (isPro) R.string.channels_shelf_below_cap else R.string.channels_shelf_below_cap_free
         ShelfReason.NoNumber -> R.string.channels_shelf_no_number
-        ShelfReason.OptIn -> R.string.channels_shelf_opt_in
+        ShelfReason.OptIn -> if (isPro) R.string.channels_shelf_opt_in else R.string.channels_shelf_opt_in_free
     }
 
 @Composable
