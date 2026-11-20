@@ -7,7 +7,7 @@ import tv.stationbreak.core.domain.RevokeOutcome
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.selection.LibrarySetup
 
-/** Who is signed in, for the Libraries screen's sign-out (#336). */
+/** Who is signed in, for the Libraries screen's "Signed in to" line and the sign-out question (#336). */
 internal interface AccountSignOut {
     /** The signed-in server's name (never its address), or null when nobody is signed in or it has none. */
     fun serverName(): String?

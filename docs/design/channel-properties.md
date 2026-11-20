@@ -13,17 +13,17 @@ A viewer should be able to answer, without leaving the TV, "what is this channel
 2. **Also reachable from channel management.** `actionsOf()` gains **About this channel** so the same sheet opens from the Channels list. One composable, two entry points.
 3. **Not a full screen — a right-hand sheet over the dimmed guide.** 380dp wide in the 960×540 layout, full height, the guide's `sheet` token (`#141518` in Dark, `#E4E6EA` in Light) with a 1dp `sheetLine` left edge (`#3A3B40` in Dark, ink at 20% in Light). The channel screens, the builder and the guide's menu sheet take their ground, text and ring from `LocalPanelColors` / `LocalGuideColors`, so they follow the guide's theme; focus is the guide's: a 3dp `focusFill` ring, no scale. Back closes it and returns focus to where it came from. The guide and picture stay where they are behind it.
 4. **Sheet content shows what the viewer can reason about, in plain words. No JSON, no wire names.** Sources, filters and ordering are humanised with the same formatter the builder's edit sheet uses (`SheetRow.Sources` / `NarrowDown` / `PlayOrder` / `Kept` lines), so the two never disagree.
-5. **The seed is shown, as a "Schedule code".** `fnv1a64`/first 32 bits of `ChannelRules.seed`, formatted `XXXX-XXXX`. It is the one thing that lets two households (or two devices) confirm they're on the same lineup. It is read-only; Reshuffle stays in the builder.
+5. **The seed is shown, as a "Matching code".** `fnv1a64`/first 32 bits of `ChannelRules.seed`, formatted `XXXX-XXXX`. It is the one thing that lets two households (or two devices) confirm they're on the same lineup. It is read-only; Reshuffle stays in the builder.
 6. **Actions on the sheet reuse `actionsOf()`** (Watch, Switch on/off, Customize or Edit, Change number, Default number). No new actions. The sheet is informational first; actions are there so the viewer doesn't have to go hunting.
 
 ## Sheet layout (top to bottom)
 
 | Block | Content | Source |
 |---|---|---|
-| Identity | Mark (50×28dp box at 2× = 100×56dp), `CHANNEL <n>` 14sp `textSecondary`, name 20sp SemiBold, tags row: `BUILT-IN` / `CUSTOM` / `LEFTOVERS` and, when kid-safe, `KIDS · UP TO <rating>` in the `kidsTag` token (`#FFD166` in Dark, `#7A4B00` in Light) | `ChannelSummary.kind`, `Recipe.kidSafe`, `maxRating` |
+| Identity | Mark (50×28dp box at 2× = 100×56dp), `CHANNEL <n>` 14sp `textSecondary`, name 20sp SemiBold, tags row: `BUILT-IN` / `CUSTOM` / `EVERYTHING ELSE` and, when kid-safe, `KIDS · UP TO <rating>` in the `kidsTag` token (`#FFD166` in Dark, `#7A4B00` in Light) | `ChannelSummary.kind`, `Recipe.kidSafe`, `maxRating` |
 | Personality | Recipe `personality` in quotes, 14sp italic `textSecondary`. Custom channels: omitted. | `StarterCatalogView.recipes[key].personality` |
-| **What it plays** | Key/value rows: Genres, Tags, Years, Studios, Collections/Series/Items (named, not IDs), Libraries; **Always** = theme anchors; **Never** = exclusions + "anything rated above X"; **Narrowed to** = filters (kind, runtime, not-genres). Omit empty rows. | `ChannelSource.*.rules.sources/exclusions/filters`, `Recipe.theme.anchors` |
-| **How it runs** | Order (Shuffle / In order / Rotation / Chronological / Random in order / **Programmed** for Curated) with "· new day at <broadcastDay.start>"; block length when set; Schedule code | `ChannelRules.ordering`, `timing`, `seed` |
+| **What it plays** | Key/value rows: Genres, Tags, Years, Studios, Collections/Series/Items (named, not IDs), Libraries; **Always** = theme anchors; **Never** = exclusions + "anything rated above X"; **Only includes** = filters (kind, runtime, not-genres). Omit empty rows. | `ChannelSource.*.rules.sources/exclusions/filters`, `Recipe.theme.anchors` |
+| **How it runs** | Order (Shuffle / In order / Rotation / Chronological / Random in order / **Programmed** for Curated) with "· new day at <broadcastDay.start>"; block length when set; Matching code | `ChannelRules.ordering`, `timing`, `seed` |
 | **What it holds** | (#757) The hours line, then **Home to:** (the titles whose home is the channel) or, for a channel with none, **Mostly:** (the six titles with the most hours): the same lines, from the same `ChannelHoldings` value, as the guide's channel box (`docs/design/guide-menu-and-channel-holdings.md`, section 2). Only home shows are listed; the hours and the title count are totals of everything the channel airs. A day whose homes are not known (built before they were kept) shows the hours line alone. Omitted for a channel that is off, hidden or has nothing today. | `ChannelProperties.holdings` (`ChannelHoldingsReader`) |
 | Status | One line with a 5dp dot: green **On since <date>** · *showing today* / *hidden today: <HiddenReason text>*; amber **Not switched on** · *<ShelfReason text>*; grey **Off** · *hidden by you* | `ChannelSummary.state/onSince/shelfReason`, `ScheduleSource.airings().hidden` |
 | Actions | Buttons 16sp Medium, 3dp radius, focused = accent fill + `focusText` | `actionsOf()` |
@@ -66,7 +66,7 @@ Implementation reads `LineupChannel.source` (`Starter.rules`, `Custom.rules`, `L
 - [ ] OK on a channel opens the sheet within 150 ms with the identity block populated; the "What it plays" block may load after (show the three-dot loading state used by `ProgramInfoOverlay`).
 - [ ] The sheet shows correct, humanised content for: a starter with a theme (ch 8), a starter without (ch 122), a custom channel, a Leftovers channel (no rules: "Plays whatever nothing else does"), an Unusable channel ("Can't be read").
 - [ ] Status line matches channel management for the same channel at the same moment (shared strings, shared `HiddenReason`).
-- [ ] Schedule code is identical on two devices signed into the same server for the same channel, and changes after Reshuffle.
+- [ ] The matching code is identical on two devices signed into the same server for the same channel, and changes after Reshuffle.
 - [ ] Actions perform exactly what they do in channel management and the sheet reflects the result (e.g. Switch off → status turns grey) without closing.
 - [ ] Back closes the sheet and restores focus (guide: the channel position; Channels: the row).
 - [ ] No text under 10sp; all text ≥ 4.5:1 on the sheet in both themes (`GuideColorsTest`, `ChannelsPaletteTest`); screenshot test added for the sheet in both themes.
@@ -84,4 +84,4 @@ Editing anything from the sheet beyond the existing actions; showing per-item sc
 ## Open for the owner
 
 - Should Leftovers channels show their donor list ("plays what channels 4–80 don't")? Cheap if `LeftoversRecipe` exposes it; otherwise defer.
-- Is "Schedule code" the right name for viewers, or should it be shown only in a Settings → Diagnostics context after dogfood?
+- Is "Matching code" the right name for viewers, or should it be shown only in a Settings → Diagnostics context after dogfood?

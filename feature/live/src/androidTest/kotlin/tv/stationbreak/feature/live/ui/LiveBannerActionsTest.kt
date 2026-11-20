@@ -447,12 +447,12 @@ class LiveBannerActionsTest {
     }
 
     @Test
-    fun transcodingIsSaidAtTheEndOfTheChipsRowOnlyForATranscode() {
+    fun conversionIsSaidAtTheEndOfTheChipsRowOnlyForATranscode() {
         show(selectBanner(Route.TRANSCODE))
         val label = compose.onNodeWithTag(LiveTags.BANNER_TRANSCODING)
         label.assertExists()
         assertEquals(
-            listOf("Transcoding"),
+            listOf("Converting for this TV"),
             label.fetchSemanticsNode().config[SemanticsProperties.Text].map { it.text },
         )
         assertTrue("not focusable", SemanticsProperties.Focused !in label.fetchSemanticsNode().config)

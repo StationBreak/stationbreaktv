@@ -78,8 +78,11 @@ class StreamLabelsTest {
     }
 
     @Test
-    fun aTranscodeStartsWithTranscodingAndTheOtherRoutesSayNothing() {
-        assertEquals("Transcoding · 1080p HEVC · English 5.1 · Subtitles off", line(facts(route = Route.TRANSCODE)))
+    fun aTranscodeStartsWithConvertingForThisTvAndTheOtherRoutesSayNothing() {
+        assertEquals(
+            "Converting for this TV · 1080p HEVC · English 5.1 · Subtitles off",
+            line(facts(route = Route.TRANSCODE)),
+        )
         assertEquals(line(facts()), line(facts(route = Route.DIRECT_STREAM)))
     }
 
@@ -129,9 +132,9 @@ class StreamLabelsTest {
         val forcedPicture = subtitle(4, "jpn", SubtitleForm.Picture, TrackFlags(forced = true))
         assertEquals("English · Text", StreamLabels.subtitleRow(subtitle(3), copy, language))
         val sdh = subtitle(3, flags = TrackFlags(sdh = true))
-        assertEquals("English · SDH · Text", StreamLabels.subtitleRow(sdh, copy, language))
+        assertEquals("English · With sound descriptions · Text", StreamLabels.subtitleRow(sdh, copy, language))
         assertEquals(
-            "Japanese · Forced · Picture",
+            "Japanese · Foreign parts only · Picture",
             StreamLabels.subtitleRow(forcedPicture, copy, language),
         )
     }
@@ -331,6 +334,19 @@ class StreamLabelsTest {
     }
 
     @Test
+    fun aServerTitleOfSdhIsNoTitleBesideThePlainWords() {
+        val texts =
+            subtitleTexts(
+                subtitle(1, flags = TrackFlags(sdh = true), title = "SDH"),
+                subtitle(2, flags = TrackFlags(sdh = true), title = "SDH"),
+            )
+        assertEquals(
+            listOf("English · With sound descriptions · Text", "English · With sound descriptions · Text · 2"),
+            texts,
+        )
+    }
+
+    @Test
     fun aTitleThatIsANumberOrSaysWhatTheRowAlreadySaysIsNoTitle() {
         val texts =
             subtitleTexts(
@@ -340,8 +356,8 @@ class StreamLabelsTest {
                 subtitle(4, title = "0"),
                 subtitle(5, title = "English"),
             )
-        assertEquals("English · Forced · Text", texts[0])
-        assertEquals("English · Forced · Text · 2", texts[1])
+        assertEquals("English · Foreign parts only · Text", texts[0])
+        assertEquals("English · Foreign parts only · Text · 2", texts[1])
         assertEquals("English · Text", texts[2])
         assertEquals("English · Text · 2", texts[3])
         assertEquals("English · Text · 3", texts[4])

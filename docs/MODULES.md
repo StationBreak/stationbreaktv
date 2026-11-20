@@ -145,10 +145,13 @@ is top-right in screen coordinates; live places its picture absolutely). A chann
 on now) goes back through the slot; live closes the guide and tunes it through the flip's commit (`LiveCommand.Tune`),
 so Menu, the look-ahead and the tune line follow as for a flip (the line ends `via=guide`). The guide also hosts
 channel management (spec 21) as a second slot, `ChannelsSlot`, behind the Channels row of its menu sheet (Channels, Settings and Exit, a 220 dp sheet on the left edge opened by Menu or by Back on the playing cell); `app` fills it with
-`feature:channels`' `ChannelsDestination`. Settings is another row of the menu sheet, a panel of three rows (Appearance,
-Libraries and Sync now): Up and Down move the row, Left and Right pick the theme on Appearance, Select on Libraries opens
-a third slot, `LibrariesSlot`, which `app` fills with `feature:settings`' `LibrariesDestination`, and Select on Sync now asks
-`SyncNow` for a sync (a press while one runs does nothing) and shows its state on the row. The guide and live both read
+`feature:channels`' `ChannelsDestination`. Settings is another row of the menu sheet, which opens the Settings sheet in its
+place: rows under four flags (PICTURE: Appearance, Screen fit; PLAYBACK: When changing channel, Even out volume; LIBRARY:
+Libraries, Update library; ACCOUNT: Sign out). Up and Down move the row, Left, Right and OK change a choice row in place
+(OK never closes the sheet), and Back closes it. Select on Libraries opens a third slot, `LibrariesSlot`, which `app` fills
+with `feature:settings`' `LibrariesDestination`; Select on Update library asks `SyncNow` for a sync (a press while one runs
+does nothing) and shows its state under the row; Select on Sign out opens a fourth slot, `SignOutSlot`, which `app` fills
+with `feature:settings`' `SignOutDestination`, the question asked over the sheet. The guide and live both read
 `LibrarySelectionView.selection` (the guide carries it as one flag on its snapshot). When the stored selection is gone (no library of this TV's is available), the guide shows a
 message in place of the grid (and no programme in the details panel) and keeps its menu sheet open, and live shows `LiveState.NoLibraries` and tunes nothing.
 Live also holds still while the TV's output is gone ([#423](https://github.com/StationBreak/stationbreaktv/issues/423)): `feature:live`'s `DisplayOutput` port (read-only: whether the HDMI sink is there) is bound in `app` by `HdmiOutput`, from the platform's `ACTION_HDMI_AUDIO_PLUG` broadcast. While it is gone `LiveChannel` shows the screen a start shows (`LiveState.Starting`: Stan stands by), tunes, retries and reports nothing, and tunes once when it returns.
@@ -161,7 +164,7 @@ playing is gone from the lineup, the guide tunes the neighbour by `neighbourOf` 
 lower). The channel plate carries a 32 dp channel mark (spec 27): the logo bundled in `core:ui`'s `assets/channelmarks/` (`ChannelMark`, `MarkCache`),
 found by the channel's recipe key (`ChannelAiring.recipeKey`; the Channels screen finds it by `ChannelSummary.recipeKey`) and decoded off the main thread into `MarkCache`, else an
 initials tile; the channel column is 168 dp wide to hold it. Everything in
-`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot` and `LibrariesSlot` types, the `GuideMeasured` qualifier `app`
+`feature:guide` is internal except `GuideDestination`, its `ChannelsSlot`, `PropertiesSlot`, `LibrariesSlot` and `SignOutSlot` types, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.
 
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
@@ -189,15 +192,22 @@ the last press of a row winning. A reopened screen shows the last listing's rows
 It reaches the selection only through `LibraryChoices`: one listing per visit, the stored choice as `ChoiceView` (an add the
 add pass gave up shows as stalled, not as being added) and `change`. When the server cannot be asked it shows the stored choice
 read-only. Like the channel screen it is not a route: its host draws `LibrariesDestination` as a slot that `app` fills, over
-the picture and around the same hole, and it tells its host it is finished with one `onDone()` call. Everything in
-`feature:settings` is internal except `LibrariesDestination` and `SettingsTags` for `app`'s tests.
+the picture and around the same hole, and it tells its host it is finished with one `onDone()` call. It also holds the
+sign-out question (#336), `SignOutViewModel` and `SignOutDestination`, which the guide draws over its Settings sheet: Stay
+signed in (focused when it opens) or Sign out, through `AccountSignOut` over `SessionRepository` and `LibrarySetup`; it
+calls `onDone()` when the viewer stays and the `onSignedOut` that `app` gives it once the sign-out has run. Everything in
+`feature:settings` is internal except `LibrariesDestination`, `SignOutDestination` and `SettingsTags` for `app`'s tests.
 
 The geometry both sides must agree on is in `core:ui`, not in either feature: `ScreenLayout.safeArea` (the 5% overscan
 inset the banner, the info overlay and the guide all use) and `ScreenLayout.pictureRect` (where live puts the corner
 picture; the guide is handed the result). `core:ui` has grown from the theme into the shared program UI of spec 17: the
 program text rules (`ProgramText`: slots, times, episode lines, and the minutes until a time as the clock and the slot
 read them, with the wait to the clock's next minute that the banner and the guide both tick on), the program info
-overlay, and that geometry.
+overlay, and that geometry. It also holds the guide family's shared sheet pieces, which the guide (menu and Settings
+sheets), `feature:channels` (the properties sheet) and `feature:settings` (the sign-out question) all draw with:
+`LeftSheet` and `RightSheet` (the edge sheet over the scrim, `SHEET_SCRIM_ALPHA`), `SheetMeasures` (title, body and
+caption sizes, row padding, gap and the 36 dp row), `KeyCap`, `KeyHint` and `KeyHintRow` (key-cap hint rows, read out as
+one line, with the shared key words), and `scrollEdgeFade`. They read their colours from `LocalPanelColors` only.
 
 `core:domain` also holds `logName()`, the name a log line prints for a class (`state.javaClass.logName()`): taken from
 the binary name, because R8 drops the attribute `simpleName` needs from nested classes. It relies on the release build's
@@ -373,7 +383,7 @@ module that declares `androidx.room*` or `androidx.work*`. `app` binds the repos
   press queues behind a background run and two never run at once. With `followServer = false` the run expires holds
   after its passes, walks the rewalk on the press's own listing, and skips the runner's own follow of the listing. A
   completed run is `Done` (the time is the clock's), a failed one `Failed` with the run's reason, a cancelled one `Idle`,
-  and an unexpected throw `Failed(Server)`. The guide's Settings panel shows the state on the Sync now row. One line
+  and an unexpected throw `Failed(Server)`. The guide's Settings sheet shows the state under the Update library row. One line
   per press is logged with numbers only.
 - **Hidden views.** The library listing asks `UserViews` with `includeHidden=true`: a library the user hid from the
   server's home screen is still listed, so it stays choosable and never reads as going missing.

@@ -13,11 +13,12 @@ import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.feature.guide.ui.SettingsPanel
 import tv.stationbreak.feature.guide.ui.SettingsRow
 import tv.stationbreak.feature.guide.ui.SettingsStep
+import tv.stationbreak.feature.guide.ui.SettingsValues
 import tv.stationbreak.feature.guide.ui.SyncNowLine
 import tv.stationbreak.feature.guide.ui.settingsStep
 import tv.stationbreak.feature.guide.ui.syncNowLine
 
-/** Spec 26, Task 5.2: the Settings panel's Sync now row starts one sync per press and says how it stands. */
+/** Spec 26, Task 5.2: the Settings sheet's Update library row starts one update per press and says how it stands. */
 class GuideSyncNowTest : GuideRig() {
     // The module's English strings by resource name, read from the file: a unit test has no resources to resolve.
     private val strings: Map<String, String> by lazy {
@@ -40,7 +41,7 @@ class GuideSyncNowTest : GuideRig() {
         key: Key,
         type: KeyEventType = KeyEventType.KeyDown,
         repeat: Int = 0,
-    ): SettingsStep = checkNotNull(settingsStep(onSyncNow, key, type, repeat))
+    ): SettingsStep = checkNotNull(settingsStep(onSyncNow, SettingsValues(), key, type, repeat))
 
     private val noTime: (Long) -> String = { error("no time to format") }
 
@@ -51,7 +52,7 @@ class GuideSyncNowTest : GuideRig() {
     @Test
     fun select_startsOnce_rowShowsSyncing() =
         guideTest { vm ->
-            // Select asks for one sync, once per press: its auto-repeat and its release ask for none, and the panel
+            // Select asks for one sync, once per press: its auto-repeat and its release ask for none, and the sheet
             // stays open on the row.
             assertEquals(SettingsStep(onSyncNow, syncNow = true), press(Key.DirectionCenter))
             assertEquals(SettingsStep(onSyncNow), press(Key.Enter, repeat = 1))

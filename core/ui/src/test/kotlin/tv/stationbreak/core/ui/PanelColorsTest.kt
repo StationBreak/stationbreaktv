@@ -27,6 +27,20 @@ class PanelColorsTest {
         assertContrastAtLeast(4.5, p.sheet.ratingBadge, s, "rating badge on the sheet")
     }
 
+    // A section flag is DESIGN.md's grey in Dark, dark grey in Light, and reads on the sheet in both; key caps take the
+    // guide's own stroke.
+    @Test
+    fun theFlagAndTheKeyCapFollowTheGuide() {
+        assertEquals(Color(0xFFCFCBC2), PanelColors.Dark.flag)
+        assertEquals(Color(0xFFCFCBC2), GuideColors.Dark.panel.flag)
+        assertEquals(Color(0xFF5E5850), GuideColors.Light.panel.flag)
+        for (guide in listOf(GuideColors.Dark, GuideColors.Light)) {
+            val p = guide.panel
+            assertEquals(guide.keyCapStroke, p.keyCapStroke)
+            assertContrastAtLeast(4.5, p.flag, p.sheet.surface, "a flag on the sheet")
+        }
+    }
+
     @Test
     fun theDefaultReadsOnItsGround() {
         val p = PanelColors.Dark

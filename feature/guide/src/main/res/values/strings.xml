@@ -2,7 +2,7 @@
 <!--
   SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
-  The copy for the program guide (spec 17). The program words it shares with the banner (episode lines, "Off air
+  The copy for the program guide (spec 17). The program words it shares with the banner (episode lines, "Off the air
   until", countdowns) are in core:ui.
 -->
 <resources>
@@ -19,9 +19,8 @@
     <string name="guide_tag_critics">Critics</string>
     <string name="guide_tag_audience">Audience</string>
 
-    <!-- The hint row: a key name, then what it does. OK tunes what is on now, and the channel of a later program. -->
-    <string name="guide_key_ok">OK</string>
-    <string name="guide_key_back">Back</string>
+    <!-- The hint row: a key name (OK and Back are core:ui's), then what it does. OK tunes what is on now, and the
+         channel of a later program. -->
     <string name="guide_hint_watch">Watch</string>
     <string name="guide_hint_watch_channel">Watch channel</string>
     <!-- On the channel column (#631): OK opens the channel's properties, Right or Back returns to the programs. -->
@@ -48,29 +47,39 @@
     <!-- The menu sheet's first row (#803), while the guide shows a grid: opens the focused channel's properties. -->
     <string name="guide_menu_about">About %1$s</string>
 
-    <!-- The rows of the menu sheet (#756): the first opens channel management (spec 21), the second leaves. -->
+    <!-- The rows of the menu sheet (#756): Channels opens channel management (spec 21), Settings the Settings sheet, and
+         Exit leaves. -->
     <string name="guide_channels_button">Channels</string>
     <string name="guide_settings_button">Settings</string>
+    <!-- The Settings sheet (#336): its section flags, drawn in the teletype's capitals and read as written. -->
+    <string name="guide_settings_group_picture">Picture</string>
+    <string name="guide_settings_group_playback">Playback</string>
+    <string name="guide_settings_group_library">Library</string>
+    <string name="guide_settings_group_account">Account</string>
+    <!-- A choice row as a screen reader hears it while it has the focus: its label, then its value. -->
+    <string name="guide_settings_spoken">%1$s, %2$s</string>
+    <!-- The end of a row that opens another screen. -->
+    <string name="guide_settings_chevron">›</string>
     <string name="guide_settings_appearance">Appearance</string>
     <string name="guide_theme_dark">Dark</string>
     <string name="guide_theme_light">Light</string>
-    <!-- placeholder: design partner. The Settings panel's screen fit: Safe keeps text 5% in from every edge, Edge 1.5%. -->
+    <!-- placeholder: design partner. The Settings sheet's screen fit: Safe keeps text 5% in from every edge, Edge 1.5%. -->
     <string name="guide_settings_screen_fit">Screen fit</string>
     <string name="guide_fit_safe">Safe</string>
     <string name="guide_fit_edge">Edge</string>
-    <!-- INTERIM copy, pending the design pass (#498). The Settings panel's volume levelling row. Its summary ("Keeps
-         quiet and loud shows at a similar level") is left out until the panel has room for one line under each row. -->
+    <!-- What live TV shows while the channel changes, named by what the viewer sees: Stan's stand-by card (the
+         default) or the old static. -->
+    <string name="guide_settings_channel_change">When changing channel</string>
+    <string name="guide_channel_change_card">Stand-by card</string>
+    <string name="guide_channel_change_static">Static</string>
+    <!-- The Settings sheet's volume levelling row (#498). -->
     <string name="guide_settings_levelling">Even out volume</string>
     <string name="guide_levelling_off">Off</string>
     <string name="guide_levelling_on">On</string>
-    <!-- placeholder: design partner. The Settings panel's row for what live TV shows while the channel changes. -->
-    <string name="guide_settings_channel_change">Changing channel</string>
-    <string name="guide_channel_change_stan">Stan</string>
-    <string name="guide_channel_change_snow">Snow</string>
-    <!-- placeholder: design partner. The Settings panel's row that opens Settings, Libraries (spec 26). -->
+    <!-- placeholder: design partner. The Settings sheet's row that opens Settings, Libraries (spec 26). -->
     <string name="guide_settings_libraries">Libraries</string>
-    <!-- placeholder: design partner. The Settings panel's row that syncs with the server now (spec 26), and the line
-         beside it: running, done (the time in the device's own format), or why it failed. -->
+    <!-- placeholder: design partner. The Settings sheet's row that updates the library now (spec 26), and the line
+         under it: running, done (the time in the device's own format), or why it failed. -->
     <string name="guide_settings_sync_now">Update library</string>
     <string name="guide_sync_running">Updating…</string>
     <string name="guide_sync_done">Updated at %1$s</string>
@@ -87,13 +96,22 @@
     <string name="guide_sync_reason_server">The server had a problem.</string>
     <string name="guide_sync_reason_suspect">The server sent something StationBreak couldn\'t read.</string>
     <string name="guide_sync_reason_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries.</string>
+    <!-- The Settings sheet's last row (#336): OK asks whether to sign out of this TV. -->
+    <string name="guide_settings_sign_out">Sign out</string>
+    <!-- The Settings sheet's hint row (its keys and Close are core:ui's): Left and Right change a choice, OK moves it
+         on to the next value, opens a link, updates the library on Update library, or signs out on Sign out (the row's
+         own words); Back closes the sheet. -->
+    <string name="guide_hint_change">Change</string>
+    <string name="guide_hint_next">Next</string>
+    <string name="guide_hint_open">Open</string>
+    <string name="guide_hint_update">Update</string>
     <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->
     <string name="guide_now">Now</string>
 
     <!-- A slate cell on the grid: a plate, not a missing title. The panel still says when it comes back. -->
-    <string name="guide_off_air">Off air</string>
+    <string name="guide_off_air">Off the air</string>
 
     <!-- A station-break cell on the grid (leftover time spread through the day): a plate in the slate's style. The panel says what is up next. -->
     <string name="guide_station_break">Station break</string>

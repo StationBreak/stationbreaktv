@@ -160,6 +160,31 @@ class LibrariesSettingsViewModelTest {
             assertTrue(choices.changes.isEmpty())
         }
 
+    // "Signed in to …" (#336): the server's name from the same source the sign-out question reads; none when nobody is.
+    @Test
+    fun theHeaderNamesTheServer_unlessNobodyIsSignedIn() =
+        runTest {
+            val home =
+                object : AccountSignOut {
+                    override fun serverName() = "Home"
+
+                    override suspend fun signOut() = true
+                }
+            val choices = FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA, BRAVO))
+            val named = LibrariesSettingsViewModel(choices, StandardTestDispatcher(testScheduler), account = home)
+            vm = named
+            named.open()
+            runCurrent()
+            assertEquals("Home", named.now.serverName)
+            named.close()
+
+            choices.answer = { LibraryListing.NotSignedIn(choices.selection.value) }
+            named.open()
+            runCurrent()
+            assertNull(named.now.serverName)
+            assertNull(open(FakeLibraryChoices(view(setOf(ALPHA.id)), listOf(ALPHA))).now.serverName)
+        }
+
     // The owner's report: a press flips its row at once, and shows it is saving until the change is stored.
     @Test
     fun select_flipsTheRowAtOnce_showsSaving_thenClears() =

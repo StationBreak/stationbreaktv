@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
@@ -42,6 +44,8 @@ class GuideColors(
     val line: Color,
     /** The 1 dp outline of a hint key cap: the brand grey in Dark, or the paper line in Light. */
     val keyCapStroke: Color,
+    /** A section flag's text on a sheet: the brand grey in Dark (DESIGN.md `section-flag`), dark grey in Light. */
+    val sectionFlag: Color,
     /**
      * The ink the channel marks are tinted with: their mono render drawn in this colour (Light), or null to draw the
      * colour render as it is (Dark). See `channelmarks` in `core/ui/CHANNELMARKS.md`.
@@ -62,6 +66,8 @@ class GuideColors(
             secondary = textSecondary,
             ring = focusFill,
             sheet = sheet,
+            keyCapStroke = keyCapStroke,
+            flag = sectionFlag,
         )
 
     companion object {
@@ -84,6 +90,7 @@ class GuideColors(
                 progressTrack = BrandColors.Line,
                 line = BrandColors.Line,
                 keyCapStroke = BrandColors.Grey,
+                sectionFlag = BrandColors.Grey,
                 sheet = DarkSheet,
             )
 
@@ -113,6 +120,7 @@ class GuideColors(
                 progressTrack = BrandColors.PaperTrack,
                 line = BrandColors.PaperLine,
                 keyCapStroke = BrandColors.PaperLine,
+                sectionFlag = BrandColors.DarkGrey,
                 markTint = BrandColors.Ink,
                 sheet =
                     SheetColors(
@@ -137,3 +145,19 @@ private const val FOCUS_SECONDARY_ALPHA = 0.90f
 private const val FOCUS_SECONDARY_ALPHA_LIGHT = 0.95f
 private const val NOW_LINE_ALPHA = 0.35f
 private const val NOW_LINE_ALPHA_LIGHT = 0.60f
+
+/**
+ * Provides the guide family's colours for [colors] (Dark or Light): [LocalGuideColors] and the [LocalPanelColors] its
+ * sheets and panels read, together, so a host can never give the guide one theme and its sheets the other.
+ */
+@Composable
+fun ProvideGuideColors(
+    colors: GuideColors,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalGuideColors provides colors,
+        LocalPanelColors provides colors.panel,
+        content = content,
+    )
+}

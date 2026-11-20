@@ -3,7 +3,10 @@ package tv.stationbreak.feature.settings.ui
 
 import tv.stationbreak.core.model.ItemId
 
-/** Test tags for the Settings screens, public so `app`'s instrumented tests can find their parts. */
+/**
+ * Test tags for the Settings screens (Libraries and the sign-out question), public so `app`'s instrumented tests can
+ * find their parts.
+ */
 object SettingsTags {
     /** The whole Libraries screen. */
     const val LIBRARIES = "settings:libraries"
@@ -16,14 +19,32 @@ object SettingsTags {
     /** The line under the title when the server could not be asked. */
     const val UNAVAILABLE = "settings:libraries:unavailable"
 
+    /** "Signed in to …", under the Libraries title. */
+    const val LIBRARIES_SIGNED_IN = "settings:libraries:signedIn"
+
     /** The line under the title after a change, or after an add was given up. */
     const val NOTICE = "settings:libraries:notice"
 
-    /** "Signed in to …", under the title (#336). */
-    const val SIGNED_IN = "settings:libraries:signedIn"
+    /** The sign-out question over the guide's Settings sheet (#336): the whole of it, its title and its hint row. */
+    const val SIGN_OUT = "settings:signOut"
+    const val SIGN_OUT_TITLE = "settings:signOut:title"
+    const val SIGN_OUT_HINT = "settings:signOut:hint"
 
-    /** The sign-out row, the last one (#336). */
-    const val SIGN_OUT = "settings:libraries:signOut"
+    /** "Signed in to …", under the question's title. */
+    const val SIGNED_IN = "settings:signOut:signedIn"
+
+    /** The note that the TV will need a new sign-in, or, once it ran, that the server could not be told. */
+    const val SIGN_OUT_NOTE = "settings:signOut:note"
+
+    /** The line saying what happened after a choice (signing out, not revoked, a failure): the one live region. */
+    const val SIGN_OUT_STATUS = "settings:signOut:status"
+
+    /** The two answers together: after a move, a live region saying the one under the D-pad. */
+    const val SIGN_OUT_ANSWERS = "settings:signOut:answers"
+
+    /** The two answers: Stay signed in (the focus starts here) and Sign out. */
+    const val SIGN_OUT_STAY = "settings:signOut:stay"
+    const val SIGN_OUT_CONFIRM = "settings:signOut:confirm"
 
     fun row(id: ItemId) = "settings:libraries:row:${id.value}"
 

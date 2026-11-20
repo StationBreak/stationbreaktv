@@ -84,8 +84,8 @@ internal object StreamLabels {
 
     /**
      * `1080p HEVC · English 5.1 · Subtitles off`: the picture, the audio in use, the subtitles in use. A transcode
-     * starts with "Transcoding · "; direct play and direct stream say nothing of the route. A part the facts do not
-     * know is left out, so the line says only what is so.
+     * starts with "Converting for this TV · "; direct play and direct stream say nothing of the route. A part the
+     * facts do not know is left out, so the line says only what is so.
      */
     fun streamLine(
         facts: StreamFacts,
@@ -114,7 +114,7 @@ internal object StreamLabels {
                 listOfNotNull(StreamFigures.layout(audio.channels), StreamFigures.audioCodec(audio.codec))
         ).joinToString(SEPARATOR)
 
-    /** "English · SDH · Text": language (or Unknown), then flags, then Text or Picture. */
+    /** "English · With sound descriptions · Text": language (or Unknown), then flags, then Text or Picture. */
     fun subtitleRow(
         subtitle: SubtitleFacts,
         copy: StreamCopy,
@@ -247,11 +247,20 @@ internal object StreamLabels {
         }
     }
 
-    /** A title tells twins apart only if it says something the row does not: not a bare number, not words it has. */
+    /**
+     * A title tells twins apart only if it says something the row does not: not a bare number, not words it has, and
+     * not a server's own name for a flag ("Forced", "SDH"), which the row says in plain words.
+     */
     private fun informs(
         title: String,
         text: String,
-    ): Boolean = title.any { it.isLetter() } && !text.contains(title, ignoreCase = true)
+    ): Boolean =
+        title.any { it.isLetter() } &&
+            !text.contains(title, ignoreCase = true) &&
+            title.lowercase() !in SERVER_FLAG_NAMES
+
+    // How the server's own track titles name the flags that the rows say in plain words.
+    private val SERVER_FLAG_NAMES = setOf("forced", "sdh")
 
     private fun distinction(row: PickerRow): String? =
         when (row) {

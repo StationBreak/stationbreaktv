@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+#
+# Start a one-issue Claude session in its own worktree. After the session ends, remove the
+# worktree if a PR for that branch has been merged; otherwise leave it and print a note.
+#
+# Usage: scripts/sb-issue <n>
+set -euo pipefail
+
+if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+  echo "usage: scripts/sb-issue <n>" >&2
+  exit 2
+fi
+
+n="$1"
+root="$(git rev-parse --show-toplevel)"
+worktree="$(dirname "$root")/stationbreaktv-${n}"
+branch="issue-${n}"
+
+if [ -e "$worktree" ]; then
+  echo "sb-issue: worktree already exists: $worktree" >&2
+  exit 1
+fi
+
+if git -C "$root" show-ref --verify --quiet "refs/heads/${branch}"; then
+  echo "sb-issue: local branch already exists: $branch" >&2
+  exit 1
+fi
+
+git -C "$root" fetch origin main
+
+if git -C "$root" ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+  echo "sb-issue: remote branch already exists: $branch" >&2
+  exit 1
+fi
+
+git -C "$root" worktree add "$worktree" -b "$branch" origin/main
+
+gh issue view "$n" --repo StationBreak/stationbreaktv
+
+(
+  cd "$worktree"
+  claude -p "Work issue #${n}. Follow CLAUDE.md." --model sonnet --max-turns 60
+)
+
+merged="$(gh pr list --repo StationBreak/stationbreaktv --head "$branch" --state merged --json number --jq 'length')"
+if [ "$merged" -gt 0 ]; then
+  git -C "$root" worktree remove "$worktree"
+  git -C "$root" branch -d "$branch" || true
+  echo "sb-issue: removed worktree $worktree (PR for $branch is merged)."
+else
+  echo "sb-issue: left worktree $worktree in place; no merged PR for $branch."
+fi

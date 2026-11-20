@@ -4,146 +4,162 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 
+/** The Settings sheet's keys: Up and Down move, Left, Right and OK change a choice in place, Back closes. */
 class GuideSettingsKeysTest {
+    private val defaults = SettingsValues()
+
     private fun SettingsPanel.press(
         key: Key,
+        values: SettingsValues = defaults,
         repeat: Int = 0,
-    ): SettingsStep = checkNotNull(settingsStep(this, key, KeyEventType.KeyDown, repeat)) { "$key was not kept" }
+    ): SettingsStep {
+        val step = settingsStep(this, values, key, KeyEventType.KeyDown, repeat)
+        return checkNotNull(step) { "$key was not kept" }
+    }
 
     private fun SettingsPanel.release(key: Key): SettingsStep =
-        checkNotNull(settingsStep(this, key, KeyEventType.KeyUp, 0)) { "$key was not kept" }
+        checkNotNull(settingsStep(this, defaults, key, KeyEventType.KeyUp, 0)) { "$key was not kept" }
+
+    private fun on(row: SettingsRow) = SettingsPanel(row)
 
     @Test
-    fun settings_upDownMovesRows_leftRightStillPicksTheme() {
+    fun upAndDownWalkTheRowsInOrder_andStopAtTheEnds() {
         val opened = SettingsPanel()
         assertEquals(SettingsRow.Appearance, opened.row)
-
-        // On Appearance, Left and Right pick Dark and Light; the row stays.
-        assertEquals(SettingsStep(opened, GuideTheme.Dark), opened.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(opened, GuideTheme.Light), opened.press(Key.DirectionRight))
-        // Up at the top row stays there, and picks no theme any more.
         assertEquals(SettingsStep(opened), opened.press(Key.DirectionUp))
 
-        // Down moves to Screen fit, then Libraries, then Sync now (spec 26, Part 5), and stops at the last row.
-        val screenFit = opened.press(Key.DirectionDown).panel
-        assertEquals(SettingsRow.ScreenFit, screenFit?.row)
-        val libraries = screenFit!!.press(Key.DirectionDown).panel
-        assertEquals(SettingsRow.Libraries, libraries?.row)
-        val syncNow = libraries!!.press(Key.DirectionDown, repeat = 2).panel
-        assertEquals(SettingsRow.SyncNow, syncNow?.row)
-        // Then Even out volume (#498), then Changing channel, the last row: Down stops there.
-        val levelling = syncNow!!.press(Key.DirectionDown).panel
-        assertEquals(SettingsRow.VolumeLevelling, levelling?.row)
-        val channelChange = levelling!!.press(Key.DirectionDown).panel
-        assertEquals(SettingsRow.ChannelChange, channelChange?.row)
-        assertEquals(SettingsStep(channelChange), channelChange!!.press(Key.DirectionDown))
-        assertEquals(SettingsStep(channelChange), channelChange.press(Key.DirectionDown, repeat = 3))
-        // Left and Right on Libraries and on Sync now are kept, and do nothing.
-        assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(libraries), libraries.press(Key.DirectionRight))
-        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(syncNow), syncNow.press(Key.DirectionRight))
-        // Up from Sync now is Libraries.
-        assertEquals(SettingsStep(libraries), syncNow.press(Key.DirectionUp))
-
-        // Up goes back to Screen fit, and from there to Appearance; releases change nothing.
-        assertEquals(SettingsStep(screenFit), libraries.press(Key.DirectionUp))
-        assertEquals(SettingsStep(opened), screenFit.press(Key.DirectionUp))
-        assertEquals(SettingsStep(libraries), libraries.release(Key.DirectionUp))
-
-        // The media keys are not the panel's.
-        assertNull(settingsStep(opened, Key.MediaPlayPause, KeyEventType.KeyDown, 0))
+        var panel = opened
+        val walked = mutableListOf(panel.row)
+        repeat(SettingsRow.entries.size) {
+            panel = checkNotNull(panel.press(Key.DirectionDown).panel)
+            walked += panel.row
+        }
+        assertEquals(SettingsRow.entries + SettingsRow.SignOut, walked)
+        // Held: every repeat moves (and stops at the end).
+        val last = on(SettingsRow.SignOut)
+        assertEquals(SettingsStep(last), last.press(Key.DirectionDown, repeat = 3))
+        assertEquals(SettingsStep(on(SettingsRow.ScreenFit)), on(SettingsRow.ChannelChange).press(Key.DirectionUp))
+        // A release moves nothing.
+        assertEquals(SettingsStep(on(SettingsRow.Libraries)), on(SettingsRow.Libraries).release(Key.DirectionUp))
     }
 
     @Test
-    fun volumeLevelling_leftPicksOff_rightPicksOn_selectClosesKeepingThePick_andNothingElsePicksIt() {
-        val onLevelling = SettingsPanel(SettingsRow.VolumeLevelling)
+    fun leftAndRightStepAChoice_inPlace_andStopAtTheEnds() {
+        val appearance = on(SettingsRow.Appearance)
+        assertEquals(SettingsStep(appearance, theme = GuideTheme.Light), appearance.press(Key.DirectionRight))
+        // Already Dark: Left leaves it, and chooses nothing again.
+        assertEquals(SettingsStep(appearance), appearance.press(Key.DirectionLeft))
+        val light = defaults.copy(theme = GuideTheme.Light)
+        assertEquals(SettingsStep(appearance, theme = GuideTheme.Dark), appearance.press(Key.DirectionLeft, light))
+        assertEquals(SettingsStep(appearance), appearance.press(Key.DirectionRight, light))
+
+        val fit = on(SettingsRow.ScreenFit)
+        assertEquals(SettingsStep(fit, fit = ScreenFit.Edge), fit.press(Key.DirectionRight))
         assertEquals(
-            SettingsStep(onLevelling, levelling = false, levellingFrom = "settingsLeft"),
-            onLevelling.press(Key.DirectionLeft),
+            SettingsStep(fit, fit = ScreenFit.Safe),
+            fit.press(Key.DirectionLeft, defaults.copy(fit = ScreenFit.Edge)),
+        )
+
+        val change = on(SettingsRow.ChannelChange)
+        assertEquals(
+            SettingsStep(change, channelChange = ChannelChangeStyle.Snow, channelChangeFrom = "settingsRight"),
+            change.press(Key.DirectionRight),
         )
         assertEquals(
-            SettingsStep(onLevelling, levelling = true, levellingFrom = "settingsRight"),
-            onLevelling.press(Key.DirectionRight),
+            SettingsStep(change, channelChange = ChannelChangeStyle.Stan, channelChangeFrom = "settingsLeft"),
+            change.press(Key.DirectionLeft, defaults.copy(channelChange = ChannelChangeStyle.Snow)),
         )
-        // Select closes the panel and picks nothing, as on Appearance and Screen fit; a held press does nothing.
-        assertEquals(SettingsStep(null), onLevelling.press(Key.DirectionCenter))
-        assertEquals(SettingsStep(onLevelling), onLevelling.press(Key.DirectionCenter, repeat = 1))
-        assertNull(SettingsPanel(SettingsRow.ScreenFit).press(Key.DirectionRight).levelling)
-        assertNull(SettingsPanel(SettingsRow.SyncNow).press(Key.DirectionLeft).levelling)
-        assertEquals(SettingsStep(null), onLevelling.release(Key.Back))
+
+        // Even out volume starts On: Left turns it off, Right leaves it.
+        val levelling = on(SettingsRow.VolumeLevelling)
+        assertEquals(
+            SettingsStep(levelling, levelling = false, levellingFrom = "settingsLeft"),
+            levelling.press(Key.DirectionLeft),
+        )
+        assertEquals(SettingsStep(levelling), levelling.press(Key.DirectionRight))
     }
 
     @Test
-    fun channelChange_leftPicksStan_rightPicksSnow_selectClosesKeepingThePick_andNothingElsePicksIt() {
-        val onChange = SettingsPanel(SettingsRow.ChannelChange)
+    fun okOnAChoiceMovesItOnAndRoundAgain_neverClosingTheSheet() {
+        val appearance = on(SettingsRow.Appearance)
+        assertEquals(SettingsStep(appearance, theme = GuideTheme.Light), appearance.press(Key.DirectionCenter))
         assertEquals(
-            SettingsStep(onChange, channelChange = ChannelChangeStyle.Stan, channelChangeFrom = "settingsLeft"),
-            onChange.press(Key.DirectionLeft),
+            SettingsStep(appearance, theme = GuideTheme.Dark),
+            appearance.press(Key.Enter, defaults.copy(theme = GuideTheme.Light)),
         )
+        val fit = on(SettingsRow.ScreenFit)
+        assertEquals(SettingsStep(fit, fit = ScreenFit.Edge), fit.press(Key.DirectionCenter))
+        val change = on(SettingsRow.ChannelChange)
         assertEquals(
-            SettingsStep(onChange, channelChange = ChannelChangeStyle.Snow, channelChangeFrom = "settingsRight"),
-            onChange.press(Key.DirectionRight),
+            SettingsStep(change, channelChange = ChannelChangeStyle.Snow, channelChangeFrom = "settingsOk"),
+            change.press(Key.DirectionCenter),
         )
-        assertEquals(SettingsStep(null), onChange.press(Key.DirectionCenter))
-        assertEquals(SettingsStep(onChange), onChange.press(Key.DirectionCenter, repeat = 1))
-        assertNull(SettingsPanel(SettingsRow.VolumeLevelling).press(Key.DirectionRight).channelChange)
-        assertNull(SettingsPanel(SettingsRow.Appearance).press(Key.DirectionLeft).channelChange)
-        assertEquals(SettingsStep(null), onChange.release(Key.Back))
+        val levelling = on(SettingsRow.VolumeLevelling)
+        assertEquals(
+            SettingsStep(levelling, levelling = false, levellingFrom = "settingsOk"),
+            levelling.press(Key.NumPadEnter),
+        )
+        for (row in SettingsRow.entries.filter { it.kind == RowKind.Choice }) {
+            assertNotNull("OK on $row closed the sheet", on(row).press(Key.DirectionCenter).panel)
+        }
+        // Once per press: the auto-repeat and the release change nothing.
+        assertEquals(SettingsStep(appearance), appearance.press(Key.DirectionCenter, repeat = 1))
+        assertEquals(SettingsStep(appearance), appearance.release(Key.DirectionCenter))
     }
 
     @Test
-    fun screenFit_leftPicksSafe_rightPicksEdge_andNothingElseDoes() {
-        val onFit = SettingsPanel(SettingsRow.ScreenFit)
-        assertEquals(SettingsStep(onFit, fit = ScreenFit.Safe), onFit.press(Key.DirectionLeft))
-        assertEquals(SettingsStep(onFit, fit = ScreenFit.Edge), onFit.press(Key.DirectionRight))
-        // It picks no theme, and Appearance picks no fit.
-        assertNull(onFit.press(Key.DirectionRight).theme)
-        assertNull(SettingsPanel().press(Key.DirectionRight).fit)
-        // Select closes the panel, as on Appearance; on Libraries Left and Right do nothing.
-        assertEquals(SettingsStep(null), onFit.press(Key.DirectionCenter))
-        assertNull(SettingsPanel(SettingsRow.Libraries).press(Key.DirectionLeft).fit)
+    fun leftAndRightOnALinkOrAnActionDoNothing() {
+        for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
+            assertEquals(SettingsStep(on(row)), on(row).press(Key.DirectionLeft))
+            assertEquals(SettingsStep(on(row)), on(row).press(Key.DirectionRight))
+        }
     }
 
     @Test
-    fun selectLibraries_opensSlot_backReturns() {
-        val onLibraries = SettingsPanel(SettingsRow.Libraries)
-
-        // Select opens the slot, once per press: its auto-repeat and its release do nothing.
-        val showing = onLibraries.press(Key.DirectionCenter).panel
+    fun okOnLibrariesShowsItsScreen_andTheSheetHoldsEveryKeyUnderIt() {
+        val libraries = on(SettingsRow.Libraries)
+        val showing = libraries.press(Key.DirectionCenter).panel
         assertEquals(SettingsPanel(SettingsRow.Libraries, librariesShown = true), showing)
-        assertEquals(SettingsStep(onLibraries), onLibraries.press(Key.DirectionCenter, repeat = 1))
-        assertEquals(SettingsStep(onLibraries), onLibraries.release(Key.Enter))
-
-        // While the slot shows, the guide's keys stand down: kept, and nothing moves or closes.
-        for (key in listOf(Key.DirectionUp, Key.DirectionLeft, Key.DirectionCenter, Key.Back)) {
+        for (key in listOf(Key.DirectionDown, Key.DirectionRight, Key.DirectionCenter, Key.Back)) {
             assertEquals(SettingsStep(showing), showing!!.press(key))
             assertEquals(SettingsStep(showing), showing.release(key))
         }
-
-        // The slot's Back returns to the panel, on Libraries; the next Back, at its release, closes the panel.
         val back = showing!!.librariesDone()
-        assertEquals(onLibraries, back)
-        assertEquals(SettingsStep(back), back.press(Key.Back))
+        assertEquals(libraries, back)
         assertEquals(SettingsStep(null), back.release(Key.Back))
     }
 
-    // Back on Sync now closes the panel at its release, as on the other rows.
     @Test
-    fun backOnSyncNow_closesThePanel() {
-        val onSyncNow = SettingsPanel(SettingsRow.SyncNow)
-        assertEquals(SettingsStep(onSyncNow), onSyncNow.press(Key.Back))
-        assertEquals(SettingsStep(null), onSyncNow.release(Key.Back))
+    fun okOnSignOutAsksFirst_andTheSheetHoldsEveryKeyUnderTheQuestion() {
+        val signOut = on(SettingsRow.SignOut)
+        val asking = signOut.press(Key.DirectionCenter).panel
+        assertEquals(SettingsPanel(SettingsRow.SignOut, signOutShown = true), asking)
+        for (key in listOf(Key.DirectionUp, Key.DirectionLeft, Key.DirectionCenter, Key.Back)) {
+            assertEquals(SettingsStep(asking), asking!!.press(key))
+            assertEquals(SettingsStep(asking), asking.release(key))
+        }
+        assertEquals(signOut, asking!!.signOutDone())
+        // The auto-repeat of the OK that opened the sheet's row asks nothing.
+        assertEquals(SettingsStep(signOut), signOut.press(Key.DirectionCenter, repeat = 2))
     }
 
     @Test
-    fun selectOnAppearance_closesThePanel_asBefore() {
-        assertEquals(SettingsStep(null), SettingsPanel().press(Key.Enter))
-        assertEquals(SettingsStep(null), SettingsPanel().release(Key.Back))
+    fun backClosesTheSheetAtItsRelease_fromAnyRow() {
+        for (row in SettingsRow.entries) {
+            assertEquals(SettingsStep(on(row)), on(row).press(Key.Back))
+            assertEquals(SettingsStep(null), on(row).release(Key.Back))
+        }
+    }
+
+    @Test
+    fun theMediaKeysAreNotTheSheets() {
+        assertNull(settingsStep(SettingsPanel(), defaults, Key.MediaPlayPause, KeyEventType.KeyDown, 0))
+        assertNull(settingsStep(SettingsPanel(), defaults, Key.Menu, KeyEventType.KeyDown, 0))
     }
 }

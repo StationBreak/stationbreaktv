@@ -117,7 +117,7 @@ private fun playsLine(
 
 /**
  * The tags: "KIDS · UP TO <ceiling>" (or "KIDS" with no ceiling) for a kids channel, then the kind: "BUILT-IN",
- * "CUSTOM" or "LEFTOVERS". A channel the app cannot read has no kind tag (it is never on the guide).
+ * "CUSTOM" or "EVERYTHING ELSE". A channel the app cannot read has no kind tag (it is never on the guide).
  */
 internal fun channelTagsOf(
     identity: ChannelIdentity,
@@ -177,7 +177,7 @@ internal data class OnNowLine(
 /**
  * "On now: <title> · <N> min left · Up next: <title> at <time>" from the row's own [cells]: the cell airing at
  * [nowMs], and the first after it that is not a station break. A slate, a break or an unavailable program reads as
- * the grid labels it ("Off air", "Station break", "Removed"). The Next part is left out when nothing
+ * the grid labels it ("Off the air", "Station break", "Removed"). The Next part is left out when nothing
  * follows in the row; null when nothing airs at [nowMs]. [time] words a start time.
  */
 internal fun onNowNextLine(

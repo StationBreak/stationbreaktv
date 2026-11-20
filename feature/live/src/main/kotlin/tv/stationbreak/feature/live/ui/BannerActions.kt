@@ -227,7 +227,7 @@ private fun FocusOnAppear(
     }
 }
 
-/** "Transcoding" at the right end of the chips row: 11 sp, `textSecondary`, never focused. */
+/** "Converting for this TV" at the right end of the chips row: 11 sp, `textSecondary`, never focused. */
 @Composable
 private fun TranscodingLabel(modifier: Modifier) {
     Text(
@@ -246,7 +246,7 @@ private val TranscodingSize = 11.sp
  * The Audio, Subtitles and Version chips (design doc B1, B2.8), after a 1 dp divider: each `Label  Value`, the value
  * the same fact the stream line states. A chip with nothing to choose from shows but takes no focus: one audio track,
  * no subtitle tracks, and one version. While the route is a transcode, the
- * row ends with a right-aligned "Transcoding".
+ * row ends with a right-aligned "Converting for this TV".
  */
 @Suppress("LongParameterList") // The stream, the actions, where chips sit, the failed chip, the titles.
 @Composable
