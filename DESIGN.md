@@ -291,6 +291,6 @@ These tokens and components are the brand's target. The app reaches them in step
 - **Light:** no longer behind. The guide's Light theme is the brand's paper mode (see Light mode above).
 - **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
 - **Faces:** done. The station screens' sign-off is Ranchers, as the Name line says. Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
-- **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`. Stan's moods and the animated station screens come in the next step.
-- **Station screens:** the snow is to be replaced by Stan station screens.
+- **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`.
+- **Station screens:** done. Stan's station screens are the default; snow stays as an opt-in channel change through the Changing channel setting (Stan or Snow, Stan by default) in the guide's Settings.
 - **Words:** done. "Sync now" is "Update library", setup and loading lines say what is happening ("Asking your server for your library…", "Getting the listings…", "Tuning in…"), and the app keeps one term per idea (The One Term Rule).
