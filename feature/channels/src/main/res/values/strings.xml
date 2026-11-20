@@ -227,7 +227,7 @@
     <string name="channel_props_section_runs">How it runs</string>
     <!-- The section that says how much a channel has and which shows live there (#757). -->
     <string name="channel_props_section_holds">What it holds</string>
-    <string name="channel_props_row_narrowed">Narrowed to</string>
+    <string name="channel_props_row_narrowed">Only includes</string>
     <string name="channel_props_row_order">Order</string>
     <string name="channel_props_row_block">Block length</string>
     <string name="channel_props_row_code">Matching code</string>
