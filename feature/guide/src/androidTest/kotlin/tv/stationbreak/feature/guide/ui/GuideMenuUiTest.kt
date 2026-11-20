@@ -327,6 +327,7 @@ class GuideMenuUiTest {
         showReady()
         cell(60).assertIsSelected()
         assertTrue(hint(), hint().contains("Back Open the menu"))
+        assertEquals(hint(), 1, "Open the menu".toRegex().findAll(hint()).count())
         back()
         awaitOnChannels()
         assertEquals("Back Exit live TV", hint())

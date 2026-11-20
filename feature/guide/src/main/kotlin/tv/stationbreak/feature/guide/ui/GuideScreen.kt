@@ -446,8 +446,9 @@ internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
  * its channel), "OK Watch channel" on a later program (OK tunes its channel), nothing for OK on a later slate or
  * unavailable cell, and "Back Exit live TV", since leaving from the guide is the one thing no one would guess, which
  * becomes "Back To what's playing"
- * while the focus is off the playing channel's cell and "Back Open the menu" on it. Key names sit on the key pill; what
- * they do is secondary. Recomposes only when the kind of the focused cell changes.
+ * while the focus is off the playing channel's cell and "Back Open the menu" on it. The "Menu Open the menu" pair
+ * follows them, except in the menu sheet and where Back already says "Open the menu" (said once, drawn and spoken).
+ * Key names sit on the key pill; what they do is secondary. Recomposes only when the kind of the focused cell changes.
  */
 @Composable
 private fun HintRow(
@@ -468,7 +469,9 @@ private fun HintRow(
     val noLibraries by remember(snapshotOf) { derivedStateOf { snapshotOf().noLibraries } }
     val menuKey = stringResource(R.string.guide_key_menu)
     val sheetByBack by remember(snapshotOf) { derivedStateOf { snapshotOf().menuByBack } }
-    val exit = stringResource(backHintOf(sheet, sheetByBack, noLibraries, onChannel, away, toMenu))
+    val backHint = backHintOf(sheet, sheetByBack, noLibraries, onChannel, away, toMenu)
+    val exit = stringResource(backHint)
+    val hasMenu = showsMenuHint(sheet, backHint)
     val action =
         when (kind) {
             HintKind.Watch -> stringResource(R.string.guide_hint_watch)
@@ -488,12 +491,12 @@ private fun HintRow(
             if (action != null) append("$ok $action$HINT_SPACE")
             if (toChannel) append("$left $about$HINT_SPACE")
             append("$back $exit")
-            if (!sheet) append("$HINT_SPACE$menuKey $openMenu")
+            if (hasMenu) append("$HINT_SPACE$menuKey $openMenu")
         }
     val actionStyle = guideText(10.sp, FontWeight.Normal)
     // Pairs in display order; a rank is how long a pair stays when they do not all fit (0 goes last): Menu goes first,
     // then the Left hint, then OK. The way out (Back) is the one thing no one would guess, so it is never dropped.
-    val ranks = hintRanks(hasOk = action != null, hasLeft = toChannel, hasMenu = !sheet)
+    val ranks = hintRanks(hasOk = action != null, hasLeft = toChannel, hasMenu = hasMenu)
     HintFlow(
         ranks = ranks,
         gap = HintPairGap,
@@ -507,7 +510,7 @@ private fun HintRow(
         if (action != null) HintPair(ok, action, actionStyle, round = true)
         if (toChannel) HintPair(left, about, actionStyle, round = false)
         HintPair(back, exit, actionStyle, round = false)
-        if (!sheet) HintPair(menuKey, openMenu, actionStyle, round = false)
+        if (hasMenu) HintPair(menuKey, openMenu, actionStyle, round = false)
     }
 }
 
