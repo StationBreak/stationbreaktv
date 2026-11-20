@@ -69,7 +69,7 @@ Tag style: 10 sp SemiBold `textPrimary`, 1 dp `keyCapStroke` outline, 2 dp radiu
 **Owner decision:** the grid shows **120 minutes**, up from 90 (`GUIDE_VIEWPORT_SPAN`). At 780 dp that is 6.5 dp per minute.
 
 - Tick labels stay every 30 minutes (four of them).
-- An 11-minute programme becomes about 71 dp wide and a 5-minute one about 32 dp. Check `CompactBelow` (48 dp) and `EllipsisFrom` (32 dp) still give sensible results: a cell under 48 dp shows no title, which is acceptable for fillers.
+- An 11-minute programme becomes about 71 dp wide and a 5-minute one about 32 dp. A cell under `CompactBelow` (48 dp) shows no title and no "…": it is blank, which is acceptable for fillers. Back-to-back programmes of one title that are each too narrow to write it are labelled once across the run, with a count ("Big Buck Bunny · 12"); each stays its own cell.
 - Paging and the "extend when scrolled near the end" logic follow the constant; verify they do.
 
 ## Acceptance

@@ -34,11 +34,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -371,6 +374,85 @@ class GuideScreenshotTest {
             press(Key.DirectionLeft)
             cell(CH7, 60).assertIsSelected()
         }
+    }
+
+    /**
+     * A channel of short programmes (the "Big B… Big B…" row): the playing channel airs ten-minute shorts of one title,
+     * too narrow to write it, in two runs either side of a five-minute slate. Each run writes the title once with its
+     * count ("Test Short · 6"), pinned to the part in view; the slate between them is blank, with no "…". With the
+     * focus on the first short, that cell writes its own title and the run's label steps aside to the rest of the run;
+     * Up to the row above leaves the label across the whole run. The label is drawing only: a screen reader hears each
+     * short's own cell, never the label. Dark then Light.
+     */
+    @Test
+    fun theShortRuns() {
+        for ((shown, suffix) in listOf(GuideTheme.Dark to "", GuideTheme.Light to "-light")) {
+            theme.value = shown
+            showReady(CH7, fill = ::fillShortRunsLineup)
+            cell(CH7, 60).assertIsSelected()
+            val first = T0 + 60 * MIN
+            val second = T0 + (SHORTS_SLATE_MIN + SHORTS_SLATE_LENGTH_MIN) * MIN
+            assertEquals(SHORT_TITLE, text(GuideTags.runLabelTitle(CH7, first)))
+            assertEquals(" · $SHORTS_PER_RUN", text(GuideTags.runLabelCount(CH7, first)))
+            assertEquals(SHORT_TITLE, text(GuideTags.runLabelTitle(CH7, second)))
+            // The focused short writes its own title; the others in its run write none.
+            assertEquals(SHORT_TITLE, text(GuideTags.cellText(CH7, first)))
+            assertNoCellText(CH7, 70)
+            // The slate between the runs is too narrow for any text: blank.
+            assertTrue("the slate is ${widthDp(CH7, SHORTS_SLATE_MIN)} dp", widthDp(CH7, SHORTS_SLATE_MIN) < 48f)
+            assertNoCellText(CH7, SHORTS_SLATE_MIN)
+            compose.onAllNodesWithText("\u2026", useUnmergedTree = true).assertCountEquals(0)
+            // Read once per cell: the label carries no text in the tree a screen reader walks, and every short keeps
+            // its own description.
+            for (run in listOf(first, second)) {
+                val label = compose.onNodeWithTag(GuideTags.runLabel(CH7, run)).fetchSemanticsNode().config
+                assertEquals(null, label.getOrNull(SemanticsProperties.Text))
+                assertEquals(null, label.getOrNull(SemanticsProperties.ContentDescription))
+            }
+            cell(CH7, 70).assertContentDescriptionContains("$SHORT_TITLE, ", substring = true)
+            shoot("$SHORT_RUNS_FOCUSED_FRAME$suffix.png")
+
+            press(Key.DirectionUp)
+            cell(CH7, 60).assertIsNotSelected()
+            assertNoCellText(CH7, 60)
+            assertEquals(SHORT_TITLE, text(GuideTags.runLabelTitle(CH7, first)))
+            shoot("$SHORT_RUNS_FRAME$suffix.png")
+            press(Key.DirectionDown)
+            cell(CH7, 60).assertIsSelected()
+        }
+    }
+
+    private fun assertNoCellText(
+        channel: ChannelId,
+        startMin: Long,
+    ) = assertTrue(
+        "the cell at $startMin writes no text",
+        compose
+            .onAllNodesWithTag(GuideTags.cellText(channel, T0 + startMin * MIN), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .isEmpty(),
+    )
+
+    /** The default lineup with channel 7 airing two runs of ten-minute shorts from 60, a short slate between them. */
+    private fun fillShortRunsLineup() {
+        fillLineup()
+        val afterSlate = SHORTS_SLATE_MIN + SHORTS_SLATE_LENGTH_MIN
+
+        fun shorts(fromMin: Long) =
+            (0 until SHORTS_PER_RUN).map {
+                val at = fromMin + it * SHORT_LENGTH_MIN
+                program(at, at + SHORT_LENGTH_MIN, SHORT_ITEM, info = info(SHORT_ITEM, SHORT_TITLE))
+            }
+        val end = afterSlate + SHORTS_PER_RUN * SHORT_LENGTH_MIN
+        fake.channel(
+            CH7,
+            7,
+            listOf(program(0, 30, 100), program(30, 60, 101)) +
+                shorts(60) +
+                slate(SHORTS_SLATE_MIN, afterSlate) +
+                shorts(afterSlate) +
+                (end until 600L step 30).map { program(it, minOf(it + 30, 600), 120 + (it / 30).toInt()) },
+        )
     }
 
     private fun widthDp(
@@ -940,6 +1022,14 @@ class GuideScreenshotTest {
         const val SHORT_BREAK_MIN = 88L
         const val LONG_BREAK_MIN = 120L
         const val LONG_BREAK_LENGTH_MIN = 25L
+        const val SHORT_RUNS_FRAME = "guide-short-runs"
+        const val SHORT_RUNS_FOCUSED_FRAME = "guide-short-runs-focused"
+        const val SHORT_TITLE = "Test Short"
+        const val SHORT_ITEM = 500
+        const val SHORT_LENGTH_MIN = 10L
+        const val SHORTS_PER_RUN = 6
+        const val SHORTS_SLATE_MIN = 120L
+        const val SHORTS_SLATE_LENGTH_MIN = 5L
         val PANEL_ROW_TAGS =
             listOf(
                 GuideTags.THEME_DARK,

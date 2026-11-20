@@ -251,7 +251,7 @@ The launcher icon is the main orange icon (`icon-main.svg`: cream Stan on an ora
 Stan in a mood, a Ranchers line, a teletype status, then the next step. "PLEASE STAND BY · TUNING CHANNEL 212", "GONE TO BED · OFF THE AIR · RETURNS AT 6:00 AM", "ANYBODY OUT THERE? · NO SIGNAL · CAN'T REACH YOUR SERVER · OK TO RETRY". It has replaced the test-card slates on live TV.
 
 ### Programme Cell (listings)
-Near-flat panel cells in one grid, 2dp corners, 1dp gaps. Title in 13sp Medium cream, metadata in 11sp muted. Focus is an orange fill with ink text: no growth, no shadow, a 160ms colour change, and none with reduced motion. The current programme gets a 1.5dp orange progress line along its bottom edge. The playing channel's tile carries a marker and "Playing" for screen readers.
+Near-flat panel cells in one grid, 2dp corners, 1dp gaps. Title in 13sp Medium cream, metadata in 11sp muted. Focus is an orange fill with ink text: no growth, no shadow, a 160ms colour change, and none with reduced motion. The current programme gets a 1.5dp orange progress line along its bottom edge. A cell too narrow for any text is its fill alone, with no "…". Back-to-back programmes of one title, each too narrow to write it, are named once across the run with a count in muted ("Big Buck Bunny · 12"); each stays its own cell, and the focused one writes its own title. The playing channel's tile carries a marker and "Playing" for screen readers.
 
 ### Now/Next Banner
 A 58dp ink bar over the picture with a 1dp line, 2dp corners and a 2dp orange progress line along its top. It holds the mark and number, an 18sp title in cream, and a single 11sp line led by a teletype flag (NOW, TUNING IN, UP NEXT). The Select banner's buttons focus with an orange fill and no scale.
