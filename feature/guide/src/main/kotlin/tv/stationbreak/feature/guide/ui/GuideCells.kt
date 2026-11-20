@@ -70,8 +70,7 @@ internal val CellTitleStyle = guideText(TITLE_SP.sp, FontWeight.Medium)
 /** A slate's "OFF AIR" and a break's "STATION BREAK" plate. */
 private val SlateStyle = guideText(TITLE_SP.sp, FontWeight.SemiBold)
 
-/** The least width of a cell with an episode's second line ("S1 E19"). */
-internal val EpisodeFrom = 110.dp
+private val EpisodeFrom = 110.dp
 private val TextStart = 12.dp
 
 /**

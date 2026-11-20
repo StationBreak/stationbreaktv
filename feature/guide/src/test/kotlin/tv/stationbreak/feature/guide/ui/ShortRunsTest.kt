@@ -60,7 +60,7 @@ class ShortRunsTest {
 
     private fun runsOf(cells: List<GuideCell>): List<CellRun> =
         shortRuns(cells) { cell ->
-            runCut(CellPlace(cell.startMs, cell.endMs, origin, geometry).width) { titleWidth }
+            runCut(cell.info, CellPlace(cell.startMs, cell.endMs, origin, geometry).width, 1f) { titleWidth }
         }
 
     @Test
@@ -336,6 +336,17 @@ class ShortRunsTest {
         val short = (0 until 4).map { program(60L + it * 10, 70L + it * 10, episodeInfo(20 + it, name, 3, 4 + it)) }
         assertEquals(4, rowRuns(short, origin, geometry, CountingWidths().widths) { " · $it" }.runs.single().count)
         assertEquals(null, secondLineOf(short[0].info, wide(10).value, 1f, RowHeight.value))
+    }
+
+    @Test
+    fun twentyMinuteShortsWithACutTitleAreARun() {
+        // 130 dp cells, over the episode line's 110 dp, but a short has no second line to lose: its long title, cut in
+        // each, is written once across them.
+        val name = "A Short With a Title Far Too Long for Its Twenty-Minute Cell"
+        val cells = (0 until 3).map { program(60L + it * 20, 80L + it * 20, info(30, name)) }
+        val runs = rowRuns(cells, origin, geometry, CountingWidths().widths) { " · $it" }
+        assertEquals(CellRun(0, 2, name, at(60), at(120)), runs.runs.single())
+        assertTrue((0..2).all { runs.inRun(it) })
     }
 
     private companion object {

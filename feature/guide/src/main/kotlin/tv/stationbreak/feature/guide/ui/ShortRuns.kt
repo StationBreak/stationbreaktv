@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalTextStyle
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.feature.guide.CellKind
@@ -32,7 +34,7 @@ import tv.stationbreak.feature.guide.GuideFocus
 
 /**
  * Consecutive cells of one row, [first] to [last] (their indexes in the row), that air the same [title] back to back,
- * each too narrow to write it and to have an episode line ([runCut]): a channel of shorts, cartoons or music videos.
+ * each with its title cut and no episode line to lose ([runCut]): a channel of shorts, cartoons or music videos.
  * The grid writes the title once across them, with how many programmes the run holds in the guide ([count]), instead
  * of cutting it in every cell. Each cell stays its own focus stop, panel and description; only the drawn label is
  * shared.
@@ -113,14 +115,16 @@ internal fun titleCut(
 ): Boolean = width < CompactBelow || titleWidth() > textRoom(0.dp, width, width, earlier = false, later = false)
 
 /**
- * Whether a cell [width] wide joins a run of short programmes ([shortRuns]): its title is cut ([titleCut]) and it is
- * narrower than [EpisodeFrom], so it has no second line ("S3 E4") to lose. A wider cell keeps its own title and line,
- * as before runs.
+ * Whether a cell [width] wide showing [info] joins a run of short programmes ([shortRuns]): its title is cut
+ * ([titleCut]) and it has no second line ("S3 E4", [secondLineOf] at [fontScale]) to lose. An episode with its line
+ * keeps its own title and line, as before runs; a short or a movie of any width whose title is cut can join.
  */
 internal fun runCut(
+    info: ProgramInfo?,
     width: Dp,
+    fontScale: Float,
     titleWidth: () -> Dp,
-): Boolean = width < EpisodeFrom && titleCut(width, titleWidth)
+): Boolean = secondLineOf(info, width.value, fontScale, RowHeight.value) == null && titleCut(width, titleWidth)
 
 /** The least of a title a run's label must show: what the narrowest titled cell ([CompactBelow]) has room for. */
 internal val MinLabelTitle: Dp
@@ -276,7 +280,8 @@ internal fun rowRuns(
 ): RowRuns {
     val runs =
         shortRuns(cells) { cell ->
-            runCut(CellPlace(cell.startMs, cell.endMs, originMs, geometry).width) { titles.of(cell.title.orEmpty()) }
+            val width = CellPlace(cell.startMs, cell.endMs, originMs, geometry).width
+            runCut(cell.info, width, titles.fontScale) { titles.of(cell.title.orEmpty()) }
         }
     val inRun = BooleanArray(cells.size)
     for (run in runs) inRun.fill(true, run.first, run.last + 1)
@@ -294,12 +299,17 @@ internal fun rowRuns(
  * per grid, for one font and density ([rememberTitleWidths] makes a new one when either changes), so paging and rows
  * coming back into view measure nothing they have measured before.
  */
-@Immutable
+@Stable
 internal class TitleWidths(
     private val measure: (String) -> Int,
     private val density: Density,
 ) {
+    // A cache of what [measure] gives, not part of the identity: equal inputs always give equal widths, so filling it
+    // changes nothing anyone reading this sees, and no recomposition is owed.
     private val widths = HashMap<String, Dp>()
+
+    /** The font scale the titles are measured at: a cell's second line depends on it ([runCut]). */
+    val fontScale: Float get() = density.fontScale
 
     /** [title]'s width, measured the first time it is asked for. */
     fun of(title: String): Dp = widths.getOrPut(title) { with(density) { measure(title).toDp() } }
