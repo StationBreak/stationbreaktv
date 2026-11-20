@@ -239,7 +239,7 @@ class GuideFirstVisitUiTest {
         assertEquals(LiveRegionMode.Polite, config[SemanticsProperties.LiveRegion])
         // One node, with both lines, so a screen reader says the note as one announcement.
         val said = config[SemanticsProperties.Text].joinToString(" ") { it.text }
-        assertTrue(said, said.contains("on the air") && said.contains("press OK"))
+        assertTrue(said, said.contains("Here are your channels") && said.contains("press OK"))
         // Dismissed once: it does not come back on later keys.
         press(Key.DirectionDown)
         press(Key.DirectionUp)

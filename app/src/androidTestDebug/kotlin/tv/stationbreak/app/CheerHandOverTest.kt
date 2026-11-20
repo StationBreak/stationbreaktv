@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -24,7 +25,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -76,6 +76,9 @@ class CheerHandOverTest {
     private var liveTakesFocus by mutableStateOf(false)
     private var liveAsksWithTheCheer = true
 
+    // Whether the stand-in holds the focus: read from the node itself, since a covered node is in no merged tree.
+    private var liveFocused = false
+
     @Before
     fun inject() = hilt.inject()
 
@@ -115,6 +118,7 @@ class CheerHandOverTest {
                 .fillMaxSize()
                 .testTag(BENEATH)
                 .focusRequester(focus)
+                .onFocusChanged { liveFocused = it.isFocused }
                 .onKeyEvent {
                     keysBeneath++
                     note = false
@@ -133,7 +137,9 @@ class CheerHandOverTest {
         }
     }
 
-    private fun count(tag: String) = compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().size
+    // What a screen reader can reach: the merged tree. The unmerged tree still lists the nodes a cover's
+    // clearAndSetSemantics has replaced, so it would find the hidden stand-by card and note.
+    private fun count(tag: String) = compose.onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
     private fun press(keyCode: Int) {
         compose.awaitWindowFocus()
@@ -179,7 +185,7 @@ class CheerHandOverTest {
         // Back is the cover's and never leaves the app on the first run.
         liveAsksWithTheCheer = false
         handOver()
-        compose.onNodeWithTag(BENEATH).assertIsNotFocused()
+        assertFalse("live TV has not taken the focus yet", liveFocused)
 
         press(KeyEvent.KEYCODE_BACK)
 
