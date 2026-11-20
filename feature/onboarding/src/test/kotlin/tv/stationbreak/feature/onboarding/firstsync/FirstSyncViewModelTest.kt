@@ -34,7 +34,8 @@ import kotlin.time.Instant
 
 /**
  * The cheer before live TV (spec 2026-11-18, "Two cheers with no screen of their own"): when the first sync the screen
- * was showing ends, Stan cheers for [CHEER_HOLD_MS], then the screen finishes. A key skips the hold; it finishes once.
+ * was showing ends, Stan cheers for [CHEER_HOLD_MS], then the screen finishes with [FirstSyncEvent.Cheered], so the app
+ * keeps the cheer up over live TV until its picture is ready. A key skips the hold; it finishes once.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FirstSyncViewModelTest {
@@ -77,7 +78,7 @@ class FirstSyncViewModelTest {
 
             advanceTimeBy(1)
             runCurrent()
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
             assertEquals("the cheer stays up until the screen goes", FirstSyncPhase.Done, vm.state.value)
         }
 
@@ -89,7 +90,7 @@ class FirstSyncViewModelTest {
             vm.skipCheer()
             runCurrent()
 
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
         }
 
     @Test
@@ -104,7 +105,7 @@ class FirstSyncViewModelTest {
             advanceTimeBy(CHEER_HOLD_MS * 2)
             runCurrent()
 
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
         }
 
     @Test
@@ -117,7 +118,7 @@ class FirstSyncViewModelTest {
             advanceTimeBy(CHEER_HOLD_MS * 2)
             runCurrent()
 
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
         }
 
     @Test
@@ -175,7 +176,7 @@ class FirstSyncViewModelTest {
             advanceTimeBy(CHEER_HOLD_MS * 2)
             runCurrent()
 
-            assertEquals(listOf(FirstSyncEvent.Finished), seen)
+            assertEquals(listOf(FirstSyncEvent.Cheered), seen)
         }
 
     @Test
@@ -226,7 +227,7 @@ class FirstSyncViewModelTest {
         assertEquals(emptyList<FirstSyncEvent>(), b.seen)
         advanceTimeBy(CHEER_HOLD_MS)
         runCurrent()
-        assertEquals(listOf(FirstSyncEvent.Finished), b.seen)
+        assertEquals(listOf(FirstSyncEvent.Cheered), b.seen)
     }
 
     @Test

@@ -3,7 +3,16 @@ package tv.stationbreak.feature.onboarding.firstsync
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -289,6 +298,29 @@ class FirstSyncScreenTest {
     }
 
     @Test
+    fun theCheerHeldStillOverTheNextScreenTakesNoFocusNoKeysAndSaysNothing() {
+        // As the app holds it over live TV: the screen beneath keeps the focus and the keys, and TalkBack is not told
+        // the cheer a second time.
+        compose.setContent {
+            StationBreakTheme {
+                Box(Modifier.fillMaxSize()) {
+                    val beneath = remember { FocusRequester() }
+                    Box(Modifier.testTag(BENEATH).focusRequester(beneath).focusable())
+                    LaunchedEffect(Unit) { beneath.requestFocus() }
+                    FirstSyncCheerStill()
+                }
+            }
+        }
+        compose.awaitFocusedForKeys(BENEATH, FOCUS_TIMEOUT_MS)
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        compose.onNodeWithTag(BENEATH).assertIsFocused()
+        compose.onAllNodes(isFocusable()).assertCountEquals(1)
+        compose.onAllNodes(hasText("Your library is ready", substring = true)).assertCountEquals(0)
+    }
+
+    @Test
     fun keysWhileItSyncsSkipNothing() {
         show(FirstSyncPhase.Syncing(copied = 5, total = 10))
 
@@ -299,5 +331,6 @@ class FirstSyncScreenTest {
 
     private companion object {
         const val FOCUS_TIMEOUT_MS = 5_000L
+        const val BENEATH = "beneath"
     }
 }

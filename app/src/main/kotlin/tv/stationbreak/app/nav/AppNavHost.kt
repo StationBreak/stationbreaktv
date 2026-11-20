@@ -7,6 +7,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +17,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -35,6 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.stan.StanOpening
@@ -44,6 +48,7 @@ import tv.stationbreak.feature.channels.ui.ChannelPropertiesDestination
 import tv.stationbreak.feature.channels.ui.ChannelsDestination
 import tv.stationbreak.feature.guide.ui.GuideDestination
 import tv.stationbreak.feature.live.ui.LiveDestination
+import tv.stationbreak.feature.onboarding.firstsync.FirstSyncCheerStill
 import tv.stationbreak.feature.onboarding.firstsync.FirstSyncDestination
 import tv.stationbreak.feature.onboarding.launch.LaunchDestination
 import tv.stationbreak.feature.onboarding.libraries.LibrariesDestination
@@ -80,6 +85,11 @@ fun AppNavHost(coldLaunch: Boolean = false) = AppNavGraph(LaunchRoute, coldLaunc
  *   leaves the app, as the progress screen did; after it, Back skips.
  * - **Semantics:** the graph's are cleared while covered.
  *
+ * Setup's cheer covers the graph the same way when it hands over to live TV ([SetupHandOver]): its still
+ * ([FirstSyncCheerStill]) is drawn over live TV until live TV stops standing by (`onStandByOver`), a key, or
+ * [SETUP_HAND_OVER_WAIT], so the first session goes from the cheer to a programme with no stand-by card between. A key
+ * or Back under it lifts it and goes no further.
+ *
  * Launch's transitions: nothing crossfades from [LaunchRoute] (no exit, no enter), whatever started the app: a cold
  * launch under the opening, a warm one, or the re-entry after a lost session.
  */
@@ -92,10 +102,24 @@ internal fun AppNavGraph(
     var phase by remember { mutableStateOf(if (coldLaunch) OpeningPhase.Playing else OpeningPhase.Gone) }
     var launchReady by remember { mutableStateOf(false) }
     var skip by remember { mutableStateOf(false) }
+    val handOver = remember { SetupHandOver() }
     val activity = LocalActivity.current
-    val covered = phase == OpeningPhase.Playing
+    val opening = phase == OpeningPhase.Playing
+    // The opening, or setup's cheer held over live TV: either hides the graph, and takes its keys, the same way.
+    val covered = opening || handOver.covering
+    val onSkip: () -> Unit = {
+        skip = true
+        handOver.end()
+    }
     val onBack: () -> Unit = {
-        if (launchReady) skip = true else activity?.finish()
+        when {
+            // Back during the held cheer goes on to live TV, as Back during the cheer itself does.
+            handOver.covering -> handOver.end()
+
+            launchReady -> skip = true
+
+            else -> activity?.finish()
+        }
     }
     // The keys whose down the opening consumed and whose up it has yet to: swallowed to the end, covered or not.
     val swallowing = remember { SwallowedKeys() }
@@ -105,7 +129,7 @@ internal fun AppNavGraph(
     // beneath may take focus itself.
     val keys =
         if (covered || swallowing.any) {
-            Modifier.onPreviewKeyEvent { handleOpeningKey(it, covered, swallowing, { skip = true }, onBack) }
+            Modifier.onPreviewKeyEvent { handleOpeningKey(it, covered, swallowing, onSkip, onBack) }
         } else {
             Modifier
         }
@@ -115,7 +139,8 @@ internal fun AppNavGraph(
             AppNavHostContent(
                 navController,
                 startDestination,
-                covered = covered,
+                covered = opening,
+                handOver = handOver,
                 onLaunchReady = { launchReady = true },
                 onLaunchNeedsScreen = {
                     launchReady = true
@@ -123,6 +148,7 @@ internal fun AppNavGraph(
                 },
             )
         }
+        if (handOver.covering) FirstSyncCheerStill()
         if (phase != OpeningPhase.Gone) {
             StanOpening(
                 appReady = launchReady,
@@ -195,22 +221,26 @@ private fun handleOpeningKey(
 // The navigation library's default transition between screens, so nothing else changes.
 private const val DEFAULT_FADE_MILLIS = 700
 
-@Suppress("LongMethod") // The graph: one block for each route.
+@Suppress("LongMethod", "LongParameterList") // The graph: one block for each route, and what the graph above shares.
 @Composable
 private fun AppNavHostContent(
     navController: NavHostController,
     startDestination: Any,
     covered: Boolean,
+    handOver: SetupHandOver,
     onLaunchReady: () -> Unit,
     onLaunchNeedsScreen: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     NavHost(
         navController = navController,
         startDestination = startDestination,
         // Nothing crossfades from launch: the opening is over it, and the progress screen is never to show through.
+        // Nor from the cheer to live TV under its still: a fade there is unseen work on the frames that build live TV.
         enterTransition = {
             val fromLaunch = initialState.destination.hasRoute<LaunchRoute>()
-            if (fromLaunch) EnterTransition.None else fadeIn(tween(DEFAULT_FADE_MILLIS))
+            val underStill = handOver.covering && initialState.destination.hasRoute<FirstSyncRoute>()
+            if (fromLaunch || underStill) EnterTransition.None else fadeIn(tween(DEFAULT_FADE_MILLIS))
         },
     ) {
         composable<LaunchRoute>(exitTransition = { ExitTransition.None }) {
@@ -289,13 +319,19 @@ private fun AppNavHostContent(
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
             )
         }
-        composable<FirstSyncRoute> {
+        composable<FirstSyncRoute>(
+            exitTransition = {
+                if (handOver.covering) ExitTransition.None else fadeOut(tween(DEFAULT_FADE_MILLIS))
+            },
+        ) {
             FirstSyncDestination(
-                // No button: when the first sync ends, and Stan has cheered us on the air (any key, Back included,
-                // skips that), the app moves on to the live channel.
+                // No button: when the first sync ends with nothing to cheer, the app moves on to the live channel.
                 onFinished = { navController.replaceAll(LiveRoute) },
                 // The server no longer accepts the sign-in: launch routing explains and asks the user to sign in again.
                 onSessionLost = { navController.replaceAll(LaunchRoute) },
+                // Stan has cheered us on the air (any key, Back included, skips that): live TV, under the cheer's
+                // still until it has a picture.
+                onCheered = { scope.launch { navController.toLiveUnderTheCheer(handOver) } },
             )
         }
         composable<LiveRoute> {
@@ -312,6 +348,8 @@ private fun AppNavHostContent(
                         // A sign-out from Settings, Libraries (#336): the server screen, to choose a server again.
                         GuideWithChannels(opening, pictureHole, onTune) { navController.afterSignOut() }
                     },
+                    // The picture is up, or a card says why not: setup's cheer, if it is held over live TV, lifts.
+                    onStandByOver = handOver::end,
                 )
             }
         }
@@ -347,6 +385,20 @@ private fun GuideWithChannels(
  * launch routing, which would skip straight to sign-in for the stored server.
  */
 internal fun NavController.afterSignOut() = replaceAll(ServerRoute())
+
+/**
+ * From setup's cheer to live TV, the cheer held still over it ([SetupHandOver]): the still covers first, and one frame
+ * is drawn with it before live TV is built, so the frames that build live TV (its composition, the first-visit guide,
+ * the player) show a still picture and not a cheer that stutters. Then live TV, and the still waits for its picture.
+ */
+private suspend fun NavController.toLiveUnderTheCheer(handOver: SetupHandOver) {
+    handOver.begin()
+    // The first frame draws the still; live TV goes in at the start of the next, after a frame that showed it.
+    withFrameNanos {}
+    withFrameNanos {}
+    replaceAll(LiveRoute)
+    handOver.hold()
+}
 
 /** Replaces the whole back stack with [route], so nothing is left to go Back to. */
 private fun NavController.replaceAll(route: Any) {

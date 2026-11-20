@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.hideFromAccessibility
@@ -45,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.MediaServerError
+import tv.stationbreak.core.ui.LocalMotionReduced
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.core.ui.stan.StanOpeningKey
@@ -79,23 +82,29 @@ private const val TOP_OFFSET = 0.1f
 fun FirstSyncDestination(
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
+    onCheered: () -> Unit = onFinished,
 ) {
     val viewModel: FirstSyncViewModel = hiltViewModel()
-    FirstSyncRoot(viewModel, onFinished, onSessionLost)
+    FirstSyncRoot(viewModel, onFinished, onSessionLost, onCheered)
 }
 
-/** [FirstSyncDestination] without Hilt, so a test can bring its own ViewModel. */
+/**
+ * [FirstSyncDestination] without Hilt, so a test can bring its own ViewModel. [onCheered] stands in for [onFinished]
+ * after Stan's cheer (the same by default): the caller can keep [FirstSyncCheerStill] up over what follows.
+ */
 @Composable
 internal fun FirstSyncRoot(
     viewModel: FirstSyncViewModel,
     onFinished: () -> Unit,
     onSessionLost: () -> Unit,
+    onCheered: () -> Unit = onFinished,
 ) {
     val phase by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.events.collect {
             when (it) {
                 FirstSyncEvent.Finished -> onFinished()
+                FirstSyncEvent.Cheered -> onCheered()
                 FirstSyncEvent.SessionLost -> onSessionLost()
             }
         }
@@ -104,12 +113,26 @@ internal fun FirstSyncRoot(
 }
 
 /**
+ * The cheer's look held still: the screen as it is at the end of Stan's cheer, with Stan on his still frame (the one
+ * "Remove animations" shows). The app draws it over live TV after [FirstSyncEvent.Cheered] while live TV gets its
+ * first picture, so the first session goes from the cheer to a programme with no stand-by card in between; still, so
+ * nothing in it can drop frames while the next screen is built underneath. It takes no key and no focus, and a screen
+ * reader skips it: the cheer has already been said.
+ */
+@Composable
+fun FirstSyncCheerStill(modifier: Modifier = Modifier) {
+    CompositionLocalProvider(LocalMotionReduced provides true) {
+        FirstSyncScreen(FirstSyncPhase.Done, onRetry = {}, modifier = modifier.clearAndSetSemantics {}, still = true)
+    }
+}
+
+/**
  * The stateless screen, hosted by Stan. While it syncs nothing on it takes focus and Select and the arrow keys do
  * nothing; the count and the bar change at most twice a second and do not animate. Stan, in the corner, does: he works
  * the aerial for the whole sync (a busy Stan never dozes), at the host's 20 fps cap. On a failure the error from the
  * error table shows with Retry, which has default focus. While the channels are built he keeps working; once one is on
  * the air he cheers us on it, and any key but volume, Back included, calls [onSkipCheer]: on to live TV, never out of
- * the app.
+ * the app. [still] is the cheer held over the next screen ([FirstSyncCheerStill]): nothing on it takes focus or keys.
  */
 @Composable
 internal fun FirstSyncScreen(
@@ -117,8 +140,9 @@ internal fun FirstSyncScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     onSkipCheer: () -> Unit = {},
+    still: Boolean = false,
 ) {
-    val cheering = phase == FirstSyncPhase.Done
+    val cheering = phase == FirstSyncPhase.Done && !still
     val keys = if (cheering) Modifier.onPreviewKeyEvent { skipsCheer(it, onSkipCheer) } else Modifier
     SetupScaffold(firstSyncCue(phase), modifier.then(keys)) { contentPadding ->
         // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
@@ -134,7 +158,7 @@ internal fun FirstSyncScreen(
                 is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
                 is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
                 FirstSyncPhase.Building -> BuildingChannels()
-                FirstSyncPhase.Done -> OnTheAir()
+                FirstSyncPhase.Done -> OnTheAir(takesFocus = !still)
             }
         }
     }
@@ -175,21 +199,21 @@ private fun BuildingChannels() {
 }
 
 /**
- * The moment between the first channel on the air and live TV: the full bar, and a headline that takes focus, so the
- * keys that skip the cheer reach this screen (nothing else on it is focusable).
+ * The moment between the first channel on the air and live TV: the full bar, and a headline that [takesFocus], so the
+ * keys that skip the cheer reach this screen (nothing else on it is focusable). Held still over live TV it takes none.
  */
 @Composable
-private fun OnTheAir() {
+private fun OnTheAir(takesFocus: Boolean) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    LaunchedEffect(takesFocus) { if (takesFocus) focus.requestFocus() }
     val headline = stringResource(R.string.first_sync_done_headline)
+    val focusing = if (takesFocus) Modifier.focusRequester(focus).focusable() else Modifier
     Text(
         text = headline,
         modifier =
             Modifier
                 .testTag(FirstSyncTags.DONE)
-                .focusRequester(focus)
-                .focusable()
+                .then(focusing)
                 .semantics { heading() },
         style = MaterialTheme.typography.headlineLarge,
         color = MaterialTheme.colorScheme.onSurface,

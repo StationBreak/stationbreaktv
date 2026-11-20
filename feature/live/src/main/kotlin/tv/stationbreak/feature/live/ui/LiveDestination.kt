@@ -74,23 +74,29 @@ typealias GuideSlot = @Composable (
  * it is open. It gets the channel playing when it opened, when that was (`System.nanoTime`), and what to call when the
  * viewer picks a channel. The guide is a module of its own, which a feature module may not depend on, so `app` passes
  * it in.
+ *
+ * [onStandByOver] is called each time the screen stops standing by ([isStandingBy]): the picture is up, or a card says
+ * why there is none. Whatever covers the screen while it starts (setup's cheer, held by the app) can lift then.
  */
 @Composable
 fun LiveDestination(
     onSignedOut: () -> Unit,
     guide: GuideSlot,
+    onStandByOver: () -> Unit = {},
 ) {
     val viewModel: LiveViewModel = hiltViewModel()
-    LiveRoot(viewModel, onSignedOut, guide = guide)
+    LiveRoot(viewModel, onSignedOut, guide = guide, onStandByOver = onStandByOver)
 }
 
 /** [LiveDestination] without Hilt, so a test can bring its own ViewModel and tuner. */
+@Suppress("LongParameterList") // The destination's own, and a test's seams.
 @Composable
 internal fun LiveRoot(
     viewModel: LiveViewModel,
     onSignedOut: () -> Unit,
     onCommand: (LiveCommand) -> Unit = viewModel::send,
     guide: GuideSlot = { _, _, _ -> },
+    onStandByOver: () -> Unit = {},
     tuners: TunerFactory? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -127,6 +133,9 @@ internal fun LiveRoot(
     KeepScreenOn(owner, keepsScreenOn(transport))
     CloseGuideOnPause(owner, viewModel::closeGuide)
     LaunchedEffect(state is LiveState.SignedOut) { if (state is LiveState.SignedOut) onSignedOut() }
+    val standingBy = isStandingBy(state)
+    val standByOver by rememberUpdatedState(onStandByOver)
+    LaunchedEffect(standingBy) { if (!standingBy) standByOver() }
     LiveKeysRoot(
         state = state,
         info = info,
@@ -247,6 +256,13 @@ private fun logLiveKey(
 
 /** False while the viewer is paused: an untended pause lets the device sleep (ADR-0021). */
 internal fun keepsScreenOn(transport: TransportView?): Boolean = transport?.paused != true
+
+/**
+ * True while [state] is a stand-by: live is starting, the lineup is still being built, or a channel is tuning with no
+ * picture yet. Everything else is the picture or a card that says why there is none, which the viewer must see.
+ */
+internal fun isStandingBy(state: LiveState): Boolean =
+    state == LiveState.Starting || state == LiveState.BuildingChannels || isChangingChannel(state)
 
 /**
  * A TV channel never lets the device sleep while it is on screen (snow and Stan's screens, the empty ones included):
