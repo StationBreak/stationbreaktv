@@ -205,7 +205,7 @@ Cream on orange and orange on cream (2.9:1) are for shapes only, never text; on 
 **The Few Words Rule.** Ranchers is for the name and Stan's lines only, never more than a few words, and never for information the viewer needs to act on.
 
 **The One Term Rule.** Each idea has one word everywhere. Getting changes from the server is **updating the library** ("Update library", "Updating…", "Updated at 9:41 PM"); first setup keeps "Getting your library ready". A channel is **switched on** or **switched off**, and a switched-on channel is **on the air**. One with nothing today is **not in today's guide** ("hidden" is not used). A gap with nothing scheduled is **off the air** ("Off air" on a plate), never a switched-off channel. What follows is **Up next**. The picture arriving is **tuning in**. Something in a slot is a **programme** (a series is a "show"). Picking from a list is **choose**, and the centre key is **OK**. The rest stay as they are: sign in and sign out, server, libraries and your library, lineup.
-Known exceptions, still to settle: "Press Select to go on." on the signed-out screen (awaits the owner), and "Pick" in `builder_source_pick`, `builder_number_held`, `builder_number_taken_pick` and `first_visit_body`.
+Known exceptions, still to settle: "Press Select to go on." on the signed-out screen (awaits the owner), and "Pick" in `builder_source_pick`, `builder_number_held` and `builder_number_taken_pick`.
 
 **The Three-Size Grid Rule.** The guide grid uses three sizes and two weights (13sp Medium titles, 11sp Regular metadata, 11sp Medium tabular figures). Hierarchy comes from that step and from cream, grey and muted, not from more sizes.
 

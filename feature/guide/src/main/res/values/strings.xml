@@ -117,9 +117,10 @@
     <string name="guide_cell_playing">%1$s, playing</string>
     <!-- The state a screen reader gives the playing channel's tile, and the panel's channel line says. -->
     <string name="guide_playing">Playing</string>
-    <!-- The first visit's note, in the info panel's place until the first key press (#94). -->
-    <string name="first_visit_title">You’re on the air.</string>
-    <string name="first_visit_body">Here are your channels. Pick one to watch, or press OK to keep watching this one.</string>
+    <!-- The first visit's note, in the info panel's place until the first key press (#94). Setup's cheer has just said
+         "on the air", so the note does not say it again. A title with no closing mark, as the panel's titles have. -->
+    <string name="first_visit_title">Here are your channels</string>
+    <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
     <!-- The meta line under the title in the panel: runtime, then it is joined with the year and genres. -->
     <string name="guide_runtime_minutes">%1$d min</string>

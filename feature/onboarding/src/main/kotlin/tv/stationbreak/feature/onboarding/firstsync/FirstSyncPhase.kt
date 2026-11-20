@@ -48,8 +48,15 @@ internal sealed interface FirstSyncPhase {
 
 /** What the screen tells whoever shows it, once each. */
 internal enum class FirstSyncEvent {
-    /** The first sync has ended (or there is nothing to wait for): on to the next destination. */
+    /** The first sync has ended (or there is nothing to wait for), with no cheer: on to the next destination. */
     Finished,
+
+    /**
+     * Stan has cheered us on the air (or a key skipped his cheer): on to live TV. Whoever shows the next destination
+     * may keep the cheer's look up ([FirstSyncCheerStill]) until live TV has a picture, so the first session ends on a
+     * programme and not on a stand-by card.
+     */
+    Cheered,
 
     /** The sign-in is gone: go back to launch routing, which asks the user to sign in again. */
     SessionLost,
