@@ -11,13 +11,12 @@ The schedule is worked out on each TV from your library, and a new day's schedul
 ## The Channels screen
 
 Open it from the guide's menu: **Channels**. Channels are grouped as **On the air**, **More channels**
-(channels that didn't make the lineup; with Pro, you can switch them on) and **Switched off**. Select a channel to:
+(channels that didn't make the lineup) and **Switched off**. Select a channel to:
 
 - **Watch** it;
 - **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
   edit freely;
-- **Switch on** or **Switch off** your own channels. Keep at least one channel on. With Pro, a built-in channel with
-  adult content asks before it comes on;
+- **Switch on** or **Switch off** your own channels. Keep at least one channel on;
 - **Change number** of your own channels. If another of your own channels has the number, the app offers to **Swap**
   the two. **Default number** puts it back.
 

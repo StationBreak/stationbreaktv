@@ -6,14 +6,15 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
 
 ## What the app does by default
 
-- **Mature content is off.** The one built-in channel for adult content, **After Hours**, is
+- **After Hours stays off.** The one built-in channel for adult content, **After Hours**, is
   never chosen for your lineup, and it can't be switched on in the free app.
 - **Kids channels show only titles made for kids**, rated within the kids limit: at most G, TV-G, TV-Y, TV-Y7 or PG
   (TV-PG is above it). Unrated titles are left out. This holds whatever a kids channel's sources say. A messy library gives
   thinner kids channels, never less safe ones.
 - **Kids' titles stay on the kids channels.** The other built-in channels leave out titles made for kids.
 - **Your own channels air what you choose.** A custom channel outside the kids numbers has no hidden filters. If you
-  turn on **Kids channel** in the builder, it gets the kids rules above.
+  turn on **Kids channel** in the builder, it gets the kids rules above. A copy of After Hours is your own channel
+  and airs what it holds.
 
 ## What the app relies on
 

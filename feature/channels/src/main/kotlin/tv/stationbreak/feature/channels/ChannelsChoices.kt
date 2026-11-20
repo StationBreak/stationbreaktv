@@ -88,9 +88,10 @@ internal fun canReset(isPro: Boolean): Boolean = isPro
  * the viewer's.
  */
 internal fun swapOffered(
-    ui: ChannelsUi,
+    isPro: Boolean,
+    rows: List<ChannelRow>,
     holder: ChannelId,
-): Boolean = ui.isPro || ui.rows.firstOrNull { it.id == holder }?.viewerMade == true
+): Boolean = isPro || rows.firstOrNull { it.id == holder }?.viewerMade == true
 
 /**
  * The note Select on [choice] shows instead of acting, or null: Copy to customise makes a custom channel, so it is

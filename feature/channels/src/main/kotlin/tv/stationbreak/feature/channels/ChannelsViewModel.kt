@@ -231,7 +231,7 @@ internal class ChannelsViewModel
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
                     }
-                val entitled = launch { pro.pro.collect { p -> change(generation) { entitledTo(it, p) } } }
+                val entitled = launch { pro.pro.collect { p -> change(generation) { it.copy(isPro = p) } } }
                 val capped =
                     launch {
                         builder.canAddCustom(account).collect { c -> change(generation) { it.copy(canAddCustom = c) } }
@@ -600,16 +600,6 @@ internal class ChannelsViewModel
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
 
-        // The entitlement changed: the focus leaves a Reset line that is no longer there.
-        private fun entitledTo(
-            m: Model,
-            isPro: Boolean,
-        ): Model {
-            val now = m.copy(isPro = isPro)
-            val ids = now.rows.map { it.id }
-            return now.copy(focus = mended(now, ids, ids))
-        }
-
         // Reset is the last stop, for a viewer who can reset: a free viewer has no Reset line.
         private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { canReset(m.isPro) }
 
@@ -902,7 +892,7 @@ internal class ChannelsViewModel
             val panel = swapPanelFor(change, m.channels, holder)
             return if (panel == null) {
                 closed.copy(message = ChannelsMessage.Failed)
-            } else if (!swapOffered(derive(m), holder)) {
+            } else if (!swapOffered(m.isPro, m.rows, holder)) {
                 // Free: a custom channel takes a number that is free or another custom channel's, never a built-in
                 // channel's, so there is no swap to offer (#804).
                 val taken =

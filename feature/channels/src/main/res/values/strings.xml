@@ -50,7 +50,7 @@
     <string name="channels_shelf_below_cap_free">Fits, but your lineup is full</string>
     <string name="channels_shelf_no_number">There is no free channel number for this channel</string>
     <string name="channels_shelf_opt_in">Stays off until you switch it on</string>
-    <string name="channels_shelf_opt_in_free">Adult content, off in this app</string>
+    <string name="channels_shelf_opt_in_free">Adult content. Can\'t be switched on</string>
     <string name="channels_switch_on">On</string>
     <string name="channels_switch_off">Off</string>
     <string name="spoken_pair">%1$s, %2$s</string>
