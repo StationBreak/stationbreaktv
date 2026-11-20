@@ -118,8 +118,8 @@ media. The facts it rests on:
   token is kept, on the TV.
 - No location permission (the merged manifest allows only INTERNET, WAKE_LOCK, ACCESS_NETWORK_STATE and
   RECEIVE_BOOT_COMPLETED; `BackupRulesTest`), and no user-to-user communication.
-- The adult built-in channel is off until the viewer switches it on (a Pro choice in V1). The mature-content stance
-  is on the docs site (`docs/guide/mature-content.md`).
+- The adult built-in channel is off, and it can't be switched on in the free app. A copy of it is the viewer's own
+  channel and airs what it holds. The mature-content stance is on the docs site (`docs/guide/mature-content.md`).
 
 ### User data privacy
 

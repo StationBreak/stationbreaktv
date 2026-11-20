@@ -74,10 +74,13 @@ internal enum class ChannelsMessage {
     Failed,
     LibrariesUnavailable,
 
-    /** The change is a Pro feature (#793). Placeholder copy until the owner approves it. */
-    NeedsPro,
+    /** A free viewer asked for a number a built-in channel holds: it is not swapped, so the number is just taken. */
+    NumberTaken,
 
-    /** Free holds a few custom channels, and they are all made (#793). Placeholder copy until approved. */
+    /** The same for Default number: there is no number to pick again, so the note does not ask for one. */
+    DefaultNumberTaken,
+
+    /** Free holds a few custom channels, and they are all made (#793). */
     CustomLimit,
 }
 
@@ -129,9 +132,9 @@ internal data class ChannelsUi(
     val properties: ChannelProperties? = null,
     /** The first list of channels has arrived, so a channel missing from [rows] is not just late. */
     val listed: Boolean = false,
-    /** Pro is unlocked (#793): when it is not, the choices that reshape the planner's lineup are marked. */
-    val isPro: Boolean = true,
-    /** Another custom channel may be made now (#793): when it may not, New and Copy to customise are marked. */
+    /** Pro is unlocked (#793): when it is not, the choices that reshape the planner's lineup are not offered. */
+    val isPro: Boolean = false,
+    /** Another custom channel may be made now (#793): when it may not, New and Copy give the limit note. */
     val canAddCustom: Boolean = true,
     /** The channel holding the number an open Swap panel offers to take (#804). */
     val holder: ChannelId? = null,
