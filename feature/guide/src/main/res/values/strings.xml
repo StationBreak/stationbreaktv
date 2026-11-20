@@ -19,9 +19,8 @@
     <string name="guide_tag_critics">Critics</string>
     <string name="guide_tag_audience">Audience</string>
 
-    <!-- The hint row: a key name, then what it does. OK tunes what is on now, and the channel of a later program. -->
-    <string name="guide_key_ok">OK</string>
-    <string name="guide_key_back">Back</string>
+    <!-- The hint row: a key name (OK and Back are core:ui's), then what it does. OK tunes what is on now, and the
+         channel of a later program. -->
     <string name="guide_hint_watch">Watch</string>
     <string name="guide_hint_watch_channel">Watch channel</string>
     <!-- On the channel column (#631): OK opens the channel's properties, Right or Back returns to the programs. -->
@@ -99,14 +98,13 @@
     <string name="guide_sync_reason_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries.</string>
     <!-- The Settings sheet's last row (#336): OK asks whether to sign out of this TV. -->
     <string name="guide_settings_sign_out">Sign out</string>
-    <!-- The Settings sheet's hint row: Left and Right (one key cap) change a choice, OK moves it on to the next value,
-         opens a link or chooses an action, and Back closes the sheet. -->
-    <string name="guide_key_left_right">◂ ▸</string>
+    <!-- The Settings sheet's hint row (its keys and Close are core:ui's): Left and Right change a choice, OK moves it
+         on to the next value, opens a link, updates the library on Update library, or signs out on Sign out (the row's
+         own words); Back closes the sheet. -->
     <string name="guide_hint_change">Change</string>
     <string name="guide_hint_next">Next</string>
     <string name="guide_hint_open">Open</string>
-    <string name="guide_hint_choose">Choose</string>
-    <string name="guide_hint_close">Close</string>
+    <string name="guide_hint_update">Update</string>
     <string name="guide_exit_button">Exit</string>
 
     <!-- The chip in front of the slot of a program on now. -->

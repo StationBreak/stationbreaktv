@@ -49,12 +49,16 @@ internal enum class RowStatus { Saving, Removing, Adding }
 /** The line under the title after a change, or after an add was given up. */
 internal enum class Notice { LastLibrary, Saved, Failed, NotListed }
 
-/** What the Libraries screen shows; [focus] is the index of the focused row. */
+/**
+ * What the Libraries screen shows; [focus] is the index of the focused row. [serverName] is who it is signed in to,
+ * null when nobody is signed in or the server has no name.
+ */
 internal data class LibrariesSettingsState(
     val phase: LibrariesPhase,
     val rows: List<LibraryRow>,
     val focus: Int,
     val notice: Notice?,
+    val serverName: String? = null,
 ) {
     companion object {
         val Empty = LibrariesSettingsState(LibrariesPhase.Loading, emptyList(), focus = 0, notice = null)

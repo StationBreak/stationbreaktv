@@ -17,10 +17,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.selection.ChangeResult
 import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.domain.selection.LibraryChoices
 import tv.stationbreak.core.domain.selection.LibraryListing
+import tv.stationbreak.core.domain.selection.LibrarySetup
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.Library
 import javax.inject.Inject
@@ -56,17 +58,20 @@ internal class LibrariesSettingsViewModel
         // Where a change runs, so the mark of its return is taken before the hop back to [dispatcher].
         private val worker: CoroutineDispatcher = dispatcher,
         private val log: (String) -> Unit = {},
+        // Who is signed in, for the "Signed in to" line: the same source the sign-out question reads.
+        private val account: AccountSignOut = AccountSignOut.None,
     ) : ViewModel() {
         // The main thread, as a ViewModel's own work runs: it is light, and the selection moves its slow work to its
         // own threads. Not Dispatchers.Default, where the day builds a change sets off would hold up the end of a
         // change. Not Main.immediate: a change is launched under [lock], and must not start inside it.
         @Inject
-        constructor(choices: LibraryChoices) : this(
+        constructor(choices: LibraryChoices, sessions: SessionRepository, setup: LibrarySetup) : this(
             choices,
             Dispatchers.Main,
             TimeSource.Monotonic,
             Dispatchers.Default,
             { runCatching { Log.i(LOG_TAG, it) } },
+            SessionSignOut(sessions, setup),
         )
 
         /** What one visit knows beyond what [LibrariesSettingsState] shows. */
@@ -89,6 +94,8 @@ internal class LibrariesSettingsViewModel
             val notice: Notice? = null,
             /** The adds already shown as given up in this visit, so each is said once. */
             val stalledSeen: Set<ItemId> = emptySet(),
+            /** The signed-in server's name when the visit opened; null when nobody was signed in or it has none. */
+            val serverName: String? = null,
         ) {
             // The stored choice now. A newly given-up add says Failed once; the ticks follow the stored choice.
             fun withView(view: ChoiceView?): Model {
@@ -147,6 +154,7 @@ internal class LibrariesSettingsViewModel
                 missedFailure = false
                 // The stored choice at once, so the rows never show unticked for a frame before the watch delivers it.
                 val view = choices.selection.value
+                val server = account.serverName()
                 model =
                     if (known != null) {
                         Model(
@@ -156,9 +164,10 @@ internal class LibrariesSettingsViewModel
                             view = view,
                             restoreFocus = closedOn,
                             notice = notice,
+                            serverName = server,
                         )
                     } else {
-                        Model(generation, view = view, restoreFocus = closedOn, notice = notice)
+                        Model(generation, view = view, restoreFocus = closedOn, notice = notice, serverName = server)
                     }
                 visible = true
                 apply { it }
@@ -354,8 +363,9 @@ internal class LibrariesSettingsViewModel
         }
 
         private fun derive(m: Model): LibrariesSettingsState {
-            val rows = rowsOf(m)
-            return LibrariesSettingsState(phaseOf(m), rows, m.focus, m.notice)
+            // A listing that found nobody signed in names no server.
+            val server = m.serverName.takeIf { !m.signedOut }
+            return LibrariesSettingsState(phaseOf(m), rowsOf(m), m.focus, m.notice, server)
         }
 
         // Listed with no stored choice (another account's) is the read-only state of a server that could not be asked.

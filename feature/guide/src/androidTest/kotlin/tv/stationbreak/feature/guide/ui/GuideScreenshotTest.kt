@@ -560,18 +560,36 @@ class GuideScreenshotTest {
         // the two-line case too.
         val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
         val wrapExtra = if (lineCount(GuideTags.SETTINGS_SYNC_STATUS) >= 2) 0f else status.height
-        for (tag in SETTINGS_ROW_TAGS) {
-            val rect = bounds(tag)
-            assertTrue("$tag was squeezed out of the sheet ($rect)", rect.height > 0f)
-            assertTrue("$tag (top ${rect.top}) is under the title (bottom $titleBottom)", rect.top >= titleBottom)
-            val bottom = rect.bottom + wrapExtra
-            assertTrue("$tag (bottom $bottom) runs into the hint row (top $hintTop)", bottom <= hintTop)
+        // At the TV's own text size every row shows at once. A larger one may need the rows to scroll (with the
+        // shared 36 dp rows, #336): then each row is walked to, and must show whole between the title and the hint.
+        if (scale == 1f) {
+            for (tag in SETTINGS_ROW_TAGS) assertBetween(tag, titleBottom, hintTop, wrapExtra)
         }
         val picked = if (chosen == ScreenFit.Safe) "Safe" else "Edge"
         compose
             .onNodeWithTag(GuideTags.SETTINGS_SCREEN_FIT)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, picked))
         shoot("$SETTINGS_FRAME$suffix.png")
+        if (scale != 1f) {
+            for (row in SettingsRow.entries) {
+                assertBetween(GuideTags.settingsRow(row), titleBottom, hintTop, 0f)
+                press(Key.DirectionDown)
+            }
+        }
+    }
+
+    private fun assertBetween(
+        tag: String,
+        top: Float,
+        bottom: Float,
+        extra: Float,
+    ) {
+        compose.waitForIdle()
+        val rect = bounds(tag)
+        assertTrue("$tag was squeezed out of the sheet ($rect)", rect.height > 0f)
+        assertTrue("$tag (top ${rect.top}) is under the title (bottom $top)", rect.top >= top)
+        val end = rect.bottom + extra
+        assertTrue("$tag (bottom $end) runs into the hint row (top $bottom)", end <= bottom)
     }
 
     private fun bounds(tag: String) = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot

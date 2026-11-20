@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -40,6 +41,7 @@ import tv.stationbreak.core.model.Library
 import tv.stationbreak.core.model.LibraryKind
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
+import tv.stationbreak.feature.settings.AccountSignOut
 import tv.stationbreak.feature.settings.LibrariesSettingsViewModel
 import java.util.concurrent.Executors
 
@@ -65,9 +67,10 @@ class LibrariesScreenTest {
     private fun show(
         libraries: List<Library> = listOf(ALPHA, BRAVO),
         chosen: Set<ItemId> = setOf(ALPHA.id),
+        account: AccountSignOut = AccountSignOut.None,
     ) {
         choices = FakeLibraryChoices(ChoiceView(chosen, emptySet(), gone = false), libraries)
-        vm = LibrariesSettingsViewModel(choices, work)
+        vm = LibrariesSettingsViewModel(choices, work, account = account)
         compose.setContent {
             StationBreakTheme {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
@@ -100,6 +103,21 @@ class LibrariesScreenTest {
             .onAllNodes(hasTestTag(tag), useUnmergedTree = true)
             .fetchSemanticsNodes(atLeastOneRootRequired = false)
             .isNotEmpty()
+
+    @Test
+    fun theHeaderSaysWhichServerThisTvUses() {
+        show(
+            account =
+                object : AccountSignOut {
+                    override fun serverName() = "Home"
+
+                    override suspend fun signOut() = true
+                },
+        )
+        compose
+            .onNodeWithTag(SettingsTags.LIBRARIES_SIGNED_IN, useUnmergedTree = true)
+            .assertTextEquals("Signed in to Home")
+    }
 
     @Test
     fun dPadSelect_ticksTheFocusedRow_andBackFinishes() {

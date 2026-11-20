@@ -19,6 +19,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
@@ -343,11 +344,45 @@ class GuideNoLibrariesUiTest {
         compose.onNodeWithTag(GuideTags.SETTINGS_TITLE).assert(heading)
 
         // The hint row says what the keys do on the row: a choice, then a link.
-        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("◂ ▸ Change   OK Next   Back Close")
+        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("Left or right Change   OK Next   Back Close")
         repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
         compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Open   Back Close")
         compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsNotSelected()
+    }
+
+    // One announcing path (#336): the sheet's root is the one live region in it, and says a value change and the
+    // Update library line; the line itself is not a live region, so nothing is said twice.
+    @Test
+    fun theSheetHasOneLiveRegion_andItSaysValuesAndTheUpdateLine() {
+        showGone()
+        openSettings()
+        val live = SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)
+
+        fun liveTags() =
+            compose
+                .onAllNodes(live, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
+        assertEquals(listOf(GuideTags.SETTINGS_SHEET), liveTags())
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Appearance, Dark")
+
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(TIMEOUT_MS) {
+            runCatching {
+                compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Appearance, Light")
+            }.isSuccess
+        }
+
+        repeat(SettingsRow.SyncNow.ordinal) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SYNC_STATUS).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Update library, Updating…")
+        val why = "the Update library line is not a second live region"
+        assertEquals(why, listOf(GuideTags.SETTINGS_SHEET), liveTags())
     }
 
     // Sign out (#336) asks first: OK on its row shows the sign-out slot over the sheet, which holds every key, and
@@ -358,7 +393,7 @@ class GuideNoLibrariesUiTest {
         openSettings()
         repeat(SettingsRow.entries.size) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_SIGN_OUT)
-        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Choose   Back Close")
+        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Sign out   Back Close")
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) { stayed != null }

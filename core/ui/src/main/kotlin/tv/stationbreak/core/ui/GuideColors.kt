@@ -42,6 +42,8 @@ class GuideColors(
     val line: Color,
     /** The 1 dp outline of a hint key cap: the brand grey in Dark, or the paper line in Light. */
     val keyCapStroke: Color,
+    /** A section flag's text on a sheet: the brand grey in Dark (DESIGN.md `section-flag`), dark grey in Light. */
+    val sectionFlag: Color,
     /**
      * The ink the channel marks are tinted with: their mono render drawn in this colour (Light), or null to draw the
      * colour render as it is (Dark). See `channelmarks` in `core/ui/CHANNELMARKS.md`.
@@ -62,6 +64,8 @@ class GuideColors(
             secondary = textSecondary,
             ring = focusFill,
             sheet = sheet,
+            keyCapStroke = keyCapStroke,
+            flag = sectionFlag,
         )
 
     companion object {
@@ -84,6 +88,7 @@ class GuideColors(
                 progressTrack = BrandColors.Line,
                 line = BrandColors.Line,
                 keyCapStroke = BrandColors.Grey,
+                sectionFlag = BrandColors.Grey,
                 sheet = DarkSheet,
             )
 
@@ -113,6 +118,7 @@ class GuideColors(
                 progressTrack = BrandColors.PaperTrack,
                 line = BrandColors.PaperLine,
                 keyCapStroke = BrandColors.PaperLine,
+                sectionFlag = BrandColors.DarkGrey,
                 markTint = BrandColors.Ink,
                 sheet =
                     SheetColors(

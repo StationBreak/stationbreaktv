@@ -20,6 +20,7 @@ import org.junit.Test
 private class CountingSignOut(
     private val name: String? = "Home",
     private val revoked: Boolean = true,
+    private val fails: Boolean = false,
 ) : AccountSignOut {
     var signOuts = 0
     var gate: CompletableDeferred<Unit>? = null
@@ -29,15 +30,18 @@ private class CountingSignOut(
     override suspend fun signOut(): Boolean {
         signOuts += 1
         gate?.await()
+        check(!fails) { "https://server.example.test refused" }
         return revoked
     }
 }
 
 /** #336: the question the guide's Settings sheet asks before signing out, with the safe answer focused. */
 class SignOutViewModelTest {
+    private val logged = mutableListOf<String>()
+
     private fun TestScope.open(account: AccountSignOut): SignOutViewModel {
         val main = StandardTestDispatcher(testScheduler)
-        val made = SignOutViewModel(account, main)
+        val made = SignOutViewModel(account, main, log = { logged += it })
         made.open()
         return made
     }
@@ -135,7 +139,7 @@ class SignOutViewModelTest {
         }
 
     @Test
-    fun aSignOutTheServerWasNotToldOfSaysSo_andOkOrBackThenGoesOn() =
+    fun aSignOutTheServerWasNotToldOfSaysSo_andOkOrBackThenGoesOnOnce() =
         runTest {
             val account = CountingSignOut(revoked = false)
             val vm = open(account)
@@ -149,10 +153,37 @@ class SignOutViewModelTest {
             assertFalse(vm.select())
             runCurrent()
             assertEquals(1, told())
+            // A second press, OK or Back, leaves no second time.
             assertFalse(vm.back())
+            assertFalse(vm.select())
             runCurrent()
-            assertEquals(2, told())
+            assertEquals(1, told())
             assertEquals(1, account.signOuts)
+        }
+
+    @Test
+    fun aSignOutThatThrowsIsOneTheServerWasNotToldOf_loggedByAFixedWord() =
+        runTest {
+            val vm = open(CountingSignOut(fails = true))
+            val told = told(vm)
+            vm.move(up = false)
+            vm.select()
+            runCurrent()
+            assertEquals(SignOutStep.NotRevoked, vm.now.step)
+            assertEquals(listOf("SignOutChosen", "SignOutFailed"), logged)
+            assertTrue("the error is never logged", logged.none { "example" in it })
+            vm.back()
+            runCurrent()
+            assertEquals(1, told())
+        }
+
+    @Test
+    fun closingTheQuestionPutsTheFocusBackOnStay() =
+        runTest {
+            val vm = open(CountingSignOut())
+            vm.move(up = false)
+            vm.close()
+            assertEquals(SignOutChoice.Stay, vm.now.focus)
         }
 
     @Test

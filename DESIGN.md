@@ -259,15 +259,15 @@ A 58dp ink bar over the picture with a 1dp line, 2dp corners and a 2dp orange pr
 ### Sheet and Rows (menu sheet, channel properties, channel screens, settings)
 Sheets are panel-coloured, with a 1dp line on the edge facing the screen. The ground bleeds while the text keeps to the safe area, and the content scrolls and fades while actions stay pinned. A row's focus is the drawn ring in orange (`panelFocus`), with no scale. Section headers are teletype flags in grey with a count ("ON THE AIR · 48"), not text that looks like a row; a section of settings has no count ("PICTURE").
 
-**Settings rows.** The guide's Settings is a left-edge sheet (`StartSheet`: 380dp from the safe edge, over the dimmed guide, where the menu sheet stood). Every row is a label on the left in sheet-body, and what it holds on the right, so its kind shows without colour:
+**Settings rows.** The guide's Settings is a left-edge sheet (`LeftSheet`: 380dp from the safe edge, over the dimmed guide, where the menu sheet stood; rows 36dp tall at least, as the menu sheet's, from the shared `SheetMeasures`). Every row is a label on the left in sheet-body, and what it holds on the right, so its kind shows without colour:
 - a **choice** shows its value in muted and a dot for each value it has, the chosen one filled (never colour or an underline alone). Left and Right step the value in place, OK moves it on to the next one; neither closes the sheet. A screen reader hears the label, then the value as the row's state.
 - a **link** (opens another screen) ends in a chevron "›" and is a button.
 - an **action** ends in the round OK key cap and is a button. An action that cannot be taken back (sign out) asks first, over the sheet, with the focus on the safe answer ("Stay signed in"); Back is the safe answer too.
 
-The hint row is pinned at the bottom with key caps and follows the row: "◂ ▸ Change · OK Next · Back Close" on a choice, "OK Open" on a link, "OK Choose" on an action. Back closes the sheet.
+The hint row is pinned at the bottom with key caps and follows the row: "◂ ▸ Change · OK Next · Back Close" on a choice, "OK Open" on a link, and the action's own verb on an action ("OK Update", "OK Sign out"). A screen reader hears the arrows as words ("Left or right"). Back closes the sheet. The sign-out question's hint is "OK Choose · Back Stay signed in", and offers nothing while the sign-out runs. Section flags are in `grey` (dark grey on paper).
 
 ### Key Hints
-A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's. `KeyCap` and `KeyHint` in `core:ui` are the one drawing of them.
+A key cap (1dp grey stroke, 3dp corners, 16dp tall; OK is a circle) followed by a 10sp muted label. Every hint row uses key caps, including the menu sheet's. `KeyCap`, `KeyHint` and `KeyHintRow` in `core:ui` are the one drawing of them.
 
 ### Setup (onboarding)
 Setup is a station screen too: the reading face at 20sp for fields and buttons, and focus in orange. A screen's main action is a 2 dp cream outline at rest; orange only for focus. Stan hosts each step from the bottom-right corner, reacting to what happens (pleased, shrug, busy, cheer, dozing).

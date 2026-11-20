@@ -21,7 +21,7 @@ The app reads the libraries again by itself. To read them now, choose **Settings
 lineup changes start with the next day's schedule at 6 AM.
 
 **How do I sign out, or change server?**
-In the guide, open the menu and choose **Settings → Sign out**. The app asks first, with **Stay signed in** chosen, so
+In the guide, open the menu and choose **Settings → Sign out**. The app asks first, with **Stay signed in** highlighted, so
 pressing OK by accident keeps you signed in. Choose **Sign out** to sign out of this TV. You'll need to sign in again on
 this TV, and you can pick another server then.
 

@@ -120,6 +120,16 @@ fun GuideDestination(
             onLevelling = { enabled, from -> levellings.choose(enabled, from) },
             channelChange = channelChange,
             onChannelChange = { style, from -> changes.choose(style, from) },
+            // The stores as they stand at the key, not as the last frame saw them: two presses inside one frame both
+            // step, each from the value the one before chose.
+            valuesNow = {
+                SettingsValues(
+                    themes.theme.value,
+                    fits.fit.value,
+                    changes.style.value,
+                    levellings.enabled.value,
+                )
+            },
         )
     }
 }
@@ -194,6 +204,7 @@ internal fun GuideRoot(
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
     channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     onChannelChange: (ChannelChangeStyle, String) -> Unit = { _, _ -> },
+    valuesNow: (() -> SettingsValues)? = null,
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -265,8 +276,11 @@ internal fun GuideRoot(
     val chooseFit = rememberUpdatedState(onFit)
     val chooseLevelling = rememberUpdatedState(onLevelling)
     val chooseChannelChange = rememberUpdatedState(onChannelChange)
-    // What the Settings sheet's choice rows show, and what a key there steps on from.
+    // What the Settings sheet's choice rows show; a key there steps on from the stores' values as they stand
+    // ([valuesNow]), or from these where there are no stores (a test's host).
     val settingsValues = SettingsValues(themeChoice, LocalScreenFit.current, channelChange, levelling)
+    val shownValues by rememberUpdatedState(settingsValues)
+    val keyValues by rememberUpdatedState(valuesNow ?: { shownValues })
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -338,7 +352,7 @@ internal fun GuideRoot(
                             it,
                             covered = covered,
                             settings = settings,
-                            settingsValues = settingsValues,
+                            settingsValues = keyValues(),
                             onSettings = { step ->
                                 step.theme?.let { next ->
                                     themeChoice = next
@@ -425,8 +439,8 @@ private class GuideCover(
     val hidden = managing || libraries
 }
 
-/** A slot that draws nothing, for a test that never opens Settings, Libraries. */
-private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, _ -> }
+/** A Libraries slot with nothing to show: it finishes at once, so a guide given none is never left covered. */
+private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, onDone -> LaunchedEffect(Unit) { onDone() } }
 
 /** A sign-out slot with nothing to ask: it finishes at once, so a guide given none is never left covered. */
 private val NoSignOut: SignOutSlot = { onDone -> LaunchedEffect(Unit) { onDone() } }

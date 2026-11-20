@@ -53,6 +53,8 @@ import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.HINT_SPACE
+import tv.stationbreak.core.ui.HintPairGap
 import tv.stationbreak.core.ui.KeyHint
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
@@ -73,6 +75,7 @@ import tv.stationbreak.feature.guide.isAwayFrom
 import tv.stationbreak.feature.guide.leftGoesToChannel
 import kotlin.math.abs
 import kotlin.math.ceil
+import tv.stationbreak.core.ui.R as UiR
 
 // The guide's layout in dp (the guide UX notes, on a 960 x 540 dp screen with a 5% safe area).
 internal val ChannelColumnWidth = 84.dp
@@ -88,12 +91,10 @@ internal val ClockHeight = 20.dp
 internal val TopGap = 4.dp
 internal val HintGap = 4.dp
 internal val HintHeight = 20.dp
-private val HintPairGap = 20.dp
 
 // The clear space between the panel's content and the picture's left edge: the panel is narrowed by it, the picture
 // does not move.
 private val PanelGap = 24.dp
-private const val HINT_SPACE = "   "
 
 // How far (dp) the hole may sit from the safe area's top and right edges: rounding, not placement.
 private const val CORNER_SLACK = 0.5f
@@ -237,7 +238,7 @@ internal fun GuideScreen(
                 Spacer(Modifier.height(HintGap))
                 HintRow(snapshotOf, current, geometry.narrowBreakBelowMs)
             }
-            GuideMenuSheetHost(shown, settings == null, geometry.safe)
+            GuideMenuSheetHost(shown, settings == null)
             // The Settings sheet stands where the menu sheet that opened it stood.
             settings?.let { GuideSettingsSheet(settingsValues, it.row, syncNow) }
         }
@@ -433,10 +434,10 @@ private fun HintRow(
     // Away from the playing channel's cell, Back goes there; on it, to the menu row; from the menu row it exits. Read
     // like the kind, so it recomposes only when the answer changes.
     val away by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAwayFrom(current) } }
-    val ok = stringResource(R.string.guide_key_ok)
+    val ok = stringResource(UiR.string.hint_key_ok)
     // On the channel column the way out is back to the programs, by Right or Back (#631).
     val onChannel by remember(snapshotOf) { derivedStateOf { snapshotOf().onChannel } }
-    val back = stringResource(if (onChannel) R.string.guide_key_right else R.string.guide_key_back)
+    val back = stringResource(if (onChannel) R.string.guide_key_right else UiR.string.hint_key_back)
     val toMenu by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAtPlaying(current) } }
     val sheet by remember(snapshotOf) { derivedStateOf { snapshotOf().menu != null } }
     val noLibraries by remember(snapshotOf) { derivedStateOf { snapshotOf().noLibraries } }

@@ -44,9 +44,6 @@
     <string name="settings_signing_out">Signing out…</string>
     <!-- Signed out here, but the server could not be told (offline, or it did not answer). -->
     <string name="settings_signed_out_not_revoked">Signed out on this TV, but the server couldn\'t be told. Remove this TV in the server\'s dashboard. Press Select to go on.</string>
-    <!-- The question's hint row: a key name, then what it does. -->
-    <string name="settings_key_ok">OK</string>
-    <string name="settings_key_back">Back</string>
-    <string name="settings_hint_choose">Choose</string>
+    <!-- The question's hint row: a key name and Choose are core:ui's; once the server could not be told, OK goes on. -->
     <string name="settings_hint_go_on">Go on</string>
 </resources>

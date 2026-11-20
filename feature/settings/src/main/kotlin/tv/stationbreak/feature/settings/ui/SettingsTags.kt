@@ -19,6 +19,9 @@ object SettingsTags {
     /** The line under the title when the server could not be asked. */
     const val UNAVAILABLE = "settings:libraries:unavailable"
 
+    /** "Signed in to …", under the Libraries title. */
+    const val LIBRARIES_SIGNED_IN = "settings:libraries:signedIn"
+
     /** The line under the title after a change, or after an add was given up. */
     const val NOTICE = "settings:libraries:notice"
 

@@ -7,20 +7,23 @@ import org.junit.Test
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.R
+import tv.stationbreak.core.ui.R as UiR
 
 /** The Settings sheet's rows: their sections, kinds, values, words and hints. */
 class GuideSettingsRowsTest {
-    // The module's English strings by resource name, read from the file: a unit test has no resources to resolve.
+    // The English strings by resource name, this module's and core:ui's (the hint keys), read from the files: a unit
+    // test has no resources to resolve.
     private val strings: Map<String, String> by lazy {
-        val file = java.io.File("src/main/res/values/strings.xml").readText()
         val entry = Regex("""<string name="([^"]+)">([^<]*)</string>""")
-        entry.findAll(file).associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
+        listOf("src/main/res/values/strings.xml", "../../core/ui/src/main/res/values/strings.xml")
+            .flatMap { entry.findAll(java.io.File(it).readText()).toList() }
+            .associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
     }
 
     private fun text(id: Int): String {
         val name =
-            R.string::class.java.fields
-                .single { it.getInt(null) == id }
+            (R.string::class.java.fields + UiR.string::class.java.fields)
+                .first { it.getInt(null) == id }
                 .name
         return checkNotNull(strings[name]) { "no string $name" }
     }
@@ -89,14 +92,23 @@ class GuideSettingsRowsTest {
 
     @Test
     fun theHintSaysWhatTheKeysDo_backLast() {
-        fun said(kind: RowKind) = settingsHintOf(kind).joinToString("   ") { "${text(it.key)} ${text(it.action)}" }
+        fun shown(row: SettingsRow) = settingsHintOf(row).joinToString("   ") { "${text(it.key)} ${text(it.action)}" }
 
-        assertEquals("◂ ▸ Change   OK Next   Back Close", said(RowKind.Choice))
-        assertEquals("OK Open   Back Close", said(RowKind.Link))
-        assertEquals("OK Choose   Back Close", said(RowKind.Action))
+        fun said(row: SettingsRow) =
+            settingsHintOf(row).joinToString("   ") {
+                "${text(it.spokenKey ?: it.key)} ${text(it.action)}"
+            }
+
+        assertEquals("◂ ▸ Change   OK Next   Back Close", shown(SettingsRow.Appearance))
+        // Read out, the arrows are words.
+        assertEquals("Left or right Change   OK Next   Back Close", said(SettingsRow.Appearance))
+        assertEquals("OK Open   Back Close", said(SettingsRow.Libraries))
+        // An action's OK says the row's own verb.
+        assertEquals("OK Update   Back Close", said(SettingsRow.SyncNow))
+        assertEquals("OK Sign out   Back Close", said(SettingsRow.SignOut))
         // OK is the one round cap.
-        for (kind in RowKind.entries) {
-            assertEquals(listOf(R.string.guide_key_ok), settingsHintOf(kind).filter { it.round }.map { it.key })
+        for (row in SettingsRow.entries) {
+            assertEquals(listOf(UiR.string.hint_key_ok), settingsHintOf(row).filter { it.round }.map { it.key })
         }
     }
 

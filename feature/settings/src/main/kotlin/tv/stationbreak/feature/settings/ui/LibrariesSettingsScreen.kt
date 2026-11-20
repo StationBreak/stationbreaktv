@@ -124,6 +124,8 @@ private fun Header(state: LibrariesSettingsState) {
             Modifier.testTag(SettingsTags.TITLE),
             style = MaterialTheme.typography.titleLarge,
         )
+        // Which server this TV uses: where a viewer looks for it, and on the sign-out question too.
+        state.serverName?.let { SignedInLine(it, SettingsTags.LIBRARIES_SIGNED_IN) }
         when (state.phase) {
             LibrariesPhase.Loading -> {
                 NoteLine(stringResource(R.string.settings_libraries_loading), SettingsTags.LOADING)

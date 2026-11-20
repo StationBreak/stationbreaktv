@@ -203,7 +203,11 @@ inset the banner, the info overlay and the guide all use) and `ScreenLayout.pict
 picture; the guide is handed the result). `core:ui` has grown from the theme into the shared program UI of spec 17: the
 program text rules (`ProgramText`: slots, times, episode lines, and the minutes until a time as the clock and the slot
 read them, with the wait to the clock's next minute that the banner and the guide both tick on), the program info
-overlay, and that geometry.
+overlay, and that geometry. It also holds the guide family's shared sheet pieces, which the guide (menu and Settings
+sheets), `feature:channels` (the properties sheet) and `feature:settings` (the sign-out question) all draw with:
+`LeftSheet` and `RightSheet` (the edge sheet over the scrim, `SHEET_SCRIM_ALPHA`), `SheetMeasures` (title, body and
+caption sizes, row padding, gap and the 36 dp row), `KeyCap`, `KeyHint` and `KeyHintRow` (key-cap hint rows, read out as
+one line, with the shared key words), and `scrollEdgeFade`. They read their colours from `LocalPanelColors` only.
 
 `core:domain` also holds `logName()`, the name a log line prints for a class (`state.javaClass.logName()`): taken from
 the binary name, because R8 drops the attribute `simpleName` needs from nested classes. It relies on the release build's

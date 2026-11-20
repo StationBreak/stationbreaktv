@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.selection.LibrarySetup
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 /** The two answers to the sign-out question, top to bottom: the safe one first. */
@@ -67,10 +68,11 @@ internal class SignOutViewModel
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
         private val shown = MutableStateFlow(SignOutState())
         private val signOuts = Channel<Unit>(Channel.BUFFERED)
+        private val wentOn = AtomicBoolean(false)
 
         val state: StateFlow<SignOutState> = shown.asStateFlow()
 
-        /** Fires once when the sign-out has run (and has been read, when the server could not be told). */
+        /** Fires once, and only once, when the sign-out has run (and has been read, when the server was not told). */
         val signedOut: Flow<Unit> get() = signOuts.receiveAsFlow()
 
         override fun onCleared() {
@@ -80,6 +82,14 @@ internal class SignOutViewModel
         /** The question shows again: on Stay signed in, with the server's name as it is now. A run keeps its state. */
         fun open() {
             shown.update { if (it.step == SignOutStep.Asking) SignOutState(serverName = account.serverName()) else it }
+        }
+
+        /**
+         * The question has closed (the viewer stayed): the focus goes back to Stay signed in now, so the next showing
+         * never draws a frame on Sign out before [open] runs.
+         */
+        fun close() {
+            shown.update { if (it.step == SignOutStep.Asking) it.copy(focus = SignOutChoice.Stay) else it }
         }
 
         /** Up to Stay signed in, Down to Sign out, while the question is asked. */
@@ -99,7 +109,7 @@ internal class SignOutViewModel
             when (now.step) {
                 SignOutStep.Asking -> if (now.focus == SignOutChoice.Stay) return true else signOut()
                 SignOutStep.Busy -> Unit
-                SignOutStep.NotRevoked -> signOuts.trySend(Unit)
+                SignOutStep.NotRevoked -> goOn()
             }
             return false
         }
@@ -119,7 +129,7 @@ internal class SignOutViewModel
                 }
 
                 SignOutStep.NotRevoked -> {
-                    signOuts.trySend(Unit)
+                    goOn()
                     false
                 }
             }
@@ -133,9 +143,20 @@ internal class SignOutViewModel
             if (!started) return
             log("SignOutChosen")
             scope.launch {
-                val revoked = withContext(worker) { account.signOut() }
-                if (revoked) signOuts.send(Unit) else shown.update { it.copy(step = SignOutStep.NotRevoked) }
+                // A sign-out that threw is one the server was not told of: the TV says so. The log is a fixed word,
+                // never the error, which could carry the server's address.
+                val revoked =
+                    runCatching { withContext(worker) { account.signOut() } }.getOrElse {
+                        log("SignOutFailed")
+                        false
+                    }
+                if (revoked) goOn() else shown.update { it.copy(step = SignOutStep.NotRevoked) }
             }
+        }
+
+        // The host is told once, however many presses follow: it leaves for the server screen only once.
+        private fun goOn() {
+            if (wentOn.compareAndSet(false, true)) signOuts.trySend(Unit)
         }
     }
 

@@ -6,7 +6,8 @@ import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.R
 
-// The Settings sheet's choice rows: the values each steps through, the words each value shows, and a step.
+// The Settings sheet's choice rows: the values each steps through, and the words each value shows. A step through
+// them is SettingsChoiceStep.kt's.
 
 /** A choice row's value as drawn: its words, and where it stands ([index]) among the row's [count] values. */
 internal data class ChoiceShown(
@@ -16,10 +17,10 @@ internal data class ChoiceShown(
 )
 
 // Each choice row's values, in the order Left and Right step through them.
-private val THEMES = GuideTheme.entries
-private val FITS = ScreenFit.entries
-private val CHANGES = ChannelChangeStyle.entries
-private val LEVELLINGS = listOf(false, true)
+internal val THEMES = GuideTheme.entries
+internal val FITS = ScreenFit.entries
+internal val CHANGES = ChannelChangeStyle.entries
+internal val LEVELLINGS = listOf(false, true)
 
 /** What [row] shows on its right for [values], or null for a row that is not a choice. */
 internal fun choiceShown(
@@ -63,51 +64,3 @@ private fun channelChangeWords(style: ChannelChangeStyle): Int =
 
 @StringRes
 private fun levellingWords(on: Boolean): Int = if (on) R.string.guide_levelling_on else R.string.guide_levelling_off
-
-// The choice row's value moved by [change]; the sheet as it was when the row is not a choice or nothing moved.
-internal fun SettingsPanel.changed(
-    values: SettingsValues,
-    change: Change,
-): SettingsStep {
-    val same = SettingsStep(this)
-    return when (row) {
-        SettingsRow.Appearance -> {
-            stepped(THEMES, values.theme, change)?.let { SettingsStep(this, theme = it) } ?: same
-        }
-
-        SettingsRow.ScreenFit -> {
-            stepped(FITS, values.fit, change)?.let { SettingsStep(this, fit = it) } ?: same
-        }
-
-        SettingsRow.ChannelChange -> {
-            stepped(CHANGES, values.channelChange, change)
-                ?.let { SettingsStep(this, channelChange = it, channelChangeFrom = change.from) } ?: same
-        }
-
-        SettingsRow.VolumeLevelling -> {
-            stepped(LEVELLINGS, values.levelling, change)
-                ?.let { SettingsStep(this, levelling = it, levellingFrom = change.from) } ?: same
-        }
-
-        SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> {
-            same
-        }
-    }
-}
-
-// The value after [current] in [all] for [change], or null when it stays the same (Left on the first, Right on the
-// last). OK goes round.
-private fun <T> stepped(
-    all: List<T>,
-    current: T,
-    change: Change,
-): T? {
-    val at = all.indexOf(current)
-    val to =
-        when (change) {
-            Change.Previous -> (at - 1).coerceAtLeast(0)
-            Change.Next -> (at + 1).coerceAtMost(all.lastIndex)
-            Change.Cycle -> (at + 1) % all.size
-        }
-    return all[to].takeIf { to != at }
-}

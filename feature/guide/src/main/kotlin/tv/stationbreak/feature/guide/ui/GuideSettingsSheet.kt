@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import android.text.format.DateFormat
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -35,8 +36,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.semantics.text
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,9 +43,11 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.ui.KeyCap
-import tv.stationbreak.core.ui.KeyHint
-import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.StartSheet
+import tv.stationbreak.core.ui.KeyHintPair
+import tv.stationbreak.core.ui.KeyHintRow
+import tv.stationbreak.core.ui.LeftSheet
+import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.SheetMeasures
 import tv.stationbreak.core.ui.guideProse
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.core.ui.panelFocus
@@ -55,14 +56,9 @@ import tv.stationbreak.core.ui.scrollIntoViewWhen
 import tv.stationbreak.core.ui.teletype
 import tv.stationbreak.feature.guide.R
 import java.util.Date
+import tv.stationbreak.core.ui.R as UiR
 
-// The sheet's measures: the menu sheet's text inset, DESIGN.md's sheet-body and sheet-caption sizes, and rows a little
-// shorter than the menu sheet's, so the seven rows, four flags and the Update library line fit 486 dp (960 x 540 at
-// Safe) at the font scales a TV is set to without scrolling.
-private val RowMinHeight = 32.dp
-private val RowTextPadding = 10.dp
-private val RowVerticalPadding = 6.dp
-private val RowGap = 4.dp
+// The sheet's own measures, beside the shared ones in SheetMeasures.
 private val ValueGap = 12.dp
 private val PipGap = 4.dp
 private val PipSize = 8.dp
@@ -70,25 +66,22 @@ private val PipStroke = 1.5.dp
 private val FlagGap = 6.dp
 private val TitleGap = 4.dp
 private val SheetHintGap = 4.dp
-private val HintPairGap = 20.dp
-private val HintMinHeight = 20.dp
-private const val TITLE_SP = 24
-private const val ROW_SP = 16
-private const val CAPTION_SP = 14
 private const val CHEVRON_SP = 20
 private const val FLAG_SP = 10
-private const val HINT_SPACE = "   "
 
 /**
- * The guide's Settings sheet (DESIGN.md "Sheet and Rows"): a sheet on the screen's left edge over the dimmed guide, in
- * the place of the menu sheet that opened it. Its title, then its rows under teletype section flags (PICTURE,
- * PLAYBACK, LIBRARY, ACCOUNT), then the hint row for the [row] under the D-pad, pinned at the bottom while the rows
- * scroll (and fade at an edge with more beyond it) if a large font needs more room than there is.
+ * The guide's Settings sheet (DESIGN.md "Sheet and Rows"): a [LeftSheet] over the dimmed guide, in the place of the
+ * menu sheet that opened it. Its title, then its rows under teletype section flags (PICTURE, PLAYBACK, LIBRARY,
+ * ACCOUNT), then the hint row for the [row] under the D-pad, pinned at the bottom while the rows scroll (and fade at an
+ * edge with more beyond it) when a large font needs more room than there is.
  *
  * Every row is a label on the left and what it holds on the right: a choice row its value (from [values]) and a dot
  * for each of its values, the chosen one filled; a link a chevron; an action an OK key cap. The row under the D-pad
  * has the guide family's drawn ring ([panelFocus]); nothing scales. Under Update library a quiet line says how [sync]
- * stands. A screen reader is told the focused row and its value as they change.
+ * stands.
+ *
+ * A screen reader is told one thing at a time, by one live region, the sheet's root: the focused row and its value,
+ * and on Update library the line under it too. Nothing else in the sheet is a live region, so a change is said once.
  */
 @Composable
 internal fun GuideSettingsSheet(
@@ -97,10 +90,12 @@ internal fun GuideSettingsSheet(
     sync: SyncNowState,
     modifier: Modifier = Modifier,
 ) {
-    val colors = LocalGuideColors.current
-    val spoken = spokenOf(row, values)
+    val colors = LocalPanelColors.current
+    val status = syncStatusText(sync)
+    val spoken = spokenOf(row, values, status)
     val scroll = rememberScrollState()
-    StartSheet(
+    LeftSheet(
+        SheetMeasures.Width,
         modifier
             .testTag(GuideTags.SETTINGS_SHEET)
             .semantics {
@@ -112,11 +107,11 @@ internal fun GuideSettingsSheet(
             text = stringResource(R.string.guide_settings_button),
             modifier =
                 Modifier
-                    .padding(horizontal = RowTextPadding)
+                    .padding(horizontal = SheetMeasures.RowTextPadding)
                     .testTag(GuideTags.SETTINGS_TITLE)
                     .semantics { heading() },
-            style = guideText(TITLE_SP.sp, FontWeight.SemiBold),
-            color = colors.textPrimary,
+            style = guideText(SheetMeasures.TitleSize, FontWeight.SemiBold),
+            color = colors.text,
             maxLines = 1,
         )
         Spacer(Modifier.height(TitleGap))
@@ -126,30 +121,41 @@ internal fun GuideSettingsSheet(
                 .fillMaxWidth()
                 .scrollEdgeFade(scroll)
                 .verticalScroll(scroll),
-            verticalArrangement = Arrangement.spacedBy(RowGap),
+            verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap),
         ) {
             for (group in SettingsGroup.entries) {
                 SectionFlag(group)
                 for (each in group.rows) {
                     SettingsLine(each, values, focused = each == row)
-                    if (each == SettingsRow.SyncNow) SyncStatus(sync)
+                    if (each == SettingsRow.SyncNow && status != null) SyncStatus(status)
                 }
             }
         }
         Spacer(Modifier.height(SheetHintGap))
-        SettingsHint(row.kind)
+        SettingsHint(row)
     }
 }
 
-// What a screen reader is told for the focused row: its label, and a choice's value.
+// What a screen reader is told for the focused row: its label, a choice's value, and the Update library line.
 @Composable
 private fun spokenOf(
     row: SettingsRow,
     values: SettingsValues,
+    status: String?,
 ): String {
     val label = stringResource(row.label)
-    val value = choiceShown(row, values)?.let { stringResource(it.value) } ?: return label
-    return stringResource(R.string.guide_settings_spoken, label, value)
+    val value = choiceShown(row, values)?.let { stringResource(it.value) }
+    val said = status?.takeIf { row == SettingsRow.SyncNow } ?: value
+    return said?.let { stringResource(R.string.guide_settings_spoken, label, it) } ?: label
+}
+
+// The line under Update library, in the device's own time format, or null when there is nothing to say.
+@Composable
+private fun syncStatusText(state: SyncNowState): String? {
+    val context = LocalContext.current
+    val format = remember(context) { DateFormat.getTimeFormat(context) }
+    val line = syncNowLine(state) { ms -> format.format(Date(ms)) } ?: return null
+    return line.time?.let { stringResource(line.text, it) } ?: stringResource(line.text)
 }
 
 // A section's flag (DESIGN.md "Flag"): its name in the teletype's capitals, in grey. A heading, not a row.
@@ -161,14 +167,14 @@ private fun SectionFlag(group: SettingsGroup) {
         text = name.uppercase(locale),
         modifier =
             Modifier
-                .padding(start = RowTextPadding, end = RowTextPadding, top = FlagGap)
+                .padding(start = SheetMeasures.RowTextPadding, end = SheetMeasures.RowTextPadding, top = FlagGap)
                 .testTag(GuideTags.settingsFlag(group))
                 .clearAndSetSemantics {
                     heading()
                     contentDescription = name
                 },
         style = teletype(FLAG_SP.sp),
-        color = LocalGuideColors.current.textSecondary,
+        color = LocalPanelColors.current.flag,
         maxLines = 1,
     )
 }
@@ -184,17 +190,17 @@ private fun SettingsLine(
     values: SettingsValues,
     focused: Boolean,
 ) {
-    val colors = LocalGuideColors.current
+    val colors = LocalPanelColors.current
     val label = stringResource(row.label)
     val choice = choiceShown(row, values)
     val value = choice?.let { stringResource(it.value) }
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = RowMinHeight)
+            .heightIn(min = SheetMeasures.RowMinHeight)
             .scrollIntoViewWhen(focused)
             .panelFocus(focused)
-            .padding(horizontal = RowTextPadding, vertical = RowVerticalPadding)
+            .padding(horizontal = SheetMeasures.RowTextPadding, vertical = SheetMeasures.RowVerticalPadding)
             .testTag(GuideTags.settingsRow(row))
             .clearAndSetSemantics {
                 contentDescription = label
@@ -207,15 +213,15 @@ private fun SettingsLine(
         Text(
             text = label,
             modifier = Modifier.weight(1f),
-            style = guideProse(ROW_SP.sp, FontWeight.Medium),
-            color = colors.textPrimary,
+            style = guideProse(SheetMeasures.BodySize, FontWeight.Medium),
+            color = colors.text,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         when {
             choice != null && value != null -> ChoiceValue(value, choice, row)
             row.kind == RowKind.Link -> Chevron()
-            else -> KeyCap(stringResource(R.string.guide_key_ok), round = true)
+            else -> KeyCap(stringResource(UiR.string.hint_key_ok), round = true)
         }
     }
 }
@@ -227,13 +233,13 @@ private fun ChoiceValue(
     choice: ChoiceShown,
     row: SettingsRow,
 ) {
-    val colors = LocalGuideColors.current
+    val colors = LocalPanelColors.current
     Row(horizontalArrangement = Arrangement.spacedBy(ValueGap), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = value,
             modifier = Modifier.testTag(GuideTags.settingsValue(row)),
-            style = guideText(ROW_SP.sp, FontWeight.Medium),
-            color = colors.textSecondary,
+            style = guideText(SheetMeasures.BodySize, FontWeight.Medium),
+            color = colors.secondary,
             maxLines = 1,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(PipGap)) {
@@ -241,9 +247,9 @@ private fun ChoiceValue(
                 val dot = Modifier.size(PipSize)
                 Box(
                     if (i == choice.index) {
-                        dot.background(colors.textPrimary, CircleShape)
+                        dot.background(colors.text, CircleShape)
                     } else {
-                        dot.border(PipStroke, colors.textSecondary, CircleShape)
+                        dot.border(PipStroke, colors.secondary, CircleShape)
                     },
                 )
             }
@@ -257,70 +263,68 @@ private fun Chevron() {
     Text(
         text = stringResource(R.string.guide_settings_chevron),
         style = guideText(CHEVRON_SP.sp, FontWeight.Medium),
-        color = LocalGuideColors.current.textSecondary,
+        color = LocalPanelColors.current.secondary,
         maxLines = 1,
     )
 }
 
-// The line under Update library, in the device's own time format; a screen reader is told when it changes.
+// The line under Update library. Not a live region of its own: the sheet's root says it (see GuideSettingsSheet).
 @Composable
-private fun SyncStatus(state: SyncNowState) {
-    val context = LocalContext.current
-    val format = remember(context) { DateFormat.getTimeFormat(context) }
-    val line = syncNowLine(state) { ms -> format.format(Date(ms)) } ?: return
-    val text = line.time?.let { stringResource(line.text, it) } ?: stringResource(line.text)
+private fun SyncStatus(text: String) {
     Text(
         text = text,
         modifier =
             Modifier
-                .padding(horizontal = RowTextPadding)
-                .testTag(GuideTags.SETTINGS_SYNC_STATUS)
-                .semantics { liveRegion = LiveRegionMode.Polite },
-        style = guideProse(CAPTION_SP.sp, FontWeight.Normal),
-        color = LocalGuideColors.current.textSecondary,
+                .padding(horizontal = SheetMeasures.RowTextPadding)
+                .testTag(GuideTags.SETTINGS_SYNC_STATUS),
+        style = guideProse(SheetMeasures.CaptionSize, FontWeight.Normal),
+        color = LocalPanelColors.current.secondary,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
 }
 
-/** One pair of the sheet's hint row: the key's cap, what it does, and whether the cap is the round OK. */
+/**
+ * One pair of the sheet's hint row, as string resources: the key's cap, what it does, whether the cap is the round
+ * OK, and the key's name in words for a screen reader (the cap's own words when null).
+ */
 internal data class SettingsHintPair(
-    val key: Int,
-    val action: Int,
+    @param:StringRes val key: Int,
+    @param:StringRes val action: Int,
     val round: Boolean = false,
+    @param:StringRes val spokenKey: Int? = null,
 )
 
 /**
- * What the keys do on a row of [kind]: on a choice Left and Right change it and OK moves it on, on a link OK opens it,
- * on an action OK chooses it; Back closes the sheet everywhere, last.
+ * What the keys do on [row]: on a choice Left and Right change it and OK moves it on, on a link OK opens it, on an
+ * action OK does what the row says (Update, Sign out); Back closes the sheet everywhere, last.
  */
-internal fun settingsHintOf(kind: RowKind): List<SettingsHintPair> {
-    val ok =
-        when (kind) {
-            RowKind.Choice -> SettingsHintPair(R.string.guide_key_ok, R.string.guide_hint_next, round = true)
-            RowKind.Link -> SettingsHintPair(R.string.guide_key_ok, R.string.guide_hint_open, round = true)
-            RowKind.Action -> SettingsHintPair(R.string.guide_key_ok, R.string.guide_hint_choose, round = true)
+internal fun settingsHintOf(row: SettingsRow): List<SettingsHintPair> {
+    val okDoes =
+        when (row.kind) {
+            RowKind.Choice -> R.string.guide_hint_next
+            RowKind.Link -> R.string.guide_hint_open
+            RowKind.Action -> actionVerb(row)
         }
-    val change = SettingsHintPair(R.string.guide_key_left_right, R.string.guide_hint_change)
-    val back = SettingsHintPair(R.string.guide_key_back, R.string.guide_hint_close)
-    return if (kind == RowKind.Choice) listOf(change, ok, back) else listOf(ok, back)
+    val ok = SettingsHintPair(UiR.string.hint_key_ok, okDoes, round = true)
+    val arrows = UiR.string.hint_key_left_right
+    val change = SettingsHintPair(arrows, R.string.guide_hint_change, spokenKey = UiR.string.hint_key_left_right_spoken)
+    val back = SettingsHintPair(UiR.string.hint_key_back, UiR.string.hint_close)
+    return if (row.kind == RowKind.Choice) listOf(change, ok, back) else listOf(ok, back)
 }
+
+// What OK does on an action row, in the row's own verb.
+@StringRes
+private fun actionVerb(row: SettingsRow): Int =
+    if (row == SettingsRow.SignOut) R.string.guide_settings_sign_out else R.string.guide_hint_update
 
 // The hint row (DESIGN.md "Key Hints"), with key caps, read out as one line.
 @Composable
-private fun SettingsHint(kind: RowKind) {
-    val pairs = settingsHintOf(kind).map { Triple(stringResource(it.key), stringResource(it.action), it.round) }
-    val spoken = pairs.joinToString(HINT_SPACE) { (key, action) -> "$key $action" }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = HintMinHeight)
-            .padding(start = RowTextPadding)
-            .testTag(GuideTags.SETTINGS_HINT)
-            .clearAndSetSemantics { text = AnnotatedString(spoken) },
-        horizontalArrangement = Arrangement.spacedBy(HintPairGap),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        for ((key, action, round) in pairs) KeyHint(key, action, round)
-    }
+private fun SettingsHint(row: SettingsRow) {
+    val pairs =
+        settingsHintOf(row).map {
+            val key = stringResource(it.key)
+            KeyHintPair(key, stringResource(it.action), it.round, it.spokenKey?.let { id -> stringResource(id) } ?: key)
+        }
+    KeyHintRow(pairs, Modifier.padding(start = SheetMeasures.RowTextPadding).testTag(GuideTags.SETTINGS_HINT))
 }

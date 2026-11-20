@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -523,6 +524,10 @@ class GuideMenuUiTest {
             assertEquals("$tag height", 36f, row.height.value, 0.5f)
             assertTrue("$tag is inside the sheet", row.right <= sheet.right && row.left >= sheet.left)
         }
+        // Its hint row has a key cap (DESIGN.md "Key Hints"), read out as one line.
+        compose
+            .onNodeWithTag(GuideTags.MENU_HINT, useUnmergedTree = true)
+            .assertTextEquals("Back Close the menu")
     }
 
     @Test
