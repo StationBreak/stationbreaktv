@@ -38,7 +38,8 @@ import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.LocalGuideColors
-import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.LocalScreenFit
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
@@ -69,10 +70,11 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * button above the grid shows [channels] over the guide (channel management, which `app` hands in); the guide's own
  * keys and Back stand down while it shows. Left from a row's first cell moves the focus to its channel; Select there
  * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
- * Libraries in the Settings panel shows [libraries] the same way; Back from it returns to the panel, and Back from the
- * panel closes it. Select on Sync now in the panel starts a sync, and the panel says how it goes.
+ * Libraries in the Settings sheet shows [libraries] the same way; Back from it returns to the sheet, and Back from the
+ * sheet closes it. Select on Update library in the sheet starts an update, and the sheet says how it goes. Select on
+ * Sign out shows [signOut] (the question whether to sign out) over the sheet; staying returns to the sheet.
  */
-@Suppress("LongParameterList") // The guide's own four, its three slots, and the modifier.
+@Suppress("LongParameterList") // The guide's own four, its four slots, and the modifier.
 @Composable
 fun GuideDestination(
     opening: GuideOpening,
@@ -81,6 +83,7 @@ fun GuideDestination(
     channels: ChannelsSlot,
     properties: PropertiesSlot,
     libraries: LibrariesSlot,
+    signOut: SignOutSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
@@ -94,29 +97,38 @@ fun GuideDestination(
     // What live TV shows while the channel changes: the guide only sets it.
     val changes = rememberChannelChangeStore()
     val channelChange by changes.style.collectAsStateWithLifecycle()
-    CompositionLocalProvider(
-        LocalGuideColors provides theme.colors,
-        LocalPanelColors provides theme.colors.panel,
-        LocalMarkCache provides MarkCaches.get(LocalContext.current),
-    ) {
-        GuideRoot(
-            viewModel,
-            opening,
-            pictureHole,
-            onTune,
-            channels,
-            modifier,
-            viewModel.measure,
-            theme,
-            themes::choose,
-            fits::choose,
-            properties,
-            libraries,
-            levelling = levelling,
-            onLevelling = { enabled, from -> levellings.choose(enabled, from) },
-            channelChange = channelChange,
-            onChannelChange = { style, from -> changes.choose(style, from) },
-        )
+    ProvideGuideColors(theme.colors) {
+        CompositionLocalProvider(LocalMarkCache provides MarkCaches.get(LocalContext.current)) {
+            GuideRoot(
+                viewModel,
+                opening,
+                pictureHole,
+                onTune,
+                channels,
+                modifier,
+                viewModel.measure,
+                theme,
+                themes::choose,
+                fits::choose,
+                properties,
+                libraries,
+                signOut,
+                levelling = levelling,
+                onLevelling = { enabled, from -> levellings.choose(enabled, from) },
+                channelChange = channelChange,
+                onChannelChange = { style, from -> changes.choose(style, from) },
+                // The stores as they stand at the key, not as the last frame saw them: two presses inside one frame
+                // both step, each from the value the one before chose.
+                valuesNow = {
+                    SettingsValues(
+                        themes.theme.value,
+                        fits.fit.value,
+                        changes.style.value,
+                        levellings.enabled.value,
+                    )
+                },
+            )
+        }
     }
 }
 
@@ -156,13 +168,21 @@ typealias PropertiesSlot =
 typealias LibrariesSlot = @Composable (pictureHole: DpRect, onDone: () -> Unit) -> Unit
 
 /**
+ * The question whether to sign out of this TV (#336), as the guide draws it over its Settings sheet. [onDone] is
+ * called once, when the viewer stays signed in; the guide stops drawing the slot then and shows the sheet again, on
+ * Sign out. A sign-out leaves the guide by the app's own way, which the slot is given. A slot for the same reason as
+ * [ChannelsSlot]: the sign-out is another feature's.
+ */
+typealias SignOutSlot = @Composable (onDone: () -> Unit) -> Unit
+
+/**
  * [GuideDestination] without Hilt, so a test can bring its own ViewModel.
  *
  * [openedAtNanos] has no default on purpose: it keys the session, and a default expression such as
  * `System.nanoTime()` is evaluated again when this recomposes (once it has read state, Compose re-runs its defaults),
  * which would end the session and open a new one on an ordinary recomposition, such as channel management closing.
  */
-@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod") // Its own parameters; a test leaves three.
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod") // Its own parameters; a test leaves four.
 @Composable
 internal fun GuideRoot(
     viewModel: GuideViewModel,
@@ -177,10 +197,12 @@ internal fun GuideRoot(
     onFit: (ScreenFit) -> Unit = {},
     properties: PropertiesSlot = NoProperties,
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
+    signOut: SignOutSlot = NoSignOut,
     levelling: Boolean = true,
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
     channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     onChannelChange: (ChannelChangeStyle, String) -> Unit = { _, _ -> },
+    valuesNow: (() -> SettingsValues)? = null,
 ) {
     val current = opening.current
     val openedAtNanos = opening.openedAtNanos
@@ -230,10 +252,12 @@ internal fun GuideRoot(
     // The channel whose properties sheet shows over the guide (#631), and the showing's own value for the slot.
     var propertiesOf by remember(viewModel, openedAtNanos) { mutableStateOf<ChannelId?>(null) }
     var propertiesSince by remember(viewModel, openedAtNanos) { mutableLongStateOf(NOT_MANAGING) }
-    // The Settings panel while it is open (null when closed), with the Libraries screen shown over the guide from it.
+    // The Settings sheet while it is open (null when closed), with the Libraries screen or the sign-out question shown
+    // over the guide from it.
     var settings by remember(viewModel, openedAtNanos) { mutableStateOf<SettingsPanel?>(null) }
     val librariesShown = settings?.librariesShown == true
-    val cover = GuideCover(managing, propertiesOf != null, librariesShown)
+    val signOutShown = settings?.signOutShown == true
+    val cover = GuideCover(managing, propertiesOf != null, librariesShown, signOutShown)
     // The Libraries screen hides the guide as channel management does, so the clock and the lineup reloads stop
     // under it (a reload no one can see is wasted work on a slow TV) and start again when it closes.
     DisposableEffect(viewModel, librariesShown) {
@@ -250,6 +274,11 @@ internal fun GuideRoot(
     val chooseFit = rememberUpdatedState(onFit)
     val chooseLevelling = rememberUpdatedState(onLevelling)
     val chooseChannelChange = rememberUpdatedState(onChannelChange)
+    // What the Settings sheet's choice rows show; a key there steps on from the stores' values as they stand
+    // ([valuesNow]), or from these where there are no stores (a test's host).
+    val settingsValues = SettingsValues(themeChoice, LocalScreenFit.current, channelChange, levelling)
+    val shownValues by rememberUpdatedState(settingsValues)
+    val keyValues by rememberUpdatedState(valuesNow ?: { shownValues })
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -264,8 +293,14 @@ internal fun GuideRoot(
                 openProperties = {
                     // Only one screen is over the guide at a time: an open while one shows is ignored. All are read
                     // as they stand now, not as this composition saw them, so a second OK in a frame is ignored too.
-                    val onLibraries = settings?.librariesShown == true
-                    val now = GuideCover(managingSince != NOT_MANAGING, propertiesOf != null, onLibraries)
+                    val open = settings
+                    val now =
+                        GuideCover(
+                            managingSince != NOT_MANAGING,
+                            propertiesOf != null,
+                            open?.librariesShown == true,
+                            open?.signOutShown == true,
+                        )
                     if (!now.covered) {
                         viewModel.channelsOpened()
                         propertiesSince = System.nanoTime().coerceAtLeast(1L)
@@ -297,10 +332,8 @@ internal fun GuideRoot(
             current = current,
             pictureHole = pictureHole,
             settings = settings,
-            themeChoice = themeChoice,
+            settingsValues = settingsValues,
             syncNow = syncNow,
-            levelling = levelling,
-            channelChange = channelChange,
             firstVisitNote = firstVisitNote,
             onNarrowBreakBelow = { viewModel.narrowBreakBelowMs = it },
             modifier =
@@ -317,6 +350,7 @@ internal fun GuideRoot(
                             it,
                             covered = covered,
                             settings = settings,
+                            settingsValues = keyValues(),
                             onSettings = { step ->
                                 step.theme?.let { next ->
                                     themeChoice = next
@@ -362,6 +396,12 @@ internal fun GuideRoot(
                 }
             }
         }
+        if (signOutShown) {
+            signOut {
+                runCatching { keys.requestFocus() }
+                settings = settings?.signOutDone()
+            }
+        }
     }
 }
 
@@ -382,21 +422,26 @@ internal fun LibrariesBackdrop(
 }
 
 /**
- * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]) or Settings,
- * Libraries ([libraries]). Any of them has the keys, and the guide stays composed under it ([covered]); channel
- * management and Settings, Libraries hide the guide ([hidden]), while the sheet is drawn over it.
+ * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]), or Settings,
+ * Libraries or the sign-out question ([settings], from the Settings sheet). Any of them has the keys, and the guide
+ * stays composed under it ([covered]); channel management and Settings, Libraries hide the guide ([hidden]), while the
+ * properties sheet and the sign-out question are drawn over it.
  */
 private class GuideCover(
     managing: Boolean,
     properties: Boolean,
     libraries: Boolean,
+    signOut: Boolean,
 ) {
-    val covered = managing || properties || libraries
+    val covered = managing || properties || libraries || signOut
     val hidden = managing || libraries
 }
 
-/** A slot that draws nothing, for a test that never opens Settings, Libraries. */
-private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, _ -> }
+/** A Libraries slot with nothing to show: it finishes at once, so a guide given none is never left covered. */
+private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, onDone -> LaunchedEffect(Unit) { onDone() } }
+
+/** A sign-out slot with nothing to ask: it finishes at once, so a guide given none is never left covered. */
+private val NoSignOut: SignOutSlot = { onDone -> LaunchedEffect(Unit) { onDone() } }
 
 /** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the guide. */
 @Suppress("LongParameterList") // One callback for each thing an event asks.
@@ -419,12 +464,14 @@ private fun handleGuideEvent(
 
 /**
  * Keys for the guide: a slot has them while it shows (every key is kept here, as the slot may not have the focus yet),
- * the Settings panel has them while it is open.
+ * the Settings sheet has them while it is open, stepping on from [settingsValues].
  */
+@Suppress("LongParameterList") // The event, what has the keys, and where each kind of key goes.
 private fun guideRootKey(
     event: KeyEvent,
     covered: Boolean,
     settings: SettingsPanel?,
+    settingsValues: SettingsValues,
     onSettings: (SettingsStep) -> Unit,
     grid: (KeyEvent) -> Boolean,
 ): Boolean =
@@ -434,7 +481,7 @@ private fun guideRootKey(
         }
 
         settings != null -> {
-            settingsStep(settings, event.key, event.type, event.nativeKeyEvent.repeatCount)
+            settingsStep(settings, settingsValues, event.key, event.type, event.nativeKeyEvent.repeatCount)
                 ?.also(onSettings) != null
         }
 

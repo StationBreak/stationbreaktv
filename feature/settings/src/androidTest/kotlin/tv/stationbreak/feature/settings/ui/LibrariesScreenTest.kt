@@ -13,10 +13,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -64,20 +64,6 @@ class LibrariesScreenTest {
     private lateinit var vm: LibrariesSettingsViewModel
     private lateinit var choices: FakeLibraryChoices
 
-    private var signedOut = 0
-
-    // A signed-in server whose sign-out only counts (#336).
-    private class CountingSignOut : AccountSignOut {
-        @Volatile var signOuts = 0
-
-        override fun serverName(): String = "Home"
-
-        override suspend fun signOut(): Boolean {
-            signOuts += 1
-            return true
-        }
-    }
-
     private fun show(
         libraries: List<Library> = listOf(ALPHA, BRAVO),
         chosen: Set<ItemId> = setOf(ALPHA.id),
@@ -89,7 +75,7 @@ class LibrariesScreenTest {
             StationBreakTheme {
                 // As in the app: live TV's root is focusable and the screen takes the focus from it.
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).focusable()) {
-                    LibrariesRoot(vm, HOLE, onDone = { done++ }, onSignedOut = { signedOut++ })
+                    LibrariesRoot(vm, HOLE, onDone = { done++ })
                 }
             }
         }
@@ -119,6 +105,21 @@ class LibrariesScreenTest {
             .isNotEmpty()
 
     @Test
+    fun theHeaderSaysWhichServerThisTvUses() {
+        show(
+            account =
+                object : AccountSignOut {
+                    override fun serverName() = "Home"
+
+                    override suspend fun signOut() = true
+                },
+        )
+        compose
+            .onNodeWithTag(SettingsTags.LIBRARIES_SIGNED_IN, useUnmergedTree = true)
+            .assertTextEquals("Signed in to Home")
+    }
+
+    @Test
     fun dPadSelect_ticksTheFocusedRow_andBackFinishes() {
         show()
         compose.onNodeWithTag(SettingsTags.row(ALPHA.id)).assertIsSelected().assertIsOn()
@@ -135,31 +136,6 @@ class LibrariesScreenTest {
 
         press(Key.Back)
         assertEquals(1, done)
-    }
-
-    // #336: the sign-out row is last and never focused on entry; Select arms it, Back disarms it and keeps the screen,
-    // and a second Select signs out once and tells the host.
-    @Test
-    fun signOut_isArmedBySelect_disarmedByBack_andRunByASecondSelect() {
-        val account = CountingSignOut()
-        show(account = account)
-        compose.onNodeWithTag(SettingsTags.SIGNED_IN, useUnmergedTree = true).assertExists()
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertIsNotSelected()
-
-        repeat(3) { press(Key.DirectionDown) }
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertIsSelected()
-        press(Key.DirectionCenter)
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Press OK again to sign out")
-
-        press(Key.Back)
-        assertEquals(0, done)
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Sign out")
-
-        press(Key.DirectionCenter)
-        press(Key.DirectionCenter)
-        until { signedOut == 1 }
-        assertEquals(1, account.signOuts)
-        assertEquals(0, done)
     }
 
     // The owner's report: a press flips its row at once and shows it saving while a slow change is out; a press on

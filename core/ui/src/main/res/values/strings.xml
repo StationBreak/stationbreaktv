@@ -75,4 +75,13 @@
     <!-- The opening screen: the name, which is all a screen reader says, and the tagline drawn under it. -->
     <string name="stan_opening_announcement">Station Break</string>
     <string name="stan_opening_tagline">Put your feet up</string>
+
+    <!-- The guide family's hint rows (DESIGN.md "Key Hints"): a key cap's words, then what the key does. The arrows'
+         cap is read out in words. -->
+    <string name="hint_key_ok">OK</string>
+    <string name="hint_key_back">Back</string>
+    <string name="hint_key_left_right">◂ ▸</string>
+    <string name="hint_key_left_right_spoken">Left or right</string>
+    <string name="hint_choose">Choose</string>
+    <string name="hint_close">Close</string>
 </resources>

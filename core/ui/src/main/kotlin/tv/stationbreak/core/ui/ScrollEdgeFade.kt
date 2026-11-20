@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
-package tv.stationbreak.feature.channels.ui
+package tv.stationbreak.core.ui
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.ui.Modifier
@@ -18,7 +18,7 @@ private val EdgeFade = 24.dp
  * Fades a scrolling part out at an edge that has more beyond it, so a line the edge cuts reads as "more below" (or
  * above) rather than as broken text. [scroll] is read in the draw phase only: scrolling redraws, it does not recompose.
  */
-internal fun Modifier.scrollEdgeFade(scroll: ScrollState): Modifier =
+fun Modifier.scrollEdgeFade(scroll: ScrollState): Modifier =
     graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
         .drawWithContent {
             drawContent()

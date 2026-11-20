@@ -11,13 +11,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.SessionRepository
@@ -61,6 +58,7 @@ internal class LibrariesSettingsViewModel
         // Where a change runs, so the mark of its return is taken before the hop back to [dispatcher].
         private val worker: CoroutineDispatcher = dispatcher,
         private val log: (String) -> Unit = {},
+        // Who is signed in, for the "Signed in to" line: the same source the sign-out question reads.
         private val account: AccountSignOut = AccountSignOut.None,
     ) : ViewModel() {
         // The main thread, as a ViewModel's own work runs: it is light, and the selection moves its slow work to its
@@ -96,16 +94,8 @@ internal class LibrariesSettingsViewModel
             val notice: Notice? = null,
             /** The adds already shown as given up in this visit, so each is said once. */
             val stalledSeen: Set<ItemId> = emptySet(),
-            /** The signed-in server's name when the visit opened; null when nobody was signed in (#336). */
+            /** The signed-in server's name when the visit opened; null when nobody was signed in or it has none. */
             val serverName: String? = null,
-            /** A first Select on the sign-out row armed it; a second signs out. */
-            val armed: Boolean = false,
-            /** The viewer moved onto the sign-out row in this visit: only then can Select arm it. */
-            val onSignOutByMove: Boolean = false,
-            /** The sign-out is running: the screen is about to be left. */
-            val signingOut: Boolean = false,
-            /** It ran, but the server could not be told: the screen says so until the next Select or Back. */
-            val notRevoked: Boolean = false,
         ) {
             // The stored choice now. A newly given-up add says Failed once; the ticks follow the stored choice.
             fun withView(view: ChoiceView?): Model {
@@ -250,9 +240,7 @@ internal class LibrariesSettingsViewModel
                 apply {
                     val restore = it.restoreFocus.takeIf { _ -> it.phase == LibrariesPhase.Loading }
                     val to = if (up) it.focus - 1 else it.focus + 1
-                    // Down past the last library lands on (or stays on) the sign-out row.
-                    val onSignOut = hasSignOut(it) && to >= rowsOf(it).size
-                    it.copy(focus = to, restoreFocus = restore, armed = false, onSignOutByMove = onSignOut)
+                    it.copy(focus = to, restoreFocus = restore)
                 }
             }
         }
@@ -262,9 +250,7 @@ internal class LibrariesSettingsViewModel
          * after the change out. Unticking the last chosen library (adds do not count) is refused with its notice.
          */
         fun select() {
-            synchronized(lock) {
-                if (hasSignOut(model) && model.focus == rowsOf(model).size) signOutPressed() else selectRow()
-            }
+            synchronized(lock) { selectRow() }
         }
 
         // Under [lock]. Select on a library row.
@@ -281,63 +267,6 @@ internal class LibrariesSettingsViewModel
             wanted = next
             apply { it.copy(notice = null) }
             if (sending == null) sendNext()
-        }
-
-        /** Fires once when the sign-out has run: the host leaves the screen for launch routing (#336). */
-        val signedOut: Flow<Unit> get() = signOuts.receiveAsFlow()
-
-        private val signOuts = Channel<Unit>(Channel.BUFFERED)
-
-        /**
-         * Back while the sign-out row is armed: disarms it and keeps the screen. False when nothing was armed, so Back
-         * finishes the screen as usual.
-         */
-        fun disarm(): Boolean =
-            synchronized(lock) {
-                if (model.notRevoked) {
-                    signOuts.trySend(Unit)
-                    return true
-                }
-                if (!model.armed) return false
-                apply { it.copy(armed = false) }
-                true
-            }
-
-        // Under [lock]. The first Select arms the row; the second signs out, on the ViewModel's scope so a closing
-        // screen does not stop it, and the host is told once it has run. Only a row reached by a move arms: never one
-        // the focus started on (no rows yet, or none at all), so a double Select on opening the screen cannot sign out.
-        private fun signOutPressed() {
-            when {
-                model.notRevoked -> {
-                    signOuts.trySend(Unit)
-                }
-
-                model.signingOut || !model.onSignOutByMove -> {
-                    Unit
-                }
-
-                !model.armed -> {
-                    apply { it.copy(armed = true) }
-                }
-
-                else -> {
-                    apply { it.copy(armed = false, signingOut = true) }
-                    log("SignOutChosen")
-                    scope.launch {
-                        val revoked = withContext(worker) { account.signOut() }
-                        if (revoked) {
-                            signOuts.send(Unit)
-                        } else {
-                            ranNotRevoked()
-                        }
-                    }
-                }
-            }
-        }
-
-        // The sign-out ran but the server could not be told: say so until the viewer goes on.
-        private fun ranNotRevoked() {
-            synchronized(lock) { apply { it.copy(signingOut = false, notRevoked = true) } }
         }
 
         // Under [lock]. Sends what the viewer wants as one change, when a press is not stored yet; else none is out.
@@ -418,18 +347,8 @@ internal class LibrariesSettingsViewModel
         // clamped, so the next Select and Up act from the row drawn.
         private fun apply(step: (Model) -> Model) {
             val next = placed(step(model))
-            // The sign-out row, when there is one, is one past the last library.
-            val size = rowsOf(next).size
-            val last = (size - 1 + if (hasSignOut(next)) 1 else 0).coerceAtLeast(0)
-            val focus = next.focus.coerceIn(0, last)
-            // Off the sign-out row (rows came or went under it, or it went), it is neither armed nor reached by a move.
-            val onRow = hasSignOut(next) && focus == size
-            model =
-                next.copy(
-                    focus = focus,
-                    armed = next.armed && onRow,
-                    onSignOutByMove = next.onSignOutByMove && onRow,
-                )
+            val last = (rowsOf(next).size - 1).coerceAtLeast(0)
+            model = next.copy(focus = next.focus.coerceIn(0, last))
             if (visible) shown.value = derive(model)
         }
 
@@ -444,25 +363,10 @@ internal class LibrariesSettingsViewModel
         }
 
         private fun derive(m: Model): LibrariesSettingsState {
-            val rows = rowsOf(m)
-            val signOut =
-                when {
-                    !hasSignOut(m) -> null
-                    m.notRevoked -> SignOutStep.NotRevoked
-                    m.signingOut -> SignOutStep.Busy
-                    m.armed -> SignOutStep.Armed
-                    else -> SignOutStep.Ready
-                }
-            val server = m.serverName.takeIf { signOut != null }
-            return LibrariesSettingsState(phaseOf(m), rows, m.focus, m.notice, server, signOut)
+            // A listing that found nobody signed in names no server.
+            val server = m.serverName.takeIf { !m.signedOut }
+            return LibrariesSettingsState(phaseOf(m), rowsOf(m), m.focus, m.notice, server)
         }
-
-        // Somebody is signed in, as the visit found them and the listing did not contradict, and the libraries are no
-        // longer loading (the row never shows, or takes the focus, before them).
-        private fun hasSignOut(m: Model): Boolean =
-            m.serverName != null &&
-                !m.signedOut &&
-                (m.phase != LibrariesPhase.Loading || m.notRevoked || m.signingOut)
 
         // Listed with no stored choice (another account's) is the read-only state of a server that could not be asked.
         private fun phaseOf(m: Model): LibrariesPhase =

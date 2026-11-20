@@ -42,9 +42,10 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.ui.ChannelHoldingsLines
 import tv.stationbreak.core.ui.HoldingsTags
-import tv.stationbreak.core.ui.LocalScreenFit
-import tv.stationbreak.core.ui.ScreenLayout
+import tv.stationbreak.core.ui.RightSheet
+import tv.stationbreak.core.ui.SheetMeasures
 import tv.stationbreak.core.ui.panelFocus
+import tv.stationbreak.core.ui.scrollEdgeFade
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsUi
@@ -54,15 +55,15 @@ import java.text.DateFormat
 import java.util.Date
 import tv.stationbreak.core.ui.R as UiR
 
-// The sheet's measures, from the design (docs/design/channel-properties.md): 380 dp of the 960 dp layout.
-private val SheetWidth = 380.dp
+// The sheet's measures, from the design (docs/design/channel-properties.md): 380 dp of the 960 dp layout, a 16 dp
+// gutter inside it.
+private val SheetWidth = SheetMeasures.Width
 private val Gutter = 16.dp
 internal const val SMALL_SP = 14
 private const val BODY_SP = 16
-private const val SCRIM_ALPHA = 0.55f
 
 /**
- * What a channel is and what feeds it (#631): a right-hand sheet over the dimmed list, drawn from [ui]'s `about`
+ * What a channel is and what feeds it (#631): a [RightSheet] over the dimmed list, drawn from [ui]'s `about`
  * channel. The identity and status come from the row the list already has, so they show at once; "What it plays" and
  * "How it runs" show a loading line until the rules have been read ([ChannelsUi.properties]). Its actions are the
  * actions panel's, minus the one that opened it. [toGuide] is whether it was opened from the guide (#631), so the hint
@@ -78,50 +79,29 @@ internal fun ChannelPropertiesSheet(
 ) {
     val row = ui.rows.firstOrNull { it.id == ui.about } ?: return
     val properties = ui.properties?.takeIf { it.summary.id == row.id }
-    BoxWithConstraints(
-        modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(ChannelsTags.ABOUT),
-    ) {
-        val screen = DpSize(maxWidth, maxHeight)
-        val safe = ScreenLayout.safeArea(screen, LocalScreenFit.current)
-        val inset = sheetInsets(screen, safe, SheetWidth, Gutter)
-        // The ground runs to the screen's edge; the text keeps to the safe area (a TV may crop what is outside it).
-        Row(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .width(inset.width)
-                .fillMaxHeight()
-                .background(ChannelsPalette.sheet),
-        ) {
-            Box(Modifier.width(1.dp).fillMaxHeight().background(ChannelsPalette.sheetLine))
-            CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+    // The ground runs to the screen's edge; the text keeps to the safe area (a TV may crop what is outside it).
+    RightSheet(SheetWidth - Gutter, modifier.testTag(ChannelsTags.ABOUT), innerPadding = Gutter) {
+        CompositionLocalProvider(LocalLayoutDirection provides textDirection) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Identity(row, properties)
+                // What it is and how it runs takes the room that is left and scrolls when it is longer; the
+                // actions and the Back hint stay under it, where the focus is.
                 Column(
-                    Modifier
-                        .fillMaxSize()
-                        // Absolute: the sheet is on the screen's right edge whatever the text direction, so the safe
-                        // inset belongs to the right here too.
-                        .absolutePadding(left = Gutter, right = inset.end, top = inset.top, bottom = inset.bottom),
+                    Modifier.weight(1f).scrollEdgeFade(scroll).verticalScroll(scroll),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Identity(row, properties)
-                    // What it is and how it runs takes the room that is left and scrolls when it is longer; the
-                    // actions and the Back hint stay under it, where the focus is.
-                    Column(
-                        Modifier.weight(1f).scrollEdgeFade(scroll).verticalScroll(scroll),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (properties == null) {
-                            Plain(
-                                stringResource(R.string.channel_props_loading),
-                                ChannelsTags.ABOUT_LOADING,
-                                secondary = true,
-                            )
-                        } else {
-                            Rules(row, properties)
-                        }
-                        Status(row, properties, ui.isPro)
+                    if (properties == null) {
+                        Plain(
+                            stringResource(R.string.channel_props_loading),
+                            ChannelsTags.ABOUT_LOADING,
+                            secondary = true,
+                        )
+                    } else {
+                        Rules(row, properties)
                     }
-                    Actions(ui, toGuide)
+                    Status(row, properties, ui.isPro)
                 }
+                Actions(ui, toGuide)
             }
         }
     }

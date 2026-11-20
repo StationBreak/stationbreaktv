@@ -179,19 +179,17 @@ class GuideNoLibrariesTest : GuideRig() {
             assertTrue(vm.snapshot.value.noLibraries)
         }
 
-    // The details panel shows nothing of a programme while the selection is gone; Settings still has its own panel.
+    // The details panel shows nothing of a programme while the selection is gone; Settings is a sheet over the guide.
     @Test
     fun thePanel_showsNoProgrammeWhileGone() {
         fun panel(
-            settings: Boolean = false,
             gone: Boolean = false,
             onChannel: Boolean = false,
-        ) = guidePanelOf(settings = settings, noLibraries = gone, onChannel = onChannel)
+        ) = guidePanelOf(noLibraries = gone, onChannel = onChannel)
 
         assertEquals(GuidePanelKind.Details, panel())
         assertEquals(GuidePanelKind.Empty, panel(gone = true))
         assertEquals(GuidePanelKind.Empty, panel(gone = true, onChannel = true))
-        assertEquals(GuidePanelKind.Settings, panel(gone = true, settings = true))
         assertEquals(GuidePanelKind.Channel, panel(onChannel = true))
     }
 

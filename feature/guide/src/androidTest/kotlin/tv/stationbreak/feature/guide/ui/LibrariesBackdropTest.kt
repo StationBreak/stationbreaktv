@@ -23,7 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.ScreenLayout
 
 /** The Libraries backdrop is the guide's page in each theme, and leaves the picture's hole clear for live TV. */
@@ -40,7 +40,7 @@ class LibrariesBackdropTest {
 
     private fun check(colors: GuideColors) {
         compose.setContent {
-            CompositionLocalProvider(LocalGuideColors provides colors) {
+            ProvideGuideColors(colors) {
                 // A stand-in for the live picture, behind the compose layer's backdrop.
                 Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).background(PICTURE).testTag("host")) {
                     LibrariesBackdrop(HOLE) { Box(Modifier.fillMaxSize()) }

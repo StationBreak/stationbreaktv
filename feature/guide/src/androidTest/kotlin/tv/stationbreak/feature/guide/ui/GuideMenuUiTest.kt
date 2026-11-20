@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -400,20 +401,20 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun selectOnSettingsOpensThePanelAndBackReturnsToTheSheetOnSettings() {
+    fun selectOnSettingsOpensTheSettingsSheetAndBackReturnsToTheMenuSheetOnSettings() {
         showReady()
         press(Key.Menu)
         press(Key.DirectionDown)
         settings().assertIsSelected()
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isNotEmpty()
         }
-        // The panel is not read under the sheet: the sheet steps aside while it shows.
+        // The menu sheet steps aside for the Settings sheet, which stands in its place.
         sheet().assertDoesNotExist()
         back()
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isEmpty()
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isEmpty()
         }
         sheet().assertExists()
         settings().assertIsSelected()
@@ -523,6 +524,10 @@ class GuideMenuUiTest {
             assertEquals("$tag height", 36f, row.height.value, 0.5f)
             assertTrue("$tag is inside the sheet", row.right <= sheet.right && row.left >= sheet.left)
         }
+        // Its hint row has a key cap (DESIGN.md "Key Hints"), read out as one line.
+        compose
+            .onNodeWithTag(GuideTags.MENU_HINT, useUnmergedTree = true)
+            .assertTextEquals("Back Close the menu")
     }
 
     @Test

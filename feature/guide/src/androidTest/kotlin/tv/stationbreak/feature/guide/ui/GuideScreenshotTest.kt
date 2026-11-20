@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -114,9 +116,9 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
-import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramInfoTags
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -587,8 +589,8 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
 
-    // All six rows clear of the grid at both screen fits and at the font scales a TV is set to, with the Sync now
-    // line as long as it gets (and room for it on two lines).
+    // All seven rows between the sheet's title and its hint row, unscrolled, at both screen fits and at the font
+    // scales a TV is set to, with the Update library line as long as it gets (and room for it on two lines).
     @Test
     fun theSettingsPanelFitsAtSafeAndFontScale1() = shootSettings(GuideTheme.Dark, "-safe-1", ScreenFit.Safe, 1f)
 
@@ -601,6 +603,19 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelFitsAtEdgeAndFontScale115() = shootSettings(GuideTheme.Dark, "-edge-115", ScreenFit.Edge, 1.15f)
 
+    // The focus on a link (Libraries, with its chevron) and on an action (Sign out, with its OK key cap), as the hint
+    // row changes with it.
+    @Test
+    fun theSettingsSheetOnALinkAndAnAction() {
+        shootSettings(GuideTheme.Dark, suffix = "")
+        repeat(SettingsRow.Libraries.ordinal) { press(Key.DirectionDown) }
+        compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
+        shoot("$SETTINGS_FRAME-link.png")
+        repeat(SettingsRow.SignOut.ordinal - SettingsRow.Libraries.ordinal) { press(Key.DirectionDown) }
+        compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected()
+        shoot("$SETTINGS_FRAME-action.png")
+    }
+
     private fun shootSettings(
         shown: GuideTheme,
         suffix: String,
@@ -611,29 +626,52 @@ class GuideScreenshotTest {
         fit.value = chosen
         fontScale.floatValue = scale
         showReady(CH7)
-        // Back opens the menu sheet, Down is Settings, and Select opens the panel (the sheet steps aside for it).
+        // Back opens the menu sheet, Down is Settings, and Select opens the Settings sheet in its place.
         back()
         channels().assertIsSelected()
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.FIT_EDGE).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isNotEmpty()
         }
-        val gridTop = bounds(GuideTags.GRID).top
+        compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsSelected()
+        val titleBottom = bounds(GuideTags.SETTINGS_TITLE).bottom
+        val hintTop = bounds(GuideTags.SETTINGS_HINT).top
         // The longest "Update library" status line is the libraries-gone failure, which wraps to two lines. When the
         // line shown here is one line at this width, a line more is added to each row's bottom, so the fit holds for
         // the two-line case too.
         val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
         val wrapExtra = if (lineCount(GuideTags.SETTINGS_SYNC_STATUS) >= 2) 0f else status.height
-        for (tag in PANEL_ROW_TAGS) {
-            val rect = bounds(tag)
-            assertTrue("$tag was squeezed out of the panel ($rect)", rect.height > 0f)
-            val bottom = rect.bottom + wrapExtra
-            assertTrue("$tag (bottom $bottom) runs into the grid (top $gridTop)", bottom <= gridTop)
+        // At the TV's own text size every row shows at once. A larger one may need the rows to scroll (with the
+        // shared 36 dp rows, #336): then each row is walked to, and must show whole between the title and the hint.
+        if (scale == 1f) {
+            for (tag in SETTINGS_ROW_TAGS) assertBetween(tag, titleBottom, hintTop, wrapExtra)
         }
-        val picked = if (chosen == ScreenFit.Safe) GuideTags.FIT_SAFE else GuideTags.FIT_EDGE
-        compose.onNodeWithTag(picked).assertIsSelected()
+        val picked = if (chosen == ScreenFit.Safe) "Safe" else "Edge"
+        compose
+            .onNodeWithTag(GuideTags.SETTINGS_SCREEN_FIT)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, picked))
         shoot("$SETTINGS_FRAME$suffix.png")
+        if (scale != 1f) {
+            for (row in SettingsRow.entries) {
+                assertBetween(GuideTags.settingsRow(row), titleBottom, hintTop, 0f)
+                press(Key.DirectionDown)
+            }
+        }
+    }
+
+    private fun assertBetween(
+        tag: String,
+        top: Float,
+        bottom: Float,
+        extra: Float,
+    ) {
+        compose.waitForIdle()
+        val rect = bounds(tag)
+        assertTrue("$tag was squeezed out of the sheet ($rect)", rect.height > 0f)
+        assertTrue("$tag (top ${rect.top}) is under the title (bottom $top)", rect.top >= top)
+        val end = rect.bottom + extra
+        assertTrue("$tag (bottom $end) runs into the hint row (top $bottom)", end <= bottom)
     }
 
     private fun bounds(tag: String) = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
@@ -819,20 +857,22 @@ class GuideScreenshotTest {
     private fun GuideHost(current: ChannelId) {
         BackHandler { }
         StationBreakTheme {
-            CompositionLocalProvider(
-                LocalScreenFit provides fit.value,
-                LocalGuideColors provides theme.value.colors,
-                LocalMarkCache provides marks,
-                LocalDensity provides Density(LocalDensity.current.density, fontScale.floatValue),
-            ) {
-                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                    GuideRoot(
-                        vm,
-                        GuideOpening(current, null, openedAt.longValue),
-                        pictureHole = holeFor(fit.value),
-                        onTune = {},
-                        channels = { _, _, _, _ -> },
-                    )
+            // Both the guide's colours and its sheets', so a Light frame draws Light sheets.
+            ProvideGuideColors(theme.value.colors) {
+                CompositionLocalProvider(
+                    LocalScreenFit provides fit.value,
+                    LocalMarkCache provides marks,
+                    LocalDensity provides Density(LocalDensity.current.density, fontScale.floatValue),
+                ) {
+                    Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
+                        GuideRoot(
+                            vm,
+                            GuideOpening(current, null, openedAt.longValue),
+                            pictureHole = holeFor(fit.value),
+                            onTune = {},
+                            channels = { _, _, _, _ -> },
+                        )
+                    }
                 }
             }
         }
@@ -1030,15 +1070,16 @@ class GuideScreenshotTest {
         const val SHORTS_PER_RUN = 6
         const val SHORTS_SLATE_MIN = 120L
         const val SHORTS_SLATE_LENGTH_MIN = 5L
-        val PANEL_ROW_TAGS =
+        val SETTINGS_ROW_TAGS =
             listOf(
-                GuideTags.THEME_DARK,
-                GuideTags.FIT_EDGE,
+                GuideTags.SETTINGS_APPEARANCE,
+                GuideTags.SETTINGS_SCREEN_FIT,
+                GuideTags.SETTINGS_CHANNEL_CHANGE,
+                GuideTags.SETTINGS_LEVELLING,
                 GuideTags.SETTINGS_LIBRARIES,
                 GuideTags.SETTINGS_SYNC_NOW,
                 GuideTags.SETTINGS_SYNC_STATUS,
-                GuideTags.LEVELLING_ON,
-                GuideTags.CHANNEL_CHANGE_SNOW,
+                GuideTags.SETTINGS_SIGN_OUT,
             )
         const val SETTINGS_FRAME = "guide-settings"
         const val TITLE_SLACK_PX = 2f

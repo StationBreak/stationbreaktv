@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher.Companion.keyIsDefined
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -617,7 +618,7 @@ class LaunchNavigationTest {
         launchApp()
         awaitExists(LiveTags.NO_CHANNELS)
 
-        // Back opens the guide and Back again opens the menu sheet; Down is Settings, and Select opens its panel.
+        // Back opens the guide and Back again opens the menu sheet; Down is Settings, and Select opens its sheet.
         compose.awaitWindowFocus()
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         awaitExists(GuideTags.EMPTY)
@@ -628,9 +629,9 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(GuideTags.SETTINGS_LIBRARIES)
 
-        // Down is the Screen fit row, Down again the Libraries row; Select shows the Libraries screen over the guide.
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        // Past Screen fit, When changing channel and Even out volume is the Libraries row; Select shows the Libraries
+        // screen over the guide.
+        repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(SettingsTags.row(shows.id))
@@ -646,19 +647,29 @@ class LaunchNavigationTest {
             compose.onAllNodes(hasTestTag(SettingsTags.row(shows.id)) and isOn()).fetchSemanticsNodes().isNotEmpty()
         }
 
-        // Back from the screen shows the Settings panel again, on Libraries.
+        // Back from the screen shows the Settings sheet again, on Libraries.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(SettingsTags.LIBRARIES) == 0 }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
 
-        // Down is Update library (spec 26, Part 5): Select there starts a sync and leaves the panel open, on the row.
+        // Down is Update library (spec 26, Part 5): Select there starts a sync and leaves the sheet open, on the row.
         // The sync itself is RunnerSyncNowTest's; this does not wait for it.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).assertIsSelected()
 
-        // Back from the panel closes it: the guide again, the sheet on its Settings row, and the app stays.
+        // Down is Sign out (#336): Select asks first, over the sheet, with the focus on Stay signed in, and Back stays.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitSelected(SettingsTags.SIGN_OUT_STAY)
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT_CONFIRM).assertIsNotSelected()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { count(SettingsTags.SIGN_OUT) == 0 }
+        compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected()
+
+        // Back from the sheet closes it: the guide again, the menu sheet on its Settings row, and the app stays.
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(TIMEOUT_MS) { count(GuideTags.SETTINGS_LIBRARIES) == 0 }
         compose.onNodeWithTag(GuideTags.SETTINGS_BUTTON).assertIsSelected()
@@ -881,6 +892,9 @@ class LaunchNavigationTest {
 
     private companion object {
         const val TIMEOUT_MS = 10_000L
+
+        // Down presses from Appearance to Libraries: Screen fit, When changing channel, Even out volume, then it.
+        const val ROWS_TO_LIBRARIES = 4
 
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L

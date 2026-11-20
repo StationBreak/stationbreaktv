@@ -1,19 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -22,10 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -34,128 +23,92 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpRect
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.KeyHintPair
+import tv.stationbreak.core.ui.KeyHintRow
+import tv.stationbreak.core.ui.LeftSheet
+import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.SheetMeasures
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.aboutRow
-
-private val UnderlineGap = 4.dp
-private val UnderlineHeight = 1.dp
-private val FocusUnderlineHeight = 2.dp
-
-/** The menu sheet's measures (#756): a left-edge sheet 220 dp wide, full height, with rows 36 dp tall. */
-internal val MenuSheetWidth = 220.dp
-internal val MenuRowHeight = 36.dp
-private val SheetEndPadding = 8.dp
-private val RowTextPadding = 10.dp
-private val RowGap = 4.dp
-private val SheetLineWidth = 1.dp
-private const val MENU_ROW_SP = 13
-private const val HINT_SP = 11
-
-// The sheet's surface and its 1 dp line on the edge toward the screen are the guide's own tokens (`sheet` and
-// `sheetLine`, the same the channel properties sheet takes), over a scrim of black at 55%: black dims either theme.
-private const val SCRIM_ALPHA = 0.55f
+import tv.stationbreak.core.ui.R as UiR
 
 /**
- * The menu sheet over the guide, when it is open: not over the Settings panel it opened ([settingsClosed] false),
- * which it would hide. Whether it is open and what Back does in it are states of their own, so a move on the grid
+ * The menu sheet's measures (#756): a [LeftSheet] 172 dp wide from the safe edge (220 dp of the screen at Safe), full
+ * height, with the shared sheet rows (36 dp tall) in the guide's 13 sp, and 8 dp from the text to its line.
+ */
+private val MenuSheetWidth = 172.dp
+private val SheetEndPadding = 8.dp
+private const val MENU_ROW_SP = 13
+
+/**
+ * The menu sheet over the guide, when it is open: not over the Settings sheet it opened ([settingsClosed] false),
+ * which stands in its place. Whether it is open and what Back does in it are states of their own, so a move on the grid
  * recomposes nothing here; only the sheet opening or closing does.
  */
 @Composable
 internal fun GuideMenuSheetHost(
     shown: State<GuideSnapshot>,
     settingsClosed: Boolean,
-    safe: DpRect,
 ) {
     val open by remember(shown) { derivedStateOf { shown.value.menu != null } }
     val backLeaves by remember(shown) { derivedStateOf { shown.value.menuByBack || shown.value.noLibraries } }
     val menuOf: () -> GuideMenuEntry? = remember(shown) { { shown.value.menu } }
     val aboutOf: () -> String? = remember(shown) { { shown.value.aboutRow()?.name } }
-    if (open && settingsClosed) {
-        GuideMenuSheet(menuOf, backLeaves, PaddingValues(start = safe.left, top = safe.top, bottom = safe.top), aboutOf)
-    }
+    if (open && settingsClosed) GuideMenuSheet(menuOf, backLeaves, aboutOf)
 }
 
 /**
- * The menu sheet (#756): Channels, Settings and Exit as rows of a sheet on the screen's left edge, over the guide
- * dimmed as the channel properties sheet dims its list, with the same surface and the same drawn focus. The guide's
- * focus is its own (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is
- * on, and [backLeaves] whether Back leaves live TV from the sheet or closes it; the sheet is only composed while the
- * row is not null. Each row is told to a screen reader as selected only while the focus is on it. [insets] keep the
- * rows inside the safe area.
+ * The menu sheet (#756): Channels, Settings and Exit as rows of a [LeftSheet], over the guide dimmed as the channel
+ * properties sheet dims its list, with the same surface and the same drawn focus. The guide's focus is its own
+ * (model-driven), so the rows take no Compose focus. [menuOf] says which row the guide's focus is on, and [backLeaves]
+ * whether Back leaves live TV from the sheet or closes it; the sheet is only composed while the row is not null. Each
+ * row is told to a screen reader as selected only while the focus is on it. The hint row at the bottom has key caps.
  */
 @Composable
 internal fun GuideMenuSheet(
     menuOf: () -> GuideMenuEntry?,
     backLeaves: Boolean,
-    insets: PaddingValues,
     aboutOf: () -> String? = { null },
     modifier: Modifier = Modifier,
 ) {
     val about by remember(aboutOf) { derivedStateOf(aboutOf) }
-    val colors = LocalGuideColors.current
-    val back = stringResource(R.string.guide_key_back)
+    val back = stringResource(UiR.string.hint_key_back)
     val what = stringResource(if (backLeaves) R.string.guide_hint_exit else R.string.guide_hint_close_menu)
-    Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA)).testTag(GuideTags.MENU_SCRIM)) {
-        Row(
-            Modifier
-                .align(Alignment.CenterStart)
-                .width(MenuSheetWidth)
-                .fillMaxHeight()
-                .background(colors.sheet.surface)
-                .testTag(GuideTags.MENU_SHEET),
-        ) {
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(
-                        start = insets.calculateLeftPadding(LayoutDirection.Ltr),
-                        top = insets.calculateTopPadding(),
-                        end = SheetEndPadding,
-                    ),
-                verticalArrangement = Arrangement.spacedBy(RowGap),
-            ) {
-                // The focused channel's own properties, first: there with a grid only.
-                about?.let { name ->
-                    MenuRow(stringResource(R.string.guide_menu_about, name), GuideTags.ABOUT_BUTTON) {
-                        menuOf() == GuideMenuEntry.About
-                    }
+    LeftSheet(
+        MenuSheetWidth,
+        modifier.testTag(GuideTags.MENU_SCRIM),
+        sheetModifier = Modifier.testTag(GuideTags.MENU_SHEET),
+        innerPadding = SheetEndPadding,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap)) {
+            // The focused channel's own properties, first: there with a grid only.
+            about?.let { name ->
+                MenuRow(stringResource(R.string.guide_menu_about, name), GuideTags.ABOUT_BUTTON) {
+                    menuOf() == GuideMenuEntry.About
                 }
-                MenuRow(stringResource(R.string.guide_channels_button), GuideTags.CHANNELS_BUTTON) {
-                    menuOf() == GuideMenuEntry.Channels
-                }
-                MenuRow(stringResource(R.string.guide_settings_button), GuideTags.SETTINGS_BUTTON) {
-                    menuOf() == GuideMenuEntry.Settings
-                }
-                MenuRow(stringResource(R.string.guide_exit_button), GuideTags.EXIT_BUTTON) {
-                    menuOf() == GuideMenuEntry.Exit
-                }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "$back  $what",
-                    modifier =
-                        Modifier
-                            .padding(start = RowTextPadding, bottom = insets.calculateBottomPadding())
-                            .testTag(GuideTags.MENU_HINT),
-                    style = guideText(HINT_SP.sp, FontWeight.Normal),
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                )
             }
-            Box(Modifier.width(SheetLineWidth).fillMaxHeight().background(colors.sheet.line))
+            MenuRow(stringResource(R.string.guide_channels_button), GuideTags.CHANNELS_BUTTON) {
+                menuOf() == GuideMenuEntry.Channels
+            }
+            MenuRow(stringResource(R.string.guide_settings_button), GuideTags.SETTINGS_BUTTON) {
+                menuOf() == GuideMenuEntry.Settings
+            }
+            MenuRow(stringResource(R.string.guide_exit_button), GuideTags.EXIT_BUTTON) {
+                menuOf() == GuideMenuEntry.Exit
+            }
         }
+        Spacer(Modifier.weight(1f))
+        KeyHintRow(
+            listOf(KeyHintPair(back, what)),
+            Modifier.padding(start = SheetMeasures.RowTextPadding).testTag(GuideTags.MENU_HINT),
+        )
     }
 }
 
@@ -166,7 +119,7 @@ private fun MenuRow(
     focusedOf: () -> Boolean,
 ) {
     val focused by remember(focusedOf) { derivedStateOf(focusedOf) }
-    val colors = LocalGuideColors.current
+    val colors = LocalPanelColors.current
     Text(
         text = text,
         modifier =
@@ -176,48 +129,13 @@ private fun MenuRow(
                     role = Role.Button
                     selected = focused
                 }.fillMaxWidth()
-                .height(MenuRowHeight)
+                .height(SheetMeasures.RowMinHeight)
                 .panelFocus(focused)
-                .padding(horizontal = RowTextPadding)
+                .padding(horizontal = SheetMeasures.RowTextPadding)
                 .wrapContentHeight(Alignment.CenterVertically),
         style = guideText(MENU_ROW_SP.sp, FontWeight.Medium),
-        color = colors.textPrimary,
+        color = colors.text,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
 }
-
-/** How a tab is drawn: its text colour, and its underline (null for none) and the underline's thickness. */
-internal data class TabLook(
-    val text: Color,
-    val underline: Color?,
-    val thickness: Dp,
-)
-
-/**
- * Three states, told apart by the underline: focused (the guide's focus is on the tab) is primary text over a 2 dp
- * accent line; selected (Channels while the focus is on the grid) is primary text over a 1 dp quiet line; any other
- * tab is secondary text with none. The accent line is the D-pad focus, the one thing the accent says on this row.
- */
-internal fun tabLook(
-    focused: Boolean,
-    selected: Boolean,
-    colors: GuideColors,
-): TabLook =
-    when {
-        focused -> TabLook(colors.textPrimary, colors.accent, FocusUnderlineHeight)
-        selected -> TabLook(colors.textPrimary, colors.line, UnderlineHeight)
-        else -> TabLook(colors.textSecondary, null, UnderlineHeight)
-    }
-
-/** A rule 4 dp under the text, the width of the text, [thickness] thick, when [color] is not null. Reserves 2 dp. */
-internal fun Modifier.underline(
-    color: Color?,
-    thickness: Dp = UnderlineHeight,
-): Modifier =
-    padding(bottom = UnderlineGap + FocusUnderlineHeight).drawBehind {
-        if (color != null) {
-            val top = size.height + UnderlineGap.toPx()
-            drawRect(color, Offset(0f, top), Size(size.width, thickness.toPx()))
-        }
-    }
