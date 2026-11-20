@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -142,9 +143,9 @@ internal class SignOutActions(
 }
 
 /**
- * The question as [state] has it. A screen reader is told it by one live region, the root: on Stay signed in (where
- * it opens) the question, the note and the answer; on Sign out the answer alone; once it ran with the server not told,
- * that message.
+ * The question as [state] has it. A screen reader hears the question and the note once, as the pane's title when it
+ * opens; the root says only the answer under the D-pad ("Stay signed in" or "Sign out"). The one live region is the
+ * status line, for what happens after a choice: signing out, signed out with the server not told, or a failure.
  */
 @Composable
 internal fun SignOutScreen(
@@ -154,23 +155,18 @@ internal fun SignOutScreen(
     val panel = LocalPanelColors.current
     val question = stringResource(R.string.settings_sign_out_question)
     val stay = stringResource(R.string.settings_sign_out_stay)
-    val busy = state.step == SignOutStep.Busy
-    val confirm = stringResource(if (busy) R.string.settings_signing_out else R.string.settings_sign_out)
-    val notRevoked = stringResource(R.string.settings_signed_out_not_revoked)
-    val note = if (state.step == SignOutStep.NotRevoked) notRevoked else stringResource(R.string.settings_sign_out_note)
-    val spoken =
-        when {
-            state.step == SignOutStep.NotRevoked -> notRevoked
-            state.focus == SignOutChoice.Stay -> listOf(question, note, stay).joinToString(" ")
-            else -> confirm
-        }
+    val signOut = stringResource(R.string.settings_sign_out)
+    val note = stringResource(R.string.settings_sign_out_note)
+    val title = listOf(question, note).joinToString(" ")
+    val focused = if (state.focus == SignOutChoice.Stay) stay else signOut
+    val status = signOutStatus(state)
     LeftSheet(
         SheetMeasures.Width,
         modifier
             .testTag(SettingsTags.SIGN_OUT)
             .semantics {
-                contentDescription = spoken
-                liveRegion = LiveRegionMode.Polite
+                paneTitle = title
+                contentDescription = focused
             },
         scrim = false,
     ) {
@@ -189,12 +185,20 @@ internal fun SignOutScreen(
             verticalArrangement = Arrangement.spacedBy(LineGap),
         ) {
             state.serverName?.let { SignedInLine(it, SettingsTags.SIGNED_IN) }
-            Line(note, SettingsTags.SIGN_OUT_NOTE, SheetMeasures.BodySize)
+            if (state.step != SignOutStep.NotRevoked) Line(note, SettingsTags.SIGN_OUT_NOTE, SheetMeasures.BodySize)
+            if (status != null) {
+                Line(
+                    status,
+                    SettingsTags.SIGN_OUT_STATUS,
+                    SheetMeasures.BodySize,
+                    Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
         }
         if (state.step != SignOutStep.NotRevoked) {
             Column(verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap)) {
                 Answer(stay, SettingsTags.SIGN_OUT_STAY, focused = state.focus == SignOutChoice.Stay)
-                Answer(confirm, SettingsTags.SIGN_OUT_CONFIRM, focused = state.focus == SignOutChoice.SignOut)
+                Answer(signOut, SettingsTags.SIGN_OUT_CONFIRM, focused = state.focus == SignOutChoice.SignOut)
             }
         }
         Spacer(Modifier.weight(1f))
@@ -204,6 +208,16 @@ internal fun SignOutScreen(
         )
     }
 }
+
+// What has happened since a choice, or null while the question simply asks.
+@Composable
+private fun signOutStatus(state: SignOutState): String? =
+    when {
+        state.step == SignOutStep.Busy -> stringResource(R.string.settings_signing_out)
+        state.step == SignOutStep.NotRevoked -> stringResource(R.string.settings_signed_out_not_revoked)
+        state.failed -> stringResource(R.string.settings_sign_out_failed)
+        else -> null
+    }
 
 /** "Signed in to …": the server's name, as the question and the Libraries screen both say it. */
 @Composable
@@ -217,10 +231,11 @@ private fun Line(
     text: String,
     tag: String,
     size: TextUnit,
+    modifier: Modifier = Modifier,
 ) {
     Text(
         text,
-        Modifier.testTag(tag),
+        modifier.testTag(tag),
         style = guideProse(size, FontWeight.Normal),
         color = LocalPanelColors.current.secondary,
     )

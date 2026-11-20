@@ -3,6 +3,7 @@
 
 package tv.stationbreak.feature.settings
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ private class CountingSignOut(
     private val name: String? = "Home",
     private val revoked: Boolean = true,
     private val fails: Boolean = false,
+    private val cancels: Boolean = false,
 ) : AccountSignOut {
     var signOuts = 0
     var gate: CompletableDeferred<Unit>? = null
@@ -31,6 +33,7 @@ private class CountingSignOut(
         signOuts += 1
         gate?.await()
         check(!fails) { "https://server.example.test refused" }
+        if (cancels) throw CancellationException("the screen went")
         return revoked
     }
 }
@@ -162,19 +165,36 @@ class SignOutViewModelTest {
         }
 
     @Test
-    fun aSignOutThatThrowsIsOneTheServerWasNotToldOf_loggedByAFixedWord() =
+    fun aSignOutThatThrowsAsksAgainOnStay_saysItWentWrong_andLogsAFixedWord() =
         runTest {
             val vm = open(CountingSignOut(fails = true))
             val told = told(vm)
             vm.move(up = false)
             vm.select()
             runCurrent()
-            assertEquals(SignOutStep.NotRevoked, vm.now.step)
+            // Never "signed out on this TV": what was cleared is not known.
+            assertEquals(SignOutState(SignOutStep.Asking, SignOutChoice.Stay, "Home", failed = true), vm.now)
             assertEquals(listOf("SignOutChosen", "SignOutFailed"), logged)
             assertTrue("the error is never logged", logged.none { "example" in it })
-            vm.back()
+            assertEquals(0, told())
+            // The next key clears the line; OK on Stay closes the question.
+            vm.move(up = true)
+            assertFalse(vm.now.failed)
+            assertTrue(vm.select())
+        }
+
+    @Test
+    fun aCancelledSignOutIsNotAFailure() =
+        runTest {
+            val vm = open(CountingSignOut(cancels = true))
+            val told = told(vm)
+            vm.move(up = false)
+            vm.select()
             runCurrent()
-            assertEquals(1, told())
+            assertEquals(listOf("SignOutChosen"), logged)
+            assertFalse(vm.now.failed)
+            assertEquals(SignOutStep.Busy, vm.now.step)
+            assertEquals(0, told())
         }
 
     @Test

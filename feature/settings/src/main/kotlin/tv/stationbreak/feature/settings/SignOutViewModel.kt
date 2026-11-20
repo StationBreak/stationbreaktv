@@ -4,6 +4,7 @@ package tv.stationbreak.feature.settings
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +33,15 @@ internal enum class SignOutChoice { Stay, SignOut }
  */
 internal enum class SignOutStep { Asking, Busy, NotRevoked }
 
-/** What the sign-out question shows: its [step], the answer under the D-pad, and the signed-in server's name. */
+/**
+ * What the sign-out question shows: its [step], the answer under the D-pad, the signed-in server's name, and whether
+ * the last sign-out [failed] (it threw before it finished: the question asks again, and says so until the next key).
+ */
 internal data class SignOutState(
     val step: SignOutStep = SignOutStep.Asking,
     val focus: SignOutChoice = SignOutChoice.Stay,
     val serverName: String? = null,
+    val failed: Boolean = false,
 )
 
 /**
@@ -96,7 +101,7 @@ internal class SignOutViewModel
         fun move(up: Boolean) {
             shown.update {
                 if (it.step != SignOutStep.Asking) return@update it
-                it.copy(focus = if (up) SignOutChoice.Stay else SignOutChoice.SignOut)
+                it.copy(focus = if (up) SignOutChoice.Stay else SignOutChoice.SignOut, failed = false)
             }
         }
 
@@ -143,16 +148,30 @@ internal class SignOutViewModel
             if (!started) return
             log("SignOutChosen")
             scope.launch {
-                // A sign-out that threw is one the server was not told of: the TV says so. The log is a fixed word,
-                // never the error, which could carry the server's address.
-                val revoked =
-                    runCatching { withContext(worker) { account.signOut() } }.getOrElse {
-                        log("SignOutFailed")
-                        false
-                    }
-                if (revoked) goOn() else shown.update { it.copy(step = SignOutStep.NotRevoked) }
+                when (signOutOrNull()) {
+                    true -> goOn()
+
+                    false -> shown.update { it.copy(step = SignOutStep.NotRevoked) }
+
+                    // It threw: what was cleared is not known, so the TV claims nothing. The question asks again, on
+                    // Stay signed in, and says it went wrong.
+                    null -> shown.update { SignOutState(serverName = it.serverName, failed = true) }
+                }
             }
         }
+
+        // The sign-out's answer (whether the server was told), or null when it threw. A cancellation is not a failure:
+        // it goes on up. The log is a fixed word, never the error, which could carry the server's address.
+        @Suppress("TooGenericExceptionCaught") // Any throw from the sign-out is one failure the viewer is told of.
+        private suspend fun signOutOrNull(): Boolean? =
+            try {
+                withContext(worker) { account.signOut() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                log("SignOutFailed")
+                null
+            }
 
         // The host is told once, however many presses follow: it leaves for the server screen only once.
         private fun goOn() {

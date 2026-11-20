@@ -71,7 +71,8 @@ fun LeftSheet(
 /**
  * The same sheet on the screen's right edge (a channel's properties, #631), its line on its left. [width] runs from
  * the line to the safe area's right edge, and the content keeps [innerPadding] from the line and at least as far from
- * the screen's right edge (a viewer who chose Edge has almost no safe inset).
+ * the screen's right edge (a viewer who chose Edge has almost no safe inset). A design width measured from the
+ * screen's edge must subtract its outer gutter first: the properties sheet's 380 dp, drawn with a 16 dp gutter, is 364.
  */
 @Suppress("LongParameterList") // As LeftSheet's.
 @Composable

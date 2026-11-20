@@ -36,6 +36,9 @@ object SettingsTags {
     /** The note that the TV will need a new sign-in, or, once it ran, that the server could not be told. */
     const val SIGN_OUT_NOTE = "settings:signOut:note"
 
+    /** The line saying what happened after a choice (signing out, not revoked, a failure): the one live region. */
+    const val SIGN_OUT_STATUS = "settings:signOut:status"
+
     /** The two answers: Stay signed in (the focus starts here) and Sign out. */
     const val SIGN_OUT_STAY = "settings:signOut:stay"
     const val SIGN_OUT_CONFIRM = "settings:signOut:confirm"

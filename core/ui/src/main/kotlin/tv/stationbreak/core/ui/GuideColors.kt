@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
@@ -143,3 +145,19 @@ private const val FOCUS_SECONDARY_ALPHA = 0.90f
 private const val FOCUS_SECONDARY_ALPHA_LIGHT = 0.95f
 private const val NOW_LINE_ALPHA = 0.35f
 private const val NOW_LINE_ALPHA_LIGHT = 0.60f
+
+/**
+ * Provides the guide family's colours for [colors] (Dark or Light): [LocalGuideColors] and the [LocalPanelColors] its
+ * sheets and panels read, together, so a host can never give the guide one theme and its sheets the other.
+ */
+@Composable
+fun ProvideGuideColors(
+    colors: GuideColors,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalGuideColors provides colors,
+        LocalPanelColors provides colors.panel,
+        content = content,
+    )
+}

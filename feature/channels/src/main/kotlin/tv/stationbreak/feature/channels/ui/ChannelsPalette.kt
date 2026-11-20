@@ -39,13 +39,7 @@ internal object ChannelsPalette {
     /** Headings, the read-only note, message lines and reasons. */
     val secondary: Color @Composable get() = LocalPanelColors.current.secondary
 
-    /** The focused row's ring: the guide's focus colour. */
-    val ring: Color @Composable get() = LocalPanelColors.current.ring
-
-    /** The properties sheet's ground. */
-    val sheet: Color @Composable get() = LocalPanelColors.current.sheet.surface
-
-    /** The 1 dp line: the properties sheet's left edge, and the rule above a list group's flag. */
+    /** The 1 dp line: the rule above a list group's flag, and the properties sheet's identity rule. */
     val sheetLine: Color @Composable get() = LocalPanelColors.current.sheet.line
 
     /** The content-rating badge on the sheet. */

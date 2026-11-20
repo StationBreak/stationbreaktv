@@ -113,9 +113,9 @@ import tv.stationbreak.core.model.ServerInfo
 import tv.stationbreak.core.model.ServerVersion
 import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
-import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ProgramInfoTags
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
@@ -775,20 +775,22 @@ class GuideScreenshotTest {
     private fun GuideHost(current: ChannelId) {
         BackHandler { }
         StationBreakTheme {
-            CompositionLocalProvider(
-                LocalScreenFit provides fit.value,
-                LocalGuideColors provides theme.value.colors,
-                LocalMarkCache provides marks,
-                LocalDensity provides Density(LocalDensity.current.density, fontScale.floatValue),
-            ) {
-                Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
-                    GuideRoot(
-                        vm,
-                        GuideOpening(current, null, openedAt.longValue),
-                        pictureHole = holeFor(fit.value),
-                        onTune = {},
-                        channels = { _, _, _, _ -> },
-                    )
+            // Both the guide's colours and its sheets', so a Light frame draws Light sheets.
+            ProvideGuideColors(theme.value.colors) {
+                CompositionLocalProvider(
+                    LocalScreenFit provides fit.value,
+                    LocalMarkCache provides marks,
+                    LocalDensity provides Density(LocalDensity.current.density, fontScale.floatValue),
+                ) {
+                    Box(Modifier.requiredSize(HOST_WIDTH_DP.dp, HOST_HEIGHT_DP.dp).focusable()) {
+                        GuideRoot(
+                            vm,
+                            GuideOpening(current, null, openedAt.longValue),
+                            pictureHole = holeFor(fit.value),
+                            onTune = {},
+                            channels = { _, _, _, _ -> },
+                        )
+                    }
                 }
             }
         }

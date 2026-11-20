@@ -37,7 +37,7 @@ import tv.stationbreak.core.model.ItemDetails
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.MediaSummary
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
@@ -71,7 +71,7 @@ class DetailsPanelTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             StationBreakTheme {
-                CompositionLocalProvider(LocalGuideColors provides colors.value) {
+                ProvideGuideColors(colors.value) {
                     DetailsPanel(panel, nowOf = { 0L }, modifier = Modifier.size(PANEL_WIDTH_DP.dp, height.value.dp))
                 }
             }

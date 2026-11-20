@@ -359,12 +359,10 @@ class GuideNoLibrariesUiTest {
         openSettings()
         val live = SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)
 
-        fun liveTags() =
-            compose
-                .onAllNodes(live, useUnmergedTree = true)
-                .fetchSemanticsNodes()
-                .mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
-        assertEquals(listOf(GuideTags.SETTINGS_SHEET), liveTags())
+        // Every live-region node in the tree, tagged or not.
+        fun liveNodes() = compose.onAllNodes(live, useUnmergedTree = true).fetchSemanticsNodes()
+        assertEquals(1, liveNodes().size)
+        assertEquals(GuideTags.SETTINGS_SHEET, liveNodes().single().config.getOrNull(SemanticsProperties.TestTag))
         compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Appearance, Dark")
 
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -382,7 +380,7 @@ class GuideNoLibrariesUiTest {
         }
         compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Update library, Updating…")
         val why = "the Update library line is not a second live region"
-        assertEquals(why, listOf(GuideTags.SETTINGS_SHEET), liveTags())
+        assertEquals(why, 1, liveNodes().size)
     }
 
     // Sign out (#336) asks first: OK on its row shows the sign-out slot over the sheet, which holds every key, and

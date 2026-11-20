@@ -29,7 +29,7 @@ import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelReadyNotice
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.ProvideGuideColors
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.channels.ChannelGroup
@@ -107,7 +107,7 @@ class ReadyScreenshotTest {
     ) {
         compose.setContent {
             StationBreakTheme {
-                CompositionLocalProvider(LocalGuideColors provides colors) {
+                ProvideGuideColors(colors) {
                     Box(Modifier.requiredSize(WIDTH_DP.dp, HEIGHT_DP.dp).background(colors.page)) {
                         ChannelReadyNotice(channels)
                     }

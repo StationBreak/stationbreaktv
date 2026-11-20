@@ -53,14 +53,15 @@ import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
-import tv.stationbreak.core.ui.HINT_SPACE
 import tv.stationbreak.core.ui.HintPairGap
 import tv.stationbreak.core.ui.KeyHint
+import tv.stationbreak.core.ui.KeyHintPair
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.guideText
+import tv.stationbreak.core.ui.spokenHint
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.CellKind
 import tv.stationbreak.feature.guide.GUIDE_VIEWPORT_SPAN
@@ -460,13 +461,15 @@ private fun HintRow(
     val left = stringResource(R.string.guide_key_left)
     val about = stringResource(R.string.guide_hint_properties)
     val openMenu = stringResource(R.string.guide_hint_open_menu)
-    val spoken =
-        buildString {
-            if (action != null) append("$ok $action$HINT_SPACE")
-            if (toChannel) append("$left $about$HINT_SPACE")
-            append("$back $exit")
-            if (hasMenu) append("$HINT_SPACE$menuKey $openMenu")
-        }
+    // The pairs in display order, drawn and read out (the shared spokenHint) from the same list.
+    val pairs =
+        listOfNotNull(
+            action?.let { KeyHintPair(ok, it, round = true) },
+            KeyHintPair(left, about).takeIf { toChannel },
+            KeyHintPair(back, exit),
+            KeyHintPair(menuKey, openMenu).takeIf { hasMenu },
+        )
+    val spoken = spokenHint(pairs)
     // Pairs in display order; a rank is how long a pair stays when they do not all fit (0 goes last): Menu goes first,
     // then the Left hint, then OK. The way out (Back) is the one thing no one would guess, so it is never dropped.
     val ranks = hintRanks(hasOk = action != null, hasLeft = toChannel, hasMenu = hasMenu)
@@ -480,9 +483,6 @@ private fun HintRow(
                 .testTag(GuideTags.HINT)
                 .clearAndSetSemantics { text = AnnotatedString(spoken) },
     ) {
-        if (action != null) KeyHint(ok, action, round = true)
-        if (toChannel) KeyHint(left, about)
-        KeyHint(back, exit)
-        if (hasMenu) KeyHint(menuKey, openMenu)
+        for (pair in pairs) KeyHint(pair.key, pair.action, pair.round)
     }
 }

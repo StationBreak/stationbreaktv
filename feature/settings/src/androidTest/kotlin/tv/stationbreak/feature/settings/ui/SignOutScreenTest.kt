@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -125,26 +124,32 @@ class SignOutScreenTest {
 
     // Read when it opens: the question, the note, then the answer under the D-pad, by the one live region (the root).
     @Test
-    fun itIsReadWhenItOpens_questionNoteThenTheFocusedAnswer() {
+    fun itIsReadWhenItOpens_questionAndNoteOnce_thenOnlyTheFocusedAnswer() {
         show()
         compose
             .onNodeWithTag(SettingsTags.SIGN_OUT)
-            .assertContentDescriptionEquals("Sign out? You'll need to sign in again on this TV. Stay signed in")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, QUESTION_AND_NOTE))
+            .assertContentDescriptionEquals("Stay signed in")
+        // While it only asks, nothing is a live region: a move is not a reason to say the question again.
+        assertEquals(0, liveRegions())
         press(Key.DirectionDown)
         compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Sign out")
-        val live = SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion)
-        assertEquals(1, compose.onAllNodes(live, useUnmergedTree = true).fetchSemanticsNodes().size)
+        press(Key.DirectionUp)
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Stay signed in")
+        assertEquals(0, liveRegions())
     }
 
-    // While it runs, the hint offers nothing: Back cannot keep a sign-out that has begun.
+    // While it runs, the status line (the one live region) says so, and the hint offers nothing: Back cannot keep a
+    // sign-out that has begun.
     @Test
-    fun whileItRuns_theHintOffersNoWayBack() {
+    fun whileItRuns_theStatusSaysSo_andTheHintOffersNoWayBack() {
         account.gate = CompletableDeferred()
         show()
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
-        until { exists(SettingsTags.SIGN_OUT_CONFIRM) && signingOut() }
+        until { exists(SettingsTags.SIGN_OUT_STATUS) }
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT_STATUS, useUnmergedTree = true).assertTextEquals("Signing out…")
+        assertEquals(1, liveRegions())
         compose.onNodeWithTag(SettingsTags.SIGN_OUT_HINT).assertTextEquals("")
         press(Key.Back)
         assertEquals(0, done)
@@ -152,10 +157,11 @@ class SignOutScreenTest {
         until { signedOut == 1 }
     }
 
-    private fun signingOut(): Boolean =
-        runCatching {
-            compose.onNodeWithTag(SettingsTags.SIGN_OUT_CONFIRM).assertContentDescriptionEquals("Signing out…")
-        }.isSuccess
+    private fun liveRegions(): Int =
+        compose
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .size
 
     @Test
     fun okStraightAway_staysSignedIn() {
@@ -190,6 +196,7 @@ class SignOutScreenTest {
     }
 
     private companion object {
+        const val QUESTION_AND_NOTE = "Sign out? You'll need to sign in again on this TV."
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
