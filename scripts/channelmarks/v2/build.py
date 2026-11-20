@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Channel marks, second generation: every mark drawn from its name, tagline and theme.
 
-    pip install fonttools skia-pathops cairosvg        # cairosvg is only needed for --png
+    pip install fonttools skia-pathops                 # --png also needs rsvg-convert (librsvg) on the PATH
     python3 scripts/channelmarks/v2/build.py [--png <dir>]
 
 Writes out/svg/ (colour masters), out/svg-mono/ (all fills white) and out/contact-sheet.html beside this file.
 With --png it also renders each mark the way the app loads it: 48 dp and 64 dp at 2x (96x54 and 128x72 px),
 transparent, colour and mono, as sl_<NNN>_<key>_<N>dp.png and sl_<NNN>_<key>_mono_<N>dp.png, stripped to the
-PNG chunks the app's manifest test allows.
+PNG chunks the app's manifest test allows. The shipped renders were made with rsvg-convert 2.58.0; the same
+version reproduces channelmarks.sha256 byte for byte.
 
 The marks themselves are in round1.py to round6.py (the order they were reviewed in); marklib.py has the
 drawing helpers. Fonts: the six new faces are in fonts/ here, the rest come from ../fonts.
 """
-import html, pathlib, struct, sys
+import html, pathlib, struct, subprocess, sys
 import round1, round2, round3, round4, round5, round6
 from marklib import svg
 
@@ -27,7 +28,7 @@ def all_marks():
     return sorted(marks.values(), key=lambda m: m["number"])
 
 def strip_png(png):
-    """Keep only the chunks the app's manifest test allows (cairo adds a bKGD chunk)."""
+    """Keep only the chunks the app's manifest test allows."""
     out = [png[:8]]; i = 8
     while i < len(png):
         n, = struct.unpack(">I", png[i:i + 4]); kind = png[i + 4:i + 8]
@@ -36,9 +37,10 @@ def strip_png(png):
     return b"".join(out)
 
 def render_png(svg_text, bucket):
-    import cairosvg
-    w = bucket * 2
-    return strip_png(cairosvg.svg2png(bytestring=svg_text.encode(), output_width=w, output_height=round(w * 112 / 200)))
+    w = bucket * 2; h = round(w * 112 / 200)
+    png = subprocess.run(["rsvg-convert", "-a", "-w", str(w), "-h", str(h), "-f", "png"], input=svg_text.encode(),
+                         capture_output=True, check=True).stdout
+    return strip_png(png)
 
 def main(png_dir=None):
     out = HERE / "out"; (out / "svg").mkdir(parents=True, exist_ok=True); (out / "svg-mono").mkdir(exist_ok=True)

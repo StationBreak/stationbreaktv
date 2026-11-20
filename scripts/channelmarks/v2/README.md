@@ -6,7 +6,7 @@ theme, and was approved band by band in the StationBreak brand session. The rule
 
 ## Build
 
-    pip install fonttools skia-pathops cairosvg      # cairosvg is only needed for --png
+    pip install fonttools skia-pathops               # --png also needs rsvg-convert (librsvg) on the PATH
     python3 scripts/channelmarks/v2/build.py
     python3 scripts/channelmarks/v2/build.py --png core/ui/src/main/assets/channelmarks
 

@@ -35,7 +35,7 @@ Each mark is built from the channel's name, tagline and theme.
 9. **Lettering is outlined type from a licensed face.** Text is set in a face from `scripts/channelmarks/fonts/` or `scripts/channelmarks/v2/fonts/` (SIL OFL 1.1 or Apache 2.0, licence text beside it) and converted to outlines. A new face needs its licence checked and its file and licence text added there first.
 10. **Band flavour, not band uniform.** Bands have a leaning, not a rule: Kids → rounded faces, saturated primaries; General → clean display faces, friendly mids; Drama → serifs and slabs, metals and jewel tones; Genre → condensed and italic, neon; World → warm, expressive; Premium → restrained.
 
-Two marks were approved with a note to revisit if they do not hold up on a TV: Order in the Court (ORDER IN THE is small) and Corsets & Candlelight (long name, slim candle).
+Four marks were approved with a note to revisit if they do not hold up on a TV: Order in the Court (ORDER IN THE is small), Corsets & Candlelight (long name, slim candle), Continental Drift (CONTINENTAL is small) and Cherry Blossom Hour (three small lines).
 
 ## Adding or changing a mark
 

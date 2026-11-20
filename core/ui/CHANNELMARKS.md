@@ -26,7 +26,7 @@ scripts/channelmarks/v2/round1.py … round6.py, rabbit.py  (the marks as code: 
 SVG masters, text converted to outlines       scripts/channelmarks/v2/out/svg/ and svg-mono/ (not committed)
   + contact sheet                              scripts/channelmarks/v2/out/contact-sheet.html (committed)
         |
-        v   build.py --png   (cairosvg)
+        v   build.py --png   (rsvg-convert)
 PNG renders, transparent, 48 dp and 64 dp at 2x  core/ui/src/main/assets/channelmarks/
 ```
 
@@ -40,9 +40,9 @@ PNG renders, transparent, 48 dp and 64 dp at 2x  core/ui/src/main/assets/channel
 - **Renders.** A bucket is N dp at 2x, so `_48dp` is 96 by 54 px and `_64dp` is 128 by 72 px (the 200:112 box). RGBA,
   under 16 KB each (about 1.4 to 6 KB). The build strips everything but the `IHDR`, `PLTE`, `tRNS`, `IDAT` and `IEND`
   chunks.
-- **The first set of renders** (2026-11-20) was made from the approved masters with `rsvg-convert` (librsvg) at the same
-  sizes, names and chunk stripping as `build.py --png`, because cairosvg could not be installed where it was made. A
-  later `build.py --png` run draws the same marks but may change the PNG bytes slightly; regenerate the manifest then.
+- **Renderer.** Renders are made by `build.py --png` with `rsvg-convert` (librsvg). The shipped set was rendered with
+  rsvg-convert 2.58.0, and the same version reproduces `channelmarks.sha256` byte for byte. Another librsvg version
+  may change the PNG bytes slightly; regenerate the manifest then.
 
 ### File names
 
@@ -80,8 +80,8 @@ assets in the built APK against this manifest is a tracked follow-up.
 ## Updating
 
 1. Change the mark in its round file in `scripts/channelmarks/v2/` (or add one for a new catalog channel), following
-   the rules in `docs/design/channel-identity.md`. Needs `pip install fonttools skia-pathops cairosvg` (and the cairo
-   library).
+   the rules in `docs/design/channel-identity.md`. Needs `pip install fonttools skia-pathops` and `rsvg-convert`
+   (librsvg) on the PATH.
 2. Regenerate the masters, the contact sheet and the renders from the repo root:
 
    ```
