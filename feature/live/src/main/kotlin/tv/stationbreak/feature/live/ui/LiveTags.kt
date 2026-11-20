@@ -23,7 +23,7 @@ object LiveTags {
     const val BANNER_CHIP_SUBTITLES = "live:banner:chip:subtitles"
     const val BANNER_CHIP_VERSION = "live:banner:chip:version"
 
-    /** "Transcoding", right-aligned after the chips, only while the route is a transcode. Not focusable. */
+    /** "Converting for this TV", right-aligned after the chips, only while the route is a transcode. Not focusable. */
     const val BANNER_TRANSCODING = "live:banner:transcoding"
 
     /** The label along the top of the picture while the guide is open (#722). */

@@ -334,6 +334,19 @@ class StreamLabelsTest {
     }
 
     @Test
+    fun aServerTitleOfSdhIsNoTitleBesideThePlainWords() {
+        val texts =
+            subtitleTexts(
+                subtitle(1, flags = TrackFlags(sdh = true), title = "SDH"),
+                subtitle(2, flags = TrackFlags(sdh = true), title = "SDH"),
+            )
+        assertEquals(
+            listOf("English · With sound descriptions · Text", "English · With sound descriptions · Text · 2"),
+            texts,
+        )
+    }
+
+    @Test
     fun aTitleThatIsANumberOrSaysWhatTheRowAlreadySaysIsNoTitle() {
         val texts =
             subtitleTexts(

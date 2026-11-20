@@ -36,7 +36,7 @@ The year is `ProgramInfo.year`, read with the item's other names from the librar
 
 ### Select banner (actions)
 
-The tune banner plus a 44 dp row under a 1 dp `line`: **102 dp** total. Buttons are 28 dp tall, 2 dp radius, 12 sp Medium, `card` fill; focused = `accent` fill with `focusText`, **no scale, no ring** (guide focus grammar; drop `FocusStyle` here). Order: `Live` (only while behind) · `Info` · `Last` (if any) · 1 dp divider · `Audio` · `Subtitles` · `Version`, then, right-aligned at the end of the row, "Transcoding" (11 sp `textSecondary`, not focusable) only while the route is a transcode; nothing for direct play or direct stream. Info takes focus on open, as today.
+The tune banner plus a 44 dp row under a 1 dp `line`: **102 dp** total. Buttons are 28 dp tall, 2 dp radius, 12 sp Medium, `card` fill; focused = `accent` fill with `focusText`, **no scale, no ring** (guide focus grammar; drop `FocusStyle` here). Order: `Live` (only while behind) · `Info` · `Last` (if any) · 1 dp divider · `Audio` · `Subtitles` · `Version`, then, right-aligned at the end of the row, "Converting for this TV" (11 sp `textSecondary`, not focusable) only while the route is a transcode; nothing for direct play or direct stream. Info takes focus on open, as today.
 
 ### Other live chrome
 

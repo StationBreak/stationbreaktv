@@ -84,8 +84,8 @@ internal object StreamLabels {
 
     /**
      * `1080p HEVC · English 5.1 · Subtitles off`: the picture, the audio in use, the subtitles in use. A transcode
-     * starts with "Transcoding · "; direct play and direct stream say nothing of the route. A part the facts do not
-     * know is left out, so the line says only what is so.
+     * starts with "Converting for this TV · "; direct play and direct stream say nothing of the route. A part the
+     * facts do not know is left out, so the line says only what is so.
      */
     fun streamLine(
         facts: StreamFacts,
@@ -114,7 +114,7 @@ internal object StreamLabels {
                 listOfNotNull(StreamFigures.layout(audio.channels), StreamFigures.audioCodec(audio.codec))
         ).joinToString(SEPARATOR)
 
-    /** "English · SDH · Text": language (or Unknown), then flags, then Text or Picture. */
+    /** "English · With sound descriptions · Text": language (or Unknown), then flags, then Text or Picture. */
     fun subtitleRow(
         subtitle: SubtitleFacts,
         copy: StreamCopy,
