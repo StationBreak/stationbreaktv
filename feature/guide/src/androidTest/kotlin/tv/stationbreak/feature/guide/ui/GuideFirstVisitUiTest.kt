@@ -150,9 +150,9 @@ class GuideFirstVisitUiTest {
     fun theNoteStandsInThePanelsPlaceWithTitleAndBody() {
         show()
         note().assertExists()
-        assertEquals("You’re on the air.", text(GuideTags.PANEL_TITLE))
+        assertEquals("Here are your channels", text(GuideTags.PANEL_TITLE))
         assertEquals(
-            "Here are your channels. Pick one to watch, or press OK to keep watching this one.",
+            "Choose one to watch, or press OK to keep watching this one.",
             text(GuideTags.FIRST_VISIT_BODY),
         )
         compose.onNodeWithTag(GuideTags.PANEL).assertDoesNotExist()
