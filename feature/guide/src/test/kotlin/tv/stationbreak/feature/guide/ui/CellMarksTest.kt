@@ -88,57 +88,14 @@ class CellMarksTest {
         assertTrue(place(0, 150).marks(at(0), false).later)
     }
 
-    private val sec = 1_000L
-
-    private fun placeMs(
-        fromMs: Long,
-        toMs: Long,
-    ) = CellPlace(origin + fromMs, origin + toMs, origin, geometry)
-
     @Test
-    fun aCompactCellWithRoomForOneShowsAnEllipsisAcrossItsWidth() {
-        // 5 minutes is 32.5 dp, compact, with room for a "…" over all of it.
-        val range = place(70, 75).ellipsisIn(at(60))
-        assertDp(0.dp, range!!.start)
-        assertDp(wide(5), range.endInclusive)
-    }
-
-    @Test
-    fun theEllipsisNeedsAtLeast32DpOfTheCell() {
-        // 32 dp, the least, is 295.4 seconds here: 4 minutes (26 dp) is short of it, 5 minutes (32.5 dp) is over, and
-        // 296 seconds (32.07 dp) is enough where 295 (31.96 dp) is not.
-        assertTrue(place(70, 75).ellipsisIn(at(60)) != null)
-        assertTrue(placeMs(70 * minute, 70 * minute + 296 * sec).ellipsisIn(at(60)) != null)
-        assertNull(placeMs(70 * minute, 70 * minute + 295 * sec).ellipsisIn(at(60)))
-        assertNull(place(70, 74).ellipsisIn(at(60)))
-        assertNull(place(70, 73).ellipsisIn(at(60)))
-        // 2 minutes (13 dp) is too narrow even for it.
-        assertNull(place(70, 72).ellipsisIn(at(60)))
-    }
-
-    @Test
-    fun aCellWithRoomForItsTitleHasNoEllipsis() {
+    fun aCellWithRoomForItsTitleIsNotCompact() {
         // 8 minutes is 52 dp, over the 48 dp least that has a title; 7 minutes (45.5 dp) is compact.
-        assertNull(place(60, 68).ellipsisIn(at(60)))
         assertFalse(place(60, 68).compactIn(at(60)))
         assertTrue(place(60, 67).compactIn(at(60)))
-        assertNull(place(60, 120).ellipsisIn(at(60)))
-    }
-
-    @Test
-    fun aLongCellScrolledToASliverHasTheEllipsisInThePartInView() {
-        // From 0 to 33 minutes with the viewport at 30: only 3 minutes (19.5 dp) show, too few even for a "…".
-        assertNull(place(0, 33).ellipsisIn(at(30)))
-        // From 0 to 35: 5 minutes (32.5 dp) show: the cell's last 32.5 dp, from 195 dp to its end at 227.5 dp.
-        val range = place(0, 35).ellipsisIn(at(30))!!
-        assertDp(wide(30), range.start)
-        assertDp(wide(35), range.endInclusive)
-        // The same at the other edge: a cell from 115 to 150 with the viewport at 0 (120 minutes) shows its first 5.
-        val right = place(115, 150).ellipsisIn(at(0))!!
-        assertDp(0.dp, right.start)
-        assertDp(wide(5), right.endInclusive)
-        // Before it is cut that far, its title shows instead.
-        assertNull(place(0, 35).ellipsisIn(at(20)))
+        // A long cell scrolled so 5 minutes (32.5 dp) of it show is compact there: no title, and no "…" either.
+        assertTrue(place(0, 35).compactIn(at(30)))
+        assertFalse(place(0, 35).compactIn(at(20)))
     }
 
     @Test

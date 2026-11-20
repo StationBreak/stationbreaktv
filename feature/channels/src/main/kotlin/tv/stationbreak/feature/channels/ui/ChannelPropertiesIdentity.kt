@@ -138,6 +138,7 @@ private fun Tags(
 internal fun Status(
     row: ChannelRow,
     properties: ChannelProperties?,
+    isPro: Boolean,
 ) {
     val since = properties?.summary?.onSince?.let { formatDate(it.toEpochMilliseconds()) }
     val (state, why) =
@@ -157,7 +158,7 @@ internal fun Status(
 
             ChannelGroup.Shelf -> {
                 stringResource(R.string.channel_props_status_not_on) to
-                    row.shelfReason?.let { stringResource(shelfReasonText(it)) }.orEmpty()
+                    row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }.orEmpty()
             }
 
             ChannelGroup.Off -> {

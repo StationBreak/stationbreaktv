@@ -135,6 +135,24 @@ object GuideTags {
         startMs: Long,
     ) = "guide:cellSecondLine:${channel.value}:$startMs"
 
+    /** The one label over the run of short programmes of [channel] that starts at [startMs]. */
+    fun runLabel(
+        channel: ChannelId,
+        startMs: Long,
+    ) = "guide:runLabel:${channel.value}:$startMs"
+
+    /** That label's title. */
+    fun runLabelTitle(
+        channel: ChannelId,
+        startMs: Long,
+    ) = "guide:runLabelTitle:${channel.value}:$startMs"
+
+    /** That label's count (" · 12"). */
+    fun runLabelCount(
+        channel: ChannelId,
+        startMs: Long,
+    ) = "guide:runLabelCount:${channel.value}:$startMs"
+
     /** The channel mark in the plate of [channel]. */
     fun channelMark(channel: ChannelId) = "guide:channelMark:${channel.value}"
 }

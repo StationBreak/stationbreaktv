@@ -80,13 +80,9 @@ internal fun householdSpoken(): String =
 
 /** The two lines that are not switches: New channel above the first group and Reset after the last. */
 @Composable
-internal fun NewLine(
-    focused: Boolean,
-    locked: Boolean = false,
-) {
-    val label = stringResource(R.string.builder_new_channel)
+internal fun NewLine(focused: Boolean) {
     Text(
-        if (locked) stringResource(R.string.pro_marked_label, label) else label,
+        stringResource(R.string.builder_new_channel),
         Modifier
             .fillMaxWidth()
             .panelFocus(focused)
@@ -98,13 +94,9 @@ internal fun NewLine(
 }
 
 @Composable
-internal fun ResetLine(
-    focused: Boolean,
-    locked: Boolean = false,
-) {
-    val label = stringResource(R.string.channels_reset)
+internal fun ResetLine(focused: Boolean) {
     Text(
-        if (locked) stringResource(R.string.pro_marked_label, label) else label,
+        stringResource(R.string.channels_reset),
         Modifier
             .fillMaxWidth()
             .panelFocus(focused)

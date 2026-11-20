@@ -169,7 +169,8 @@ internal class FirstSyncViewModel
         /**
          * The screen's work is over. With [cheer] (a channel is on the air after the sync it showed), Stan cheers us on
          * the air first: [FirstSyncPhase.Done] for [CHEER_HOLD_MS] (the same with reduced motion), or until
-         * [skipCheer]. Without it the screen finishes at once.
+         * [skipCheer], and then [FirstSyncEvent.Cheered]. Without it the screen finishes at once
+         * ([FirstSyncEvent.Finished]).
          */
         private suspend fun finish(cheer: Boolean) {
             if (finished) return
@@ -182,7 +183,7 @@ internal class FirstSyncViewModel
             // Off the status pipeline, so the statuses that follow are still taken in while Stan cheers.
             viewModelScope.launch {
                 withTimeoutOrNull(CHEER_HOLD_MS) { skipped.await() }
-                results.send(FirstSyncEvent.Finished)
+                results.send(FirstSyncEvent.Cheered)
             }
         }
 

@@ -33,8 +33,6 @@ import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.Choice
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.choicesOf
-import tv.stationbreak.feature.channels.lockOf
-import tv.stationbreak.feature.channels.swapLockOf
 
 /** The dialog over the list: [ui]'s panel, or the reset question. */
 @Composable
@@ -108,7 +106,6 @@ private fun ColumnScope.ChoiceList(
     ui: ChannelsUi,
     panel: ChannelsPanel?,
 ) {
-    val row = ui.rows.firstOrNull { it.id == panel?.id }
     // The panel is held to the screen (see panelMaxHeight), so a long list of choices scrolls inside it, the
     // focused one kept in view; the title above it stays.
     // At least one row tall, so a large font scale cannot squeeze it to nothing.
@@ -126,7 +123,7 @@ private fun ColumnScope.ChoiceList(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         choicesOf(ui).forEachIndexed { i, choice ->
-            ChoiceRow(choice, panel, focused = i == ui.choice, locked = isLocked(choice, row, ui))
+            ChoiceRow(choice, panel, focused = i == ui.choice)
         }
     }
 }
@@ -143,10 +140,9 @@ private fun ChoiceRow(
     choice: Choice,
     panel: ChannelsPanel?,
     focused: Boolean,
-    locked: Boolean,
 ) {
     Text(
-        labelOf(choice, panel, locked),
+        labelOf(choice, panel),
         Modifier
             .fillMaxWidth()
             .scrollIntoViewWhen(focused)
@@ -158,31 +154,9 @@ private fun ChoiceRow(
     )
 }
 
-/** Whether [choice] on [row] carries the Pro mark (#793): see [lockOf]. */
-internal fun isLocked(
-    choice: Choice,
-    row: ChannelRow?,
-    ui: ChannelsUi,
-): Boolean =
-    if (choice == Choice.Confirm) {
-        swapLockOf(ui) != null
-    } else {
-        row != null && lockOf(choice, row, ui.isPro, ui.canAddCustom) != null
-    }
-
-/** The choice's words; a marked one (#793) ends with the Pro mark and shows a note when picked instead of acting. */
+/** The choice's words. */
 @Composable
 internal fun labelOf(
-    choice: Choice,
-    panel: ChannelsPanel?,
-    locked: Boolean = false,
-): String {
-    val label = plainLabelOf(choice, panel)
-    return if (locked) stringResource(R.string.pro_marked_label, label) else label
-}
-
-@Composable
-private fun plainLabelOf(
     choice: Choice,
     panel: ChannelsPanel?,
 ): String =
