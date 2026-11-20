@@ -6,16 +6,14 @@ file anywhere in the repo is missing from the manifest. Fonts are found by exten
 `.woff2`) anywhere under a module's `src/`; licence files are only checked under `assets/**/licenses/`. Dot-folders,
 `build/` and nested checkouts are skipped.
 
-## Archivo Black and Space Mono
+## Space Mono
 
 - Upstream repository: `github.com/google/fonts`, pinned commit `e7db6ca603fd4862010383ff17ffd6cc4ffac1c0`.
 - Licence (all bundled fonts): SIL Open Font License 1.1. The texts ship in `src/main/assets/licenses/`.
 
 | Bundled file | Upstream path |
 |---|---|
-| `src/main/res/font/archivo_black.ttf` | `ofl/archivoblack/ArchivoBlack-Regular.ttf` |
 | `src/main/res/font/space_mono_bold.ttf` | `ofl/spacemono/SpaceMono-Bold.ttf` |
-| `src/main/assets/licenses/OFL-ArchivoBlack.txt` | `ofl/archivoblack/OFL.txt` |
 | `src/main/assets/licenses/OFL-SpaceMono.txt` | `ofl/spacemono/OFL.txt` |
 
 ## Manrope
@@ -24,7 +22,7 @@ Manrope is the guide face. Upstream repository: `github.com/googlefonts/manrope`
 `6f81ebecdf65e4463b798cc07b16a4f8d5216917`. That is the source google/fonts records for Manrope in
 `ofl/manrope/METADATA.pb` at the pinned google/fonts commit above. The bundled files are the upstream static TTFs,
 fetched from `raw.githubusercontent.com` at that commit only. Copyright 2018 The Manrope Project Authors. Nothing is
-fetched at runtime. Live TV keeps Archivo Black and Space Mono.
+fetched at runtime. Live TV keeps Space Mono.
 
 | Bundled file | Upstream path (googlefonts/manrope at the pinned commit) |
 |---|---|
@@ -36,11 +34,6 @@ fetched at runtime. Live TV keeps Archivo Black and Space Mono.
 
 Tabular figures (times, ranges, the clock, channel numbers) come from the OpenType `tnum` feature in these same files,
 set with `fontFeatureSettings = "tnum"`. There is no separate tabular cut and no variable font.
-
-`OFL-ArchivoBlack.txt` is CRLF upstream (sha256 `3173acd82f8c6159b5b1037b539fcbd4edff68e65c2ea8b9412b5a5ca97b08ff`)
-and is stored with LF line endings by `.gitattributes` (sha256
-`4eb085b4f06e3c1625d8b577902bf639d480633635837bf2ed94d1a7b1b842f5`, the value in `fonts.sha256`). The text is
-otherwise byte-identical to upstream.
 
 ## Ranchers
 
@@ -65,7 +58,7 @@ Fonts load only from the APK. Never from the server, the network or user content
 
 ## Updating
 
-1. Pick a new `google/fonts` commit and fetch the Archivo Black and Space Mono files above from
+1. Pick a new `google/fonts` commit and fetch the Space Mono files above from
    `raw.githubusercontent.com` at that commit only.
 2. For Manrope, read `ofl/manrope/METADATA.pb` at that google/fonts commit; its `source` block names the
    googlefonts/manrope repository and commit. Fetch the four `fonts/ttf/manrope-*.ttf` files from
@@ -76,7 +69,7 @@ Fonts load only from the APK. Never from the server, the network or user content
 3. Compare the hashes with the old ones and review what changed; replace the OFL texts too.
 4. Update `fonts.sha256` and the commits above in this file, and record the commits and hashes in the commit message.
 5. Ranchers is pinned to its own `google/fonts` commit (see its section above) and does not move with the pin used
-   for Archivo Black and Space Mono: bump it on its own, only when the brand face itself changes. Fetch
+   for Space Mono: bump it on its own, only when the brand face itself changes. Fetch
    `ofl/ranchers/Ranchers-Regular.ttf` and `ofl/ranchers/OFL.txt` from `raw.githubusercontent.com` at that commit only.
-   The OFL text is CRLF upstream and stored as LF, so re-hash the stored file (as for Archivo Black) and record both
+   The OFL text is CRLF upstream and stored as LF, so re-hash the stored file (as for the other OFL texts) and record both
    hashes in its section.
