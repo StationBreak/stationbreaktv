@@ -103,3 +103,19 @@ The live screen now draws the player's caption cues with `androidx.media3:media3
 The station screens' sign-off now uses Ranchers, so Archivo Black had no use left in the app. The font file, its
 `OFL-ArchivoBlack.txt` and its hash in `core/ui/fonts.sha256` are removed. The 2026-10-23 rule above still holds for the
 fonts that remain; `core/ui/FONTS.md` lists them.
+
+## Update 2026-11-20: the channel marks are redrawn
+
+The 97 generated typographic marks of the 2026-11-08 update are replaced by 97 new marks, each a flat picture plus the
+channel's name. They were designed in the StationBreak brand session under the owner's direction, with AI assistance,
+and are drawn as code in `scripts/channelmarks/v2/`. `brands.py`, `brands.json` and their output are removed. The marks
+are project art under the same owner decision and licence as before (GPL-3.0-or-later WITH
+AdditionRef-StationBreak-AppStore).
+
+- **Typefaces.** The lettering is still outlined type, so no font software ships in the APK. Six faces were added for
+  the generator, each cleared by the owner and kept with its licence text in `scripts/channelmarks/v2/fonts/`: Corben,
+  Limelight, Rye, Shrikhand and Stardos Stencil (SIL OFL 1.1) and Yellowtail (Apache 2.0). The shared faces stay in
+  `scripts/channelmarks/fonts/` (SIL OFL 1.1 or Apache 2.0, licences beside them); the two Barlow Condensed weights no
+  mark uses are removed.
+- **Where things are.** The pipeline, provenance and how to refresh it are in `core/ui/CHANNELMARKS.md`; the rules the
+  marks follow are in `docs/design/channel-identity.md`; the file hashes are in `core/ui/channelmarks.sha256`.

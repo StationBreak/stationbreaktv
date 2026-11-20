@@ -28,6 +28,10 @@ keystore.properties
 # Python bytecode
 __pycache__/
 
+# Channel mark masters: the generator writes them; only its contact sheet is committed (scripts/channelmarks/v2/README.md).
+/scripts/channelmarks/v2/out/svg/
+/scripts/channelmarks/v2/out/svg-mono/
+
 # The lineup audit exporter's output (tools/audit-export). A snapshot holds titles. It is written outside the repository
 # by design; these patterns keep one that was copied in by hand out of a commit.
 /audit-snapshots/

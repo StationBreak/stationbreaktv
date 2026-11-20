@@ -233,7 +233,7 @@ StationBreak is flat. Depth is a tonal step (ink, then panel), a 1dp line, and d
 
 ## Shapes
 
-Corners are soft on Stan and nearly square on the listings. Stan's cabinet is 4 wide by 3 high with soft corners; his limbs are single round-ended lines and his hands are dots. In the guide and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, the drawn focus ring 4dp, and the OK key cap is the one circle. Channel marks are flat colour on transparent in a 50×28dp box: no tile, border or shadow.
+Corners are soft on Stan and nearly square on the listings. Stan's cabinet is 4 wide by 3 high with soft corners; his limbs are single round-ended lines and his hands are dots. In the guide and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, the drawn focus ring 4dp, and the OK key cap is the one circle. Channel marks are a flat picture plus the channel's name in its own colours, flat colour on transparent in a 50×28dp box: no tile, border, shadow or gradient. Their rules are in `docs/design/channel-identity.md`.
 
 ## Components
 
