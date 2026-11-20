@@ -233,7 +233,7 @@ StationBreak is flat. Depth is a tonal step (ink, then panel), a 1dp line, and d
 
 ## Shapes
 
-Corners are soft on Stan and nearly square on the listings. Stan's cabinet is 4 wide by 3 high with soft corners; his limbs are single round-ended lines and his hands are dots. In the guide and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, the drawn focus ring 4dp, and the OK key cap is the one circle. Channel marks are flat colour on transparent in a 50×28dp box: no tile, border or shadow.
+Corners are soft on Stan and nearly square on the listings. Stan's cabinet is 4 wide by 3 high with soft corners; his limbs are single round-ended lines and his hands are dots. In the guide and on banner-family surfaces the radius is at most 2dp. Key caps and sheet actions take 3dp, the drawn focus ring 4dp, and the OK key cap is the one circle. Channel marks are a flat picture plus the channel's name in its own colours, flat colour on transparent in a 50×28dp box: no tile, border, shadow or gradient. Their rules are in `docs/design/channel-identity.md`.
 
 ## Components
 
@@ -291,6 +291,5 @@ These tokens and components are the brand's target. The app reaches them in step
 - **Light:** no longer behind. The guide's Light theme is the brand's paper mode (see Light mode above).
 - **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
 - **Faces:** done. The station screens' sign-off is Ranchers, as the Name line says. Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
-- **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`.
 - **Station screens:** done. Stan's station screens are the default; snow stays as an opt-in channel change through the Changing channel setting (Stan or Snow, Stan by default) in the guide's Settings.
 - **Words:** done. "Sync now" is "Update library", setup and loading lines say what is happening ("Asking your server for your library…", "Getting the listings…", "Tuning in…"), and the app keeps one term per idea (The One Term Rule).
