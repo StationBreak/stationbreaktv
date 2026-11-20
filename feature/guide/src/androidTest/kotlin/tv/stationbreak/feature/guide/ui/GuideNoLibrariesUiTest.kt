@@ -17,8 +17,14 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -34,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,8 +86,8 @@ private object StillLineup : ChannelRepository {
 
 /**
  * The guide with every chosen library gone (spec 26), over the real screen and real key events: the line where the grid
- * goes, the menu row on Settings, the Settings panel's Libraries row, the Libraries slot over the guide, and the Sync
- * now row below Libraries (Part 5).
+ * goes, the menu row on Settings, and the Settings sheet (#336): its choice rows changed in place, the Libraries slot
+ * over the guide, the Update library row below Libraries (Part 5), and the sign-out slot over the sheet.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideNoLibrariesUiTest {
@@ -98,9 +105,12 @@ class GuideNoLibrariesUiTest {
     private val levelling = mutableStateOf(true)
     private lateinit var vm: GuideViewModel
 
-    // The way out the slot was given, and the keys that got past the guide to its host.
+    // The ways out the slots were given, and the keys that got past the guide to its host.
     @Volatile
     private var done: (() -> Unit)? = null
+
+    @Volatile
+    private var stayed: (() -> Unit)? = null
     private val hostKeys = CopyOnWriteArrayList<Key>()
     private val guideOpenedAt = System.nanoTime()
 
@@ -134,6 +144,7 @@ class GuideNoLibrariesUiTest {
                         onTune = {},
                         channels = { _, _, _, _ -> },
                         libraries = { _, onDone -> Slot(onDone) },
+                        signOut = { onDone -> SignOutSlot(onDone) },
                         levelling = levelling.value,
                         onLevelling = { enabled, _ -> levelling.value = enabled },
                     )
@@ -152,6 +163,13 @@ class GuideNoLibrariesUiTest {
         Box(Modifier.fillMaxSize().testTag(SLOT))
     }
 
+    // The sign-out question, standing in for feature:settings': it never takes the key focus either.
+    @Composable
+    private fun SignOutSlot(onDone: () -> Unit) {
+        LaunchedEffect(Unit) { stayed = onDone }
+        Box(Modifier.fillMaxSize().testTag(SIGN_OUT_SLOT))
+    }
+
     @After
     fun tearDown() {
         if (::vm.isInitialized) vm.close()
@@ -168,6 +186,25 @@ class GuideNoLibrariesUiTest {
         compose.waitUntil(TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assertIsSelected() }.isSuccess }
     }
 
+    // The value a choice row says it holds, as a screen reader is told it.
+    private fun awaitValue(
+        tag: String,
+        value: String,
+    ) {
+        val says = SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, value)
+        compose.waitUntil(TIMEOUT_MS) { runCatching { compose.onNodeWithTag(tag).assert(says) }.isSuccess }
+    }
+
+    private fun openSettings() {
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) {
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isNotEmpty()
+        }
+        awaitSelected(GuideTags.SETTINGS_APPEARANCE)
+    }
+
+    private fun sheetOpen() = compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isNotEmpty()
+
     @Test
     fun goneSelection_lineShows_settingsOpensLibraries_slotCoversTheGuide_doneReturnsToThePanel() {
         showGone()
@@ -177,14 +214,13 @@ class GuideNoLibrariesUiTest {
         compose.onNodeWithTag(GuideTags.GRID).assertDoesNotExist()
         awaitSelected(GuideTags.SETTINGS_BUTTON)
 
-        // Select opens the panel; Down is its Screen fit row (Safe chosen, the default), and Down again Libraries.
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
-        }
+        // Select opens the sheet on Appearance; Down is its Screen fit row (Safe, the default), and Libraries is past
+        // When changing channel and Even out volume.
+        openSettings()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
-        awaitSelected(GuideTags.FIT_SAFE)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        awaitSelected(GuideTags.SETTINGS_SCREEN_FIT)
+        awaitValue(GuideTags.SETTINGS_SCREEN_FIT, "Safe")
+        repeat(ROWS_TO_LIBRARIES - 1) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
 
         // Select draws the slot over the guide, which leaves the semantics tree.
@@ -193,7 +229,7 @@ class GuideNoLibrariesUiTest {
         compose.onNodeWithTag(SLOT).assertExists()
         compose.onNodeWithTag(GuideTags.SCREEN, useUnmergedTree = true).assertDoesNotExist()
 
-        // Keys while the slot covers the guide: none moves the guide or the panel, and none gets past the guide.
+        // Keys while the slot covers the guide: none moves the guide or the sheet, and none gets past the guide.
         hostKeys.clear()
         for (key in listOf(
             KeyEvent.KEYCODE_DPAD_UP,
@@ -207,15 +243,15 @@ class GuideNoLibrariesUiTest {
         assertEquals(GuideMenuEntry.Settings, vm.snapshot.value.menu)
         compose.onNodeWithTag(SLOT).assertExists()
 
-        // The slot's onDone brings the panel back, still on Libraries, with the line where the grid goes.
+        // The slot's onDone brings the sheet back, still on Libraries, with the line where the grid goes.
         compose.runOnUiThread { done?.invoke() }
         compose.waitForIdle()
         compose.onNodeWithTag(SLOT).assertDoesNotExist()
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
         compose.onNodeWithTag(GuideTags.NO_LIBRARIES).assertExists()
 
-        // Down is Sync now. Select starts one sync, the panel stays open, and the line beside the row says it is
-        // syncing; a held Select starts no other.
+        // Down is Update library. Select starts one update, the sheet stays open, and the line under the row says it
+        // is updating; a held Select starts no other.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -230,39 +266,113 @@ class GuideNoLibrariesUiTest {
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
     }
 
-    // Even out volume (#498), the row before Changing channel: Left and Right pick Off and On,
-    // and the setting the host holds follows. Select closes the panel keeping the pick, as the other choice rows do.
+    // A choice row (#336): Left and Right change its value in place, OK moves it on to the next one, and none of them
+    // closes the sheet; the setting the host holds follows. Back closes the sheet.
     @Test
-    fun evenOutVolumeRow_leftRightPickAndSelectClosesKeepingThePick() {
+    fun evenOutVolumeRow_changesInPlace_okMovesItOn_andOnlyBackCloses() {
         showGone()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
-        }
-        // Screen fit, Libraries, Sync now, then Even out volume (Changing channel is below it now).
+        openSettings()
         repeat(ROWS_TO_LEVELLING) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        awaitSelected(GuideTags.SETTINGS_LEVELLING)
         // On is the default.
-        awaitSelected(GuideTags.LEVELLING_ON)
-        compose.onNodeWithTag(GuideTags.LEVELLING_OFF).assertIsNotSelected()
+        awaitValue(GuideTags.SETTINGS_LEVELLING, "On")
         assertEquals(true, levelling.value)
 
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        awaitSelected(GuideTags.LEVELLING_OFF)
-        compose.onNodeWithTag(GuideTags.LEVELLING_ON).assertIsNotSelected()
+        awaitValue(GuideTags.SETTINGS_LEVELLING, "Off")
         assertEquals(false, levelling.value)
-
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        awaitSelected(GuideTags.LEVELLING_ON)
+        awaitValue(GuideTags.SETTINGS_LEVELLING, "On")
         assertEquals(true, levelling.value)
 
-        // Select on Off closes the panel and keeps Off: it does not flip it.
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        awaitSelected(GuideTags.LEVELLING_OFF)
+        // OK flips it, and flips it back: the sheet stays open, on the row.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isEmpty()
-        }
+        awaitValue(GuideTags.SETTINGS_LEVELLING, "Off")
         assertEquals(false, levelling.value)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitValue(GuideTags.SETTINGS_LEVELLING, "On")
+        assertEquals(true, levelling.value)
+        assertTrue("OK closed the sheet", sheetOpen())
+        awaitSelected(GuideTags.SETTINGS_LEVELLING)
+
+        // Back closes it, keeping the value, and the menu sheet is back on Settings.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(TIMEOUT_MS) { !sheetOpen() }
+        assertEquals(true, levelling.value)
+        awaitSelected(GuideTags.SETTINGS_BUTTON)
+    }
+
+    // What a screen reader is told (#336): one node a row; a choice says its value as its state and has no button role,
+    // a link and an action are buttons, and only the row under the D-pad is selected. The flags are headings.
+    @Test
+    fun theSheetsRowsSayWhatTheyAre() {
+        showGone()
+        openSettings()
+        val button = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+        val noRole = SemanticsMatcher.keyNotDefined(SemanticsProperties.Role)
+        val choices =
+            mapOf(
+                GuideTags.SETTINGS_APPEARANCE to ("Appearance" to "Dark"),
+                GuideTags.SETTINGS_SCREEN_FIT to ("Screen fit" to "Safe"),
+                GuideTags.SETTINGS_CHANNEL_CHANGE to ("When changing channel" to "Stand-by card"),
+                GuideTags.SETTINGS_LEVELLING to ("Even out volume" to "On"),
+            )
+        for ((tag, labelAndValue) in choices) {
+            compose
+                .onNodeWithTag(tag)
+                .assertContentDescriptionEquals(labelAndValue.first)
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, labelAndValue.second))
+                .assert(noRole)
+        }
+        val actions =
+            mapOf(
+                GuideTags.SETTINGS_LIBRARIES to "Libraries",
+                GuideTags.SETTINGS_SYNC_NOW to "Update library",
+                GuideTags.SETTINGS_SIGN_OUT to "Sign out",
+            )
+        for ((tag, label) in actions) {
+            compose
+                .onNodeWithTag(tag)
+                .assertContentDescriptionEquals(label)
+                .assert(button)
+                .assertIsNotSelected()
+        }
+        compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsSelected()
+        for (tag in (choices.keys - GuideTags.SETTINGS_APPEARANCE)) compose.onNodeWithTag(tag).assertIsNotSelected()
+        val heading = SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)
+        compose.onNodeWithTag(GuideTags.SETTINGS_TITLE).assert(heading)
+
+        // The hint row says what the keys do on the row: a choice, then a link.
+        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("◂ ▸ Change   OK Next   Back Close")
+        repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        awaitSelected(GuideTags.SETTINGS_LIBRARIES)
+        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Open   Back Close")
+        compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsNotSelected()
+    }
+
+    // Sign out (#336) asks first: OK on its row shows the sign-out slot over the sheet, which holds every key, and
+    // staying brings the sheet back on Sign out.
+    @Test
+    fun signOutRow_showsTheQuestionOverTheSheet_andStayingReturnsToIt() {
+        showGone()
+        openSettings()
+        repeat(SettingsRow.entries.size) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        awaitSelected(GuideTags.SETTINGS_SIGN_OUT)
+        compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Choose   Back Close")
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(TIMEOUT_MS) { stayed != null }
+        compose.onNodeWithTag(SIGN_OUT_SLOT).assertExists()
+
+        hostKeys.clear()
+        for (key in listOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_BACK)) press(key)
+        assertEquals("keys that got past the guide", emptyList<Key>(), hostKeys.toList())
+        compose.onNodeWithTag(SIGN_OUT_SLOT).assertExists()
+
+        compose.runOnUiThread { stayed?.invoke() }
+        compose.waitForIdle()
+        compose.onNodeWithTag(SIGN_OUT_SLOT).assertDoesNotExist()
+        awaitSelected(GuideTags.SETTINGS_SIGN_OUT)
     }
 
     private fun summary(
@@ -282,7 +392,7 @@ class GuideNoLibrariesUiTest {
     )
 
     // The Libraries screen hides the guide: a lineup change under it reloads nothing until it closes, then once, and
-    // the panel is left open on Settings.
+    // the sheet is left open on Libraries.
     @Test
     fun librariesSlot_pausesTheGuide_andOneReloadFollowsItsClosing() {
         val lineup = MutableStateFlow(listOf(summary(CH5, 5), summary(CH7, 7)))
@@ -293,12 +403,8 @@ class GuideNoLibrariesUiTest {
                 override fun activeChannels(): Flow<List<ChannelSummary>> = lineup
             },
         )
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.SETTINGS_LIBRARIES).fetchSemanticsNodes().isNotEmpty()
-        }
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        openSettings()
+        repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_LIBRARIES)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) { done != null }
@@ -326,12 +432,14 @@ class GuideNoLibrariesUiTest {
     private companion object {
         const val SETTLE_MS = 500L
         const val SLOT = "test:librariesSlot"
+        const val SIGN_OUT_SLOT = "test:signOutSlot"
         const val WIDTH_DP = 960
         const val HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
 
-        // Down presses from Appearance to the Even out volume row: Screen fit, Libraries, Sync now, it.
-        const val ROWS_TO_LEVELLING = 4
+        // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries.
+        const val ROWS_TO_LEVELLING = 3
+        const val ROWS_TO_LIBRARIES = 4
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

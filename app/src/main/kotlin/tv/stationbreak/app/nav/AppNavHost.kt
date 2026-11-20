@@ -51,6 +51,7 @@ import tv.stationbreak.feature.onboarding.libraries.SignedInDestination
 import tv.stationbreak.feature.onboarding.server.ServerDestination
 import tv.stationbreak.feature.onboarding.signin.SignInDestination
 import tv.stationbreak.feature.onboarding.welcome.WelcomeDestination
+import tv.stationbreak.feature.settings.ui.SignOutDestination
 import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibrariesDestination
 
 /**
@@ -309,7 +310,7 @@ private fun AppNavHostContent(
                     // The guide is drawn by live TV, over its picture (spec 17); a feature never depends on another, so
                     // the graph hands it over. Live says where its picture is; the guide leaves that hole clear.
                     guide = { opening, pictureHole, onTune ->
-                        // A sign-out from Settings, Libraries (#336): the server screen, to choose a server again.
+                        // A sign-out from the guide's Settings (#336): the server screen, to choose a server again.
                         GuideWithChannels(opening, pictureHole, onTune) { navController.afterSignOut() }
                     },
                 )
@@ -319,8 +320,8 @@ private fun AppNavHostContent(
 }
 
 /**
- * The guide, with channel management (spec 21), a channel's properties sheet (#631) and Settings, Libraries (spec 26)
- * as its slots, filled here because a feature never depends on another.
+ * The guide, with channel management (spec 21), a channel's properties sheet (#631), Settings, Libraries (spec 26) and
+ * the sign-out question (#336) as its slots, filled here because a feature never depends on another.
  */
 @Composable
 private fun GuideWithChannels(
@@ -337,12 +338,13 @@ private fun GuideWithChannels(
         properties = { channel, current, opened, hole, onDone ->
             ChannelPropertiesDestination(channel, current, opened, hole, onDone)
         },
-        libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone, onSignedOut) },
+        libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone) },
+        signOut = { onDone -> SignOutDestination(onDone, onSignedOut) },
     )
 }
 
 /**
- * Where a sign-out from Settings, Libraries goes (#336, #864): the server screen, alone on the stack, showing the
+ * Where a sign-out from the guide's Settings goes (#336, #864): the server screen, alone on the stack, showing the
  * stored address. The viewer can change server or Continue to sign in on the same one; Back leaves the app. Not
  * launch routing, which would skip straight to sign-in for the stored server.
  */

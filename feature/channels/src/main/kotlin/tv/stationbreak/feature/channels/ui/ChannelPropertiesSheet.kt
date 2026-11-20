@@ -45,6 +45,7 @@ import tv.stationbreak.core.ui.HoldingsTags
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenLayout
 import tv.stationbreak.core.ui.panelFocus
+import tv.stationbreak.core.ui.scrollEdgeFade
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsUi

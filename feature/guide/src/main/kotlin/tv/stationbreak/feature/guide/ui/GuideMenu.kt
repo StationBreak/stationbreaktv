@@ -22,9 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -34,13 +31,11 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.core.ui.panelFocus
@@ -48,10 +43,6 @@ import tv.stationbreak.feature.guide.GuideMenuEntry
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.R
 import tv.stationbreak.feature.guide.aboutRow
-
-private val UnderlineGap = 4.dp
-private val UnderlineHeight = 1.dp
-private val FocusUnderlineHeight = 2.dp
 
 /** The menu sheet's measures (#756): a left-edge sheet 220 dp wide, full height, with rows 36 dp tall. */
 internal val MenuSheetWidth = 220.dp
@@ -186,38 +177,3 @@ private fun MenuRow(
         overflow = TextOverflow.Ellipsis,
     )
 }
-
-/** How a tab is drawn: its text colour, and its underline (null for none) and the underline's thickness. */
-internal data class TabLook(
-    val text: Color,
-    val underline: Color?,
-    val thickness: Dp,
-)
-
-/**
- * Three states, told apart by the underline: focused (the guide's focus is on the tab) is primary text over a 2 dp
- * accent line; selected (Channels while the focus is on the grid) is primary text over a 1 dp quiet line; any other
- * tab is secondary text with none. The accent line is the D-pad focus, the one thing the accent says on this row.
- */
-internal fun tabLook(
-    focused: Boolean,
-    selected: Boolean,
-    colors: GuideColors,
-): TabLook =
-    when {
-        focused -> TabLook(colors.textPrimary, colors.accent, FocusUnderlineHeight)
-        selected -> TabLook(colors.textPrimary, colors.line, UnderlineHeight)
-        else -> TabLook(colors.textSecondary, null, UnderlineHeight)
-    }
-
-/** A rule 4 dp under the text, the width of the text, [thickness] thick, when [color] is not null. Reserves 2 dp. */
-internal fun Modifier.underline(
-    color: Color?,
-    thickness: Dp = UnderlineHeight,
-): Modifier =
-    padding(bottom = UnderlineGap + FocusUnderlineHeight).drawBehind {
-        if (color != null) {
-            val top = size.height + UnderlineGap.toPx()
-            drawRect(color, Offset(0f, top), Size(size.width, thickness.toPx()))
-        }
-    }

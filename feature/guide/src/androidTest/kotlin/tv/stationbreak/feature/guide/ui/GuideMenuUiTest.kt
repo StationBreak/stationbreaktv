@@ -400,20 +400,20 @@ class GuideMenuUiTest {
     }
 
     @Test
-    fun selectOnSettingsOpensThePanelAndBackReturnsToTheSheetOnSettings() {
+    fun selectOnSettingsOpensTheSettingsSheetAndBackReturnsToTheMenuSheetOnSettings() {
         showReady()
         press(Key.Menu)
         press(Key.DirectionDown)
         settings().assertIsSelected()
         press(Key.DirectionCenter)
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isNotEmpty()
         }
-        // The panel is not read under the sheet: the sheet steps aside while it shows.
+        // The menu sheet steps aside for the Settings sheet, which stands in its place.
         sheet().assertDoesNotExist()
         back()
         compose.waitUntil(TIMEOUT_MS) {
-            compose.onAllNodesWithTag(GuideTags.THEME_DARK).fetchSemanticsNodes().isEmpty()
+            compose.onAllNodesWithTag(GuideTags.SETTINGS_SHEET).fetchSemanticsNodes().isEmpty()
         }
         sheet().assertExists()
         settings().assertIsSelected()

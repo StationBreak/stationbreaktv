@@ -70,31 +70,49 @@ object GuideTags {
     /** The Channels row of the menu sheet. */
     const val CHANNELS_BUTTON = "guide:channelsButton"
 
-    /** The Settings row of the menu sheet: the guide's Dark and Light choice. */
+    /** The Settings row of the menu sheet: opens the Settings sheet in its place. */
     const val SETTINGS_BUTTON = "guide:settingsButton"
 
-    /** The Dark and Light choices of the Settings panel's Appearance row. */
-    const val THEME_DARK = "guide:theme:dark"
-    const val THEME_LIGHT = "guide:theme:light"
+    /** The Settings sheet (its scrim and sheet), its title, and its hint row. */
+    const val SETTINGS_SHEET = "guide:settings"
+    const val SETTINGS_TITLE = "guide:settings:title"
+    const val SETTINGS_HINT = "guide:settings:hint"
 
-    /** The Safe and Edge choices of the Settings panel's Screen fit row. */
-    const val FIT_SAFE = "guide:fit:safe"
-    const val FIT_EDGE = "guide:fit:edge"
+    /** The Settings sheet's choice rows: Appearance, Screen fit, When changing channel and Even out volume (#498). */
+    const val SETTINGS_APPEARANCE = "guide:settings:appearance"
+    const val SETTINGS_SCREEN_FIT = "guide:settings:screenFit"
+    const val SETTINGS_CHANNEL_CHANGE = "guide:settings:channelChange"
+    const val SETTINGS_LEVELLING = "guide:settings:levelling"
 
-    /** The Off and On choices of the Settings panel's Even out volume row (#498). */
-    const val LEVELLING_OFF = "guide:levelling:off"
-    const val LEVELLING_ON = "guide:levelling:on"
-    const val CHANNEL_CHANGE_STAN = "guide:channelChange:stan"
-    const val CHANNEL_CHANGE_SNOW = "guide:channelChange:snow"
-
-    /** The Libraries row of the Settings panel: Select shows Settings, Libraries (spec 26). */
+    /** The Libraries row of the Settings sheet: OK shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 
-    /** The Sync now row of the Settings panel: Select syncs with the server now (spec 26). */
+    /** The Update library row of the Settings sheet: OK updates the library now (spec 26). */
     const val SETTINGS_SYNC_NOW = "guide:settings:syncNow"
 
-    /** The line beside Sync now: syncing, when it last synced, or why it failed. */
+    /** The line under Update library: updating, when it last updated, or why it failed. */
     const val SETTINGS_SYNC_STATUS = "guide:settings:syncStatus"
+
+    /** The Sign out row of the Settings sheet: OK asks whether to sign out of this TV (#336). */
+    const val SETTINGS_SIGN_OUT = "guide:settings:signOut"
+
+    /** The tag of the Settings sheet's [row]. */
+    internal fun settingsRow(row: SettingsRow): String =
+        when (row) {
+            SettingsRow.Appearance -> SETTINGS_APPEARANCE
+            SettingsRow.ScreenFit -> SETTINGS_SCREEN_FIT
+            SettingsRow.ChannelChange -> SETTINGS_CHANNEL_CHANGE
+            SettingsRow.VolumeLevelling -> SETTINGS_LEVELLING
+            SettingsRow.Libraries -> SETTINGS_LIBRARIES
+            SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
+            SettingsRow.SignOut -> SETTINGS_SIGN_OUT
+        }
+
+    /** The value a choice [row] shows on its right. */
+    internal fun settingsValue(row: SettingsRow): String = settingsRow(row) + ":value"
+
+    /** The flag over the Settings sheet's [group]. */
+    internal fun settingsFlag(group: SettingsGroup): String = "guide:settings:flag:${group.name.lowercase()}"
 
     /** The Exit row of the menu sheet. */
     const val EXIT_BUTTON = "guide:exitButton"

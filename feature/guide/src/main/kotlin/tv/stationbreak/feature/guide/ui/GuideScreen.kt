@@ -3,24 +3,17 @@ package tv.stationbreak.feature.guide.ui
 
 import android.util.Log
 import androidx.annotation.StringRes
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -47,9 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.DpSize
@@ -61,8 +52,8 @@ import androidx.tv.material3.Text
 import kotlinx.coroutines.flow.StateFlow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.GuideColors
+import tv.stationbreak.core.ui.KeyHint
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenFit
@@ -98,12 +89,6 @@ internal val TopGap = 4.dp
 internal val HintGap = 4.dp
 internal val HintHeight = 20.dp
 private val HintPairGap = 20.dp
-private val HintActionGap = 6.dp
-private val KeyHeight = 16.dp // a minimum: the key grows with the font, inside the 20 dp hint row
-private val KeyStroke = 1.dp
-private val KeyRadius = 3.dp
-private val KeyPadding = 6.dp
-private val KeyRoundPadding = 4.dp
 
 // The clear space between the panel's content and the picture's left edge: the panel is narrowed by it, the picture
 // does not move.
@@ -175,7 +160,7 @@ internal class GuideGeometry(
  * grid of [snapshot] below, and the hint row. The grid reads [snapshot] as one value, so a model and a focus from
  * different moments are never drawn together; each cell reads only whether it is the focused one, so a move recomposes
  * the two cells it touched and the panel. [info] is the overlay Select opened on a later program; the panel is not
- * shown under it.
+ * shown under it. While [settings] is open its sheet is drawn over the guide with [settingsValues] and [syncNow].
  */
 @Suppress("LongParameterList", "LongMethod") // The guide's flows, the overlay, the channel and the picture's hole.
 @Composable
@@ -185,11 +170,9 @@ internal fun GuideScreen(
     current: ChannelId?,
     pictureHole: DpRect,
     settings: SettingsPanel? = null,
-    themeChoice: GuideTheme = GuideTheme.Dark,
+    settingsValues: SettingsValues = SettingsValues(),
     modifier: Modifier = Modifier,
     syncNow: SyncNowState = SyncNowState.Idle,
-    levelling: Boolean = true,
-    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     channelBox: ChannelBoxReaders = ChannelBoxReaders(),
     onNarrowBreakBelow: (Long) -> Unit = {},
     firstVisitNote: Boolean = false,
@@ -240,20 +223,8 @@ internal fun GuideScreen(
             ) {
                 // The panel takes the whole band: the description has the lines the menu row used to take (#756).
                 val panelSize = Modifier.size(geometry.panelWidth, geometry.topHeight)
-                val kind = guidePanelOf(settings != null, noLibraries, onChannel, firstVisitNote)
-                val parts =
-                    TopPanelParts(
-                        panel,
-                        nowOf,
-                        snapshotOf,
-                        settings,
-                        themeChoice,
-                        fit,
-                        syncNow,
-                        levelling,
-                        channelChange,
-                        channelBox,
-                    )
+                val kind = guidePanelOf(noLibraries, onChannel, firstVisitNote)
+                val parts = TopPanelParts(panel, nowOf, snapshotOf, channelBox)
                 TopPanel(kind, parts, panelSize, current)
                 Spacer(Modifier.height(TopGap))
                 GuideBody(
@@ -267,6 +238,8 @@ internal fun GuideScreen(
                 HintRow(snapshotOf, current, geometry.narrowBreakBelowMs)
             }
             GuideMenuSheetHost(shown, settings == null, geometry.safe)
+            // The Settings sheet stands where the menu sheet that opened it stood.
+            settings?.let { GuideSettingsSheet(settingsValues, it.row, syncNow) }
         }
     }
 }
@@ -493,7 +466,6 @@ private fun HintRow(
             append("$back $exit")
             if (hasMenu) append("$HINT_SPACE$menuKey $openMenu")
         }
-    val actionStyle = guideText(10.sp, FontWeight.Normal)
     // Pairs in display order; a rank is how long a pair stays when they do not all fit (0 goes last): Menu goes first,
     // then the Left hint, then OK. The way out (Back) is the one thing no one would guess, so it is never dropped.
     val ranks = hintRanks(hasOk = action != null, hasLeft = toChannel, hasMenu = hasMenu)
@@ -507,58 +479,9 @@ private fun HintRow(
                 .testTag(GuideTags.HINT)
                 .clearAndSetSemantics { text = AnnotatedString(spoken) },
     ) {
-        if (action != null) HintPair(ok, action, actionStyle, round = true)
-        if (toChannel) HintPair(left, about, actionStyle, round = false)
-        HintPair(back, exit, actionStyle, round = false)
-        if (hasMenu) HintPair(menuKey, openMenu, actionStyle, round = false)
+        if (action != null) KeyHint(ok, action, round = true)
+        if (toChannel) KeyHint(left, about)
+        KeyHint(back, exit)
+        if (hasMenu) KeyHint(menuKey, openMenu)
     }
-}
-
-// One key and what it does: the unit the hint row keeps or drops whole (the Menu key, #756, is the first to go).
-@Composable
-private fun HintPair(
-    key: String,
-    action: String,
-    style: TextStyle,
-    round: Boolean,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        HintKey(key, round)
-        HintAction(action, style)
-    }
-}
-
-@Composable
-private fun HintAction(
-    text: String,
-    style: TextStyle,
-) = Text(
-    text = text,
-    modifier = Modifier.padding(start = HintActionGap),
-    style = style,
-    color = LocalGuideColors.current.textSecondary,
-    maxLines = 1,
-    overflow = TextOverflow.Ellipsis,
-)
-
-/** An outlined key cap: a 1 dp stroke at 28%, 3 dp corners, 16 dp tall at least (OK is a circle), 10 sp SemiBold. */
-@Composable
-private fun HintKey(
-    label: String,
-    round: Boolean,
-) {
-    val colors = LocalGuideColors.current
-    val shape = if (round) CircleShape else RoundedCornerShape(KeyRadius)
-    Text(
-        text = label,
-        modifier =
-            Modifier
-                .heightIn(min = KeyHeight)
-                .border(KeyStroke, colors.keyCapStroke, shape)
-                .padding(horizontal = if (round) KeyRoundPadding else KeyPadding)
-                .wrapContentHeight(Alignment.CenterVertically),
-        style = guideText(10.sp, FontWeight.SemiBold),
-        color = colors.textPrimary,
-        maxLines = 1,
-    )
 }

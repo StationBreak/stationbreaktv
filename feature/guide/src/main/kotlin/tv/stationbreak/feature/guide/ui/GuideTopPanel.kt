@@ -5,11 +5,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.StateFlow
-import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
 import tv.stationbreak.core.model.ChannelId
-import tv.stationbreak.core.ui.ChannelChangeStyle
-import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.CellDetails
 import tv.stationbreak.feature.guide.GuideSnapshot
 import tv.stationbreak.feature.guide.NoHoldings
@@ -23,9 +20,6 @@ internal enum class GuidePanelKind {
     /** Nothing, its place kept: no grid is shown. */
     Empty,
 
-    /** The Settings panel. */
-    Settings,
-
     /** The focused channel's. */
     Channel,
 
@@ -34,35 +28,26 @@ internal enum class GuidePanelKind {
 }
 
 /**
- * Which panel the top-left shows: Settings wins when it is open (its rows are reached with no libraries too); with no
- * libraries ([noLibraries], from the snapshot) no programme or channel is shown, as no grid is.
+ * Which panel the top-left shows: with no libraries ([noLibraries], from the snapshot) no programme or channel is
+ * shown, as no grid is. The Settings sheet is drawn over the guide, not here.
  */
 internal fun guidePanelOf(
-    settings: Boolean,
     noLibraries: Boolean,
     onChannel: Boolean,
     firstVisit: Boolean = false,
 ): GuidePanelKind =
     when {
         firstVisit -> GuidePanelKind.FirstVisit
-        settings -> GuidePanelKind.Settings
         noLibraries -> GuidePanelKind.Empty
         onChannel -> GuidePanelKind.Channel
         else -> GuidePanelKind.Details
     }
 
 /** What the panels read, as the guide's screen holds them. */
-@Suppress("LongParameterList") // One reader for each panel there is.
 internal class TopPanelParts(
     val panel: StateFlow<CellDetails?>,
     val nowOf: () -> Long?,
     val snapshotOf: () -> GuideSnapshot,
-    val settings: SettingsPanel?,
-    val themeChoice: GuideTheme,
-    val fit: ScreenFit,
-    val syncNow: SyncNowState,
-    val levelling: Boolean = true,
-    val channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     val channelBox: ChannelBoxReaders = ChannelBoxReaders(),
 )
 
@@ -90,19 +75,6 @@ internal fun TopPanel(
 
         GuidePanelKind.FirstVisit -> {
             FirstVisitNote(modifier)
-        }
-
-        GuidePanelKind.Settings -> {
-            val open = checkNotNull(parts.settings)
-            GuideSettingsPanel(
-                parts.themeChoice,
-                parts.fit,
-                open.row,
-                modifier,
-                parts.syncNow,
-                parts.levelling,
-                parts.channelChange,
-            )
         }
 
         GuidePanelKind.Channel -> {

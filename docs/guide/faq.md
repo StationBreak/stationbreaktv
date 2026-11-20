@@ -20,6 +20,15 @@ channel isn't on, for example that nothing in your libraries fits it.
 The app reads the libraries again by itself. To read them now, choose **Settings → Update library** in the guide. Some
 lineup changes start with the next day's schedule at 6 AM.
 
+**How do I sign out, or change server?**
+In the guide, open the menu and choose **Settings → Sign out**. The app asks first, with **Stay signed in** chosen, so
+pressing OK by accident keeps you signed in. Choose **Sign out** to sign out of this TV. You'll need to sign in again on
+this TV, and you can pick another server then.
+
+**What does "When changing channel" do?**
+It chooses what shows for the moment a channel takes to tune in: the station's **Stand-by card** (the default) or
+**Static**, like an old TV. It's in **Settings** in the guide.
+
 **My server uses a self-signed certificate. Can I still use https?**
 Yes. The app shows the certificate's fingerprint and asks whether to trust it. See
 [Certificates and http](certificates.md).

@@ -1,79 +1,98 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import android.text.format.DateFormat
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.ui.ChannelChangeStyle
-import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
-import tv.stationbreak.core.ui.guideProse
-import tv.stationbreak.core.ui.guideText
-import tv.stationbreak.feature.guide.GuideDirection
+import tv.stationbreak.core.ui.remoteKeyOf
+import tv.stationbreak.core.ui.remoteKeyToAct
 import tv.stationbreak.feature.guide.R
-import java.util.Date
 
-/** The rows of the guide's Settings panel, top to bottom. */
-internal enum class SettingsRow {
-    /** Dark and Light: Left and Right pick one. */
-    Appearance,
+/** What a Settings row is: a value to change, a way to another screen, or something to do. */
+internal enum class RowKind {
+    /** Its value shows on the right; Left and Right change it, and OK moves it on to the next one. */
+    Choice,
 
-    /** Safe and Edge (how far in from the screen's edge text keeps): Left and Right pick one. */
-    ScreenFit,
+    /** Opens another screen over the guide; drawn with a chevron. */
+    Link,
 
-    /** Select shows Settings, Libraries (spec 26) over the guide. */
-    Libraries,
-
-    /** Select syncs with the server now (spec 26, Part 5); the line beside it says how that stands. */
-    SyncNow,
-
-    /** Off and On (volume levelling, #498): Left and Right pick one; Select closes the panel keeping the pick. */
-    VolumeLevelling,
-
-    /** Stan and Snow (what shows while the channel changes): Left and Right pick one; Select closes the panel. */
-    ChannelChange,
+    /** Does something at once (or asks first); drawn with an OK key cap. */
+    Action,
 }
 
+/** The rows of the guide's Settings sheet, top to bottom, with what each [kind] is and its [label]. */
+internal enum class SettingsRow(
+    val kind: RowKind,
+    @param:StringRes val label: Int,
+) {
+    /** Dark or Light, the guide family's look. */
+    Appearance(RowKind.Choice, R.string.guide_settings_appearance),
+
+    /** Safe or Edge: how far in from the screen's edge text keeps. */
+    ScreenFit(RowKind.Choice, R.string.guide_settings_screen_fit),
+
+    /** What live TV shows while the channel changes: Stan's stand-by card (the default) or static. */
+    ChannelChange(RowKind.Choice, R.string.guide_settings_channel_change),
+
+    /** Off or On (volume levelling, #498). */
+    VolumeLevelling(RowKind.Choice, R.string.guide_settings_levelling),
+
+    /** Shows Settings, Libraries (spec 26) over the guide. */
+    Libraries(RowKind.Link, R.string.guide_settings_libraries),
+
+    /** Updates the library now (spec 26, Part 5); the line under it says how that stands. */
+    SyncNow(RowKind.Action, R.string.guide_settings_sync_now),
+
+    /** Asks whether to sign out of this TV, over the sheet (#336); the safe answer has the focus. */
+    SignOut(RowKind.Action, R.string.guide_settings_sign_out),
+}
+
+/** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
+internal enum class SettingsGroup(
+    @param:StringRes val flag: Int,
+    val rows: List<SettingsRow>,
+) {
+    Picture(R.string.guide_settings_group_picture, listOf(SettingsRow.Appearance, SettingsRow.ScreenFit)),
+    Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
+    Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
+    Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
+}
+
+/** The values the choice rows show: the viewer's own, as their stores hold them. */
+internal data class SettingsValues(
+    val theme: GuideTheme = GuideTheme.Dark,
+    val fit: ScreenFit = ScreenFit.Safe,
+    val channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
+    val levelling: Boolean = true,
+)
+
 /**
- * The Settings panel while it is open: the [row] under the D-pad, and whether Settings, Libraries is [librariesShown]
- * over the guide (the panel stays open under it, on its row).
+ * The Settings sheet while it is open: the [row] under the D-pad, and what it shows over the guide, the sheet staying
+ * open under it on its row: Settings, Libraries ([librariesShown]) or the sign-out question ([signOutShown]).
  */
 internal data class SettingsPanel(
     val row: SettingsRow = SettingsRow.Appearance,
     val librariesShown: Boolean = false,
+    val signOutShown: Boolean = false,
 ) {
-    /** The Libraries screen has finished: back to the panel, on Libraries. */
+    /** A screen over the guide has the keys. */
+    val covered: Boolean get() = librariesShown || signOutShown
+
+    /** The Libraries screen has finished: back to the sheet, on Libraries. */
     fun librariesDone(): SettingsPanel = copy(librariesShown = false)
+
+    /** The viewer stayed signed in: back to the sheet, on Sign out. */
+    fun signOutDone(): SettingsPanel = copy(signOutShown = false)
 }
 
 /**
- * What a key did to the panel: the [panel] after it (null when it closed), a [theme] or a screen [fit] it picked, if
- * any, and whether it asks for a [syncNow].
+ * What a key did to the sheet: the [panel] after it (null when it closed), the value it chose on a choice row, if any
+ * (with the path that chose it, for the stores' logs), and whether it asks for a [syncNow].
  */
 internal data class SettingsStep(
     val panel: SettingsPanel?,
@@ -86,16 +105,16 @@ internal data class SettingsStep(
     val channelChangeFrom: String? = null,
 )
 
-/** The line beside Sync now: the string [text], with the [time] it synced at for the one that has it. */
+/** The line under Update library: the string [text], with the [time] it updated at for the one that has it. */
 internal data class SyncNowLine(
     @param:StringRes val text: Int,
     val time: String? = null,
 )
 
 /**
- * What the line beside Sync now says for [state]: nothing before a press (or after one with nothing to run), syncing,
- * when it synced (the time as [time] writes it: the device's own format on screen), or why it failed, with "Nothing
- * changed." only when it failed before writing anything.
+ * What the line under Update library says for [state]: nothing before a press (or after one with nothing to run),
+ * updating, when it updated (the time as [time] writes it: the device's own format on screen), or why it failed, with
+ * "Nothing changed." only when it failed before writing anything.
  */
 internal fun syncNowLine(
     state: SyncNowState,
@@ -135,213 +154,63 @@ private fun reasonLine(failure: SyncFailure): Int =
         SyncFailure.LibrariesGone -> R.string.guide_sync_reason_libraries_gone
     }
 
+/** How a choice row's value was moved, and the word the store's log gets for it. */
+internal enum class Change(
+    val from: String,
+) {
+    Previous("settingsLeft"),
+    Next("settingsRight"),
+    Cycle("settingsOk"),
+}
+
 /**
- * A key while the Settings panel is open, or null when the key is not the panel's (the media keys). The D-pad,
- * Select and Back are all kept, so the grid never moves under the panel.
+ * A key while the Settings sheet is open, read from [values] as they stand, or null when the key is not the sheet's
+ * (the media keys, Menu). The D-pad, OK and Back are all kept, so the grid never moves under the sheet. The shared
+ * remote policy (#823) says when a key acts.
  *
- * Up and Down move between the rows (on every press, and stop at the ends). On Appearance, Left and Right pick Dark
- * and Light; on Screen fit, Safe and Edge; on Even out volume, Off and On; on Changing channel, Stan and Snow.
- * Select, on its first press, closes the panel keeping the pick on those four choice rows, shows the Libraries screen
- * on Libraries, and on Sync now asks for a sync and leaves the panel open, so the line beside the row can say how it
- * goes.
- * Back closes the panel at its release, as the guide's own Back does. While the Libraries screen shows, every key is
- * kept and does nothing: that screen has the keys, as channel management has them over the guide.
+ * Up and Down move between the rows and stop at the ends. On a choice row Left and Right step its value back and on,
+ * stopping at the ends, and OK moves it on to the next value, round to the first after the last: a choice never closes
+ * the sheet. OK on Libraries shows the Libraries screen, on Update library asks for an update and keeps the sheet open
+ * (the line under the row says how it goes), and on Sign out shows the sign-out question. Back closes the sheet, as the
+ * guide's own Back does. While a screen shows over it, every key is kept and does nothing: that screen has the keys.
+ * A step that leaves a value as it was does not choose it again.
  */
 internal fun settingsStep(
     panel: SettingsPanel,
+    values: SettingsValues,
     key: Key,
     type: KeyEventType,
     repeatCount: Int,
 ): SettingsStep? {
-    val direction = directionOf(key)
-    val select = key in SELECT_KEYS
-    if (key != Key.Back && direction == null && !select) return null
+    remoteKeyOf(key) ?: return null
     val same = SettingsStep(panel)
-    return when {
-        panel.librariesShown -> {
-            same
-        }
-
-        key == Key.Back -> {
-            if (type == KeyEventType.KeyUp) SettingsStep(null) else same
-        }
-
-        type != KeyEventType.KeyDown -> {
-            same
-        }
-
-        direction != null -> {
-            SettingsStep(
-                panel.moved(direction),
-                panel.themeFor(direction),
-                fit = panel.fitFor(direction),
-                levelling = panel.levellingFor(direction),
-                levellingFrom = panel.levellingSourceFor(direction),
-                channelChange = panel.channelChangeFor(direction),
-                channelChangeFrom = panel.channelChangeSourceFor(direction),
-            )
-        }
-
-        repeatCount > 0 -> {
-            same
-        }
-
-        else -> {
-            panel.selected()
+    return if (panel.covered) {
+        same
+    } else {
+        when (remoteKeyToAct(key, type, repeatCount)) {
+            RemoteKey.Back -> SettingsStep(null)
+            RemoteKey.Up -> SettingsStep(panel.moved(-1))
+            RemoteKey.Down -> SettingsStep(panel.moved(1))
+            RemoteKey.Left -> panel.changed(values, Change.Previous)
+            RemoteKey.Right -> panel.changed(values, Change.Next)
+            RemoteKey.Select -> panel.selected(values)
+            null -> same
         }
     }
 }
 
-// Select on the panel's row, once per press.
-private fun SettingsPanel.selected(): SettingsStep =
-    when (row) {
-        SettingsRow.Appearance,
-        SettingsRow.ScreenFit,
-        SettingsRow.VolumeLevelling,
-        SettingsRow.ChannelChange,
-        -> SettingsStep(null)
-
-        SettingsRow.Libraries -> SettingsStep(copy(librariesShown = true))
-
-        SettingsRow.SyncNow -> SettingsStep(this, syncNow = true)
+// OK on the sheet's row, once per press.
+private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
+    when (row.kind) {
+        RowKind.Choice -> changed(values, Change.Cycle)
+        RowKind.Link -> SettingsStep(copy(librariesShown = true))
+        RowKind.Action -> if (row == SettingsRow.SignOut) SettingsStep(copy(signOutShown = true)) else syncStep
     }
 
-// Up and Down move between the rows and stop at the ends; Left and Right leave the row where it is.
-private fun SettingsPanel.moved(direction: GuideDirection): SettingsPanel {
+private val SettingsPanel.syncStep: SettingsStep get() = SettingsStep(this, syncNow = true)
+
+// Up and Down move between the rows and stop at the ends.
+private fun SettingsPanel.moved(by: Int): SettingsPanel {
     val rows = SettingsRow.entries
-    val to =
-        when (direction) {
-            GuideDirection.Up -> rows.getOrElse(row.ordinal - 1) { row }
-            GuideDirection.Down -> rows.getOrElse(row.ordinal + 1) { row }
-            GuideDirection.Left, GuideDirection.Right -> row
-        }
-    return copy(row = to)
-}
-
-// On Appearance, Left picks Dark and Right picks Light; nothing else picks a theme.
-private fun SettingsPanel.themeFor(direction: GuideDirection): GuideTheme? =
-    when {
-        row != SettingsRow.Appearance -> null
-        direction == GuideDirection.Left -> GuideTheme.Dark
-        direction == GuideDirection.Right -> GuideTheme.Light
-        else -> null
-    }
-
-// The gap between the panel's rows. INTERIM, pending the design pass: the band beside the picture is fixed, and the
-// six rows with their title are laid out with no gap (about 160 dp of the 233 dp band at 960 x 540 and Safe). The tabs
-// keep their own 6 dp of underline room, so the rows still read apart.
-private val PanelRowGap = 0.dp
-
-/**
- * The Settings panel, in the details band while the Settings entry is open: Appearance (Dark and Light), Libraries and
- * Sync now, drawn as the menu row's text tabs are ([tabLook]). [row] is the one under the D-pad and [choice] the theme
- * chosen. The focused row's label is in the primary colour; on it the chosen theme has the 2 dp accent underline (the
- * D-pad focus), and off it the 1 dp quiet one. Libraries and Sync now have the accent underline while focused. Beside
- * Sync now, a quiet line says how [sync] stands. Nothing scales or draws a ring.
- */
-@Suppress("LongParameterList") // One value for each row the panel shows.
-@Composable
-internal fun GuideSettingsPanel(
-    choice: GuideTheme,
-    fit: ScreenFit,
-    row: SettingsRow,
-    modifier: Modifier = Modifier,
-    sync: SyncNowState = SyncNowState.Idle,
-    levelling: Boolean = true,
-    channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
-) {
-    val colors = LocalGuideColors.current
-    val onAppearance = row == SettingsRow.Appearance
-    Column(
-        modifier.wrapContentHeight(Alignment.Top, unbounded = true),
-        verticalArrangement = Arrangement.spacedBy(PanelRowGap),
-    ) {
-        Text(
-            text = stringResource(R.string.guide_settings_button),
-            style = guideText(28.sp, FontWeight.SemiBold),
-            color = colors.textPrimary,
-            maxLines = 1,
-        )
-        Text(
-            text = stringResource(R.string.guide_settings_appearance),
-            style = guideText(18.sp, FontWeight.Normal),
-            color = if (onAppearance) colors.textPrimary else colors.textSecondary,
-            maxLines = 1,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            val dark = choice == GuideTheme.Dark
-            val light = choice == GuideTheme.Light
-            PanelTab(R.string.guide_theme_dark, GuideTags.THEME_DARK, tabLook(dark && onAppearance, dark, colors), dark)
-            PanelTab(
-                R.string.guide_theme_light,
-                GuideTags.THEME_LIGHT,
-                tabLook(light && onAppearance, light, colors),
-                light,
-            )
-        }
-        FitRow(fit, focused = row == SettingsRow.ScreenFit)
-        val onLibraries = row == SettingsRow.Libraries
-        PanelTab(
-            R.string.guide_settings_libraries,
-            GuideTags.SETTINGS_LIBRARIES,
-            tabLook(focused = onLibraries, selected = false, colors = colors),
-            onLibraries,
-        )
-        val onSyncNow = row == SettingsRow.SyncNow
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            PanelTab(
-                R.string.guide_settings_sync_now,
-                GuideTags.SETTINGS_SYNC_NOW,
-                tabLook(focused = onSyncNow, selected = false, colors = colors),
-                onSyncNow,
-            )
-            SyncStatus(sync)
-        }
-        LevellingRow(levelling, focused = row == SettingsRow.VolumeLevelling)
-        ChannelChangeRow(channelChange, focused = row == SettingsRow.ChannelChange)
-    }
-}
-
-// The line beside Sync now, in the device's own time format; a screen reader is told when it changes.
-@Composable
-private fun SyncStatus(state: SyncNowState) {
-    val context = LocalContext.current
-    val format = remember(context) { DateFormat.getTimeFormat(context) }
-    val line = syncNowLine(state) { ms -> format.format(Date(ms)) } ?: return
-    val text = line.time?.let { stringResource(line.text, it) } ?: stringResource(line.text)
-    Text(
-        text = text,
-        modifier =
-            Modifier
-                .testTag(GuideTags.SETTINGS_SYNC_STATUS)
-                .semantics { liveRegion = LiveRegionMode.Polite },
-        style = guideProse(13.sp, FontWeight.Normal),
-        color = LocalGuideColors.current.textSecondary,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-// One text tab of the panel. [selected] is what a screen reader is told: the chosen theme, or the focused row.
-@Composable
-internal fun PanelTab(
-    label: Int,
-    tag: String,
-    look: TabLook,
-    selected: Boolean,
-) {
-    Text(
-        text = stringResource(label),
-        modifier =
-            Modifier
-                .underline(look.underline, look.thickness)
-                .testTag(tag)
-                .semantics {
-                    role = Role.Button
-                    this.selected = selected
-                },
-        style = guideText(13.sp, FontWeight.Medium),
-        color = look.text,
-        maxLines = 1,
-    )
+    return copy(row = rows[(row.ordinal + by).coerceIn(0, rows.lastIndex)])
 }
