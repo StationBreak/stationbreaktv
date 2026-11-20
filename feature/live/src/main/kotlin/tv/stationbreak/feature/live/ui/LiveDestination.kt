@@ -76,13 +76,15 @@ typealias GuideSlot = @Composable (
  * it in.
  *
  * [onStandByOver] is called each time the screen stops standing by ([isStandingBy]): the picture is up, or a card says
- * why there is none. Whatever covers the screen while it starts (setup's cheer, held by the app) can lift then.
+ * why there is none. Whatever covers the screen while it starts (setup's cheer, held by the app) can lift then. It is
+ * also called on the first composition when the first state is already no stand-by, and again after every later tune,
+ * so a caller must be idempotent: calling it when nothing is covered must do nothing.
  */
 @Composable
 fun LiveDestination(
     onSignedOut: () -> Unit,
     guide: GuideSlot,
-    onStandByOver: () -> Unit = {},
+    onStandByOver: () -> Unit,
 ) {
     val viewModel: LiveViewModel = hiltViewModel()
     LiveRoot(viewModel, onSignedOut, guide = guide, onStandByOver = onStandByOver)
