@@ -97,3 +97,9 @@ The live screen now draws the player's caption cues with `androidx.media3:media3
 - **Verification.** The new artifacts (`media3-ui` and what it brings in) are in `gradle/verification-metadata.xml`,
   each checksum compared with the one its publisher lists (CONTRIBUTING, "Dependency verification").
 - **Later.** If an in-app open-source licences screen is added, Media3 appears on it with the other dependencies.
+
+## Update 2026-11-19: Archivo Black is dropped
+
+The station screens' sign-off now uses Ranchers, so Archivo Black had no use left in the app. The font file, its
+`OFL-ArchivoBlack.txt` and its hash in `core/ui/fonts.sha256` are removed. The 2026-10-23 rule above still holds for the
+fonts that remain; `core/ui/FONTS.md` lists them.

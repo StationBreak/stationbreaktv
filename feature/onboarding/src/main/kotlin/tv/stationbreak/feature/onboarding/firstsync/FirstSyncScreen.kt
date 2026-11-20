@@ -5,19 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +50,7 @@ import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.core.ui.stan.StanOpeningKey
 import tv.stationbreak.core.ui.stan.stanOpeningKey
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.SetupColumn
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -66,10 +61,8 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
-import tv.stationbreak.feature.onboarding.withTop
 import java.text.NumberFormat
 
-private val ContentWidth = 640.dp
 private val BarHeight = 12.dp
 private const val QUARTERS = 4
 private const val PERCENT_PER_QUARTER = 25
@@ -125,33 +118,23 @@ internal fun FirstSyncScreen(
     modifier: Modifier = Modifier,
     onSkipCheer: () -> Unit = {},
 ) {
-    val scrolling = if (phase is FirstSyncPhase.Failed) Modifier.verticalScroll(rememberScrollState()) else Modifier
     val cheering = phase == FirstSyncPhase.Done
     val keys = if (cheering) Modifier.onPreviewKeyEvent { skipsCheer(it, onSkipCheer) } else Modifier
     SetupScaffold(firstSyncCue(phase), modifier.then(keys)) { contentPadding ->
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(FirstSyncTags.SCREEN)) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
-                        .then(scrolling)
-                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    when (phase) {
-                        FirstSyncPhase.Starting -> Progress(copied = null, total = null, fraction = 0f)
-                        FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
-                        is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
-                        is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
-                        FirstSyncPhase.Building -> BuildingChannels()
-                        FirstSyncPhase.Done -> OnTheAir()
-                    }
-                }
+        // Only the failure panel can outgrow the screen (large text); the progress never scrolls.
+        SetupColumn(
+            contentPadding,
+            TOP_OFFSET,
+            modifier = Modifier.testTag(FirstSyncTags.SCREEN),
+            scrollable = phase is FirstSyncPhase.Failed,
+        ) {
+            when (phase) {
+                FirstSyncPhase.Starting -> Progress(copied = null, total = null, fraction = 0f)
+                FirstSyncPhase.WaitingForNetwork -> Progress(null, null, fraction = 0f, waiting = true)
+                is FirstSyncPhase.Syncing -> Progress(phase.copied, phase.total, phase.fraction)
+                is FirstSyncPhase.Failed -> Failure(phase.error, phase.copy, phase.sessionLost, onRetry)
+                FirstSyncPhase.Building -> BuildingChannels()
+                FirstSyncPhase.Done -> OnTheAir()
             }
         }
     }

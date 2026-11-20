@@ -114,7 +114,7 @@ One pure function per screen, `phase → (mood, line)`, in feature:onboarding, i
 
 | Screen | Moment | Mood | Draft line |
 | --- | --- | --- | --- |
-| Welcome | arrives | Talking, then Idle | "EVENING! LET'S TUNE IN." |
+| Welcome | arrives | Talking, then Idle | "EVENING! LET'S TUNE IN" |
 | Server | idle | Idle | "WHAT'S ON TONIGHT?" |
 | Server | testing | Busy | "FIDDLING WITH THE AERIAL" |
 | Server | found | Pleased | "THERE IT IS!" |
@@ -128,9 +128,9 @@ One pure function per screen, `phase → (mood, line)`, in feature:onboarding, i
 | Libraries | choosing | Idle | "WHAT ARE WE SHOWING?" |
 | Libraries | loading / saving | Busy | "STAND BY…" |
 | Libraries | failed / none | Shrug | "NOTHING ON THE SHELF" |
-| Signed in (reached by Back) | arrives | Idle | "STILL HERE." |
+| Signed in (reached by Back) | arrives | Idle | "STILL HERE" |
 | First sync | syncing | Busy | "WARMING UP THE CHANNELS" |
-| First sync | waiting for network | Shrug | "NO SIGNAL. STILL TRYING." |
+| First sync | waiting for network | Shrug | "NO SIGNAL. STILL TRYING…" |
 | First sync | failed | Shrug | "BIT OF TROUBLE" |
 | First sync | done | Cheer | "WE'RE ON THE AIR!" (see below) |
 | Launch | unavailable | Shrug | "CAN'T FIND THE STATION" |

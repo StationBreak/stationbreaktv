@@ -2,15 +2,8 @@
 package tv.stationbreak.feature.onboarding.launch
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +29,7 @@ import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.SetupColumn
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.server.ErrorCopy
 import tv.stationbreak.feature.onboarding.server.ErrorCopyTable
@@ -48,9 +42,7 @@ import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
 import tv.stationbreak.feature.onboarding.trust.TrustScreen
-import tv.stationbreak.feature.onboarding.withTop
 
-private val ContentWidth = 640.dp
 private const val TOP_OFFSET = 0.1f
 
 /**
@@ -197,24 +189,15 @@ internal fun LaunchScreen(
     val cue = launchCue(state)
     // The plain progress line has no Stan: it is centred on the whole screen, as before him.
     SetupScaffold(cue, modifier, covered = launchCovered(state), fullWidth = cue == null) { contentPadding ->
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LaunchTags.SCREEN)) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth().testTag(LaunchTags.BODY),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    when (state) {
-                        LaunchPhase.Routing, LaunchPhase.Trusting, is LaunchPhase.Trust -> Progress()
-                        is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry, onChangeServer)
-                    }
-                }
+        SetupColumn(
+            contentPadding,
+            TOP_OFFSET,
+            modifier = Modifier.testTag(LaunchTags.SCREEN),
+            contentModifier = Modifier.testTag(LaunchTags.BODY),
+        ) {
+            when (state) {
+                LaunchPhase.Routing, LaunchPhase.Trusting, is LaunchPhase.Trust -> Progress()
+                is LaunchPhase.Unavailable -> Unavailable(state.error, state.copy, onRetry, onChangeServer)
             }
         }
     }

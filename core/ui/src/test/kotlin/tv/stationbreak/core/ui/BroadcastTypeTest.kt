@@ -14,7 +14,6 @@ class BroadcastTypeTest {
         val fonts = (BroadcastType.Voice as FontListFontFamily).fonts
         assertEquals(1, fonts.size)
         assertEquals(FontWeight.Normal, fonts.single().weight)
-        assertNotEquals(BroadcastType.Display, BroadcastType.Voice)
         assertNotEquals(BroadcastType.Mono, BroadcastType.Voice)
     }
 }

@@ -190,7 +190,7 @@ Cream on orange and orange on cream (2.9:1) are for shapes only, never text; on 
 
 ### Hierarchy
 - **Name** (Ranchers, "Station Break", capital S and capital B): the wordmark and the station screens' sign-off.
-- **Stan's line** (Ranchers, capitals, a few words at most): "PLEASE STAND BY", "GONE TO BED", "ANYBODY OUT THERE?". Never more than a few words.
+- **Stan's line** (Ranchers, capitals, a few words at most): "PLEASE STAND BY", "GONE TO BED", "ANYBODY OUT THERE?". Never more than a few words. No closing mark on a statement, "?" on a question, "…" on a short wait (as in "ONE SEC…", "STAND BY…"), and "!" only at the big moments of setup (welcome, server found, "YOU'RE IN!", on the air).
 - **Teletype status** (Space Mono Bold, capitals, +13% tracking): "TUNING CHANNEL 212", "OFF THE AIR · RETURNS AT 6:00 AM". Orange for the status, grey for the detail.
 - **Headline** (reading face, SemiBold, 24sp, -0.015em): the guide panel's programme title, the info overlay title.
 - **Screen body** (reading face, 20sp): setup messages, buttons and fields.
@@ -290,7 +290,7 @@ Setup is a station screen too: the reading face at 20sp for fields and buttons, 
 These tokens and components are the brand's target. The app reaches them in steps; until then the code is the record of what ships.
 - **Light:** no longer behind. The guide's Light theme is the brand's paper mode (see Light mode above).
 - **Ground:** the guide family ships a cool neutral page (#0E0F11) with white text at fixed alphas. The target is ink, panel, cream, grey and muted, as above, and it needs an on-TV check that the grid still reads at five rows.
-- **Faces:** the station screens' sign-off uses Archivo Black, and the target is Ranchers (PROVISIONAL: the brand sheet hasn't settled whether Archivo stays). Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
-- **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`. Stan's moods and the animated station screens come in the next step.
-- **Station screens:** the snow is to be replaced by Stan station screens.
+- **Faces:** done. The station screens' sign-off is Ranchers, as the Name line says. Space Mono stays as the teletype (PROVISIONAL: still open on the sheet).
+- **Marks:** done. The placeholder launcher icon, TV banner and README banner are replaced by the brand art in `art/brand/`.
+- **Station screens:** done. Stan's station screens are the default; snow stays as an opt-in channel change through the Changing channel setting (Stan or Snow, Stan by default) in the guide's Settings.
 - **Words:** done. "Sync now" is "Update library", setup and loading lines say what is happening ("Asking your server for your library…", "Getting the listings…", "Tuning in…"), and the app keeps one term per idea (The One Term Rule).

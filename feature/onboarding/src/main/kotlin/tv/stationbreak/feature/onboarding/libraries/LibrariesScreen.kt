@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,10 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,6 +50,7 @@ import tv.stationbreak.core.ui.FocusStyle
 import tv.stationbreak.core.ui.screenBody
 import tv.stationbreak.core.ui.screenDetail
 import tv.stationbreak.feature.onboarding.R
+import tv.stationbreak.feature.onboarding.SetupColumn
 import tv.stationbreak.feature.onboarding.SetupScaffold
 import tv.stationbreak.feature.onboarding.StepHeadline
 import tv.stationbreak.feature.onboarding.server.Gap
@@ -64,9 +61,7 @@ import tv.stationbreak.feature.onboarding.server.TightGap
 import tv.stationbreak.feature.onboarding.server.detailsText
 import tv.stationbreak.feature.onboarding.server.messageText
 import tv.stationbreak.feature.onboarding.server.politeLiveRegion
-import tv.stationbreak.feature.onboarding.withTop
 
-private val ContentWidth = 640.dp
 private val RowHeight = 64.dp
 private val BoxSize = 28.dp
 private const val TOP_OFFSET = 0.08f
@@ -144,32 +139,18 @@ internal fun LibrariesScreen(
     FocusFollowsPhase(state.phase, focus)
     val justArrived = rememberJustArrived(state.phase)
     SetupScaffold(librariesCue(state.phase, justArrived), modifier) { contentPadding ->
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag(LibrariesTags.SCREEN)) {
-            // A 5% safe area on every side, inside the scroll area.
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(contentPadding.withTop(maxHeight * TOP_OFFSET)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    modifier = Modifier.widthIn(max = ContentWidth).fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Gap),
-                ) {
-                    StepHeadline(
-                        headline = stringResource(R.string.libraries_headline),
-                        step = if (showStep) 3 else null,
-                    )
-                    Text(
-                        text = stringResource(R.string.libraries_subtitle),
-                        style = MaterialTheme.typography.screenBody,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Content(state, focus, onToggle, onToggleCollections, onDone, onRetry)
-                }
-            }
+        // A 5% safe area on every side, inside the scroll area.
+        SetupColumn(contentPadding, TOP_OFFSET, modifier = Modifier.testTag(LibrariesTags.SCREEN)) {
+            StepHeadline(
+                headline = stringResource(R.string.libraries_headline),
+                step = if (showStep) 3 else null,
+            )
+            Text(
+                text = stringResource(R.string.libraries_subtitle),
+                style = MaterialTheme.typography.screenBody,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Content(state, focus, onToggle, onToggleCollections, onDone, onRetry)
         }
     }
 }
