@@ -36,12 +36,14 @@ internal enum class SignOutStep { Asking, Busy, NotRevoked }
 /**
  * What the sign-out question shows: its [step], the answer under the D-pad, the signed-in server's name, and whether
  * the last sign-out [failed] (it threw before it finished: the question asks again, and says so until the next key).
+ * [moved] is whether the viewer has moved between the answers since it opened: only then is a move announced.
  */
 internal data class SignOutState(
     val step: SignOutStep = SignOutStep.Asking,
     val focus: SignOutChoice = SignOutChoice.Stay,
     val serverName: String? = null,
     val failed: Boolean = false,
+    val moved: Boolean = false,
 )
 
 /**
@@ -94,14 +96,16 @@ internal class SignOutViewModel
          * never draws a frame on Sign out before [open] runs.
          */
         fun close() {
-            shown.update { if (it.step == SignOutStep.Asking) it.copy(focus = SignOutChoice.Stay) else it }
+            shown.update {
+                if (it.step == SignOutStep.Asking) it.copy(focus = SignOutChoice.Stay, moved = false) else it
+            }
         }
 
         /** Up to Stay signed in, Down to Sign out, while the question is asked. */
         fun move(up: Boolean) {
             shown.update {
                 if (it.step != SignOutStep.Asking) return@update it
-                it.copy(focus = if (up) SignOutChoice.Stay else SignOutChoice.SignOut, failed = false)
+                it.copy(focus = if (up) SignOutChoice.Stay else SignOutChoice.SignOut, failed = false, moved = true)
             }
         }
 

@@ -144,8 +144,9 @@ internal class SignOutActions(
 
 /**
  * The question as [state] has it. A screen reader hears the question and the note once, as the pane's title when it
- * opens; the root says only the answer under the D-pad ("Stay signed in" or "Sign out"). The one live region is the
- * status line, for what happens after a choice: signing out, signed out with the server not told, or a failure.
+ * opens; the root says only the answer under the D-pad ("Stay signed in" or "Sign out"). Two live regions, never at
+ * once on open: the answers, which say the one under the D-pad after each move while it asks, and the status line, for
+ * what happens after a choice: signing out, signed out with the server not told, or a failure.
  */
 @Composable
 internal fun SignOutScreen(
@@ -195,12 +196,7 @@ internal fun SignOutScreen(
                 )
             }
         }
-        if (state.step != SignOutStep.NotRevoked) {
-            Column(verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap)) {
-                Answer(stay, SettingsTags.SIGN_OUT_STAY, focused = state.focus == SignOutChoice.Stay)
-                Answer(signOut, SettingsTags.SIGN_OUT_CONFIRM, focused = state.focus == SignOutChoice.SignOut)
-            }
-        }
+        if (state.step != SignOutStep.NotRevoked) Answers(state, stay, signOut)
         Spacer(Modifier.weight(1f))
         KeyHintRow(
             signOutHint(state.step),
@@ -239,6 +235,30 @@ private fun Line(
         style = guideProse(size, FontWeight.Normal),
         color = LocalPanelColors.current.secondary,
     )
+}
+
+// The two answers. They say the one under the D-pad, short, as a live region of their own, but only once the viewer has
+// moved (the pane title and the root's description cover the opening) and only while it asks.
+@Composable
+private fun Answers(
+    state: SignOutState,
+    stay: String,
+    signOut: String,
+) {
+    val announcing = state.moved && state.step == SignOutStep.Asking
+    val focused = if (state.focus == SignOutChoice.Stay) stay else signOut
+    Column(
+        Modifier.testTag(SettingsTags.SIGN_OUT_ANSWERS).semantics {
+            if (announcing) {
+                contentDescription = focused
+                liveRegion = LiveRegionMode.Polite
+            }
+        },
+        verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap),
+    ) {
+        Answer(stay, SettingsTags.SIGN_OUT_STAY, focused = state.focus == SignOutChoice.Stay)
+        Answer(signOut, SettingsTags.SIGN_OUT_CONFIRM, focused = state.focus == SignOutChoice.SignOut)
+    }
 }
 
 // One answer: a row with the guide family's drawn ring while it has the focus, spoken as a button.

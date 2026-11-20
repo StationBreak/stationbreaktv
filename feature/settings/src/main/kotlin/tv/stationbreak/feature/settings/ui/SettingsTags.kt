@@ -39,6 +39,9 @@ object SettingsTags {
     /** The line saying what happened after a choice (signing out, not revoked, a failure): the one live region. */
     const val SIGN_OUT_STATUS = "settings:signOut:status"
 
+    /** The two answers together: after a move, a live region saying the one under the D-pad. */
+    const val SIGN_OUT_ANSWERS = "settings:signOut:answers"
+
     /** The two answers: Stay signed in (the focus starts here) and Sign out. */
     const val SIGN_OUT_STAY = "settings:signOut:stay"
     const val SIGN_OUT_CONFIRM = "settings:signOut:confirm"

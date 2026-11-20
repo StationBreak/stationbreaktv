@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -130,14 +131,21 @@ class SignOutScreenTest {
             .onNodeWithTag(SettingsTags.SIGN_OUT)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, QUESTION_AND_NOTE))
             .assertContentDescriptionEquals("Stay signed in")
-        // While it only asks, nothing is a live region: a move is not a reason to say the question again.
+        // On open nothing is a live region: the pane title and the root's description say it once.
         assertEquals(0, liveRegions())
+        // Each move is said, short: the answers' live region holds only the answer, never the question again.
         press(Key.DirectionDown)
         compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Sign out")
+        answers().assertContentDescriptionEquals("Sign out").assert(polite)
+        assertEquals(1, liveRegions())
         press(Key.DirectionUp)
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT).assertContentDescriptionEquals("Stay signed in")
-        assertEquals(0, liveRegions())
+        answers().assertContentDescriptionEquals("Stay signed in").assert(polite)
+        assertEquals(1, liveRegions())
     }
+
+    private val polite = SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite)
+
+    private fun answers() = compose.onNodeWithTag(SettingsTags.SIGN_OUT_ANSWERS, useUnmergedTree = true)
 
     // While it runs, the status line (the one live region) says so, and the hint offers nothing: Back cannot keep a
     // sign-out that has begun.
@@ -148,8 +156,14 @@ class SignOutScreenTest {
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
         until { exists(SettingsTags.SIGN_OUT_STATUS) }
-        compose.onNodeWithTag(SettingsTags.SIGN_OUT_STATUS, useUnmergedTree = true).assertTextEquals("Signing out…")
+        compose
+            .onNodeWithTag(SettingsTags.SIGN_OUT_STATUS, useUnmergedTree = true)
+            .assertTextEquals("Signing out…")
+            .assert(polite)
+        // Only the status line is live while it runs: the answers say nothing, and "Signing out…" is said once.
         assertEquals(1, liveRegions())
+        answers().assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.LiveRegion))
+        compose.onNodeWithTag(SettingsTags.SIGN_OUT_CONFIRM).assertContentDescriptionEquals("Sign out")
         compose.onNodeWithTag(SettingsTags.SIGN_OUT_HINT).assertTextEquals("")
         press(Key.Back)
         assertEquals(0, done)

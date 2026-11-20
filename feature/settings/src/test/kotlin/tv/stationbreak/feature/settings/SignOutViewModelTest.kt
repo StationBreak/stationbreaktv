@@ -201,9 +201,12 @@ class SignOutViewModelTest {
     fun closingTheQuestionPutsTheFocusBackOnStay() =
         runTest {
             val vm = open(CountingSignOut())
+            assertFalse("nothing to announce before a move", vm.now.moved)
             vm.move(up = false)
+            assertTrue(vm.now.moved)
             vm.close()
             assertEquals(SignOutChoice.Stay, vm.now.focus)
+            assertFalse("the next opening announces nothing until a move", vm.now.moved)
         }
 
     @Test
