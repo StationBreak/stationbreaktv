@@ -97,6 +97,7 @@ class ChannelBuildManager(
             when {
                 lineup == null || channel == null -> OpenResult.NotFound
                 rules == null -> OpenResult.NotCustomisable
+                copy && channel.isAdultBuiltIn() && !pro.pro.value -> OpenResult.NeedsPro
                 copy -> openedCopy(account, lineup, channel, rules)
                 else -> OpenResult.Opened(editDraft(account, rules, channel), null)
             }
@@ -124,8 +125,9 @@ class ChannelBuildManager(
         val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
         val draft = reader.draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
-        val opened = draft.copy(name = name, kids = kids, kept = kept, origin = channel.id).kidsNormalised()
-        return OpenResult.Opened(opened, name)
+        val opened =
+            draft.copy(name = name, kids = kids, kept = kept, origin = channel.id, adult = channel.isAdultBuiltIn())
+        return OpenResult.Opened(opened.kidsNormalised(), name)
     }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
@@ -145,9 +147,14 @@ class ChannelBuildManager(
             val problem = sent.problem()
             val lineup = lineupOf(account)
             val previous = lineup?.let { originRules(it, sent.origin) }
+            val adultOrigin = lineup?.isAdultOrigin(sent.origin) == true
             when {
                 problem != null -> {
                     refused(BuildRefusal.Invalid(problem))
+                }
+
+                adultOrigin && !pro.pro.value -> {
+                    refused(BuildRefusal.NeedsPro)
                 }
 
                 lineup == null -> {
@@ -160,7 +167,8 @@ class ChannelBuildManager(
 
                 else -> {
                     val id = LineupIds.custom(newId())
-                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.NewChannel(previous))
+                    val target = RulesTarget.NewChannel(previous, adultOrigin)
+                    val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, target)
                     val number = sent.number.takeIf { sent.numberChosen }
                     val limit = if (pro.pro.value) null else FreeTier.CUSTOM_CHANNELS
                     edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids, limit), sent.kids, id)

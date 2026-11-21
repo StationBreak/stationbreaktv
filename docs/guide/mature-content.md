@@ -13,8 +13,10 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   thinner kids channels, never less safe ones.
 - **Kids' titles stay on the kids channels.** The other built-in channels leave out titles made for kids.
 - **Your own channels air what you choose.** A custom channel outside the kids numbers has no hidden filters. If you
-  turn on **Kids channel** in the builder, it gets the kids rules above. A copy of After Hours is your own channel
-  and airs what it holds.
+  turn on **Kids channel** in the builder, it gets the kids rules above.
+- **Copies of After Hours stay adult.** A copy of After Hours is always an adult channel. You aren't asked, and you
+  can't choose otherwise or change it later. Copying After Hours is only for Pro, as any change to a built-in channel
+  is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.
 
 ## What the app relies on
 

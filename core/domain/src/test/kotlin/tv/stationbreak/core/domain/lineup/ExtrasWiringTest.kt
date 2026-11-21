@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.InMemoryLineupStore
 import tv.stationbreak.core.domain.lineup.builder.BuiltInChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -242,7 +243,7 @@ class ExtrasWiringTest {
         runBlocking<Unit> {
             save(RefreshMeta())
             val shared = SharedSnapshots(CoroutineScope(SupervisorJob()))
-            val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
+            val previews = BuiltInChannelPreviews(service, library, shared, FakeProEntitlement()) { LIBRARIES }
             val draft =
                 ChannelDraft(
                     "Mine",

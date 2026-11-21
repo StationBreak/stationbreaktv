@@ -50,6 +50,7 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.OpenFailed -> R.string.builder_open_failed
         BuilderMessage.Reshuffled -> R.string.builder_saved
         BuilderMessage.CustomLimit -> R.string.pro_custom_limit_note
+        BuilderMessage.NeedsPro -> R.string.builder_adult_copy_refused
         BuilderMessage.KidsBand, BuilderMessage.NumberTaken -> R.string.builder_number_taken_pick
     }
 

@@ -15,7 +15,8 @@ Open it from the guide's menu: **Channels**. Channels are grouped as **On the ai
 
 - **Watch** it;
 - **Copy to customise** a built-in channel. Built-in channels can't be edited: a copy becomes your own channel that you
-  edit freely;
+  edit freely. A copy of **After Hours** is always an adult channel and can't be changed to anything else; copying it is
+  only for Pro;
 - **Switch on** or **Switch off** your own channels. Keep at least one channel on;
 - **Change number** of your own channels. If another of your own channels has the number, the app offers to **Swap**
   the two. **Default number** puts it back.

@@ -177,6 +177,10 @@ enum class DraftProblem {
  * null for a new channel. The kept settings are read from its rules when the draft is created, saved or previewed, so
  * a draft with kept settings whose origin is null or gone cannot be (create refuses with `UnknownChannel`, a preview
  * is `Unavailable`).
+ *
+ * [adult] is true for a copy of an adult built-in channel (After Hours) and for an edit of a channel so marked (#984).
+ * It is for the screen to show, never to choose: create and save work it out again from the stored channel (the
+ * draft's origin, or the stored rules), so nothing a draft says can make an adult channel not adult.
  */
 @Suppress("LongParameterList", "TooManyFunctions") // The draft's fields one for one, and its checks.
 data class ChannelDraft(
@@ -193,6 +197,7 @@ data class ChannelDraft(
     val numberChosen: Boolean = false,
     val origin: ChannelId? = null,
     val seed: Seed,
+    val adult: Boolean = false,
 ) {
     /** The first thing wrong with the draft, or null when it can be saved. */
     fun problem(): DraftProblem? {
