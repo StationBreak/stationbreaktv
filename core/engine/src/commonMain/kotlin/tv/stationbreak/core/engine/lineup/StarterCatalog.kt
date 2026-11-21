@@ -97,14 +97,26 @@ object StarterCatalog : StarterCatalogView {
      * 45) stay in place and take the same gating. A seasonal recipe's pool is empty out of season, so the planner
      * shelves it (reason Empty) and switches it on again by itself when the window opens. A viewer's own number and
      * choice are kept. No rules format or hold version changes.
+     *
+     * Version 13 (#1000): Oddly Funny (key `satire-desk`) moves from 528 in Premium to 190 in General, with a tagline
+     * that matches its filter. Key, name, sources and filter are unchanged, so its fingerprint is too. The old number
+     * (528) is retired and never reused: a named per-key waiver of the rule, owner-approved and pre-release as at
+     * versions 8 and 12 (`NUMBERS_WAIVED_AT_13`, ADR-0030). One Season Only already has its Mini-Series genre and no
+     * in-order promise (catalog 7), so it is unchanged. No rules format or hold version changes.
      */
-    const val VERSION = 12
+    const val VERSION = 13
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
 
     /** The catalog that switched on the seasonal band: a lineup from before it has its seasonal channels moved. */
     const val SEASONAL_VERSION = 12
+
+    /** The catalog that moved Oddly Funny to General: a lineup from before it has that one channel moved. */
+    const val ODDLY_FUNNY_VERSION = 13
+
+    /** The key of Oddly Funny, the one starter that moves at [ODDLY_FUNNY_VERSION]. */
+    const val ODDLY_FUNNY_KEY = "satire-desk"
 
     override val version: Int = VERSION
 
@@ -173,7 +185,7 @@ object StarterCatalog : StarterCatalogView {
                 leftovers.filter { it.number in Band.Kids.numbers }.map { it.key }
         ).toSet()
 
-    override val retiredNumbers: Set<Int> = setOf(44, 72, 80, 182, 340, 368, 508, 532)
+    override val retiredNumbers: Set<Int> = setOf(44, 72, 80, 182, 340, 368, 508, 528, 532)
 
     override val retiredKeys: Set<String> =
         setOf("lights-out", "tall-tales-club", "haunted-house", "tiny-chefs", "graveyard-shift", "directors-chair")

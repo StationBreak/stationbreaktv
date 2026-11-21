@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 12, curation-1, extras-1)
+LINEUP AUDIT (catalog 13, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -102,6 +102,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   backstage-pass                178  on(p)               20  20t 34.55h 0a score  5455          20t 34.55h 0a
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  satire-desk                   190  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
   prestige                      204  on(p)              570  375t 2503.73h 0a score 11000       375t 2503.73h 0a
   cold-case-cable               208  on(p)              183  182t 1640.57h 0a score 11000       183t 1658.17h 0a
   order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -150,7 +151,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cartoons-after-dark           516  on(p)               29  29t 417.73h 0a score 10900         29t 417.73h 0a
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  satire-desk                   528  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
   always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 

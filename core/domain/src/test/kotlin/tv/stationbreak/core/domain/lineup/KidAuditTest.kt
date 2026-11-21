@@ -240,7 +240,7 @@ class KidAuditTest {
     fun aCatalogThreeLineupPassesTheKidAuditForSevenDays() =
         runBlocking<Unit> {
             seed()
-            assertEquals(12, StarterCatalog.VERSION)
+            assertEquals(13, StarterCatalog.VERSION)
             val catalogTwo =
                 object : StarterCatalogView by StarterCatalog {
                     override val version = 2

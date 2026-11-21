@@ -39,3 +39,14 @@ was 1 to 99, and `StarterCatalog.kt` promised that a shipped key or number never
 - Marks are named by number, so 18 marks were renamed and the new channels have temporary placeholder marks until Look
   draws them (`core/ui/CHANNELMARKS.md`).
 - Audit goldens and the synthetic lineup fixture moved; no live library was read.
+
+## Addendum: catalog 13 (Oddly Funny into General, #1000)
+
+The owner approved one more pre-release exception to never-reuse, named per key like the first: Oddly Funny (key
+`satire-desk`) moves from 528 in Premium to 190 in General, because its filter (a half-hour comedy with a twist) is a
+General channel. Its key, name, sources and filter are unchanged, so its fingerprint is too; only the tagline is
+rewritten to match the filter. 190 is the free General number after Curtain Call (186), clear of Odds & Ends (199) and
+of every retired number. 528 is retired and never reused. `CatalogManifestTest` names the waiver
+(`NUMBERS_WAIVED_AT_13`); any other move still fails. An installed lineup takes 190 at the refresh that takes the
+catalog (`CatalogRenumbering`, with only that channel moving): a viewer's own number stays, and nothing shares a
+number. The mark files are renamed from 528 to 190 and their art is unchanged until Look redraws it.

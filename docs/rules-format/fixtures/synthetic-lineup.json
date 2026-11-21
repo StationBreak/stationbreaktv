@@ -1,7 +1,7 @@
 {
   "description": "A published reference fixture for implementers of the rules format (docs/rules-format.md, \"Verify your client\"). A synthetic library (versions.generator; nothing real) is given to the lineup planner at first setup, and the days of every switched-on channel are built from the lineup it plans. snapshot is the planner's input: items, series and collections as the engine reads them; the library's other kinds (videos, music videos) and every item with no runtime are left out, as the app's own snapshot leaves them out. lineup is what the planner chose: per channel its id, number, source, state and seed (decimal text), and for a starter or custom channel its rules in the exact text RulesWriter writes. A leftovers channel has no rules: its pool is the engine's, from the other channels. days[i] is the broadcast day i of every switched-on channel: the day that holds inputs.nowMs is day 0. A channel's blocks tile [epochStartMs, epochEndMs) and are half-open; a block is {startMs, endMs, itemId, mediaStartOffsetMs} for a program or {startMs, endMs, slate: true}. Every millisecond count is decimal text. A mismatch of versions (catalog, kid hold, grown-up hold, curation) means the files are not comparable.",
   "fixtureFormat": 1,
-  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 12, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
+  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 13, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
   "inputs": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
@@ -9,7 +9,7 @@
     "standardOffsetMinutes": 0,
     "nowMs": "1792411200000",
     "days": 3,
-    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 12}
+    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 13}
   },
   "snapshot": {
     "libraryId": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
@@ -2630,7 +2630,7 @@
   "lineup": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
-    "catalogVersion": 12,
+    "catalogVersion": 13,
     "utcOffsetMinutes": 0,
     "finalised": true,
     "useMyCollections": true,
@@ -3186,6 +3186,17 @@
         "previousRules": null
       },
       {
+        "id": "starter:satire-desk",
+        "number": 190,
+        "source": {"kind": "starter", "recipeKey": "satire-desk", "edited": false},
+        "state": "Shelf",
+        "shelfReason": "TooThin",
+        "onSinceMs": "1792411200000",
+        "seed": "9725185553991010256",
+        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Oddly Funny\",\n  \"seed\": \"9725185553991010256\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Comedy\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"genres\": [\n      \"Crime\",\n      \"Action\",\n      \"Mystery\",\n      \"Fantasy\",\n      \"Science Fiction\",\n      \"Music\",\n      \"Action & Adventure\",\n      \"Sci-Fi & Fantasy\"\n    ],\n    \"notGenres\": [\n      \"Animation\"\n    ],\n    \"runtime\": {\n      \"maxMinutes\": 35\n    },\n    \"kind\": \"episode\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
+        "previousRules": null
+      },
+      {
         "id": "leftovers:odds-and-ends",
         "number": 199,
         "source": {"kind": "leftovers", "recipeKey": "odds-and-ends", "maxRating": null},
@@ -3722,17 +3733,6 @@
         "onSinceMs": "1792411200000",
         "seed": "12342138780843877740",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Anthology Hour\",\n  \"seed\": \"12342138780843877740\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"anthology\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anthology series\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
-        "id": "starter:satire-desk",
-        "number": 528,
-        "source": {"kind": "starter", "recipeKey": "satire-desk", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "TooThin",
-        "onSinceMs": "1792411200000",
-        "seed": "9725185553991010256",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Oddly Funny\",\n  \"seed\": \"9725185553991010256\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Comedy\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"genres\": [\n      \"Crime\",\n      \"Action\",\n      \"Mystery\",\n      \"Fantasy\",\n      \"Science Fiction\",\n      \"Music\",\n      \"Action & Adventure\",\n      \"Sci-Fi & Fantasy\"\n    ],\n    \"notGenres\": [\n      \"Animation\"\n    ],\n    \"runtime\": {\n      \"maxMinutes\": 35\n    },\n    \"kind\": \"episode\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       },
       {

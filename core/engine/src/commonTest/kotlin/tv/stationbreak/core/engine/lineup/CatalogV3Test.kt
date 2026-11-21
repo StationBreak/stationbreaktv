@@ -105,7 +105,7 @@ class CatalogV3Test {
         assertEquals(notASitcom + shape + twists, laugh.filters?.notGenres?.toSet())
         val county = recipe("satire-desk")
         assertEquals("Oddly Funny", county.name)
-        assertEquals("Comedy with a twist, a little off, and that's the point.", county.personality)
+        assertEquals("Comedy with a twist of something else, in half-hour bites.", county.personality)
         assertEquals(listOf(Source.Genre("Comedy")), county.sources)
         assertEquals(
             listOf(
@@ -123,10 +123,10 @@ class CatalogV3Test {
     }
 
     @Test
-    fun comedyCountyKeepsSatireDesksKeyAndNumber() {
+    fun oddlyFunnyKeepsSatireDesksKeyAndLivesInGeneral() {
         val county = recipe("satire-desk")
-        assertEquals(528, county.number)
-        assertEquals(Band.Premium, county.band)
+        assertEquals(190, county.number)
+        assertEquals(Band.General, county.band)
     }
 
     @Test
@@ -190,11 +190,11 @@ class CatalogV3Test {
         assertEquals(CATALOG_MANIFEST_V2.recipes.keys - StarterCatalog.retiredKeys, kept)
         for (new in v3.filter { it.key !in NEW_YOUNG_AT_8 }) {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
-            // The waived renumberings of catalogs 8 and 12 (#1002, #592); the Kids band of catalog 2 is the three young
-            // bands now.
-            val waived = NUMBERS_WAIVED_AT_12[new.key] ?: NUMBERS_WAIVED_AT_8[new.key]
+            // The waived renumberings of catalogs 8, 12 and 13 (#1002, #592, #1000); the Kids band of catalog 2 is the
+            // three young bands now.
+            val waived = NUMBERS_WAIVED_AT_13[new.key] ?: NUMBERS_WAIVED_AT_12[new.key] ?: NUMBERS_WAIVED_AT_8[new.key]
             assertEquals(waived ?: old.number, new.number, new.key)
-            val rebanded = old.band == Band.Kids || new.key in NUMBERS_WAIVED_AT_12
+            val rebanded = old.band == Band.Kids || new.key in NUMBERS_WAIVED_AT_12 || new.key in NUMBERS_WAIVED_AT_13
             val oldBand = if (rebanded) Band.of(new.number) else old.band
             assertEquals(oldBand, new.band, new.key)
             assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)

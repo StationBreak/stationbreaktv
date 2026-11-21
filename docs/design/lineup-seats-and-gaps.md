@@ -225,7 +225,7 @@ format change is planned.
 2. **A sitcom with one extra genre.** Narrow Laugh Track's `notGenres` to the genres that mean "not a sitcom" (for
    example Animation, Documentary, Reality, News, Talk), measured on the sitcom profile. Oddly Funny's twist genres
    (Crime, Action, Mystery, Fantasy, Science Fiction, Music and the TV forms) stay in Laugh Track's `notGenres`, so Laugh
-   Track (102) does not take Oddly Funny's (528) titles on ties; the audit names Oddly Funny as the channel to watch.
+   Track (102) does not take Oddly Funny's (190) titles on ties; the audit names Oddly Funny as the channel to watch.
 3. **A niche starter too thin to qualify.** An explicit per-recipe field, a lower qualifying bar (for example 6 hours and
    4 titles), set on the recipes that are the catalog's one lane for their theme (the horror starter among them, which
    shares the Horror genre with two monster channels, so a "no other recipe has this genre" rule would not reach it).
