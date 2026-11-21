@@ -431,6 +431,41 @@ class ArchitectureRulesTest {
     }
 
     @Test
+    fun theAmazonSdkIsDeclaredOnlyByAppInAnAmazonConfiguration() {
+        val sdk = "com.amazon.device:amazon-appstore-sdk"
+        for (configuration in listOf("amazonImplementation", "amazonReleaseImplementation", "testAmazonDebugImplementation")) {
+            assertEquals(emptyList(), rulesBroken(":app", artifact(configuration, sdk)), configuration)
+        }
+        for (configuration in listOf("implementation", "api", "githubImplementation", "releaseImplementation", "debugImplementation")) {
+            assertEquals(listOf(Rule.STORE_SDK_FLAVOR_ONLY), rulesBroken(":app", artifact(configuration, sdk)), configuration)
+        }
+        for (module in listOf(":core:domain", ":data:settings", ":feature:channels", ":core:ui")) {
+            assertEquals(
+                listOf(Rule.STORE_SDK_FLAVOR_ONLY),
+                rulesBroken(module, artifact("amazonImplementation", sdk)),
+                module,
+            )
+        }
+    }
+
+    @Test
+    fun noModuleDeclaresPlayServicesOrPlayBilling() {
+        for (coordinates in listOf(
+            "com.google.android.gms:play-services-base",
+            "com.android.billingclient:billing-ktx",
+            "com.android.vending:billing",
+        )) {
+            for (configuration in listOf("implementation", "amazonImplementation", "githubImplementation")) {
+                assertEquals(
+                    listOf(Rule.STORE_SDK_FLAVOR_ONLY),
+                    rulesBroken(":app", artifact(configuration, coordinates)),
+                    "$coordinates $configuration",
+                )
+            }
+        }
+    }
+
+    @Test
     fun dataJellyfinMayDeclareTheSdkAndOkHttp() {
         assertEquals(
             emptyList(),
