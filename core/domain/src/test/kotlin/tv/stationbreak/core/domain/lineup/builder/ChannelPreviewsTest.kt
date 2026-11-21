@@ -266,6 +266,23 @@ class ChannelPreviewsTest {
     }
 
     @Test
+    fun theEditPreviewOfAMigratedKidChannelIsKidsOnly() {
+        film(1, genres = listOf("Animation", "Kids"), rating = "G")
+        film(2, genres = listOf("Animation", "Kids"), rating = "PG-13")
+        film(3, genres = listOf("Animation", "Drama"), rating = "G")
+        val mine = ChannelId("starter:lights-out")
+        val custom = ChannelSource.Custom(rules("Lights Out", Source.Genre("Animation")))
+        val migrated = channel(mine.value, 44, ChannelState.On, custom)
+        runBlocking { holding(migrated) }
+
+        val opened = runBlocking { builder.open(ACCOUNT, mine, copy = false) }
+        val draft = (opened as OpenResult.Opened).draft
+        assertTrue(draft.kids)
+
+        assertEquals(setOf(id(1)), ids(preview(draft, editing = mine)).toSet(), "kids tier only, under the kid cap")
+    }
+
+    @Test
     fun normalisingAKidsCeilingNeverChangesThePreview() {
         film(1, genres = listOf("Animation", "Kids"), rating = "G")
         film(2, genres = listOf("Animation", "Kids"), rating = "PG")
