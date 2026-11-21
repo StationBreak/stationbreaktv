@@ -47,7 +47,12 @@ internal object CrashReporting {
     ) {
         val parsed = CrashReportEndpoint.parse(rawEndpoint)
         CrashReportConsents.configure(parsed != null)
-        if (parsed != null) install(app, parsed, CrashReportConsents.get(app), scope)
+        if (parsed != null) {
+            install(app, parsed, CrashReportConsents.get(app), scope)
+        } else {
+            // A build with nowhere to send: whatever an earlier build left waiting is not kept.
+            discardWaitingReports(app)
+        }
     }
 
     /** Follows [consent]: the value now, then every change. Call on the main thread. */
@@ -79,8 +84,9 @@ internal object CrashReporting {
                 ACRA.errorReporter.setEnabled(true)
             }
 
-            started -> {
-                ACRA.errorReporter.setEnabled(false)
+            else -> {
+                if (started) ACRA.errorReporter.setEnabled(false)
+                // Also when ACRA never started in this process: a report may be left from an earlier run.
                 discardWaitingReports(app)
                 Log.i(TAG, "crash reports off")
             }

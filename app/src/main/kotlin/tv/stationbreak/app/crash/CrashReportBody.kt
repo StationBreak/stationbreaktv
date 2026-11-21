@@ -30,11 +30,18 @@ internal object CrashReportBody {
             ReportField.STACK_TRACE,
         )
 
+    // Only the stack trace is free text: the other fields are the build's, the TV's and a random id, and cleaning them
+    // would rewrite the id (a UUID) into a placeholder.
+    private fun clean(
+        field: ReportField,
+        value: String,
+    ): String = if (field == ReportField.STACK_TRACE) CrashReportRedactor.redact(value) else value
+
     /** The JSON body for [collected] (field name to value), or null when it holds none of the allowed fields. */
     fun encode(collected: Map<String, Any?>): String? {
         val fields =
             FIELDS.mapNotNull { field ->
-                collected[field.name]?.toString()?.let { field.name to JsonPrimitive(CrashReportRedactor.redact(it)) }
+                collected[field.name]?.toString()?.let { field.name to JsonPrimitive(clean(field, it)) }
             }
         return if (fields.isEmpty()) null else Json.encodeToString(JsonObject.serializer(), JsonObject(fields.toMap()))
     }

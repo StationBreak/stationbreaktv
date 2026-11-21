@@ -112,4 +112,37 @@ class CrashReportRedactorTest {
         assertEquals("Channel 5 was empty for 3 s at 1.2.3", redact("Channel 5 was empty for 3 s at 1.2.3"))
         assertEquals("", redact(""))
     }
+
+    @Test
+    fun whatAParseErrorQuotesOfTheServersJsonGoes() {
+        assertGone(
+            "JsonDecodingException: Unexpected token at offset 4 JSON input: " +
+                """{"Name":"My Show","Path":"/media/tv/My Show/s1.mkv","UserName":"alice"}""",
+            "My Show",
+            "alice",
+            "/media",
+        )
+    }
+
+    @Test
+    fun pathsQuotedNamesAndCertificateNamesGo() {
+        assertGone("cannot read /data/user/0/tv.stationbreak.app/files/lineup.json", "lineup.json", "/data/user")
+        assertGone("no channel named \"Cartoons After School\"", "Cartoons")
+        assertGone("untrusted: DN: CN=Home Lab Root, O=Smith Family, C=US", "Home Lab", "Smith")
+    }
+
+    @Test
+    fun singleLabelHostsInPlatformMessagesGo() {
+        assertGone("CLEARTEXT communication to nas not permitted by network security policy", "to nas")
+        assertGone("Hostname nas not verified", "nas not")
+        assertGone("failed at 192.168.1.5.", "192.168.1.5")
+    }
+
+    @Test
+    fun aRealUuidReportIdIsNotRewritten() {
+        val id = "0b9e1c1e-2f6a-4a58-8f0f-5a1f0f0e7d11"
+        val body = checkNotNull(CrashReportBody.encode(mapOf("REPORT_ID" to id, "STACK_TRACE" to "x.Y: id $id")))
+        assertTrue(body.contains(""""REPORT_ID":"$id""""))
+        assertFalse(body.contains("x.Y: id $id"))
+    }
 }

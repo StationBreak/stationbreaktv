@@ -68,4 +68,8 @@ private fun channelChangeWords(style: ChannelChangeStyle): Int =
 private fun levellingWords(on: Boolean): Int = if (on) R.string.guide_levelling_on else R.string.guide_levelling_off
 
 @StringRes
-private fun crashReportsWords(on: Boolean): Int = if (on) R.string.guide_crash_reports_on else R.string.guide_crash_reports_off
+private fun crashReportsWords(on: Boolean): Int =
+    when {
+        on -> R.string.guide_crash_reports_on
+        else -> R.string.guide_crash_reports_off
+    }

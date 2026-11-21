@@ -50,7 +50,7 @@ report waits on the TV and is sent the next time you open the app. A report hold
 It holds no log, no settings, no device or advertising id, and no copy of your library. Before it leaves the TV the app
 takes out web addresses, server names and IP addresses, sign-in tokens, keys and passwords, e-mail addresses, and the
 32-character ids a Jellyfin server uses. That cleaning is automatic and cannot promise to catch everything: an error
-message could, rarely, include something else, such as the name of a channel or title. Like any server, the one that
+message could still include something else, such as the name of a channel, a title or a file path. Like any server, the one that
 receives the report sees the network address it came from.
 
 Turning the row off stops collecting at once and deletes any report still waiting on the TV. A report that has already

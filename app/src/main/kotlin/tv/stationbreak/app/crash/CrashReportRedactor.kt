@@ -8,6 +8,9 @@ package tv.stationbreak.app.crash
  * an error prints); a stack frame (`at pkg.Class.method(File.kt:12)`) and a class name carry code, not data, and are
  * kept so the report stays useful.
  *
+ * Anything inside quotes, a file path, a distinguished name (`CN=...`) and what a parse error quotes of the server's
+ * JSON also go: they are where a title, a channel or user name or a library path would turn up.
+ *
  * It errs on the side of removing too much: anything shaped like a host name that is not a class name goes, and so
  * does an opaque run of 24 or more letters, digits, `_` and `-` that has both a letter and a digit.
  */
@@ -18,6 +21,8 @@ internal object CrashReportRedactor {
     const val ADDRESS = "[address]"
     const val EMAIL = "[email]"
     const val ID = "[id]"
+    const val TEXT = "[text]"
+    const val PATH = "[path]"
 
     // `at pkg.Class.method(File.kt:12)`: only code, so it is left alone.
     private val frame = Regex("""at [^\s()]+\([\w$.<>-]+(?: Source| Method)?(?::\d+)?\)""")
@@ -32,12 +37,20 @@ internal object CrashReportRedactor {
     private val email = Regex("""[\w.+-]+@[\w-]+(?:\.[\w-]+)+""")
     private val guid = Regex("""(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b""")
     private val hex32 = Regex("""(?i)(?<![0-9a-z])[0-9a-f]{32}(?![0-9a-z])""")
-    private val ipv4 = Regex("""(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?(?![\w.])""")
+    private val ipv4 = Regex("""(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?(?!\w|\.\d)""")
     private val ipv6 =
         Regex(
             """\[[0-9a-fA-F:.]+](?::\d{1,5})?|(?<![\w:])(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}(?![\w:])""" +
                 """|(?<![\w:])(?:[0-9a-fA-F]{0,4}:){1,6}:[0-9a-fA-F]{0,4}(?![\w:])""",
         )
+
+    // What a response-parse error quotes of the server's JSON (titles, paths, user names): all of it goes.
+    private val jsonExcerpt = Regex("""(?i)(JSON input:?).*""")
+    private val quoted = Regex(""""[^"\n]+"|'[^'\n]+'""")
+    private val path = Regex("""(?<![\w:/.])/(?:[^\s/"'\[\]]+/)+[^\s"'\[\]]*""")
+    private val distinguishedName = Regex("""(?i)\b(CN|O|OU|C|L|ST|DC|UID)=[^,\n]+""")
+    private val bareHost =
+        Regex("""(?i)(\bcommunication to\s+)[^\s,:/\[]+|(\bhostname\s+)(?!\[)[^\s,:/\[]+(?=\s+not verified)""")
     private val namedHost =
         Regex("""(?i)(\bhost(?:name)?\s*[=:]\s*|\bresolve host\s+|\bconnect(?:ing)? to\s+/?)("?)[^\s",:/\[]+\2""")
     private val dottedHost =
@@ -74,6 +87,7 @@ internal object CrashReportRedactor {
 
     private fun redactLine(line: String): String {
         var out = line
+        out = jsonExcerpt.replace(out) { "${it.groupValues[1]} $TEXT" }
         out = authorization.replace(out) { "${it.groupValues[1]}: $SECRET" }
         out = url.replace(out, URL)
         out = keyed.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$SECRET" }
@@ -82,8 +96,12 @@ internal object CrashReportRedactor {
         out = hex32.replace(out, ID)
         out = ipv4.replace(out, ADDRESS)
         out = ipv6.replace(out, ADDRESS)
+        out = bareHost.replace(out) { "${it.groupValues[1]}${it.groupValues[2]}$HOST" }
         out = namedHost.replace(out) { "${it.groupValues[1]}$HOST" }
         out = dottedHost.replace(out) { if (isClassName(it.value)) it.value else HOST }
+        out = distinguishedName.replace(out) { "${it.groupValues[1]}=$TEXT" }
+        out = path.replace(out, PATH)
+        out = quoted.replace(out) { "${it.value.first()}$TEXT${it.value.last()}" }
         return opaque.replace(out, SECRET)
     }
 

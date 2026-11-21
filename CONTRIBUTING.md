@@ -275,6 +275,19 @@ Then:
    also carries release notes generated from the Conventional Commits since the previous `v*` tag
    (`scripts/release-notes.sh`): edit them before publishing.
 
+## Crash reports (a build setting)
+
+Opt-in crash reports (#96, Q-PRIV-1 in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md)) go to the owner's own endpoint, which is
+never in this repository. A build has them only when `CRASH_REPORT_URL` is set when it is built: an `https` URL with no
+user name or password in it, from the environment variable or from a Gradle property (for example in
+`~/.gradle/gradle.properties`, outside the repository). Empty, the default and what CI builds, means the build has no
+crash reporting and the Settings sheet has no Send crash reports row. Do not commit the value, and do not put a secret in
+it: the URL ends up in the APK, where anyone who unpacks it can read it, so the endpoint must accept writes from anyone,
+give nothing back, and limit the rate and size of what it takes and treat it as untrusted. Even in a build that has
+it, nothing is collected or sent until the viewer turns the row on. The release workflow does not pass it, so a tagged
+release has none until that workflow is changed to. What a report holds, and how it is redacted, is
+in `app/src/main/kotlin/tv/stationbreak/app/crash/` and on the [privacy page](docs/guide/privacy.md).
+
 ## Code of conduct and security
 
 Everyone who takes part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security

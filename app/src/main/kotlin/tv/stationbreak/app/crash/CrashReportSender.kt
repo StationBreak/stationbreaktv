@@ -51,6 +51,7 @@ internal class CrashReportSender(
         post(endpoint, body)
     }
 
+    @Suppress("SwallowedException") // The IOException is dropped on purpose (see the catch).
     private fun post(
         endpoint: CrashReportEndpoint,
         body: String,
@@ -65,15 +66,26 @@ internal class CrashReportSender(
             try {
                 client.newCall(request).execute().use { it.code }
             } catch (e: IOException) {
-                throw ReportSenderException("The report could not be sent: ${e.javaClass.simpleName}", e)
+                // No cause, on purpose: ACRA logs it, and OkHttp's message names the endpoint's host.
+                throw ReportSenderException("The report could not be sent: ${e.javaClass.simpleName}")
             }
-        if (code !in HTTP_OK) throw ReportSenderException("The endpoint answered $code")
+        when {
+            code in HTTP_OK -> Unit
+
+            // A refusal that sending again will not change is dropped, not kept for every start for ever.
+            code in HTTP_REFUSED && code !in HTTP_TRY_AGAIN -> Unit
+
+            else -> throw ReportSenderException("The endpoint answered $code")
+        }
     }
 
     internal companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
         private const val TIMEOUT_SECONDS = 10L
+        private const val CALL_SECONDS = 5L
         private val HTTP_OK = 200..299
+        private val HTTP_REFUSED = 400..499
+        private val HTTP_TRY_AGAIN = setOf(408, 429)
 
         // Never cleartext, whatever the network security config allows for the media server; never a redirect.
         fun defaultClient(): OkHttpClient =
@@ -86,6 +98,8 @@ internal class CrashReportSender(
                 .connectTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .readTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .writeTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                // A crash on a worker thread sends before the process dies: never hold it long.
+                .callTimeout(CALL_SECONDS, TimeUnit.SECONDS)
                 .build()
     }
 }

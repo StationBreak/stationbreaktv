@@ -90,8 +90,19 @@ class CrashReportSenderTest {
     fun aRefusalOrAFailureKeepsTheReportForALaterTry() {
         assertThrows(ReportSenderException::class.java) { sender(client = client(500)).deliver(report) }
         val failing =
-            OkHttpClient.Builder().addInterceptor { throw IOException("boom: media.example.org") }.build()
-        assertThrows(ReportSenderException::class.java) { sender(client = failing).deliver(report) }
+            OkHttpClient.Builder().addInterceptor { throw IOException("boom: reports.example.invalid") }.build()
+        val thrown = assertThrows(ReportSenderException::class.java) { sender(client = failing).deliver(report) }
+        // ACRA logs the exception and its cause: neither may name the endpoint.
+        assertFalse(thrown.toString().contains("example.invalid"))
+        assertEquals(null, thrown.cause)
+        assertThrows(ReportSenderException::class.java) { sender(client = client(429)).deliver(report) }
+    }
+
+    @Test
+    fun aRefusalSendingAgainWillNotChangeDropsTheReport() {
+        sender(client = client(413)).deliver(report)
+        sender(client = client(404)).deliver(report)
+        assertEquals(2, sent.size)
     }
 
     @Test
