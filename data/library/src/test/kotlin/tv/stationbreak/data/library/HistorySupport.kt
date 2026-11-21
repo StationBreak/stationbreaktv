@@ -75,7 +75,8 @@ internal fun series(
     tags: List<String> = emptyList(),
     name: String = "Series $id",
     studios: List<String> = emptyList(),
-) = SeriesInfo(ItemId(id), name, rating, genres, tags, studios)
+    providerIds: Map<String, String> = emptyMap(),
+) = SeriesInfo(ItemId(id), name, rating, genres, tags, studios, providerIds)
 
 /** As [put], for series. */
 internal suspend fun RoomLibraryRepository.putSeries(

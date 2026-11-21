@@ -16,7 +16,8 @@ import kotlin.time.Clock
  * older, or of any version newer than the code (an older APK sideloaded), is still dropped and rebuilt. A migration
  * that does not produce exactly the schema Room expects makes the open throw instead of rebuilding, so each one has a
  * test that runs it on a file made from the exported schema (Migration7To8Test, Migration8To9Test,
- * Migration9To10Test, Migration10To11Test and Migration11To12Test, and the OnDevice twins on the platform SQLite). The
+ * Migration9To10Test, Migration10To11Test, Migration11To12Test and Migration12To13Test, and the OnDevice twins on the
+ * platform SQLite). The
  * schema is versioned
  * and exported to `schemas/`, so a change shows in review; when [VERSION] goes up, the exported file of the new
  * version is committed.
@@ -34,7 +35,8 @@ import kotlin.time.Clock
  * `item` and `series`, and `heldUntilMs` and `addStamp` to `library` (spec 26), through [Migration9To10]. Version 11
  * added `walkedStamp`, `rewalkPending` and `coveredFromMs` to `library`, the `item_also_listed` table and the
  * `item(serverId, userId, seriesId)` index (spec 26, Part 4), through [Migration10To11]. Version 12 added the nullable
- * `item.seriesName`, the server's own series name for an episode (#607), through [Migration11To12].
+ * `item.seriesName`, the server's own series name for an episode (#607), through [Migration11To12]. Version 13 added
+ * `series_version.providerIds` (ADR-0029), through [Migration12To13].
  */
 @Database(
     entities = [
@@ -71,7 +73,7 @@ internal abstract class LibraryDatabase : RoomDatabase() {
     abstract fun cacheTransactionDao(): CacheTransactionDao
 
     companion object {
-        const val VERSION = 12
+        const val VERSION = 13
     }
 }
 
@@ -112,6 +114,7 @@ internal object LibraryDatabases {
                 Migration9To10(LibraryDao.seedFrom(clock)),
                 Migration10To11(),
                 Migration11To12(),
+                Migration12To13(),
             ).withDestructiveFallbacks()
     }
 

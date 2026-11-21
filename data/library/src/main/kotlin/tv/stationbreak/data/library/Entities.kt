@@ -266,8 +266,9 @@ internal data class SeriesVersionEntity(
     val deletedAtMs: Long?,
     @ColumnInfo(defaultValue = "") val studios: String,
     val name: String?,
+    @ColumnInfo(defaultValue = "") val providerIds: String = "",
 ) {
-    // A name is text a person typed: it never reaches a log.
+    // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String =
         "SeriesVersionEntity(serverId=$serverId, userId=$userId, seriesId=$seriesId, seenFromMs=$seenFromMs, name=<name>)"
 }
@@ -543,8 +544,8 @@ internal fun nextStamp(
 
 /**
  * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags, the
- * ordered studios (spec 18), the tombstone and the name (spec 23, D8: a rename is a new version). The library is not
- * (Vimes L2).
+ * ordered studios (spec 18), the tombstone, the name (spec 23, D8: a rename is a new version) and the provider ids (the
+ * kid hold's bump list reads them, ADR-0029: a change of id is a new version). The library is not (Vimes L2).
  */
 internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
     officialRating == other.officialRating &&
@@ -552,7 +553,8 @@ internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
         tags == other.tags &&
         studios == other.studios &&
         deletedAtMs == other.deletedAtMs &&
-        name == other.name
+        name == other.name &&
+        providerIds == other.providerIds
 
 /** This row as an earlier version, ending at [supersededAtMs]. */
 internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
@@ -569,6 +571,7 @@ internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
         deletedAtMs = deletedAtMs,
         studios = studios,
         name = name,
+        providerIds = providerIds,
     )
 
 /**

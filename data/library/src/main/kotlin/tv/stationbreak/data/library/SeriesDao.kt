@@ -274,6 +274,7 @@ internal abstract class SeriesDao {
         val genres = if (version != null) version.genres else row.genres
         val tags = if (version != null) version.tags else row.tags
         val studios = if (version != null) version.studios else row.studios
+        val providerIds = if (version != null) version.providerIds else row.providerIds
         return HeldSeries(
             row.seriesId,
             rating?.let(strings::of),
@@ -281,7 +282,7 @@ internal abstract class SeriesDao {
             strings.all(VersionCodec.decode(tags)),
             strings.all(VersionCodec.decode(studios)),
             if (version != null) version.name else row.name,
-            ProviderIdsCodec.decode(row.providerIds),
+            ProviderIdsCodec.decode(providerIds),
         )
     }
 
@@ -307,8 +308,9 @@ internal abstract class SeriesDao {
 
     /**
      * Works out what writing [incoming] over the rows the database holds ([existing]) does. The change test compares
-     * the rating, the ordered genres, tags and studios, the tombstone and the name (spec 23, D8), and nothing else: not
-     * the library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each
+     * the rating, the ordered genres, tags and studios, the tombstone, the name (spec 23, D8) and the provider ids, and
+     * nothing else: not the library (Vimes L2). A series listed in two ticked libraries keeps one row whose library
+     * flips with each
      * write, by an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by
      * the last of those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
      */

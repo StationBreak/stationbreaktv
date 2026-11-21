@@ -92,19 +92,19 @@ class Migration11To12Test {
                 assertEquals("no item column moves", itemsBefore, db.dump(oldItemColumns))
                 assertEquals("sync_meta is as it was", metaBefore, db.dump("SELECT * FROM sync_meta ORDER BY rowid"))
                 assertEquals("no version is made", versionsBefore, db.dump("SELECT * FROM item_version"))
-                assertEquals(listOf(listOf<String?>("12")), db.dump("PRAGMA user_version"))
+                assertEquals(listOf(listOf<String?>("${LibraryDatabase.VERSION}")), db.dump("PRAGMA user_version"))
             }
         }
 
     @Test
-    fun theSchemaMatchesTheExportedTwelve() =
+    fun theSchemaMatchesTheExportedCurrentVersion() =
         runBlocking {
             val file = File(folder.root, "schema.db")
             SchemaFile.create(file, 11) { it.fill() }
             migrate(file).close()
 
             val exported = SchemaFile.text()
-            assertTrue(exported.contains("\"version\": 12"))
+            assertTrue(exported.contains("\"version\": ${LibraryDatabase.VERSION}"))
             val hash = Regex("\"identityHash\":\\s*\"([0-9a-f]+)\"").find(exported)!!.groupValues[1]
             raw(file) { db ->
                 assertEquals(listOf(listOf<String?>(hash)), db.dump("SELECT identity_hash FROM room_master_table"))
@@ -129,7 +129,8 @@ class Migration11To12Test {
 
             migrate(file).close()
 
-            raw(file) { db -> assertEquals(listOf(listOf<String?>("12")), db.dump("PRAGMA user_version")) }
+            val current = listOf(listOf<String?>("${LibraryDatabase.VERSION}"))
+            raw(file) { db -> assertEquals(current, db.dump("PRAGMA user_version")) }
         }
 
     private companion object {

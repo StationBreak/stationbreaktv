@@ -69,6 +69,24 @@ class RuleSnapshotSeriesTest {
             assertEquals(mapOf(canon(show) to edited), seriesAt(later))
         }
 
+    // ADR-0029: the bump list reads provider ids, so a day rebuilt for one cut-off sees the ids as they were then.
+    @Test
+    fun aChangeOfProviderIdIsANewVersionAndTheCutoffReadsTheOldIds() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(show), "TV-Y7", providerIds = mapOf("tvdb" to "1")))
+            clock.stepMs(10_000)
+            val cutoff = clock.nowMs
+            clock.stepMs(10_000)
+            val listed = mapOf("tvdb" to "76088")
+            repository.putSeries(ALICE, RULE_LIBRARY, series(hexId(show), "TV-Y7", providerIds = listed))
+
+            assertEquals(1, repository.seriesVersions(ALICE).size)
+            assertEquals(mapOf("tvdb" to "1"), seriesAt(cutoff).getValue(canon(show)).providerIds)
+            assertEquals(mapOf("tvdb" to "76088"), seriesAt(clock.nowMs + 1).getValue(canon(show)).providerIds)
+        }
+
     @Test
     fun aSeriesEditSeenExactlyAtTheCutoffIsNotInThatDaysSnapshot() =
         runBlocking {
