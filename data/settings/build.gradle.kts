@@ -12,6 +12,8 @@ dependencies {
     // The SecretStore port this module implements; core:domain exposes the coroutines it suspends with as api.
     implementation(project(":core:domain"))
     implementation(project(":core:model"))
+    // The Kids Mode lock's file (#789), in a DataStore file of its own.
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(testFixtures(project(":core:domain")))
 
