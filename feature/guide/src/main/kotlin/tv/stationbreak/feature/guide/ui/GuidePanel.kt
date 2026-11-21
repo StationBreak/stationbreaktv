@@ -79,7 +79,8 @@ private val OutsideTheLiveRegion = Modifier.semantics(mergeDescendants = true) {
  * the focus has rested on the cell ([restedOn]). A block of its own, so something else (a menu) can take its place
  * later. Only it reads [panel]; the clock is read through [nowOf], which changes once a minute. Read out by a screen
  * reader as it changes (a polite live region: the channel, the title, the episode and the slot, not the minute
- * countdown), since no screen reader can see the guide's own focus.
+ * countdown and not the description, which comes later and would be read a second time), since no screen reader can
+ * see the guide's own focus.
  */
 @Composable
 internal fun DetailsPanel(
@@ -239,7 +240,9 @@ private fun PanelLines(
     if (onNow && cell.kind == CellKind.Program) Slot(PanelSlot.Progress) { Progress(cell.startMs, cell.endMs, nowMs) }
     Slot(PanelSlot.Time) { TimeRow(cell, nowMs, onNow, copy) }
     details.item?.overview?.takeIf { describe }?.let {
-        Slot(PanelSlot.Overview) { Overview(it) }
+        // Outside the live region: it arrives 150 ms after the title and the slot, and inside the region that second
+        // change would be read out a second time (#438). It can still be read on its own.
+        Slot(PanelSlot.Overview) { Box(OutsideTheLiveRegion) { Overview(it) } }
     }
 }
 

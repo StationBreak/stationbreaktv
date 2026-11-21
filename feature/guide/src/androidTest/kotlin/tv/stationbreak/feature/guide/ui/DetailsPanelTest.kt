@@ -230,6 +230,25 @@ class DetailsPanelTest {
     }
 
     @Test
+    fun theDescriptionIsNotPartOfTheAnnouncedTextSoAMoveIsReadOnce() {
+        // The title and the slot are the live region's text; the description comes 150 ms later and, inside it, would
+        // change that text a second time and be read again (#438). It stays a node of its own, still readable.
+        show(details(0, "About zero"))
+        val before = spoken()
+        compose.mainClock.advanceTimeBy(SETTLED_MS)
+        assertEquals("About zero", text(GuideTags.PANEL_OVERVIEW))
+        assertEquals("the rest changes nothing the region announces", before, spoken())
+        assertFalse("the description is not announced: ${spoken()}", spoken().contains("About zero"))
+    }
+
+    private fun spoken(): String =
+        compose
+            .onNodeWithTag(GuideTags.PANEL)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.Text]
+            .joinToString(" ") { it.text }
+
+    @Test
     fun backOnTheCellTheFocusRestedOnShowsItsDescriptionAtOnce() {
         // Rested on A, a step to B and straight back: A is the cell the focus last rested on, so no second wait.
         show(details(0, "About zero"))
