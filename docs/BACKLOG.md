@@ -476,9 +476,12 @@ Phase A (the kid hold) is [ADR-0019](adr/0019-kid-hold.md). These items are the 
 - 🧪 The `github` flavor APK + SHA-256 checksums are attached to the release. 👁 Downloader-app instructions (Fire TV "Downloader" short code) are in the docs.
 
 ## F4.5 Pro unlock (M)
-**S4.5.1** As a supporter, I want a one-time Pro purchase so that I can support the project.
-- 🧪 The `ProEntitlement` port has implementations for Amazon IAP and Play Billing. Purchase, restore, and refund revocation are covered by fakes.
-- 👁 The Pro feature set is defined (Q-BIZ-2). The `github` flavor behaviour is decided (Q-BIZ-1).
+**S4.5.1** As a supporter, I want a one-time Pro purchase so that I can support the project. ([#99](https://github.com/StationBreak/stationbreaktv/issues/99); not V1, it follows the free listing.)
+- 🧪 The `ProEntitlement` port has an **Amazon IAP** implementation. Purchase, restore, and refund revocation are covered by fakes. Play Billing is deferred to the Google TV release (Roadmap call 2026-11-20).
+- 👁 Pro is the [#793](https://github.com/StationBreak/stationbreaktv/issues/793) feature set (Q-BIZ-2 in `ASSUMPTIONS.md`), at $20 one-time lifetime (Q-BIZ-3). Paid Pro is Amazon-only.
+- 👁 The `github` flavor ships with Pro fully unlocked, plus a "Support StationBreak" link and no nag (Q-BIZ-1, [#119](https://github.com/StationBreak/stationbreaktv/issues/119)). The link is not built yet.
+- 🧪 A refund follows the lock in [ADR-0023](adr/0023-lineup-curation.md) ("Free, Pro and a refund"): the starters are reset by force to the planner's lineup, and custom channels beyond the first 5 are locked, not deleted, until Pro is bought again.
+- Depends on [#811](https://github.com/StationBreak/stationbreaktv/issues/811): the free-tier gates are proven on screen (closed-gate androidTests, live unlock, and the release-build check on the Insignia, all passed by 2026-11-19).
 
 ## F4.6 Docs site (M)
 - 👁 StationBreak.tv is a static site (e.g. Astro/MkDocs, deployed from this repo or `stationbreak/site`) covering install, server setup, reverse-proxy notes, self-signed certs, channel building, FAQ, and privacy policy.
