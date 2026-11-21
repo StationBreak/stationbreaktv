@@ -328,8 +328,26 @@ class CatalogV3Test {
         val CEILINGS_LOWERED_AT_6 = mapOf("small-sleuths" to "TV-Y7")
         val GENRES_GAINED_AT_6 = mapOf("little-farm" to listOf(Source.Genre("Preschool"), Source.Genre("Pre-school")))
 
-        // Not TMDB genres: anime, and the preschool shelf scrapers file under their own genre (Little Farm, #591).
-        val SCRAPER_GENRES = setOf("Anime", "Preschool", "Pre-school")
+        // Not TMDB genres: anime, the preschool shelf scrapers file under their own genre (Little Farm, #591), and the
+        // TVDb / OMDb spellings catalog 7 adds (#994, #997, #998, #1000).
+        val SCRAPER_GENRES =
+            setOf(
+                "Anime",
+                "Preschool",
+                "Pre-school",
+                "Sci-Fi",
+                "Mini-Series",
+                "Biography",
+                "Game Show",
+                "Talk Show",
+                "Sport",
+                "Travel",
+                "Food",
+                "Home and Garden",
+                "Musical",
+                "Film-Noir",
+                "Martial Arts",
+            )
         val ANCHOR_PINS: Map<String, String> =
             mapOf(
                 "sing-along-station" to "2 CE CE 5712baf4006b764f",
@@ -374,6 +392,12 @@ class CatalogV3Test {
                 "kung-fu-theater" to "8 C C C C C C C C 1dab6d9025dc0aa9",
                 "rubber-suit-theatre" to "3 W C C f6f880740abb9213",
                 "tea-time" to "11 P W C P W P C C C C C db89332bceb39108",
+                // Catalog 7 (#999): the World recipes rebuilt on studios; Whodunit Isles shares Tea Time's set.
+                "whodunit-isles" to "11 P W C P W P C C C C C db89332bceb39108",
+                "continental-drift" to "8 C C C C C C C C 166a74a0283f0a2e",
+                "seoul-sundays" to "5 W W W W W 789ba92813c20086",
+                "masala-hour" to "3 C C C 9c382452ff7eb8ee",
+                "telenovela-tonight" to "4 C C C C 95e97009de92c3a6",
                 "cartoons-after-dark" to "5 C C E E P 56928bf9033f4b0f",
             )
     }

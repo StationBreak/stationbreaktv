@@ -48,11 +48,14 @@ class LineupAuditTest {
         val rows = report.titles.filter { it.name in CaseTitles.SMALL_HORROR_SHELF }
         assertEquals(CaseTitles.SMALL_HORROR_SHELF.size, rows.size)
         assertTrue(rows.all { it.home?.channel == "midnight-projector" })
+        // Catalog 7 (#998): Thriller is a filter on Dead Drop, not a source, so one thriller film with no spy or heist
+        // tag has no channel of its own. It is a candidate only on a thin channel and airs on the leftovers.
         assertEquals(
-            0,
+            1,
             report.totals.noHomeByCause.values
                 .sum(),
         )
+        assertEquals(1, report.totals.noHomeByCause[Cause.OnlyOnShelvedChannels])
     }
 
     // Catalog 5: Cartoons After Dark takes the Animation genre (not Family), with the lower bar of four titles. A
