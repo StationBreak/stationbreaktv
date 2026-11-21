@@ -2219,6 +2219,12 @@ A reader will meet files written by newer apps. Three cases must be handled diff
 
 Unknown fields are data, not instructions. A reader never executes or fetches anything in them.
 
+**`stationbreakAdult` (an app convention, not part of the format).** StationBreak marks a custom channel as adult content
+with the top-level field `stationbreakAdult: true`. It is an unknown field in the sense above, so the format version does
+not change and every other reader keeps and ignores it. The app sets it on every copy of the built-in After Hours channel,
+and keeps it on each save of that copy; no draft or edit clears it. Rules without the field (every channel stored before
+the mark) are not adult. Copying the tags into a new channel by hand does not set it. (#984)
+
 The version 1 JSON Schema describes version 1 only, so it rejects an unknown kind. The version 2 schema describes
 version 2, and it also rejects a version 2 mode or source in a file that says `formatVersion` 1. The version 3 schema
 describes version 3, and it also rejects a version 3 mode or source in a file that says `formatVersion` 1 or 2 and a
