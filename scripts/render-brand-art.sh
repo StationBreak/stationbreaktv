@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 #
-# Renders the brand art in art/brand/ to the app's PNGs and the README banner, at exact pixel sizes.
+# Renders the brand art in art/brand/ to the app's PNGs, the README banner and the Amazon listing
+# images in store/, at exact pixel sizes.
 #   scripts/render-brand-art.sh <font-dir>
 # <font-dir> holds Ranchers (Ranchers-Regular.ttf) and Space Mono Bold (SpaceMono-Bold.ttf), both SIL OFL 1.1 from
 # github.com/google/fonts (ofl/ranchers, ofl/spacemono). The same files are bundled in core/ui/src/main/res/font/
@@ -69,6 +70,13 @@ for d in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
   render "$src/icon-main.svg" "$icon" "$icon" "$res/mipmap-$name/ic_launcher.png"
   render "$src/icon-foreground.svg" "$layer" "$layer" "$res/mipmap-$name/ic_launcher_foreground.png"
 done
+
+# Amazon listing images. Each size is rendered from the SVG, not scaled from another PNG.
+# The small and large icons are the launcher icon. The Fire TV app icon is the brand banner at its native 1280x720.
+mkdir -p store
+render "$src/icon-main.svg" 114 114 store/icon-114.png
+render "$src/icon-main.svg" 512 512 store/icon-512.png
+render "$src/tv-banner.svg" 1280 720 store/fire-tv-icon-1280x720.png
 
 # README banner, at 1920x1080 (1.5x the SVG).
 render "$src/tv-banner.svg" 1920 1080 "$src/repo-banner.png"
