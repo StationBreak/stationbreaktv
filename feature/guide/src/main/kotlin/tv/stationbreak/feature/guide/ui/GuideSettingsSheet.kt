@@ -159,7 +159,7 @@ private fun spokenOf(
     status: String?,
 ): String {
     val label = stringResource(row.label)
-    val value = valueWords(row, values)?.let { stringResource(it) }
+    val value = valueText(row, values, spoken = true)
     val locked = stringResource(R.string.guide_kids_locked).takeIf { row.isInert(values) }
     val said = locked ?: status?.takeIf { row == SettingsRow.SyncNow } ?: value
     return said?.let { stringResource(R.string.guide_settings_spoken, label, it) } ?: label
@@ -209,7 +209,8 @@ private fun SettingsLine(
     val colors = LocalPanelColors.current
     val label = stringResource(row.label)
     val choice = choiceShown(row, values)
-    val value = valueWords(row, values)?.let { stringResource(it) }
+    val value = valueText(row, values)
+    val spokenValue = valueText(row, values, spoken = true)
     val inert = row.isInert(values)
     val lockedText = stringResource(R.string.guide_kids_locked)
     Row(
@@ -236,7 +237,7 @@ private fun SettingsLine(
 
                     else -> {
                         role = Role.Button
-                        value?.let { stateDescription = it }
+                        spokenValue?.let { stateDescription = it }
                     }
                 }
                 selected = focused
@@ -333,9 +334,8 @@ internal data class SettingsHintPair(
 /**
  * What the keys do on [row]: on a choice Left and Right change it and OK moves it on, on a link OK opens it, on an
  * action OK does what the row says (Update, Sign out, and on Kids Mode what it does now: Set a PIN, Turn on or Turn
- * off); Back closes the sheet everywhere, last. A row Kids Mode has switched off ([SettingsRow.isInert] for [values])
- * has no
- * OK: only Back.
+ * off, with Left and Right changing its cap once the lock has been read); Back closes the sheet everywhere, last. A
+ * row Kids Mode has switched off ([SettingsRow.isInert] for [values]) has no OK: only Back.
  */
 internal fun settingsHintOf(
     row: SettingsRow,
@@ -353,7 +353,7 @@ internal fun settingsHintOf(
     val back = SettingsHintPair(UiR.string.hint_key_back, UiR.string.hint_close)
     return when {
         row.isInert(values) -> listOf(back)
-        row.kind == RowKind.Choice -> listOf(change, ok, back)
+        row.kind == RowKind.Choice || (row == SettingsRow.KidsMode && values.kidsKnown) -> listOf(change, ok, back)
         else -> listOf(ok, back)
     }
 }

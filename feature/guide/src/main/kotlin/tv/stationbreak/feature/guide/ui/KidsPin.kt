@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.remoteKeyOf
@@ -15,8 +16,11 @@ import tv.stationbreak.feature.guide.PinSubmit
 /** How many digits a PIN has. */
 internal const val PIN_LENGTH = 4
 
-/** What the pad is for: the first PIN (which turns Kids Mode on), turning Kids Mode off, or changing the PIN. */
-internal enum class PinPurpose { Set, TurnOff, Change }
+/**
+ * What the pad is for: the first PIN (which turns Kids Mode on), turning Kids Mode off, changing the PIN, or changing
+ * the Kids Mode cap while it is on ([Cap]: the pad's [PinEntry.cap] is the cap asked for; the PIN is the current one).
+ */
+internal enum class PinPurpose { Set, TurnOff, Change, Cap }
 
 /** What the pad asks for now: the PIN as it is ([Current]), a new one ([New]), or the new one again ([Confirm]). */
 internal enum class PinStage { Current, New, Confirm }
@@ -118,17 +122,29 @@ internal data class PinEntry(
     val busy: Boolean = false,
     val old: String = "",
     val candidate: String = "",
+    val cap: KidsCap? = null,
 ) {
     /** Whether the lock refuses PINs for now. */
     val locked: Boolean get() = notice is PinNotice.LockedOut
 
+    // What the PIN as it is, once typed, is asked for: to turn off, to change the cap, or to check before a new PIN.
+    fun currentAsk(digits: String): PinSubmit =
+        when {
+            purpose == PinPurpose.TurnOff -> PinSubmit.TurnOff(digits)
+            purpose == PinPurpose.Cap && cap != null -> PinSubmit.SetCap(cap, digits)
+            else -> PinSubmit.CheckOld(digits)
+        }
+
     override fun toString(): String = "PinEntry($purpose, $stage, ${digits.length} digits, busy=$busy)"
 
     companion object {
-        /** The pad for [purpose], at its first step. */
-        fun start(purpose: PinPurpose): PinEntry {
+        /** The pad for [purpose], at its first step; [cap] is the cap a [PinPurpose.Cap] pad asks for. */
+        fun start(
+            purpose: PinPurpose,
+            cap: KidsCap? = null,
+        ): PinEntry {
             val first = if (purpose == PinPurpose.Set) PinStage.New else PinStage.Current
-            return PinEntry(purpose, first)
+            return PinEntry(purpose, first, cap = cap)
         }
     }
 }
@@ -224,8 +240,7 @@ private fun SettingsPanel.finished(pin: PinEntry): SettingsStep {
     val digits = pin.digits
     return when (pin.stage) {
         PinStage.Current -> {
-            val ask = if (pin.purpose == PinPurpose.TurnOff) PinSubmit.TurnOff(digits) else PinSubmit.CheckOld(digits)
-            SettingsStep(copy(pin = pin.copy(busy = true)), pinSubmit = ask)
+            SettingsStep(copy(pin = pin.copy(busy = true)), pinSubmit = pin.currentAsk(digits))
         }
 
         PinStage.New -> {

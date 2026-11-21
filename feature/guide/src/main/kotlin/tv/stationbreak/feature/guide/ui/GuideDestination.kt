@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelChangeStyle
@@ -309,13 +310,19 @@ internal fun GuideRoot(
             kidsOn = kids?.enabled ?: true,
             kidsPinSet = kids?.pinSet == true,
             kidsKnown = kids != null,
+            kidsCap = kids?.cap ?: KidsCap.DEFAULT,
         )
     val shownValues by rememberUpdatedState(settingsValues)
     // Kids Mode, like the stores' values, as it stands at the key.
     val keyValues by rememberUpdatedState {
         val stores = valuesNow?.invoke() ?: shownValues
         val lock = viewModel.kidsState.value
-        stores.copy(kidsOn = lock?.enabled ?: true, kidsPinSet = lock?.pinSet == true, kidsKnown = lock != null)
+        stores.copy(
+            kidsOn = lock?.enabled ?: true,
+            kidsPinSet = lock?.pinSet == true,
+            kidsKnown = lock != null,
+            kidsCap = lock?.cap ?: KidsCap.DEFAULT,
+        )
     }
     val scope = rememberCoroutineScope()
     // A lockout on the PIN pad ends by itself: the pad takes PINs again then.
@@ -420,6 +427,7 @@ internal fun GuideRoot(
                                     scope.launch { settings = settings?.pinAnswered(viewModel.submitPin(ask)) }
                                 }
                                 if (step.kidsEnable) scope.launch { viewModel.enableKids() }
+                                step.kidsCap?.let { cap -> scope.launch { viewModel.setKidsCap(cap) } }
                             },
                             grid = { event -> guideKey(event, move, viewModel::select, back, menu) },
                         )

@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.R
@@ -18,7 +19,7 @@ class GuideSettingsRowsTest {
         val entry = Regex("""<string name="([^"]+)">([^<]*)</string>""")
         listOf("src/main/res/values/strings.xml", "../../core/ui/src/main/res/values/strings.xml")
             .flatMap { entry.findAll(java.io.File(it).readText()).toList() }
-            .associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
+            .associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'").replace("&#183;", "\u00b7") }
     }
 
     private fun text(id: Int): String {
@@ -126,11 +127,34 @@ class GuideSettingsRowsTest {
         fun said(values: SettingsValues) =
             settingsHintOf(SettingsRow.KidsMode, values).joinToString("   ") { "${text(it.key)} ${text(it.action)}" }
 
-        assertEquals("OK Set a PIN   Back Close", said(SettingsValues()))
-        assertEquals("OK Turn on   Back Close", said(SettingsValues(kidsPinSet = true)))
-        assertEquals("OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsPinSet = true)))
-        assertEquals("On", text(kidsModeWords(SettingsValues(kidsOn = true))))
-        assertEquals("Off", text(kidsModeWords(SettingsValues())))
+        assertEquals("◂ ▸ Change   OK Set a PIN   Back Close", said(SettingsValues()))
+        assertEquals("◂ ▸ Change   OK Turn on   Back Close", said(SettingsValues(kidsPinSet = true)))
+        assertEquals("◂ ▸ Change   OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsPinSet = true)))
+        // Until the lock has been read, Left and Right do nothing, so the hint does not offer them.
+        assertEquals("OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsKnown = false)))
+    }
+
+    private fun kidsValue(
+        values: SettingsValues,
+        spoken: Boolean = false,
+    ): String {
+        val shown = kidsModeShown(values, spoken)
+        val cap = shown.cap?.let { text(it) }
+        return if (cap == null) text(shown.format) else text(shown.format).replace("%1\$s", cap)
+    }
+
+    @Test
+    fun kidsModeShowsOnOrOffWithItsCap_andSaysItWithoutTheDot() {
+        fun on(cap: KidsCap) = SettingsValues(kidsOn = true, kidsCap = cap)
+
+        assertEquals("On \u00b7 up to Kids", kidsValue(on(KidsCap.Kids)))
+        assertEquals("On \u00b7 up to Family", kidsValue(on(KidsCap.Family)))
+        assertEquals("On \u00b7 up to Teen", kidsValue(on(KidsCap.Teen)))
+        assertEquals("Off \u00b7 Kids", kidsValue(SettingsValues()))
+        assertEquals("Off \u00b7 Teen", kidsValue(SettingsValues(kidsCap = KidsCap.Teen)))
+        assertEquals("On, up to Family", kidsValue(on(KidsCap.Family), spoken = true))
+        assertEquals("Off, cap Kids", kidsValue(SettingsValues(), spoken = true))
+        assertEquals(R.string.guide_kids_unknown, kidsModeShown(SettingsValues(kidsKnown = false)).format)
     }
 
     @Test
@@ -139,7 +163,7 @@ class GuideSettingsRowsTest {
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             assertTrue(row.name, row.isInert(unread))
         }
-        assertEquals(R.string.guide_kids_unknown, kidsModeWords(unread))
+        assertEquals(R.string.guide_kids_unknown, kidsModeShown(unread).format)
     }
 
     @Test

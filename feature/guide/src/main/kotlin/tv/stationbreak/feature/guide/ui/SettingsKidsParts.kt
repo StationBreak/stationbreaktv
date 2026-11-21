@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,12 +18,29 @@ import tv.stationbreak.feature.guide.R
 // The Settings sheet's Kids Mode pieces (#789), apart from GuideSettingsSheet.kt: a row's words, Kids Mode's value and
 // the line under a row that Kids Mode has switched off.
 
-// What a row shows on its right as words: a choice's value, or Kids Mode's On or Off.
-@StringRes
-internal fun valueWords(
+// What a row shows on its right as words: a choice's value, or Kids Mode's On or Off with its cap. [spoken] is the
+// screen reader's way of saying it (no middle dot).
+@Composable
+internal fun valueText(
     row: SettingsRow,
     values: SettingsValues,
-): Int? = if (row == SettingsRow.KidsMode) kidsModeWords(values) else choiceShown(row, values)?.value
+    spoken: Boolean = false,
+): String? =
+    if (row == SettingsRow.KidsMode) {
+        kidsModeText(values, spoken)
+    } else {
+        choiceShown(row, values)?.let { stringResource(it.value) }
+    }
+
+// Kids Mode's value: On or Off with the cap, or a dash until the stored lock has been read.
+@Composable
+private fun kidsModeText(
+    values: SettingsValues,
+    spoken: Boolean,
+): String {
+    val shown = kidsModeShown(values, spoken)
+    return shown.cap?.let { stringResource(shown.format, stringResource(it)) } ?: stringResource(shown.format)
+}
 
 // Kids Mode's value, On or Off, in a choice's words but with no dots: OK opens or turns it, it does not step it.
 @Composable

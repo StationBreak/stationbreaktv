@@ -63,6 +63,16 @@ and **About** this channel in the menu, a channel's properties, and **Libraries*
 in Settings. Flipping channels, opening the guide and watching all work as usual, and so do the look, screen fit and
 volume settings.
 
+### Choosing how far it reaches
+
+The limit is one of three: **Kids** (channels 1 to 33, the default), **Family** (1 to 66) or **Teen** (1 to 99). The
+**Kids Mode** row in Settings shows it next to On or Off, for example "On · up to Family". With the **Kids Mode** row
+selected, press Left or Right to move it one step down or up; it stops at Kids and at Teen. While Kids Mode is off the
+limit changes at once. While it is on, Left or Right asks for the PIN first, and the limit changes only when the PIN is
+right; a wrong PIN leaves it as it was and counts toward the wait below. Until the app has read the lock (a moment
+after the guide opens) the limit can't be changed. The limit only decides which channels this TV shows: it never
+changes what a channel plays or when.
+
 ### The PIN and the wait after wrong ones
 
 Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and

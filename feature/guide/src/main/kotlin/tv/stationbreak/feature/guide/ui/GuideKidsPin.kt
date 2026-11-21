@@ -244,6 +244,7 @@ private fun pinTitle(purpose: PinPurpose): Int =
         PinPurpose.Set -> R.string.guide_pin_title_set
         PinPurpose.TurnOff -> R.string.guide_pin_title_turn_off
         PinPurpose.Change -> R.string.guide_pin_title_change
+        PinPurpose.Cap -> R.string.guide_pin_title_cap
     }
 
 @StringRes
