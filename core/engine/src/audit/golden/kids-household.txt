@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 5, curation-1, extras-1)
+LINEUP AUDIT (catalog 6, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1791 items, 75 titles (44 series, 31 films)
@@ -14,15 +14,12 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 21 titles, 3 channels: 14 titles, 4 channels: 10 titles, 5 channels: 26 titles, 6 channels: 4 titles
+  channels per title: 1 channels: 57 titles, 2 channels: 14 titles, 3 channels: 4 titles
   titles per channel that is on:
     saturday-morning                54
-    backyard-fort                   40
-    robot-factory                   40
+    backyard-fort                    4
     hey-science                      4
     rainy-day-matinee               14
-    little-spirits                  44
-    giggle-garage                   40
     tall-tales-club                  4
     dial-up                         10
     flip-phone                       7
@@ -35,17 +32,17 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   saturday-morning               16  on(p)               54  54t 438.55h 0a score 11000         54t 438.55h 0a
-  backyard-fort                  20  on(p)               40  40t 415.80h 0a score 11000         40t 415.80h 0a
+  backyard-fort                  20  on(p)                4  4t 61.60h 0a score  6560           4t 61.60h 0a
   critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  28  on(p)               40  40t 415.80h 0a score 11000         40t 415.80h 0a
+  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   hey-science                    32  on(p)                4  4t 32.00h 0a score  3600           4t 32.00h 0a
   rainy-day-matinee              36  on(p)               14  14t 22.75h 0a score  3675          14t 22.75h 0a
-  little-spirits                 40  on(p)               44  44t 284.55h 0a score 11000         44t 284.55h 0a
+  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   flipbook                       52  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  60  on(p)               40  40t 415.80h 0a score 11000         40t 415.80h 0a
+  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tall-tales-club                72  on(p)                4  4t 61.60h 0a score  6560           4t 61.60h 0a
@@ -128,81 +125,68 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   directors-chair               532  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
-  backyard-fort                giggle-garage                40 titles, 415.80h
-  backyard-fort                robot-factory                40 titles, 415.80h
-  robot-factory                giggle-garage                40 titles, 415.80h
-  saturday-morning             backyard-fort                40 titles, 415.80h
-  saturday-morning             giggle-garage                40 titles, 415.80h
-  saturday-morning             robot-factory                40 titles, 415.80h
-  saturday-morning             little-spirits               44 titles, 284.55h
-  backyard-fort                little-spirits               30 titles, 261.80h
-  little-spirits               giggle-garage                30 titles, 261.80h
-  robot-factory                little-spirits               30 titles, 261.80h
   backyard-fort                tall-tales-club              4 titles, 61.60h
-  giggle-garage                tall-tales-club              4 titles, 61.60h
-  little-spirits               tall-tales-club              4 titles, 61.60h
-  robot-factory                tall-tales-club              4 titles, 61.60h
+  saturday-morning             backyard-fort                4 titles, 61.60h
   saturday-morning             tall-tales-club              4 titles, 61.60h
-  rainy-day-matinee            little-spirits               14 titles, 22.75h
   saturday-morning             rainy-day-matinee            14 titles, 22.75h
 
 TITLES (scores in points; a term that is zero is left out)
   00000690 Zulool Quindartor [film, 1 items, 1.47h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000691 Rensenbra Kykysen [film, 1 items, 1.58h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000692 Kyvelsen Bratorlo [film, 1 items, 1.70h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000693 Olpelo Darfazu [film, 1 items, 1.82h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000694 Makyky Renpeky [film, 1 items, 1.47h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000695 Pefaxi Xisenpe [film, 1 items, 1.58h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000696 Xidarmi Senkybra [film, 1 items, 1.70h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000697 Bramilo Zuvelmi [film, 1 items, 1.82h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000698 Velbraky Pelodar [film, 1 items, 1.47h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000699 Tormape Mipelo [film, 1 items, 1.58h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   0000069a Mirentor Fasenren [film, 1 items, 1.70h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   0000069b Senloquin Marenol [film, 1 items, 1.82h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   0000069c Darsenren Torvelxi [film, 1 items, 1.47h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   0000069d Quinvelpe Lolovel [film, 1 items, 1.58h]
     home rainy-day-matinee 405.00 = specificity 25.00 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, little-spirits
+    runner-up saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   0000069e Lopevel Olmami [film, 1 items, 1.60h]
     home dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
   0000069f Fakydar Velsenquin [film, 1 items, 1.72h]
@@ -239,164 +223,92 @@ TITLES (scores in points; a term that is zero is left out)
     home dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
   00000000 Velmami Pefator [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000001 Torrenlo Mixisen [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000002 Miloky Fadarlo [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000003 Sensenxi Makyzu [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000004 Darvelmi Tortorol [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000005 Quinpequin Lofape [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000006 Lokyren Olpebra [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000007 Fafape Veldarmi [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000008 Zudartor Quinkydar [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000009 Rentorquin Kyvelfa [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000a Kyxizu Brafaren [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000b Ololma Darpeol [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000c Mazuvel Rensenxi [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000d Pequindar Xirenvel [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000e Ximizu Senvelsen [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000000f Bravelma Zuloquin [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000010 Velpebra Pemafa [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000011 Torkysen Misenky [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000012 Mifafa Farenma [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000013 Sendarol Mabrabra [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000014 Dartorbra Torlotor [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000015 Quinximi Lomasen [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000016 Loollo Olmilo [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000017 Fazuky Velrenzu [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000018 Zuquinxi Quinbraol [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000019 Renmimi Kyquinpe [series, 42 items, 7.70h]
     home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    runner-up little-spirits 318.10 = specificity 18.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000001a Kybralo Bramabra [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   0000001b Olmaren Darmimi [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   0000001c Marenpe Renzudar [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   0000001d Pelotor Xixilo [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   0000001e Xisenquin Senquinren [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   0000001f Bratorren Zuolol [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000020 Velxima Petorxi [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000021 Torolvel Mizuvel [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000022 Mizudar Faximi [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000023 Senquinzu Madarquin [series, 42 items, 15.40h]
-    home backyard-fort 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    runner-up robot-factory 280.54 = specificity 18.54 genre 40.00 kids 200.00 tone 22.00
-    guest spots: saturday-morning, robot-factory, giggle-garage
+    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000024 Darmima Torolfa [series, 42 items, 15.40h]
-    home tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 335.54 = specificity 18.54 genre 80.00 kids 200.00 tone 37.00
-    guest spots: saturday-morning, backyard-fort, robot-factory, little-spirits, giggle-garage
+    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    guest spots: saturday-morning, tall-tales-club
   00000025 Quinbravel Lotorky [series, 42 items, 15.40h]
-    home tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 335.54 = specificity 18.54 genre 80.00 kids 200.00 tone 37.00
-    guest spots: saturday-morning, backyard-fort, robot-factory, little-spirits, giggle-garage
+    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    guest spots: saturday-morning, tall-tales-club
   00000026 Lomasen Olfama [series, 42 items, 15.40h]
-    home tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 335.54 = specificity 18.54 genre 80.00 kids 200.00 tone 37.00
-    guest spots: saturday-morning, backyard-fort, robot-factory, little-spirits, giggle-garage
+    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    guest spots: saturday-morning, tall-tales-club
   00000027 Farenfa Velxixi [series, 42 items, 15.40h]
-    home tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 335.54 = specificity 18.54 genre 80.00 kids 200.00 tone 37.00
-    guest spots: saturday-morning, backyard-fort, robot-factory, little-spirits, giggle-garage
+    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
+    guest spots: saturday-morning, tall-tales-club
   00000028 Faoltor Velzuol [series, 20 items, 8.00h]
     home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   00000029 Zuzuquin Quinxipe [series, 20 items, 8.00h]

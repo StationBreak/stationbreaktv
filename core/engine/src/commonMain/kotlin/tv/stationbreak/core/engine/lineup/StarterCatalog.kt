@@ -42,8 +42,15 @@ object StarterCatalog : StarterCatalogView {
      * another lane, or to Odds & Ends. That is accepted: Family is the signal that keeps PG family animation, which
      * the grown-up hold passes, off a channel for grown-ups. The audit counts the titles it affects per profile
      * library (`LineupAuditTest`).
+     *
+     * Version 6 (the kids recipes stop copying Saturday Morning, #591): every key, number, band and opt-in kept, no
+     * rules format or hold version changes. Once Upon drops Fantasy, Backyard Fort and Giggle Garage drop the Kids
+     * genre and the `children` tag, Robot Factory drops the Kids genre, Little Spirits drops
+     * Animation, Little Farm adds
+     * the Preschool and Pre-school genres, and Small Sleuths' ceiling goes from PG to TV-Y7 (still kid-safe, so
+     * [EVER_KID_SAFE_KEYS] holds it). Unedited starters take it at the next boundary, as for any catalog update.
      */
-    const val VERSION = 5
+    const val VERSION = 6
 
     override val version: Int = VERSION
 
