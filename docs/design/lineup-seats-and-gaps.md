@@ -24,7 +24,7 @@ definition in §3 on 2026-11-15.
 - **Some titles have no home.** A title is a candidate only where a recipe's pool holds it (`placeHome`,
   `Curation.kt:220`). Examples on a real library:
   - an adult animated sitcom with no adult-animation tag and no Adult Swim, Comedy Central or FX studio. Laugh Track and
-    Comedy County exclude Animation, and Cartoons After Dark's pool needs that tag or studio;
+    Oddly Funny exclude Animation, and Cartoons After Dark's pool needs that tag or studio;
   - a sitcom whose genres include one beyond Comedy, Family and Romance (Laugh Track's `notGenres`);
   - a horror film when the horror starter is too thin to qualify (12 usable hours, 6 titles): it lands on a thriller
     channel or in Odds & Ends.
@@ -223,9 +223,9 @@ format change is planned.
    (`PoolEvaluator.kt:26-27`), fails an unrated item, and runs in both `PoolEvaluator` and `Leftovers`. Neither hold's
    version changes.
 2. **A sitcom with one extra genre.** Narrow Laugh Track's `notGenres` to the genres that mean "not a sitcom" (for
-   example Animation, Documentary, Reality, News, Talk), measured on the sitcom profile. Comedy County's twist genres
+   example Animation, Documentary, Reality, News, Talk), measured on the sitcom profile. Oddly Funny's twist genres
    (Crime, Action, Mystery, Fantasy, Science Fiction, Music and the TV forms) stay in Laugh Track's `notGenres`, so Laugh
-   Track (102) does not take Comedy County's (528) titles on ties; the audit names Comedy County as the channel to watch.
+   Track (102) does not take Oddly Funny's (528) titles on ties; the audit names Oddly Funny as the channel to watch.
 3. **A niche starter too thin to qualify.** An explicit per-recipe field, a lower qualifying bar (for example 6 hours and
    4 titles), set on the recipes that are the catalog's one lane for their theme (the horror starter among them, which
    shares the Horror genre with two monster channels, so a "no other recipe has this genre" rule would not reach it).
@@ -294,7 +294,7 @@ goldens are the authority; the plan stays as the record of the decision. Work: #
   Family; this is pinned by `FamilyExclusionTradeOffTest`. A household with a single adult cartoon still has no home for
   it, because the channel needs 4 titles even at the lower bar.
 - **Laugh Track:** `notGenres` is Animation, Documentary, Reality, News, Talk, Soap, Horror and Thriller, plus Comedy
-  County's twist genres (one shared list, so Laugh Track cannot take Comedy County's ties). Horror and Thriller go beyond
+  County's twist genres (one shared list, so Laugh Track cannot take Oddly Funny's ties). Horror and Thriller go beyond
   the examples in §4; they keep horror comedies off Laugh Track as before, and the owner approved them on 2026-11-16.
   Kids and TV Movie are not listed (every grown-up recipe already excludes the kids' genres, and TV Movie does nothing for
   episodes).

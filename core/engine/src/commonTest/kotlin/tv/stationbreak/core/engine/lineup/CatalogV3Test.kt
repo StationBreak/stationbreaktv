@@ -104,8 +104,8 @@ class CatalogV3Test {
         val shape = setOf("Horror", "Thriller")
         assertEquals(notASitcom + shape + twists, laugh.filters?.notGenres?.toSet())
         val county = recipe("satire-desk")
-        assertEquals("Comedy County", county.name)
-        assertEquals("Comedy with a twist of something else.", county.personality)
+        assertEquals("Oddly Funny", county.name)
+        assertEquals("Comedy with a twist, a little off, and that's the point.", county.personality)
         assertEquals(listOf(Source.Genre("Comedy")), county.sources)
         assertEquals(
             listOf(
@@ -329,7 +329,7 @@ class CatalogV3Test {
         assertEquals(ANCHOR_PINS, actual)
     }
 
-    // #998: a title whose only genre is Martial Arts (TVDb) reaches Kung Fu Theater; the filter must not drop it.
+    // #998: a title whose only genre is Martial Arts (TVDb) reaches Fists & Fury; the filter must not drop it.
     @Test
     fun aMartialArtsOnlyTitleLandsOnKungFuTheater() {
         val kungFu = recipe("kung-fu-theater")

@@ -87,14 +87,14 @@ class LineupAuditTest {
         }
     }
 
-    // Catalog 5: Laugh Track takes a sitcom with a Drama genre, and leaves Comedy County's twist genres to it.
+    // Catalog 5: Laugh Track takes a sitcom with a Drama genre, and leaves Oddly Funny's twist genres to it.
     @Test
     fun laughTrackTakesADramaSitcomAndNotTheMysteryOne() {
         val report = auditOf("sitcom-household")
         val drama = report.titles.single { it.name == CaseTitles.SITCOM_WITH_A_FREED_GENRE }
         assertEquals("laugh-track", drama.home?.channel)
         val twist = report.titles.single { it.name == CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE }
-        // Comedy County is off (too thin) in this household, so the tie title keeps the home it had at catalog 4: the
+        // Oddly Funny is off (too thin) in this household, so the tie title keeps the home it had at catalog 4: the
         // decade channel. Laugh Track does not take it.
         assertEquals("flip-phone", twist.home?.channel)
         assertEquals("laugh-track", auditOf("sitcom-household").starters.single { it.key == "laugh-track" }.key)

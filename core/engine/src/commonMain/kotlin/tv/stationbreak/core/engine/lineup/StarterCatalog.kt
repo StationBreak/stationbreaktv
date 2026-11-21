@@ -34,7 +34,7 @@ object StarterCatalog : StarterCatalogView {
      *
      * Version 5 (the catalog gaps, #786): every key, number, band, ceiling and opt-in kept, and no rules format or hold
      * version changes. Cartoons After Dark takes the Animation genre (not Family); Laugh Track leaves out only the
-     * genres that mean "not a sitcom" and Comedy County's twist genres (Comedy County is the channel to watch); the
+     * genres that mean "not a sitcom" and Oddly Funny's twist genres (Oddly Funny is the channel to watch); the
      * single lanes of a niche theme carry a lower qualifying bar ([QualifyingBar.Niche]: 6 usable hours, 4 titles).
      * Unedited starters take it at the next boundary, as for any catalog update.
      *
@@ -54,7 +54,7 @@ object StarterCatalog : StarterCatalogView {
      * Version 7 (recipe pack: TMDb / TVDb spellings, #994; General, Drama, Genre and World rescopes, #997 to #999; One
      * Season Only, #1000): sources, filters, years and one pitch only. Every key, number, band, opt-in flag and
      * ceiling is kept, no kids recipe changes, and no rules format or hold version changes. Renames, merges, cuts and
-     * Comedy County's move wait for the channel marks.
+     * Oddly Funny's move wait for the channel marks.
      *
      * Version 8 (the young bands, #1002, ADR-0030): Kids 1 to 33, Family 34 to 66, Teen 67 to 99, each ending in its
      * own Odds & Ends (33, 66, 99). Thirteen kids channels take new Kids numbers; Once Upon, Rainy Day Matinee, Little
@@ -83,8 +83,14 @@ object StarterCatalog : StarterCatalogView {
      * numbers (80, 508, 532) are retired and never reused. Tiny Chefs stays in [EVER_KID_SAFE_KEYS], so a stored copy
      * keeps its kid hold. Simmer keeps the cooking lane. Couch Talk already has no `late night` tag (catalog 7), so it
      * is unchanged. No rules format or hold version changes.
+     *
+     * Version 11 (five renames, #1004): Open Road is Riding Shotgun, Silver Screen is Golden Age Matinee, Rabbit Ears
+     * is Vertical Hold, Kung Fu Theater is Fists & Fury and Comedy County is Oddly Funny, with new taglines for
+     * three. No recipe, key, number or ceiling changes, so the manifest is as at 10; the version goes up so an
+     * installed lineup is re-planned and its unedited starters take the new name (a viewer's own rename is kept). No
+     * rules format or hold version changes.
      */
-    const val VERSION = 10
+    const val VERSION = 11
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

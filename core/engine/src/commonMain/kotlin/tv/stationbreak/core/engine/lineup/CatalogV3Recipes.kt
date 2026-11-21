@@ -429,8 +429,8 @@ private val teenBand: List<Recipe> =
     )
 
 /**
- * The genres Comedy County (528) needs one of: the "twist" a comedy takes. Laugh Track (102) leaves them out, so it
- * does not take Comedy County's titles on ties; Comedy County is the channel to watch when this list changes.
+ * The genres Oddly Funny (528) needs one of: the "twist" a comedy takes. Laugh Track (102) leaves them out, so it
+ * does not take Oddly Funny's titles on ties; Oddly Funny is the channel to watch when this list changes.
  */
 private val COMEDY_TWIST_GENRES: List<String> =
     listOf(
@@ -485,7 +485,7 @@ private val generalBand: List<Recipe> =
             Band.General,
             n = 110,
             key = "rabbit-ears",
-            name = "Rabbit Ears",
+            name = "Vertical Hold",
             says = "Fuzzy pictures from the fifties and sixties; adjust the antenna.",
             sources = years(from = 1950, to = 1969),
         ),
@@ -609,8 +609,8 @@ private val generalBand: List<Recipe> =
             Band.General,
             n = 166,
             key = "open-road",
-            name = "Open Road",
-            says = "Road trips, travel diaries and a very long highway.",
+            name = "Riding Shotgun",
+            says = "The passenger seat, a long highway, and a map on the dash.",
             sources = genres("Travel") + tags("road trip", "road-trip", "travel", "road movie"),
             anchors = collections(Contains("Road Trips")),
         ),
@@ -706,8 +706,8 @@ private val dramaBand: List<Recipe> =
             Band.Drama,
             n = 220,
             key = "silver-screen",
-            name = "Silver Screen",
-            says = "Old Hollywood in black and white, the glamour intact.",
+            name = "Golden Age Matinee",
+            says = "Golden-age matinees, in black and white, glamour intact.",
             sources = tags("classic film", "classic movie") + years(from = 1920, to = 1949),
             anchors =
                 collections(
@@ -762,7 +762,7 @@ private val dramaBand: List<Recipe> =
             Band.Drama,
             n = 232,
             key = "kung-fu-theater",
-            name = "Kung Fu Theater",
+            name = "Fists & Fury",
             says = "Fists, flying kicks and dubbing that's slightly out of sync.",
             sources = genres("Martial Arts") + tags("kung fu", "martial arts", "wuxia", "karate", "samurai"),
             anchors = collections(Contains("Ip Man"), Contains("Once Upon a Time in China")),
@@ -1239,8 +1239,8 @@ private val premiumBand: List<Recipe> =
             Band.Premium,
             n = 528,
             key = "satire-desk",
-            name = "Comedy County",
-            says = "Comedy with a twist of something else.",
+            name = "Oddly Funny",
+            says = "Comedy with a twist, a little off, and that's the point.",
             sources = genres("Comedy"),
             filters =
                 filters(

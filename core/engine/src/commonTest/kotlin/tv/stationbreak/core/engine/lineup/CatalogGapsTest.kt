@@ -77,7 +77,7 @@ class CatalogGapsTest {
         for (notASitcom in listOf("Animation", "Documentary", "Reality", "News", "Talk")) {
             assertTrue(notASitcom in excluded, notASitcom)
         }
-        // Comedy County's twist genres stay out of Laugh Track (102), or it would take Comedy County's (528) ties.
+        // Oddly Funny's twist genres stay out of Laugh Track (102), or it would take Oddly Funny's (528) ties.
         val twists = checkNotNull(comedyCounty.filters?.genres)
         assertTrue(twists.isNotEmpty())
         assertEquals(emptyList(), twists.filter { it !in excluded }, "a twist genre Laugh Track would take")
