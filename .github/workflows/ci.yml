@@ -152,6 +152,14 @@ jobs:
       - name: Device-proof guard
         run: bash .github/scripts/device-proof-guard.sh .
 
+      # ADR-0023: no store IAP secret or shared key in the repo, no workflow that prints a secret, and nothing in CI that
+      # submits to a store or starts its review clock. The tests run first, so a broken guard can't pass the real check.
+      - name: Test the store secrets guard
+        run: bash .github/scripts/store-secrets-guard.test.sh
+
+      - name: Store secrets guard
+        run: bash .github/scripts/store-secrets-guard.sh .
+
       # Workflow syntax, expressions and job references, plus shellcheck (preinstalled on the runner) on `run:` scripts.
       - name: Install actionlint
         env:
