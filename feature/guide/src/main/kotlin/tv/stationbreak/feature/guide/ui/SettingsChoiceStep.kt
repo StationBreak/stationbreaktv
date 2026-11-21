@@ -7,32 +7,50 @@ package tv.stationbreak.feature.guide.ui
 internal fun SettingsPanel.changed(
     values: SettingsValues,
     change: Change,
-): SettingsStep {
-    val same = SettingsStep(this)
-    return when (row) {
-        SettingsRow.Appearance -> {
-            stepped(THEMES, values.theme, change)?.let { SettingsStep(this, theme = it) } ?: same
-        }
+): SettingsStep =
+    (pictureChanged(values, change) ?: playbackChanged(values, change) ?: privacyChanged(values, change))
+        ?: SettingsStep(this)
 
-        SettingsRow.ScreenFit -> {
-            stepped(FITS, values.fit, change)?.let { SettingsStep(this, fit = it) } ?: same
-        }
+private fun SettingsPanel.pictureChanged(
+    values: SettingsValues,
+    change: Change,
+): SettingsStep? =
+    when (row) {
+        SettingsRow.Appearance -> stepped(THEMES, values.theme, change)?.let { SettingsStep(this, theme = it) }
+        SettingsRow.ScreenFit -> stepped(FITS, values.fit, change)?.let { SettingsStep(this, fit = it) }
+        else -> null
+    }
 
+private fun SettingsPanel.playbackChanged(
+    values: SettingsValues,
+    change: Change,
+): SettingsStep? =
+    when (row) {
         SettingsRow.ChannelChange -> {
             stepped(CHANGES, values.channelChange, change)
-                ?.let { SettingsStep(this, channelChange = it, channelChangeFrom = change.from) } ?: same
+                ?.let { SettingsStep(this, channelChange = it, channelChangeFrom = change.from) }
         }
 
         SettingsRow.VolumeLevelling -> {
             stepped(LEVELLINGS, values.levelling, change)
-                ?.let { SettingsStep(this, levelling = it, levellingFrom = change.from) } ?: same
+                ?.let { SettingsStep(this, levelling = it, levellingFrom = change.from) }
         }
 
-        SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> {
-            same
+        else -> {
+            null
         }
     }
-}
+
+private fun SettingsPanel.privacyChanged(
+    values: SettingsValues,
+    change: Change,
+): SettingsStep? =
+    if (row == SettingsRow.CrashReports) {
+        stepped(CRASH_REPORTS, values.crashReports, change)
+            ?.let { SettingsStep(this, crashReports = it, crashReportsFrom = change.from) }
+    } else {
+        null
+    }
 
 // The value after [current] in [all] for [change], or null when it stays the same (Left on the first, Right on the
 // last). OK goes round.

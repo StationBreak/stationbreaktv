@@ -45,6 +45,7 @@ import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.mark.LocalMarkCache
 import tv.stationbreak.core.ui.mark.MarkCaches
 import tv.stationbreak.core.ui.rememberChannelChangeStore
+import tv.stationbreak.core.ui.rememberCrashReportConsentStore
 import tv.stationbreak.core.ui.rememberScreenFitStore
 import tv.stationbreak.core.ui.rememberVolumeLevellingStore
 import tv.stationbreak.core.ui.remoteKeyToAct
@@ -94,6 +95,10 @@ fun GuideDestination(
     // Volume levelling (#498) is the TV's own choice, read by the player; the guide only sets it.
     val levellings = rememberVolumeLevellingStore()
     val levelling by levellings.enabled.collectAsStateWithLifecycle()
+    // Whether a crash may be reported (#96): the viewer's consent; the guide only sets it, and only when the build
+    // has an endpoint to send to.
+    val crashConsent = rememberCrashReportConsentStore()
+    val crashReports by crashConsent.enabled.collectAsStateWithLifecycle()
     // What live TV shows while the channel changes: the guide only sets it.
     val changes = rememberChannelChangeStore()
     val channelChange by changes.style.collectAsStateWithLifecycle()
@@ -117,6 +122,9 @@ fun GuideDestination(
                 onLevelling = { enabled, from -> levellings.choose(enabled, from) },
                 channelChange = channelChange,
                 onChannelChange = { style, from -> changes.choose(style, from) },
+                crashReports = crashReports,
+                crashReportsAvailable = crashConsent.available,
+                onCrashReports = { enabled, from -> crashConsent.choose(enabled, from) },
                 // The stores as they stand at the key, not as the last frame saw them: two presses inside one frame
                 // both step, each from the value the one before chose.
                 valuesNow = {
@@ -125,6 +133,8 @@ fun GuideDestination(
                         fits.fit.value,
                         changes.style.value,
                         levellings.enabled.value,
+                        crashConsent.enabled.value,
+                        crashConsent.available,
                     )
                 },
             )
@@ -202,6 +212,9 @@ internal fun GuideRoot(
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
     channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     onChannelChange: (ChannelChangeStyle, String) -> Unit = { _, _ -> },
+    crashReports: Boolean = false,
+    crashReportsAvailable: Boolean = false,
+    onCrashReports: (Boolean, String) -> Unit = { _, _ -> },
     valuesNow: (() -> SettingsValues)? = null,
 ) {
     val current = opening.current
@@ -274,9 +287,18 @@ internal fun GuideRoot(
     val chooseFit = rememberUpdatedState(onFit)
     val chooseLevelling = rememberUpdatedState(onLevelling)
     val chooseChannelChange = rememberUpdatedState(onChannelChange)
+    val chooseCrashReports = rememberUpdatedState(onCrashReports)
     // What the Settings sheet's choice rows show; a key there steps on from the stores' values as they stand
     // ([valuesNow]), or from these where there are no stores (a test's host).
-    val settingsValues = SettingsValues(themeChoice, LocalScreenFit.current, channelChange, levelling)
+    val settingsValues =
+        SettingsValues(
+            themeChoice,
+            LocalScreenFit.current,
+            channelChange,
+            levelling,
+            crashReports,
+            crashReportsAvailable,
+        )
     val shownValues by rememberUpdatedState(settingsValues)
     val keyValues by rememberUpdatedState(valuesNow ?: { shownValues })
     LaunchedEffect(viewModel) {
@@ -362,6 +384,9 @@ internal fun GuideRoot(
                                 }
                                 step.channelChange?.let { next ->
                                     chooseChannelChange.value(next, step.channelChangeFrom.orEmpty())
+                                }
+                                step.crashReports?.let { next ->
+                                    chooseCrashReports.value(next, step.crashReportsFrom.orEmpty())
                                 }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel

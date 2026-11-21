@@ -124,8 +124,10 @@ internal fun GuideSettingsSheet(
             verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap),
         ) {
             for (group in SettingsGroup.entries) {
+                val rows = group.rows.filter { it.isShown(values) }
+                if (rows.isEmpty()) continue
                 SectionFlag(group)
-                for (each in group.rows) {
+                for (each in rows) {
                     SettingsLine(each, values, focused = each == row)
                     if (each == SettingsRow.SyncNow && status != null) SyncStatus(status)
                 }

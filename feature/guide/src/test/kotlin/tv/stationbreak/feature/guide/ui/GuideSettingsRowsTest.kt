@@ -32,13 +32,14 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Library", "Account"),
+            listOf("Picture", "Playback", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
+        assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
     }
 
     @Test
@@ -52,6 +53,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
                 SettingsRow.SyncNow to (RowKind.Action to "Update library"),
                 SettingsRow.SignOut to (RowKind.Action to "Sign out"),
+                SettingsRow.CrashReports to (RowKind.Choice to "Send crash reports"),
             )
         assertEquals(SettingsRow.entries.toSet(), expected.keys)
         for ((row, kindAndLabel) in expected) {
@@ -70,6 +72,9 @@ class GuideSettingsRowsTest {
         val v = SettingsValues()
         assertEquals(Triple("Dark", 0, 2), shown(SettingsRow.Appearance, v))
         assertEquals(Triple("Light", 1, 2), shown(SettingsRow.Appearance, v.copy(theme = GuideTheme.Light)))
+        // Off until the viewer turns it on.
+        assertEquals(Triple("Off", 0, 2), shown(SettingsRow.CrashReports, v))
+        assertEquals(Triple("On", 1, 2), shown(SettingsRow.CrashReports, v.copy(crashReports = true)))
         assertEquals(Triple("Safe", 0, 2), shown(SettingsRow.ScreenFit, v))
         assertEquals(Triple("Edge", 1, 2), shown(SettingsRow.ScreenFit, v.copy(fit = ScreenFit.Edge)))
         // Named by what the viewer sees, never by Stan's name; the stand-by card is the default.

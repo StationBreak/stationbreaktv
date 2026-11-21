@@ -83,7 +83,7 @@ You'd need:
 
 What I'm testing: whether someone who has never seen the app can install it, connect to their server and get a channel playing with no help from me. So I won't explain anything up front, and anything that confuses you is exactly what I want to hear about.
 
-The app talks only to your server. No ads, no analytics, no account.
+The app talks only to your server. No ads, no analytics, no account. If something crashes, you can choose to send me a report from Settings, Send crash reports; it is off until you turn it on, and the [privacy page](https://stationbreak.tv/privacy/) says exactly what it holds.
 
 If you're in, reply or message me with your TV model (Settings > My Fire TV > About) and your Jellyfin version. Don't send your server address or anything else about your server. Fire TV testers will get an invitation from Amazon at the email of their Amazon account, so I'll ask you for that address privately.
 
