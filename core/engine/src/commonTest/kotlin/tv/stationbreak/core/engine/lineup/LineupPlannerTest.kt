@@ -622,6 +622,27 @@ class LineupPlannerTest {
         assertEquals(lineup.channel("odds"), next.channel("odds"))
     }
 
+    // #1004: a rename is a newer catalog; an installed, unedited starter takes the new name and tagline source, and a
+    // name the viewer gave a channel stays theirs. The keys, numbers and states do not move.
+    @Test
+    fun aNewerCatalogRenamesUneditedStartersAndKeepsTheViewersOwnName() {
+        val lineup = firstLineup()
+        val alpha = LineupIds.starter("alpha")
+        val mine = lineup.channels.map { if (it.id == alpha) it.copy(nameOverride = "My Alpha") else it }
+        val renamed =
+            base.recipes.map { if (it.key == "alpha" || it.key == "bravo") it.copy(name = "New ${it.key}") else it }
+        val v2 = TestCatalog(renamed, version = 2)
+        val next = planOf(lineup.copy(channels = mine), libraryOf(fills()), v2)
+
+        fun nameOf(key: String) = (next.channel(key).source as ChannelSource.Starter).rules.name
+        assertEquals("New bravo", nameOf("bravo"))
+        assertEquals("New alpha", nameOf("alpha"))
+        assertEquals("My Alpha", next.channel("alpha").nameOverride, "the viewer's own name is kept")
+        assertNull(next.channel("bravo").nameOverride)
+        assertEquals(lineup.channels.map { it.id to it.number }, next.channels.map { it.id to it.number })
+        assertEquals(lineup.channels.map { it.state }, next.channels.map { it.state })
+    }
+
     @Test
     fun aGrownUpRecipeWhoseWholePoolIsChildrensRatedRanksAsEmpty() {
         val four = TestCatalog(five.take(4).map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10))

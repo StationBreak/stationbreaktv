@@ -25,7 +25,7 @@ class MarkInitialsTest {
                 ch(16, "Saturday Morning") to "SM",
                 ch(56, "Snowglobe") to "Sn",
                 ch(102, "Laugh Track") to "LT",
-                ch(110, "Rabbit Ears") to "RE",
+                ch(110, "Vertical Hold") to "VH",
                 ch(178, "Backstage Pass") to "BP",
                 ch(204, "Prestige") to "Pr",
                 ch(212, "Order in the Court") to "OC",
