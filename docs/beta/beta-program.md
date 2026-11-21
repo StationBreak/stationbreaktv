@@ -24,6 +24,12 @@ Amazon's **Appstore Beta Hub** app. On Fire OS 6 they use the invitation email.
 The beta build is a release build (the `amazon` flavor from a tag), not a CI debug build: release builds have the free
 tier's gates closed (#808), as customers will see them.
 
+A LAT build's version comes from the tag (`vMAJOR.MINOR.PATCH`, MAJOR 1 or more): `versionName` is the tag and
+`versionCode` is `MAJOR * 10000 + MINOR * 100 + PATCH`, so every LAT upload needs a higher tag than the last one. Do not
+upload a `TEST_RELEASE_VERSION` build to LAT: its codes are on a larger scale, and Appstore would then refuse the store
+codes that follow. The tagged workflow does not set `CRASH_REPORT_URL`, so a LAT build has no crash-report switch and
+sends nothing, which the privacy page and the listing's data-collection answer (No) both assume.
+
 ## Sideload path
 
 For outside testers on a non-Amazon Android TV (and, as a fallback, a Fire TV tester who can't take the Amazon
