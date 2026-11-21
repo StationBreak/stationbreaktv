@@ -24,7 +24,7 @@ class CatalogManifestTest {
 
     private fun catalog(
         recipes: List<Recipe> = shipped,
-        version: Int = 6,
+        version: Int = 7,
         leftovers: List<LeftoversRecipe> = StarterCatalog.leftovers,
         retiredKeys: Set<String> = emptySet(),
         retiredNumbers: Set<Int> = emptySet(),
@@ -32,7 +32,7 @@ class CatalogManifestTest {
 
     private fun withFirst(change: (Recipe) -> Recipe) = shipped.map { if (it == first) change(it) else it }
 
-    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V6)
+    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V7)
 
     @Test
     fun theShippedCatalogKeepsEveryManifest() {
@@ -42,13 +42,114 @@ class CatalogManifestTest {
         val versions = CATALOG_MANIFESTS.map { it.version }
         assertEquals(versions.sorted().distinct(), versions, "manifests are oldest first, one per version")
         assertEquals(StarterCatalog.VERSION, CATALOG_MANIFESTS.last().version, "the current version is frozen too")
-        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V6.recipes.size)
+        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V7.recipes.size)
         assertEquals(1, CATALOG_MANIFEST_V1.version)
         assertEquals(2, CATALOG_MANIFEST_V2.version)
         assertEquals(3, CATALOG_MANIFEST_V3.version)
         assertEquals(4, CATALOG_MANIFEST_V4.version)
         assertEquals(5, CATALOG_MANIFEST_V5.version)
         assertEquals(6, CATALOG_MANIFEST_V6.version)
+        assertEquals(7, CATALOG_MANIFEST_V7.version)
+    }
+
+    // Catalog 7 (the recipe pack: #994, #997 to #999, #1000) keeps every key, number, band, opt-in flag, ceiling and
+    // the leftovers, and changes no kids recipe. It changes the sources or filters of the recipes named here.
+    @Test
+    fun versionSevenChangesOnlyTheRecipesThePackNames() {
+        assertEquals(CATALOG_MANIFEST_V6.recipes.keys, CATALOG_MANIFEST_V7.recipes.keys)
+        assertEquals(CATALOG_MANIFEST_V6.leftovers, CATALOG_MANIFEST_V7.leftovers)
+        val before = CATALOG_MANIFEST_V6.recipes
+        val after = CATALOG_MANIFEST_V7.recipes
+        for ((key, old) in before) {
+            val now = after.getValue(key)
+            assertEquals(old.number, now.number, key)
+            assertEquals(old.band, now.band, key)
+            assertEquals(old.optIn, now.optIn, key)
+            assertEquals(old.maxRating, now.maxRating, key)
+        }
+        val changed = before.keys.filter { before.getValue(it).fingerprint != after.getValue(it).fingerprint }
+        assertEquals(PACK_AT_7, changed.toSet())
+        assertTrue(changed.none { before.getValue(it).band == Band.Kids }, "no kids recipe changes at 7")
+    }
+
+    // The spellings and sources the pack adds, pinned. Each old string stays where the issue said to keep it.
+    @Test
+    fun thePackRecipesHaveTheirNewSources() {
+        fun recipe(key: String) = StarterCatalog.recipe(key)!!
+
+        fun sources(key: String) = recipe(key).sources
+
+        fun g(vararg n: String) = n.map { Source.Genre(it) }
+
+        fun t(vararg n: String) = n.map { Source.Tag(it) }
+        assertTrue(t("stand-up", "stand-up comedy").all { it in sources("punchline") })
+        assertTrue(t("based on a true story", "based on true story").all { it in sources("life-stories") })
+        assertTrue(g("Biography").all { it in sources("life-stories") })
+        assertEquals(t("post-apocalyptic", "post-apocalyptic future", "apocalypse", "wasteland"), sources("end-times"))
+        assertEquals(t("disaster", "natural disaster"), sources("disaster-zone"))
+        assertTrue(t("lawyers", "lawyer").all { it in sources("order-in-the-court") })
+        assertTrue(t("b-movie", "b movie").all { it in sources("drive-in-double") })
+        assertTrue(Source.Genre("Mini-Series") in sources("one-season-only"))
+        assertTrue(!recipe("one-season-only").personality.contains("in order"))
+        assertTrue(g("Science Fiction", "Sci-Fi").all { it in sources("starport") })
+        assertTrue(Source.Genre("Game Show") in sources("game-night"))
+        assertEquals(g("Talk", "Talk Show") + t("talk show", "chat show"), sources("couch-talk"))
+        assertEquals(t("soap opera"), sources("matinee-tears").filterIsInstance<Source.Tag>())
+        assertTrue(Source.Genre("Sport") in sources("sideline"))
+        assertTrue(Source.Genre("Travel") in sources("open-road"))
+        assertTrue(Source.Genre("Food") in sources("simmer"))
+        assertTrue(Source.Genre("Home and Garden") in sources("fixer-hour"))
+        assertTrue(Source.Genre("Musical") in sources("curtain-call"))
+        assertEquals(t("spy", "heist", "espionage"), sources("dead-drop"))
+        assertTrue(recipe("dead-drop").filters!!.genres!!.contains("Thriller"))
+        assertEquals(listOf("Documentary"), recipe("docs-and-dusters").filters!!.genres)
+        assertTrue(Source.Genre("History") !in sources("docs-and-dusters"))
+        assertTrue(Source.Genre("War & Politics") !in sources("front-lines"))
+        assertTrue(Source.Genre("Film-Noir") in sources("noir-nights"))
+        assertTrue(Source.Tag("neo-noir") !in sources("neon-rain"))
+        assertTrue(Source.Genre("Martial Arts") in sources("kung-fu-theater"))
+        assertTrue(Source.Tag("samurai") in sources("kung-fu-theater"))
+        val silver = sources("silver-screen").filterIsInstance<Source.YearRange>().single()
+        assertEquals(1920 to 1949, silver.from to silver.to)
+    }
+
+    // Whodunit Isles is Tea Time's mystery lane (#999). Continental Drift's first studio list stays short.
+    @Test
+    fun theWorldRecipesTakeTheirStudios() {
+        val tea = StarterCatalog.recipe("tea-time")!!.theme!!.themeStudios
+        val whodunit = StarterCatalog.recipe("whodunit-isles")!!
+        assertEquals(tea, whodunit.theme!!.themeStudios)
+        assertEquals(listOf("Mystery", "Crime"), whodunit.filters!!.genres)
+        for (key in listOf("continental-drift", "seoul-sundays", "masala-hour", "telenovela-tonight")) {
+            assertTrue(
+                StarterCatalog
+                    .recipe(key)!!
+                    .theme!!
+                    .themeStudios
+                    .isNotEmpty(),
+                key,
+            )
+        }
+        assertTrue(
+            StarterCatalog
+                .recipe("continental-drift")!!
+                .theme!!
+                .themeStudios.size <= 8,
+        )
+        assertEquals(
+            5,
+            StarterCatalog
+                .recipe("seoul-sundays")!!
+                .theme!!
+                .themeStudios.size,
+        )
+        assertEquals(
+            4,
+            StarterCatalog
+                .recipe("telenovela-tonight")!!
+                .theme!!
+                .themeStudios.size,
+        )
     }
 
     // Catalog 6 (#591) keeps every key, number, band and opt-in flag and the leftovers. It changes what six kids
@@ -273,29 +374,63 @@ class CatalogManifestTest {
                 shipped + recipeOf("brand-new", 598),
             )
         for (recipes in changed) {
-            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 6")
-            assertEquals(emptyList(), problems(catalog(recipes, version = 7)), "allowed at version 7")
+            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 7")
+            assertEquals(emptyList(), problems(catalog(recipes, version = 8)), "allowed at version 8")
         }
         val stricter = StarterCatalog.leftovers.map { if (it.number == 99) it.copy(maxRating = "G") else it }
         assertTrue(problems(catalog(leftovers = stricter)).isNotEmpty())
-        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 7)))
+        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 8)))
     }
 
     @Test
     fun aShippedKeyStaysAtItsNumberOrIsRetiredWithIt() {
         val moved = withFirst { it.copy(number = it.number + 1) }
-        assertTrue(problems(catalog(moved, version = 7)).isNotEmpty(), "a shipped number never changes")
+        assertTrue(problems(catalog(moved, version = 8)).isNotEmpty(), "a shipped number never changes")
 
         val dropped = shipped.drop(1)
-        assertTrue(problems(catalog(dropped, version = 7)).isNotEmpty(), "dropped without retiring")
-        val keyOnly = catalog(dropped, version = 7, retiredKeys = setOf(first.key))
+        assertTrue(problems(catalog(dropped, version = 8)).isNotEmpty(), "dropped without retiring")
+        val keyOnly = catalog(dropped, version = 8, retiredKeys = setOf(first.key))
         assertTrue(problems(keyOnly).isNotEmpty(), "retired without its number")
-        val retired = catalog(dropped, 7, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
+        val retired = catalog(dropped, 8, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
         assertEquals(emptyList(), problems(retired))
 
         val noLeftovers = StarterCatalog.leftovers.filter { it.number != 199 }
-        assertTrue(problems(catalog(leftovers = noLeftovers, version = 7)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = noLeftovers, version = 8)).isNotEmpty())
         val movedLeftovers = StarterCatalog.leftovers.map { if (it.number == 199) it.copy(number = 198) else it }
-        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 7)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 8)).isNotEmpty())
+    }
+
+    private companion object {
+        val PACK_AT_7 =
+            setOf(
+                "punchline",
+                "game-night",
+                "couch-talk",
+                "matinee-tears",
+                "sideline",
+                "open-road",
+                "simmer",
+                "fixer-hour",
+                "curtain-call",
+                "order-in-the-court",
+                "silver-screen",
+                "dead-drop",
+                "kung-fu-theater",
+                "docs-and-dusters",
+                "front-lines",
+                "noir-nights",
+                "life-stories",
+                "disaster-zone",
+                "starport",
+                "drive-in-double",
+                "neon-rain",
+                "end-times",
+                "whodunit-isles",
+                "continental-drift",
+                "seoul-sundays",
+                "masala-hour",
+                "telenovela-tonight",
+                "one-season-only",
+            )
     }
 }

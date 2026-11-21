@@ -49,8 +49,13 @@ object StarterCatalog : StarterCatalogView {
      * Animation, Little Farm adds
      * the Preschool and Pre-school genres, and Small Sleuths' ceiling goes from PG to TV-Y7 (still kid-safe, so
      * [EVER_KID_SAFE_KEYS] holds it). Unedited starters take it at the next boundary, as for any catalog update.
+     *
+     * Version 7 (recipe pack: TMDb / TVDb spellings, #994; General, Drama, Genre and World rescopes, #997 to #999; One
+     * Season Only, #1000): sources, filters, years and one pitch only. Every key, number, band, opt-in flag and
+     * ceiling is kept, no kids recipe changes, and no rules format or hold version changes. Renames, merges, cuts and
+     * Comedy County's move wait for the channel marks.
      */
-    const val VERSION = 6
+    const val VERSION = 7
 
     override val version: Int = VERSION
 

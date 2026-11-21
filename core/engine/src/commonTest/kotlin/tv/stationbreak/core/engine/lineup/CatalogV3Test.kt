@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.collection
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
+import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.engine.snapshot
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.CollectionNames
@@ -37,7 +38,10 @@ class CatalogV3Test {
         for (r in v3) {
             val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
             for (name in sources + r.filters?.genres.orEmpty()) {
-                assertTrue(name in TMDB_GENRES || name in SCRAPER_GENRES, "${r.key} has genre $name")
+                assertTrue(
+                    name in TMDB_GENRES || name in SCRAPER_GENRES || name in EXEMPT_AT_7[r.key].orEmpty(),
+                    "${r.key} has genre $name",
+                )
             }
         }
     }
@@ -134,7 +138,7 @@ class CatalogV3Test {
     @Test
     fun mustAlsoMatchFiltersAreWhereTheyShouldBe() {
         val kungFu = recipe("kung-fu-theater").filters
-        assertEquals(listOf("Action", "Adventure", "Drama", "Fantasy", "History"), kungFu?.genres)
+        assertEquals(listOf("Action", "Adventure", "Drama", "Fantasy", "History", "Martial Arts"), kungFu?.genres)
         assertEquals(listOf("Science Fiction", "Sci-Fi"), kungFu?.notGenres)
         assertEquals(listOf("Science Fiction", "Sci-Fi & Fantasy"), recipe("deep-space-drift").filters?.genres)
         assertEquals(listOf("Horror", "Science Fiction", "Thriller"), recipe("creature-feature").filters?.genres)
@@ -313,6 +317,18 @@ class CatalogV3Test {
         assertEquals(ANCHOR_PINS, actual)
     }
 
+    // #998: a title whose only genre is Martial Arts (TVDb) reaches Kung Fu Theater; the filter must not drop it.
+    @Test
+    fun aMartialArtsOnlyTitleLandsOnKungFuTheater() {
+        val kungFu = recipe("kung-fu-theater")
+        val only = movie(idOf(1), genres = listOf("Martial Arts"))
+        val withFamily = movie(idOf(2), genres = listOf("Martial Arts", "Family"))
+        val comedy = movie(idOf(3), genres = listOf("Comedy"))
+        val kungFuRules = rules(kungFu.sources, filters = kungFu.filters, formatVersion = 3)
+        val pool = PoolEvaluator.evaluate(kungFuRules, snapshot(items = listOf(only, withFamily, comedy)))
+        assertEquals(listOf(idOf(1), idOf(2)), pool.items.map { it.id })
+    }
+
     @Test
     fun theThemeStudiosArePinnedPerRecipe() {
         val themed = v3.filter { checkNotNull(it.theme).themeStudios.isNotEmpty() }
@@ -330,6 +346,23 @@ class CatalogV3Test {
 
         // Not TMDB genres: anime, and the preschool shelf scrapers file under their own genre (Little Farm, #591).
         val SCRAPER_GENRES = setOf("Anime", "Preschool", "Pre-school")
+
+        // Catalog 7 (#994, #997, #998, #1000): TVDb / OMDb spellings, allowed per recipe and nowhere else.
+        val EXEMPT_AT_7 =
+            mapOf(
+                "starport" to setOf("Sci-Fi"),
+                "one-season-only" to setOf("Mini-Series"),
+                "life-stories" to setOf("Biography"),
+                "game-night" to setOf("Game Show"),
+                "couch-talk" to setOf("Talk Show"),
+                "sideline" to setOf("Sport"),
+                "open-road" to setOf("Travel"),
+                "simmer" to setOf("Food"),
+                "fixer-hour" to setOf("Home and Garden"),
+                "curtain-call" to setOf("Musical"),
+                "noir-nights" to setOf("Film-Noir"),
+                "kung-fu-theater" to setOf("Martial Arts"),
+            )
         val ANCHOR_PINS: Map<String, String> =
             mapOf(
                 "sing-along-station" to "2 CE CE 5712baf4006b764f",
@@ -374,6 +407,12 @@ class CatalogV3Test {
                 "kung-fu-theater" to "8 C C C C C C C C 1dab6d9025dc0aa9",
                 "rubber-suit-theatre" to "3 W C C f6f880740abb9213",
                 "tea-time" to "11 P W C P W P C C C C C db89332bceb39108",
+                // Catalog 7 (#999): the World recipes rebuilt on studios; Whodunit Isles shares Tea Time's set.
+                "whodunit-isles" to "11 P W C P W P C C C C C db89332bceb39108",
+                "continental-drift" to "8 C C C C C C C C 166a74a0283f0a2e",
+                "seoul-sundays" to "5 W W W W W 789ba92813c20086",
+                "masala-hour" to "3 C C C 9c382452ff7eb8ee",
+                "telenovela-tonight" to "4 C C C C 95e97009de92c3a6",
                 "cartoons-after-dark" to "5 C C E E P 56928bf9033f4b0f",
             )
     }

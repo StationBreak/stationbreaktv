@@ -98,6 +98,22 @@ private fun recipe(
         qualifyingBar = bar,
     )
 
+/** The British networks and studios Tea Time and Whodunit Isles share (#999). */
+private val BRITISH_STUDIOS: List<NameMatcher> =
+    listOf(
+        Prefix("BBC"),
+        Word("ITV"),
+        Contains("Channel 4"),
+        Prefix("Sky One"),
+        Word("Sky 1"),
+        Prefix("Sky Atlantic"),
+        Contains("U&Dave"),
+        Contains("Thames"),
+        Contains("Granada"),
+        Contains("Yorkshire Television"),
+        Contains("London Weekend"),
+    )
+
 private val kidsBand: List<Recipe> =
     listOf(
         recipe(
@@ -396,7 +412,7 @@ private val generalBand: List<Recipe> =
             key = "punchline",
             name = "Punchline",
             says = "Stand-up, sketches and one-liners without the filler.",
-            sources = tags("stand-up", "sketch", "comedy special", "sketch comedy"),
+            sources = tags("stand-up", "stand-up comedy", "sketch", "comedy special", "sketch comedy"),
         ),
         recipe(
             Band.General,
@@ -469,7 +485,7 @@ private val generalBand: List<Recipe> =
             key = "game-night",
             name = "Game Night",
             says = "Buzzers, big prizes and a host who loves a pun.",
-            sources = tags("game show", "quiz", "game-show"),
+            sources = genres("Game Show") + tags("game show", "quiz", "game-show"),
         ),
         recipe(
             Band.General,
@@ -477,7 +493,7 @@ private val generalBand: List<Recipe> =
             key = "couch-talk",
             name = "Couch Talk",
             says = "Hosts, guests and chat from a comfortable seat.",
-            sources = genres("Talk") + tags("talk show", "chat show", "late night"),
+            sources = genres("Talk", "Talk Show") + tags("talk show", "chat show"),
             bar = QualifyingBar.Niche,
         ),
         recipe(
@@ -486,7 +502,7 @@ private val generalBand: List<Recipe> =
             key = "matinee-tears",
             name = "Matinee Tears",
             says = "Long-running soaps with secrets, slaps and plot twists.",
-            sources = genres("Soap") + tags("soap opera", "telenovela"),
+            sources = genres("Soap") + tags("soap opera"),
             bar = QualifyingBar.Niche,
         ),
         recipe(
@@ -495,7 +511,7 @@ private val generalBand: List<Recipe> =
             key = "sideline",
             name = "Sideline",
             says = "Games, highlights and underdog stories from the touchline.",
-            sources = tags("sports", "football", "baseball", "basketball", "sport"),
+            sources = genres("Sport") + tags("sports", "football", "baseball", "basketball", "sport"),
         ),
         recipe(
             Band.General,
@@ -528,7 +544,7 @@ private val generalBand: List<Recipe> =
             key = "open-road",
             name = "Open Road",
             says = "Road trips, travel diaries and a very long highway.",
-            sources = tags("road trip", "road-trip", "travel", "road movie"),
+            sources = genres("Travel") + tags("road trip", "road-trip", "travel", "road movie"),
             anchors = collections(Contains("Road Trips")),
         ),
         recipe(
@@ -537,7 +553,7 @@ private val generalBand: List<Recipe> =
             key = "simmer",
             name = "Simmer",
             says = "Cooking, baking, and the occasional kitchen disaster.",
-            sources = tags("cooking", "baking", "food"),
+            sources = genres("Food") + tags("cooking", "baking", "food"),
         ),
         recipe(
             Band.General,
@@ -545,7 +561,9 @@ private val generalBand: List<Recipe> =
             key = "fixer-hour",
             name = "Fixer Hour",
             says = "Renovations, makeovers and 'how hard can it be?'",
-            sources = tags("home improvement", "diy", "renovation", "home & garden", "home and garden"),
+            sources =
+                genres("Home and Garden") +
+                    tags("home improvement", "diy", "renovation", "home & garden", "home and garden"),
         ),
         recipe(
             Band.General,
@@ -578,7 +596,7 @@ private val generalBand: List<Recipe> =
             key = "curtain-call",
             name = "Curtain Call",
             says = "Stage and screen musicals, jazz hands mandatory.",
-            sources = tags("musical", "broadway", "stage show"),
+            sources = genres("Musical") + tags("musical", "broadway", "stage show"),
             anchors = collections(Exact("Musicals")),
         ),
     )
@@ -607,7 +625,7 @@ private val dramaBand: List<Recipe> =
             key = "order-in-the-court",
             name = "Order in the Court",
             says = "Lawyers, juries and a verdict before the credits.",
-            sources = tags("courtroom", "legal drama", "lawyers", "legal"),
+            sources = tags("courtroom", "legal drama", "lawyers", "lawyer", "legal"),
         ),
         recipe(
             Band.Drama,
@@ -623,7 +641,7 @@ private val dramaBand: List<Recipe> =
             key = "silver-screen",
             name = "Silver Screen",
             says = "Old Hollywood in black and white, the glamour intact.",
-            sources = tags("classic film", "classic movie") + years(from = 1920, to = 1959),
+            sources = tags("classic film", "classic movie") + years(from = 1920, to = 1949),
             anchors =
                 collections(
                     Contains("Starring Cary Grant"),
@@ -640,7 +658,7 @@ private val dramaBand: List<Recipe> =
             key = "dead-drop",
             name = "Dead Drop",
             says = "Spies, heists and a briefcase that explodes in ten seconds.",
-            sources = genres("Thriller") + tags("spy", "heist", "espionage"),
+            sources = tags("spy", "heist", "espionage"),
             anchors =
                 collections(
                     Contains("James Bond"),
@@ -649,6 +667,9 @@ private val dramaBand: List<Recipe> =
                     Contains("Bourne"),
                 ) +
                     titles(Exact("Get Smart")),
+            // Thriller is a filter, not a source (#998). The other genres are what the anchors carry (Get Smart and
+            // OSS 117 are comedies, Bond and Bourne are action), so the filter does not drop them.
+            filters = filters(genres = listOf("Thriller", "Action", "Adventure", "Action & Adventure", "Comedy")),
         ),
         recipe(
             Band.Drama,
@@ -676,7 +697,7 @@ private val dramaBand: List<Recipe> =
             key = "kung-fu-theater",
             name = "Kung Fu Theater",
             says = "Fists, flying kicks and dubbing that's slightly out of sync.",
-            sources = tags("kung fu", "martial arts", "wuxia", "karate"),
+            sources = genres("Martial Arts") + tags("kung fu", "martial arts", "wuxia", "karate", "samurai"),
             anchors = collections(Contains("Ip Man"), Contains("Once Upon a Time in China")),
             themeStudios =
                 listOf(
@@ -691,7 +712,7 @@ private val dramaBand: List<Recipe> =
                 ),
             filters =
                 filters(
-                    genres = listOf("Action", "Adventure", "Drama", "Fantasy", "History"),
+                    genres = listOf("Action", "Adventure", "Drama", "Fantasy", "History", "Martial Arts"),
                     notGenres = listOf("Science Fiction", "Sci-Fi"),
                 ),
         ),
@@ -701,7 +722,9 @@ private val dramaBand: List<Recipe> =
             key = "docs-and-dusters",
             name = "Docs & Dusters",
             says = "Documentaries and history, with plenty of archive footage.",
-            sources = genres("Documentary", "History") + tags("documentary", "history", "biography"),
+            sources = genres("Documentary") + tags("documentary", "history", "biography"),
+            // History alone no longer qualifies: it must come with Documentary (#998).
+            filters = filters(genres = listOf("Documentary")),
         ),
         recipe(
             Band.Drama,
@@ -709,7 +732,7 @@ private val dramaBand: List<Recipe> =
             key = "front-lines",
             name = "Front Lines",
             says = "War stories, from the trenches to the command tent.",
-            sources = genres("War", "War & Politics") + tags("war", "world war", "military"),
+            sources = genres("War") + tags("war", "world war", "military"),
             anchors = titles(Prefix("M*A*S*H")) + collections(Contains("Top Gun")),
             bar = QualifyingBar.Niche,
         ),
@@ -729,7 +752,7 @@ private val dramaBand: List<Recipe> =
             key = "noir-nights",
             name = "Noir Nights",
             says = "Rain-slick streets, trench coats and a narrator who's seen too much.",
-            sources = tags("film noir", "noir", "film-noir"),
+            sources = genres("Film-Noir") + tags("film noir", "noir", "film-noir"),
             anchors = collections(Contains("Film Noir"), Contains("Alfred Hitchcock")),
         ),
         recipe(
@@ -754,7 +777,7 @@ private val dramaBand: List<Recipe> =
             key = "life-stories",
             name = "Life Stories",
             says = "Biopics and memoirs about people worth a feature film.",
-            sources = tags("biopic", "biography", "based on a true story"),
+            sources = genres("Biography") + tags("biopic", "biography", "based on a true story", "based on true story"),
         ),
         recipe(
             Band.Drama,
@@ -762,7 +785,7 @@ private val dramaBand: List<Recipe> =
             key = "disaster-zone",
             name = "Disaster Zone",
             says = "Earthquakes, tornadoes, volcanoes, and an ensemble cast in peril.",
-            sources = tags("disaster", "natural disaster", "survival"),
+            sources = tags("disaster", "natural disaster"),
         ),
     )
 
@@ -774,7 +797,7 @@ private val genreBand: List<Recipe> =
             key = "starport",
             name = "Starport",
             says = "Sci-fi: starships, aliens and science that's mostly pretend.",
-            sources = genres("Science Fiction", "Sci-Fi & Fantasy") + tags("sci-fi", "science fiction"),
+            sources = genres("Science Fiction", "Sci-Fi & Fantasy", "Sci-Fi") + tags("sci-fi", "science fiction"),
             anchors =
                 collections(
                     Contains("Star Trek"),
@@ -849,7 +872,7 @@ private val genreBand: List<Recipe> =
             key = "drive-in-double",
             name = "Drive-In Double",
             says = "Grindhouse, B-pictures and trailers in the intermission.",
-            sources = tags("b-movie", "drive-in", "grindhouse", "exploitation"),
+            sources = tags("b-movie", "b movie", "drive-in", "grindhouse", "exploitation"),
         ),
         recipe(
             Band.Genre,
@@ -925,7 +948,7 @@ private val genreBand: List<Recipe> =
             key = "neon-rain",
             name = "Neon Rain",
             says = "Cyberpunk and dystopias, glowing in a downpour.",
-            sources = tags("cyberpunk", "dystopia", "dystopian", "neo-noir"),
+            sources = tags("cyberpunk", "dystopia", "dystopian"),
         ),
         recipe(
             Band.Genre,
@@ -955,7 +978,7 @@ private val genreBand: List<Recipe> =
             key = "end-times",
             name = "End Times",
             says = "Post-apocalyptic wastelands and the last diner on Earth.",
-            sources = tags("post-apocalyptic", "apocalypse", "wasteland", "survival"),
+            sources = tags("post-apocalyptic", "post-apocalyptic future", "apocalypse", "wasteland"),
         ),
         recipe(
             Band.Genre,
@@ -1022,20 +1045,7 @@ private val worldBand: List<Recipe> =
             says = "British television, brewed strong with a biscuit on the side.",
             sources = tags("british", "british tv", "uk", "british comedy"),
             anchors = collections(Exact("British")),
-            themeStudios =
-                listOf(
-                    Prefix("BBC"),
-                    Word("ITV"),
-                    Contains("Channel 4"),
-                    Prefix("Sky One"),
-                    Word("Sky 1"),
-                    Prefix("Sky Atlantic"),
-                    Contains("U&Dave"),
-                    Contains("Thames"),
-                    Contains("Granada"),
-                    Contains("Yorkshire Television"),
-                    Contains("London Weekend"),
-                ),
+            themeStudios = BRITISH_STUDIOS,
         ),
         recipe(
             Band.World,
@@ -1044,6 +1054,8 @@ private val worldBand: List<Recipe> =
             name = "Whodunit Isles",
             says = "Village murders, cosy inspectors and vicars with secrets.",
             sources = tags("cozy mystery", "cosy mystery", "british mystery", "village mystery"),
+            themeStudios = BRITISH_STUDIOS,
+            filters = filters(genres = listOf("Mystery", "Crime")),
         ),
         recipe(
             Band.World,
@@ -1052,6 +1064,19 @@ private val worldBand: List<Recipe> =
             name = "Continental Drift",
             says = "World cinema with subtitles; read along and travel.",
             sources = tags("foreign", "world cinema", "subtitled", "international"),
+            // A first list (#999): eight widely scraped non-US studios and networks, as TMDb names them. The rules
+            // have no language field, so studios are the only portable signal. Widen it only with evidence.
+            themeStudios =
+                listOf(
+                    Contains("Canal+"),
+                    Contains("StudioCanal"),
+                    Contains("Gaumont"),
+                    Contains("Pathé"),
+                    Contains("Wild Bunch"),
+                    Contains("Constantin Film"),
+                    Contains("Rai Cinema"),
+                    Contains("Toho"),
+                ),
         ),
         recipe(
             Band.World,
@@ -1060,6 +1085,7 @@ private val worldBand: List<Recipe> =
             name = "Seoul Sundays",
             says = "Korean dramas: slow burns, big hearts, sudden twists.",
             sources = tags("k-drama", "kdrama", "korean drama", "korean"),
+            themeStudios = listOf(Word("tvN"), Word("JTBC"), Word("KBS2"), Word("MBC"), Word("SBS")),
         ),
         recipe(
             Band.World,
@@ -1068,6 +1094,7 @@ private val worldBand: List<Recipe> =
             name = "Masala Hour",
             says = "Song, dance and drama, Bollywood style.",
             sources = tags("bollywood", "hindi", "indian cinema"),
+            themeStudios = listOf(Contains("Yash Raj"), Contains("Dharma Productions"), Contains("Red Chillies")),
         ),
         recipe(
             Band.World,
@@ -1076,6 +1103,8 @@ private val worldBand: List<Recipe> =
             name = "Telenovela Tonight",
             says = "Passion, betrayal and cliffhangers every night.",
             sources = tags("telenovela", "latin drama", "spanish drama"),
+            themeStudios =
+                listOf(Contains("Televisa"), Contains("TV Azteca"), Contains("Telemundo"), Contains("TV Globo")),
         ),
         recipe(
             Band.World,
@@ -1112,8 +1141,8 @@ private val premiumBand: List<Recipe> =
             n = 512,
             key = "one-season-only",
             name = "One Season Only",
-            says = "Miniseries and limited runs, told in order and gone too soon.",
-            sources = tags("miniseries", "mini-series", "limited series"),
+            says = "Miniseries and limited runs, here for one season and gone too soon.",
+            sources = genres("Mini-Series") + tags("miniseries", "mini-series", "limited series"),
         ),
         recipe(
             Band.Premium,
