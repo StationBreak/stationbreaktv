@@ -38,6 +38,12 @@ Channels are built from the metadata Jellyfin keeps for every title: genres, rat
 better your library's metadata, the better the channels. Library names and folder layout don't matter. If you made
 collections in Jellyfin, the built-in channels can use them: turn on **Use my collections** in **Channels**.
 
+**Anime and age ratings.** Family channels, **Little Spirits** (family anime, including Studio Ghibli) among them, only
+air titles that carry an age rating, and a title with no rating counts as adult. The AniList and AniDB plugins don't
+write an age rating to Jellyfin, so a library whose anime comes only from them leaves Little Spirits empty. Add a
+metadata source that does write one, TMDb or TVDb, to the library's metadata downloaders, then refresh the metadata.
+Titles that get a rating such as G, PG or TV-PG then fill the channel.
+
 ## Playback and transcoding
 
 The app plays files directly when the TV can decode them. When it can't, it asks Jellyfin to transcode, so leave
