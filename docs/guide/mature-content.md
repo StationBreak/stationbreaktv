@@ -35,8 +35,21 @@ Jellyfin's own parental controls apply to everything the app shows. If an accoun
 or limited library access on the server, the app can only narrow that further, never get around it. To make sure an
 account can't see something, set it up that way on the server, for the account that TV signs in with.
 
-## A PIN, when it comes
+## Kids Mode and its PIN
 
-There is no PIN in this version. A kids mode with a PIN is planned. When it arrives, the PIN will stop someone from
-leaving kids mode casually. It is a convenience, like a lock on a TV cabinet, not a security boundary: the server's
-account controls remain the real limit.
+Kids Mode keeps the TV to the kids channels. While it is on, the guide, channel flipping and every other way of
+tuning show only the channels numbered from 1 up to its limit: 33, 66 or 99 (33 unless you choose otherwise). A
+channel above the limit, or with no number, is hidden and can't be tuned. If the last channel watched, or the one
+playing when Kids Mode comes on, is above the limit, the TV moves to the lowest-numbered channel that is allowed and
+has something on.
+
+Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and
+changing the PIN all need it. After 5 wrong PINs in a row, no PIN is accepted for 30 seconds, and each further 5 wrong
+PINs double that wait, up to an hour. The count and the wait are kept on the TV, so restarting the app doesn't reset
+them. The PIN itself is never stored: only a salted, slow hash of it, in the app's own files on the TV, never backed
+up.
+
+The PIN stops someone from leaving Kids Mode casually. It is a convenience, like a lock on a TV cabinet, not a security
+boundary: the server's account controls remain the real limit. If you forget the PIN, the only way to clear it for now
+is to clear the app's data in the TV's settings, which also signs the TV out and forgets its channels. A way to reset
+it with your server's admin sign-in is planned.
