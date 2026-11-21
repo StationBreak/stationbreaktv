@@ -63,7 +63,7 @@ internal val CATALOG_MANIFEST_V7: CatalogManifest =
                 "silver-screen" to ManifestRecipe(220, Band.Drama, false, null, "4338050c47a00e2b"),
                 "dead-drop" to ManifestRecipe(224, Band.Drama, false, null, "32fbb20487e718a3"),
                 "big-rumble" to ManifestRecipe(228, Band.Drama, false, null, "0360769c739fa762"),
-                "kung-fu-theater" to ManifestRecipe(232, Band.Drama, false, null, "822f93e77a3fe693"),
+                "kung-fu-theater" to ManifestRecipe(232, Band.Drama, false, null, "06b37adf03ec8bca"),
                 "docs-and-dusters" to ManifestRecipe(236, Band.Drama, false, null, "15914a739df5278f"),
                 "front-lines" to ManifestRecipe(240, Band.Drama, false, null, "457fd6986a98f84a"),
                 "dusty-trails" to ManifestRecipe(244, Band.Drama, false, null, "d58d1be94860d073"),

@@ -712,7 +712,7 @@ private val dramaBand: List<Recipe> =
                 ),
             filters =
                 filters(
-                    genres = listOf("Action", "Adventure", "Drama", "Fantasy", "History"),
+                    genres = listOf("Action", "Adventure", "Drama", "Fantasy", "History", "Martial Arts"),
                     notGenres = listOf("Science Fiction", "Sci-Fi"),
                 ),
         ),
