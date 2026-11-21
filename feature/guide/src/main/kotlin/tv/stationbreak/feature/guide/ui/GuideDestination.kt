@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -325,6 +326,8 @@ internal fun GuideRoot(
         )
     }
     val scope = rememberCoroutineScope()
+    // The request of the PIN's reset: collected while the reset is open, stopped when it closes or starts again.
+    var resetJob by remember { mutableStateOf<Job?>(null) }
     // A lockout on the PIN pad ends by itself: the pad takes PINs again then.
     val lockout = settings?.pin?.notice as? PinNotice.LockedOut
     LaunchedEffect(lockout) {
@@ -422,6 +425,17 @@ internal fun GuideRoot(
                                 }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
+                                if (step.panel?.reset == null) {
+                                    resetJob?.cancel()
+                                    resetJob = null
+                                }
+                                if (step.resetStart) {
+                                    resetJob?.cancel()
+                                    resetJob =
+                                        scope.launch {
+                                            viewModel.resetPin().collect { settings = settings?.recovered(it) }
+                                        }
+                                }
                                 // The lock's answers come back to the pad; a PIN goes no further than the lock.
                                 step.pinSubmit?.let { ask ->
                                     scope.launch { settings = settings?.pinAnswered(viewModel.submitPin(ask)) }

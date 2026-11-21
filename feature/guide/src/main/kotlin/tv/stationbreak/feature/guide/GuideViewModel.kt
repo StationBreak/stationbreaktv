@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -31,6 +32,8 @@ import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockState
+import tv.stationbreak.core.domain.kids.KidsPinRecovery
+import tv.stationbreak.core.domain.kids.PinRecovery
 import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
@@ -100,6 +103,8 @@ internal class GuideViewModel
         private val identities: ChannelIdentityReader = ChannelIdentityReader.None,
         /** The Kids Mode lock (#789): while it is on, channel management and a channel's properties stay shut. */
         private val kids: KidsLock,
+        /** Starts the Kids Mode PIN's reset with a server administrator's approval (#789); see [recoverPin]. */
+        private val recoverPin: () -> Flow<PinRecovery> = { emptyFlow() },
     ) : ViewModel() {
         @Inject
         constructor(
@@ -114,6 +119,7 @@ internal class GuideViewModel
             holdings: ChannelHoldingsReader,
             identities: ChannelIdentityReader,
             kids: KidsLock,
+            recovery: KidsPinRecovery,
         ) : this(
             schedule,
             details,
@@ -128,6 +134,7 @@ internal class GuideViewModel
             holdings,
             identities,
             kids,
+            recovery::recover,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
@@ -186,6 +193,12 @@ internal class GuideViewModel
                 is PinSubmit.ChangeTo -> kids.changePin(step.old, step.new)
                 is PinSubmit.SetCap -> kids.setCap(step.cap, step.pin)
             }
+
+        /**
+         * The PIN's reset (#789): collecting the flow starts a Quick Connect request for a server administrator to
+         * approve, and cancelling the collector stops it. Its last state says how it ended.
+         */
+        fun resetPin(): Flow<PinRecovery> = recoverPin()
 
         /**
          * Changes the Kids Mode cap to [cap] with no PIN, which only a lock that is off allows (#993). Fails closed:

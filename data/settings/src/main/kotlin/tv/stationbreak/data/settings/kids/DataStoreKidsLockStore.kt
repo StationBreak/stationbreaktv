@@ -78,8 +78,8 @@ class DataStoreKidsLockStore internal constructor(
 
     override suspend fun forgetPin(): KidsLockRecord {
         val written = data.edit { encode(KidsLockRecord(cap = decode(it).cap), it) }
-        // The record first, then the mark: stopped in between, the lock reads as damaged (on, with no PIN), and a second
-        // reset finishes it. A mark that cannot be removed is a failure, for the same reason.
+        // The record first, then the mark: stopped in between, the lock reads as damaged (on, with no PIN), and a
+        // second reset finishes it. A mark that cannot be removed is a failure, for the same reason.
         if (armed.exists() && !armed.delete()) throw IOException("kids lock marker could not be removed")
         return read(written)
     }

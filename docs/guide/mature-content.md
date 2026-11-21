@@ -96,8 +96,19 @@ the TV. Setting the TV's clock forward doesn't shorten a wait while the TV stays
 well); after a restart it goes back to the TV's clock.
 
 The PIN stops someone from leaving Kids Mode casually. It is a convenience, like a lock on a TV cabinet, not a security
-boundary: the server's account controls remain the real limit. If you forget the PIN, the only way to clear it for now
-is to clear the app's data in the TV's settings, which also signs the TV out and forgets its channels. A way to reset
-it with your server's admin sign-in is planned. A damaged or missing lock record keeps Kids Mode on: if the
-lock's file is ever damaged or deleted after a PIN was set, no PIN can be set or checked, and the TV needs its app data
-cleared.
+boundary: the server's account controls remain the real limit.
+
+### If you forget the PIN
+
+When the PIN pad asks for the PIN (to turn Kids Mode off, change the PIN or change the limit), choose **Forgot PIN?**
+under **Delete**. The TV shows a code. On a phone or computer, open Jellyfin signed in as one of your server's
+administrators, go to **Quick Connect** and enter the code. Nothing is typed on the TV, and only an administrator's
+approval works: a code approved by anyone else changes nothing. When the administrator approves, the PIN is cleared and
+Kids Mode is off. The limit you chose (Kids, Family or Teen) is kept. Choose **Kids Mode** again to set a new PIN.
+
+Back cancels at any time. If the code runs out, or the server refuses it, press OK for a new code. Quick Connect has to
+be switched on for the server: if it is off, the TV says so, and an administrator turns it on in the server's dashboard
+first. The reset needs the TV to reach the server. It does not sign the TV out or forget its channels. A damaged or
+missing lock record keeps Kids Mode on: if the lock's file is ever damaged or deleted after a PIN was set, no PIN can be
+set or checked, the reset cannot repair it, and the TV needs its app data cleared in the TV's settings, which also signs
+the TV out and forgets its channels.

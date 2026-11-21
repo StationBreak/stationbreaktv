@@ -120,13 +120,14 @@ internal data class SettingsValues(
 /**
  * The Settings sheet while it is open: the [row] under the D-pad, and what it shows over the guide, the sheet staying
  * open under it on its row: Settings, Libraries ([librariesShown]), the sign-out question ([signOutShown]) or the Kids
- * Mode PIN pad ([pin], drawn by the guide itself, which keeps its keys).
+ * Mode PIN pad ([pin]) or the PIN's reset ([reset]), both drawn by the guide itself, which keeps their keys.
  */
 internal data class SettingsPanel(
     val row: SettingsRow = SettingsRow.Appearance,
     val librariesShown: Boolean = false,
     val signOutShown: Boolean = false,
     val pin: PinEntry? = null,
+    val reset: PinReset? = null,
 ) {
     /** A screen over the guide has the keys. */
     val covered: Boolean get() = librariesShown || signOutShown
@@ -152,6 +153,8 @@ internal data class SettingsStep(
     val kidsCap: KidsCap? = null,
     /** What the PIN pad has finished and asks the lock for. */
     val pinSubmit: PinSubmit? = null,
+    /** The PIN's reset has opened, or starts again: a new request for an administrator's approval. */
+    val resetStart: Boolean = false,
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
     val levellingFrom: String? = null,
@@ -232,7 +235,8 @@ internal enum class Change(
  * its cap, Kids, Family, Teen (no wrap), at once while it is off and through the PIN pad while it is on, and do
  * nothing until the lock has been read; with Kids Mode on, OK on Libraries,
  * Update library and Sign out does nothing. Back closes the sheet, as the guide's own Back does. While a screen shows
- * over it, every key is kept and does nothing: that screen has the keys; so does the PIN pad ([pinKey]).
+ * over it, every key is kept and does nothing: that screen has the keys; so do the PIN pad ([pinKey]) and the PIN's
+ * reset ([resetKey]).
  * A step that leaves a value as it was does not choose it again.
  */
 internal fun settingsStep(
@@ -247,6 +251,10 @@ internal fun settingsStep(
     return when {
         pin != null -> {
             panel.pinKey(pin, key, type, repeatCount)
+        }
+
+        panel.reset != null -> {
+            panel.resetKey(panel.reset, key, type, repeatCount)
         }
 
         remoteKeyOf(key) == null -> {

@@ -119,7 +119,7 @@ private const val PIN_LENGTH = 4
  * wall clock to go by, so a lockout can be ended early by rebooting and setting the clock forward; this is a cabinet
  * lock, not a security boundary. The hash runs in [work], off the caller's thread.
  */
-@Suppress("LongParameterList") // The lock's collaborators, each with a default but the store and the two clocks.
+@Suppress("LongParameterList", "TooManyFunctions") // The lock's collaborators; one small function per lock call.
 class PinKidsLock(
     private val store: KidsLockStore,
     private val clock: Clock,
