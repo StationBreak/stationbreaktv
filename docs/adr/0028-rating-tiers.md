@@ -5,6 +5,7 @@
 - **Decided by:** the owner (four exclusive tiers, fail upward, unrated is adult, 2026-11-19; family ceiling PG / TV-PG
   and teen PG-13 / TV-14, 2026-11-20; a StationBreak-owned rating map, 2026-11-19) and Rincewind (the mechanism, the
   lists, the US-first scope after the licence check)
+- **Amended by:** [ADR-0029](0029-tier-moves-up.md) (`kid-hold-7`: moves up only, lists)
 - **Amends:** [ADR-0019](0019-kid-hold.md) (the kid hold: `kid-hold-6`), [ADR-0020](0020-grown-up-hold.md) (the grown-up
   hold: `grown-up-hold-5`)
 - **Builds on:** [ADR-0002](0002-determinism-scope.md) §2 as amended by ADR-0019 §8 (app-version limits only narrow)

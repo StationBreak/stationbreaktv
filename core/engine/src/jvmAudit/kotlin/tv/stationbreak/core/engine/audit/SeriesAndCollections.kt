@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.audit
 
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.NameFolds
 import tv.stationbreak.core.model.RuleCollection
@@ -8,6 +11,9 @@ import tv.stationbreak.core.model.RuleSeries
 
 /** The series and the collections of the `audit-snapshot` file (see [AuditSnapshotCodec]). */
 internal object SeriesAndCollections {
+    private const val MAX_PROVIDER_IDS = 8
+    private const val MAX_PROVIDER_ID_CHARS = 64
+
     fun readSeries(
         top: SnapshotFields,
         folds: NameFolds,
@@ -18,6 +24,17 @@ internal object SeriesAndCollections {
             if (out.put(series.id, series) != null) throw SnapshotProblem("file.series has an ID twice")
         }
         return out
+    }
+
+    // Optional: the ids at outside databases, key to id (at most eight), as `SeriesInfo` holds them.
+    private fun providerIds(f: SnapshotFields): Map<String, String> {
+        val raw = f.raw("providerIds")
+        if (raw == null || raw is JsonNull) return emptyMap()
+        if (raw !is JsonObject || raw.size > MAX_PROVIDER_IDS) f.fail("providerIds", "is not up to eight ids")
+        return raw.mapValues { (_, value) ->
+            val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content
+            text?.takeIf { it.length <= MAX_PROVIDER_ID_CHARS } ?: f.fail("providerIds", "has a long or non-text id")
+        }
     }
 
     private fun readOneSeries(
@@ -32,6 +49,7 @@ internal object SeriesAndCollections {
                 tags = f.texts("tags"),
                 studios = f.texts("studios"),
                 name = f.textOrNull("name"),
+                providerIds = providerIds(f),
             )
         f.done()
         series.primeFolds(folds)

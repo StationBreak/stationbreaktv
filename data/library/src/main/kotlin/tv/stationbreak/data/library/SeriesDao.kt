@@ -24,6 +24,7 @@ internal class SeriesRevival(
 )
 
 /** One series as this TV held it before a cut-off: [seriesId] as stored, and the fields a rule reads. */
+@Suppress("LongParameterList") // A plain row: one field per input a rule reads.
 internal class HeldSeries(
     val seriesId: String,
     val officialRating: String?,
@@ -31,8 +32,9 @@ internal class HeldSeries(
     val tags: List<String>,
     val studios: List<String>,
     val name: String?,
+    val providerIds: Map<String, String> = emptyMap(),
 ) {
-    // A name is text a person typed: it never reaches a log.
+    // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String = "HeldSeries(seriesId=$seriesId, name=<name>)"
 }
 
@@ -279,6 +281,7 @@ internal abstract class SeriesDao {
             strings.all(VersionCodec.decode(tags)),
             strings.all(VersionCodec.decode(studios)),
             if (version != null) version.name else row.name,
+            ProviderIdsCodec.decode(row.providerIds),
         )
     }
 

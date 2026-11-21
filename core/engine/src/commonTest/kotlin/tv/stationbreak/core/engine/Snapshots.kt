@@ -94,13 +94,23 @@ internal fun episode(
         studios = studios,
     )
 
+@Suppress("LongParameterList") // A test builder: every field has a default.
 internal fun series(
     id: CanonicalId,
     rating: String? = null,
     genres: List<String> = emptyList(),
     tags: List<String> = emptyList(),
     studios: List<String> = emptyList(),
-): RuleSeries = RuleSeries(id = id, officialRating = rating, genres = genres, tags = tags, studios = studios)
+    providerIds: Map<String, String> = emptyMap(),
+): RuleSeries =
+    RuleSeries(
+        id = id,
+        officialRating = rating,
+        genres = genres,
+        tags = tags,
+        studios = studios,
+        providerIds = providerIds,
+    )
 
 @Suppress("LongParameterList") // A test builder: every field has a default.
 internal fun collection(
