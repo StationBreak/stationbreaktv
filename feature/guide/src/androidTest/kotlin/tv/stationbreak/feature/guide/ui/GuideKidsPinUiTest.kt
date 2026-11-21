@@ -102,7 +102,8 @@ class GuideKidsPinUiTest {
         show { GuideKidsPinReset(PinReset(PinRecovery.Code("123456"))) }
         compose.onNodeWithTag(GuideTags.KIDS_RESET_TITLE).assertTextEquals("Reset the PIN")
         compose.onNodeWithTag(GuideTags.KIDS_RESET_STEPS).assertExists()
-        compose.onNodeWithTag(GuideTags.KIDS_RESET_CODE, useUnmergedTree = true).assertTextEquals("123456")
+        // The drawn code has its semantics cleared so it is not read twice: the status line speaks it.
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_CODE, useUnmergedTree = true).assertExists()
         compose
             .onNodeWithTag(GuideTags.KIDS_RESET_STATUS)
             .assertContentDescriptionEquals("Code 1 2 3 4 5 6. Waiting for an administrator to approve.")
