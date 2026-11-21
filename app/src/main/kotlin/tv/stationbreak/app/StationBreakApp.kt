@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tv.stationbreak.app.crash.CrashReporting
 import tv.stationbreak.app.di.AppStart
+import tv.stationbreak.core.domain.kids.KidsIdleFallback
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.selection.ResumeGate
@@ -57,6 +58,8 @@ class StationBreakApp :
         fun scheduleWarmer(): ScheduleWarmer
 
         fun deviceCapabilities(): DeviceCapabilitiesCache
+
+        fun kidsIdleFallback(): KidsIdleFallback
     }
 
     /** The app's start's own reach into the graph: the selection's resume and the gate it opens, for nothing else. */
@@ -93,6 +96,11 @@ class StationBreakApp :
                     .foreground(scope)
             },
         )
+        // A TV left with Kids Mode off goes back to it after a while with no key pressed (#789). A waiting coroutine
+        // does not count the time the TV slept, so coming back to the foreground looks at the time again.
+        val idle = graph().kidsIdleFallback()
+        scope.launch { idle.run() }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { idle.recheck() })
         // The channel lineup follows the saved library: at start, and after each sync (spec 12), once per quiet sync
         // run, when its writing ends (#434). In a process WorkManager started for the sync, that refresh is best
         // effort: it starts as the worker's doWork returns, so the system may kill the then cached process before it

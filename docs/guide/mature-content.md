@@ -76,6 +76,15 @@ right; a wrong PIN leaves it as it was and counts toward the wait below. Until t
 after the guide opens) the limit can't be changed. The limit only decides which channels this TV shows: it never
 changes what a channel plays or when.
 
+### Left on and forgotten
+
+If Kids Mode is off and nobody presses a key on the remote for 2 hours, the TV turns it back on by itself, at the limit
+you last chose. No PIN is needed for that, as for turning it on yourself. Any key press starts the 2 hours over, and so
+does turning Kids Mode off. It does not tell watching from being away, so a film longer than 2 hours that you watch
+without touching the remote ends with the TV moving to an allowed channel. Press a key now and then to stay in. The wait
+is not kept when the app is closed or the TV restarts; it starts again with the app. Kids Mode with no PIN set yet is
+never turned on this way.
+
 ### The PIN and the wait after wrong ones
 
 Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and

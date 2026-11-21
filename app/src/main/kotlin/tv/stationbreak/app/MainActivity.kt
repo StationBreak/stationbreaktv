@@ -10,15 +10,27 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import dagger.hilt.android.AndroidEntryPoint
 import tv.stationbreak.app.nav.AppNavHost
+import tv.stationbreak.core.domain.kids.KidsIdleFallback
 import tv.stationbreak.core.ui.LocalScreenFit
 import tv.stationbreak.core.ui.ScreenFits
 import tv.stationbreak.core.ui.StationBreakTheme
 import tv.stationbreak.feature.live.ui.KEEP_ON_TAG
 import tv.stationbreak.feature.live.ui.keepOnLogging
+import javax.inject.Inject
 
 /** Launch activity. Hosts the navigation graph, which opens on the server screen. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    /** Told of every key press, so a TV left alone for a while goes back to Kids Mode (#789). */
+    @Inject
+    lateinit var kidsIdle: KidsIdleFallback
+
+    // Called for every key press (and touch) the activity is sent, before it is handled.
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        kidsIdle.touch()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         lifecycleLine("onCreate restored=${savedInstanceState != null}")
