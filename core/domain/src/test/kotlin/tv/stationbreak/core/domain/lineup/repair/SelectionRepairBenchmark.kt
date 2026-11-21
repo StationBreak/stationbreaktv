@@ -231,7 +231,7 @@ internal class SelectionRepairBenchmark {
             runBlocking {
                 service.refresh(ACCOUNT, allIds)
                 // More starters on (in catalog order) up to [STARTERS_ON] on, then [CUSTOM_CHANNELS] custom channels:
-                // about 50 channels on, a full lineup at real scale.
+                // about 52 channels on, a full lineup at real scale.
                 val planned = checkNotNull(service.loaded(ACCOUNT)).lineup
                 var on = planned.channels.count { it.state == ChannelState.On }
                 for (channel in planned.channels) {
