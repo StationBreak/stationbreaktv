@@ -249,9 +249,9 @@ class ChannelPreviewsTest {
 
     @Test
     fun thePreviewPolicyAndCeilingComeFromTheLineupsFunctions() {
-        // Made for kids, rated G, PG, PG-13 and R: a kids draft with a PG-13 ceiling previews under PG.
+        // Made for kids, rated G, TV-Y7, PG-13 and R: a kids draft with a PG-13 ceiling previews under the kid cap.
         film(1, genres = listOf("Animation", "Kids"), rating = "G")
-        film(2, genres = listOf("Animation", "Kids"), rating = "PG")
+        film(2, genres = listOf("Animation", "Kids"), rating = "TV-Y7")
         film(3, genres = listOf("Animation", "Kids"), rating = "PG-13")
         film(4, genres = listOf("Animation", "Kids"), rating = "R")
         film(5, genres = listOf("Animation", "Drama"), rating = "G")
@@ -260,7 +260,7 @@ class ChannelPreviewsTest {
 
         val shown = preview(mine)
 
-        assertEquals(2, shown.itemCount, "G and PG, made for kids; the PG-13 and R and the grown-up one are out")
+        assertEquals(2, shown.itemCount, "G and TV-Y7, made for kids; the PG-13 and R and the grown-up one are out")
         assertTrue(ids(shown).toSet() == setOf(id(1), id(2)))
         assertEquals(ids(shown), airedAs(mine), "equal to the channel the lineup would build")
     }

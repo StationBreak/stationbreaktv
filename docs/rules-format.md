@@ -2004,7 +2004,16 @@ looking a string up:
 
 Jellyfin also understands strings this format does not: a country prefix such as `US:PG-13`, a leading `Rated `, a plain
 number such as `13` or `16+`, and a list such as `TV-14/TV-MA`. They have no rank here, so they are blocked under a ceiling.
-That is on purpose: this format fails closed, and a client that wants them must map them to a ladder name first.
+That is on purpose: this format fails closed. Non-US rating systems (`U`, `12A`, `FSK 16`, `MA15+` and the like) are
+unknown, which means adult, until StationBreak ships licensed per-country tables
+([#987](https://github.com/StationBreak/stationbreaktv/issues/987)); a client must not map them itself in the meantime.
+The app's audience tiers (kids, family, teen, adult; outside this format) read ratings through their own US-first map,
+which also reads `Rated `, `/` lists and bare minimum ages, and still treats every non-US name as unknown
+([ADR-0028](adr/0028-rating-tiers.md), vector `kid-hold-6.json`). This ladder and its rule 4 are unchanged by it, with
+one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated under a ceiling on every channel it builds
+(it fails every ceiling, like `NR` and `Passed`). The file format, `formatVersion` and the vectors of this document keep
+`Approved` on rank 0; a client that matches StationBreak's channels from `kid-hold-6` applies the narrowing as well
+(the `customCeiling` cases of `kid-hold-6.json`).
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating (one or more spaces; the empty string counts as no rating), `NR`, `Unrated`, or any rating
@@ -2323,7 +2332,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-5`), `grownUpHold` (`grown-up-hold-4`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-6`), `grownUpHold` (`grown-up-hold-5`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2464,7 +2473,10 @@ Everything below is in this repository, under `docs/`:
   kid ceiling, the animated-family signal, the grown-up drop and the shapes that do not change). Exception to the
   statement above: this one was written by hand from the text of the ADR-0019 addendum (2026-11-13), not computed with
   an independent reference and not from the code. A test in `core/engine` reads this file and holds the code to it. It
-  is not a rules-file vector: it covers the app's kid hold, which is outside the rules format.
+  is not a rules-file vector: it covers the app's kid hold, which is outside the rules format. `kid-hold-6.json` (the
+  four audience tiers of `kid-hold-6` / `grown-up-hold-5` and their US-first rating map, ADR-0028: the level of each
+  rating string, the tier of each item and the kid ceiling) is the same kind of file, written by hand from ADR-0028;
+  `kid-hold-6` still passes `kid-hold-5.json`.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

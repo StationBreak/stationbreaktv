@@ -1133,7 +1133,7 @@ private val premiumBand: List<Recipe> =
                     Exact("FXX"),
                     Prefix("FX Productions"),
                 ),
-            // The grown-up hold drops only what is made for kids and passes PG, so a PG animated family film from a
+            // The grown-up hold drops only the kids tier (ADR-0028), so a PG animated family film from a
             // studio off the kid list would come in on the Animation genre: Family stays out. No minimum rating (that
             // would be rules format 6).
             filters = filters(genres = listOf("Animation"), notGenres = listOf("Family")),

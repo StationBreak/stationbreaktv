@@ -14,19 +14,21 @@ object KidStatus {
     /**
      * The policy of [channel] on its own (ADR-0019, ADR-0020): a kid channel (the kids leftovers included) is
      * kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
-     * is open. It ignores the grown-up leftovers fallback, so it is wrong for a leftovers channel: every pool and
-     * every inputs key must use [policyOf] with the lineup. Safe on its own only for a starter or custom channel.
+     * is [PoolPolicy.Custom] (open, with `Approved` unrated under a ceiling; ADR-0028). It ignores the grown-up
+     * leftovers fallback, so it is wrong for a leftovers channel: every pool and every inputs key must use [policyOf]
+     * with the lineup. Safe on its own only for a starter or custom channel.
      */
     fun basePolicyOf(channel: LineupChannel): PoolPolicy =
         when {
             isKidChannel(channel) -> PoolPolicy.KidsOnly
             channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
-            else -> PoolPolicy.Open
+            else -> PoolPolicy.Custom
         }
 
     /**
      * The policy [channel]'s pool is evaluated under in [lineup]: [policyOf] (the channel), except that the grown-up
-     * leftovers is open, not grown-up, while no kid leftovers channel is switched on in [lineup] (ADR-0020). Nothing
+     * leftovers is [PoolPolicy.Custom] (no hold, `Approved` still unrated under a ceiling; ADR-0028), not grown-up,
+     * while no kid leftovers channel is switched on in [lineup] (ADR-0020). Nothing
      * then takes the made-for-kids items the kid starters do not match, so the grown-up leftovers keeps them (under its
      * own ceiling) and the holds leave nothing airing nowhere. Grown-up starters keep the hold either way.
      *
@@ -42,7 +44,7 @@ object KidStatus {
     /**
      * [policyOf] for the holds of [day] (D1, #623): a kid leftovers channel that starts after [day] airs nothing and
      * claims nothing on it (#620), and one that has left by [day] airs nothing, so neither counts as on: the grown-up
-     * leftovers is open for the day. From its boundary it counts again.
+     * leftovers is [PoolPolicy.Custom] for the day. From its boundary it counts again.
      */
     fun policyOf(
         channel: LineupChannel,
@@ -56,7 +58,7 @@ object KidStatus {
     ): PoolPolicy {
         val policy = basePolicyOf(channel)
         val grownUpLeftovers = policy == PoolPolicy.GrownUp && channel.source is ChannelSource.Leftovers
-        return if (grownUpLeftovers && !kidLeftoversOn) PoolPolicy.Open else policy
+        return if (grownUpLeftovers && !kidLeftoversOn) PoolPolicy.Custom else policy
     }
 
     // Whether [lineup] has a kid leftovers channel (Kids' Odds & Ends) switched on, whenever it starts: the day-less

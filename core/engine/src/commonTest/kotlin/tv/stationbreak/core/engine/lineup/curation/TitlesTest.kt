@@ -81,7 +81,7 @@ class TitlesTest {
         val s = idOf(1)
         val kidSeries = series(s, genres = listOf("Kids"))
         val ep = episode(idOf(10), s)
-        val kidFilm = movie(idOf(2), rating = "TV-Y")
+        val kidFilm = movie(idOf(2), rating = "TV-Y", genres = listOf("Kids"))
         val grownUpFilm = movie(idOf(3), rating = "R", genres = listOf("Drama"))
         val animatedFamily = idOf(4)
         val familySeries = series(animatedFamily, rating = "G", genres = listOf("Animation", "Family"))

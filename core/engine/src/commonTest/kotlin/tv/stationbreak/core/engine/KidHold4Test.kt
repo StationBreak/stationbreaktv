@@ -24,8 +24,10 @@ import kotlin.test.assertTrue
  * `docs/rules-format/vectors/kid-hold-4.json`.
  *
  * The `kidHold4` and `grownUpHold3Drops` answers are asserted against the CURRENT [KidHold] and [GrownUpHold]
- * (`kid-hold-5`, `grown-up-hold-4`), on purpose: those versions keep studio fold 2 unchanged, and no row here has an
+ * (`kid-hold-6`, `grown-up-hold-5`), on purpose: those versions keep studio fold 2 unchanged, and no row here has an
  * episode whose own rating differs from its series', so the series-rating rule of `kid-hold-5` cannot change an answer.
+ * `kid-hold-6` (ADR-0028) narrows the grown-up drop to the kids tier, so `grownUpHold3Drops` holds only for a row whose
+ * rating is a kid one (ALL or 7); a made-for-kids row rated PG or TV-PG is family now and is kept.
  */
 class KidHold4Test {
     private val file = Json.parseToJsonElement(KidHold4VectorFile.json).jsonObject
@@ -81,7 +83,8 @@ class KidHold4Test {
             assertTrue(entry.genres.isEmpty() && !KidHold.isAnimatedFamily(entry, series), name)
             assertEquals(case.flag("kidHold3"), kidHold3(entry, series), "kid-hold-3: $name")
             assertEquals(case.flag("kidHold4"), KidHold.isMadeForKids(entry, series), "kid-hold-4: $name")
-            assertEquals(case.flag("grownUpHold3Drops"), GrownUpHold.dropsFromGrownUp(entry, series), "grown-up: $name")
+            val drops = case.flag("grownUpHold3Drops") && RatingTier.isKidRated(entry, series)
+            assertEquals(drops, GrownUpHold.dropsFromGrownUp(entry, series), "grown-up: $name")
         }
     }
 

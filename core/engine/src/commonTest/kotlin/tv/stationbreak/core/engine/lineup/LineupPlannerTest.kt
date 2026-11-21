@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine.lineup
 import tv.stationbreak.core.engine.collection
 import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.model.CollectionNames
+import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.Source
@@ -626,12 +627,15 @@ class LineupPlannerTest {
         val four = TestCatalog(five.take(4).map { (k, n) -> recipeOf(k, n) } + recipeOf("tots", 10))
         val tvY =
             libraryOf(fills(catalog = four)).let { lib ->
-                lib.copy(items = lib.items.map { if ("Kids" in it.genres) it else it.copy(officialRating = "TV-Y") })
+                lib.copy(items = lib.items.map { if ("Kids" in it.genres) it else kidRated(it) })
             }
         // Only "tots" qualifies, so the lineup does not finalise; with G ratings the same library finalises.
         assertFalse(planOf(null, tvY, four).finalised)
         assertTrue(planOf(null, libraryOf(fills(catalog = four)), four).finalised)
     }
+
+    // kid-hold-6: a TV-Y rating alone is family; a kids tag next to it makes the item kids tier.
+    private fun kidRated(item: RuleItem): RuleItem = item.copy(officialRating = "TV-Y", tags = item.tags + "kids")
 
     private fun rankedFor(snapshot: RuleSnapshot): List<String> {
         val planning = Planning(SERVER, 0, snapshot, NO_NAMES, base, 1_000L, nextDayStart(1_000L))
@@ -643,7 +647,7 @@ class LineupPlannerTest {
     fun rankedLeavesOutAGrownUpRecipeWhoseWholePoolIsChildrensRatedAndKeepsItWhenRatedG() {
         val rated = libraryOf(fills())
         val tvY =
-            rated.copy(items = rated.items.map { if ("Kids" in it.genres) it else it.copy(officialRating = "TV-Y") })
+            rated.copy(items = rated.items.map { if ("Kids" in it.genres) it else kidRated(it) })
         assertEquals(listOf("tots"), rankedFor(tvY))
         assertTrue(rankedFor(rated).containsAll(five.map { it.first }))
     }

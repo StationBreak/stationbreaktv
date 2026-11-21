@@ -8,8 +8,9 @@ import tv.stationbreak.core.rules.RatingLadder
 object DraftChoices {
     /**
      * The rating ceilings a channel can have, lowest first. A grown-up channel's are one name per tier of the rating
-     * ladder; a kids channel's are the kids hold's own, which stop at PG (the most a kids channel airs), so each means
-     * what the hold does with it. "No ceiling" is not in the list; a screen offers it above a grown-up's top.
+     * ladder; a kids channel's are the kids hold's own, which stop at PG (under `kid-hold-6` a kids channel airs at
+     * most TV-Y7, so PG airs what TV-Y7 airs; ADR-0028). "No ceiling" is not in the list; a screen offers it above a
+     * grown-up's top.
      */
     fun ratingCeilings(kids: Boolean): List<String> {
         if (kids) return KidHold.CEILING_CHOICES

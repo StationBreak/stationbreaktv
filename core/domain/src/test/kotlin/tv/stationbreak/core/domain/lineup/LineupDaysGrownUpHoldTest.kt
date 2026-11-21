@@ -19,7 +19,8 @@ import kotlin.time.Instant
 
 /**
  * A grown-up starter and the grown-up leftovers drop what is made for kids (ADR-0020, grown-up-hold-4); a custom
- * channel does not. Each test has a TV-Y7 item and a PG item, both matching a genre.
+ * channel does not. Each test has a TV-Y7 item and a PG item, both matching a genre. Under `kid-hold-6` (ADR-0028) a
+ * kid rating alone is family, so the kid items carry a kids tag, which counts next to a kid rating.
  */
 class LineupDaysGrownUpHoldTest {
     private val library = CountingLibrary()
@@ -35,7 +36,7 @@ class LineupDaysGrownUpHoldTest {
     private val pgItem = id(2)
 
     private fun seed() {
-        library.seed(movie(1, "Drama", rating = "TV-Y7"), movie(2, "Drama", rating = "PG"))
+        library.seed(movie(1, "Drama", rating = "TV-Y7", tags = KIDS_TAG), movie(2, "Drama", rating = "PG"))
     }
 
     private fun days(lineup: Lineup): Map<String, ChannelDay> =
@@ -71,8 +72,8 @@ class LineupDaysGrownUpHoldTest {
     @Test
     fun aGrownUpStarterDropsAKidStudioSpelledWithAHangulFiller() {
         library.seed(
-            movie(1, "Drama", rating = "PG").copy(studios = listOf("Cartoon\u3164Network")),
-            movie(2, "Drama", rating = "PG").copy(studios = listOf("Other Co")),
+            movie(1, "Drama", rating = "G").copy(studios = listOf("Cartoon\u3164Network")),
+            movie(2, "Drama", rating = "G").copy(studios = listOf("Other Co")),
         )
         val drama = starterAt("drama", 150)
         val custom = channel("custom-out", 160, ChannelState.On, ChannelSource.Custom(drama()))
@@ -90,7 +91,7 @@ class LineupDaysGrownUpHoldTest {
 
     @Test
     fun aGrownUpStarterWhoseOnlyMatchesAreChildrensRatedIsChildrensRatingsOnlyNotNoMatches() {
-        library.seed(movie(1, "Drama", rating = "TV-Y"))
+        library.seed(movie(1, "Drama", rating = "TV-Y", tags = KIDS_TAG))
         val drama = starterAt("drama", 150)
         assertEquals(HiddenReason.ChildrensRatingsOnly, days(lineupOf(drama)).getValue(drama.id.value).hidden)
     }
@@ -135,7 +136,7 @@ class LineupDaysGrownUpHoldTest {
         library.seedSeries(RuleSeries(show, null, listOf("Drama", "Children"), emptyList()))
         val tvPg = movie(3, "Drama", rating = "TV-PG")
         library.seed(
-            movie(1, "Drama", rating = "TV-Y"),
+            movie(1, "Drama", rating = "TV-Y", tags = KIDS_TAG),
             tvPg.copy(item = tvPg.item.copy(kind = ScheduleItemKind.Episode, seriesId = show)),
         )
     }
@@ -268,3 +269,5 @@ class LineupDaysGrownUpHoldTest {
             assertEquals(1, service.turnedAwayByBothHoldsCount(ACCOUNT, LIBRARIES, NOON))
         }
 }
+
+private val KIDS_TAG = listOf("kids")

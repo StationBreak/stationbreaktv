@@ -43,9 +43,9 @@ class KidStatusTest {
     }
 
     @Test
-    fun aCustomChannelIsOpenOutsideTheKidsBandAndKidsOnlyInsideIt() {
+    fun aCustomChannelIsCustomOutsideTheKidsBandAndKidsOnlyInsideIt() {
         val rules = rulesOf("alpha")
-        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rules))))
+        assertEquals(PoolPolicy.Custom, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rules))))
         assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(channel(20, ChannelSource.Custom(rules))))
     }
 
@@ -58,15 +58,16 @@ class KidStatusTest {
     }
 
     @Test
-    fun theGrownUpLeftoversIsOpenUnlessAKidLeftoversIsOnInTheLineup() {
+    fun theGrownUpLeftoversIsCustomUnlessAKidLeftoversIsOnInTheLineup() {
         fun lineupOf(vararg channels: LineupChannel) = Lineup(SERVER, USER, 1, 0, true, channels.toList())
         val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
         val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
         val alpha = starter("alpha", 110)
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyAcrossDaysOf(odds, lineupOf(kids, odds)))
-        assertEquals(PoolPolicy.Open, KidStatus.policyAcrossDaysOf(odds, lineupOf(odds)))
+        assertEquals(PoolPolicy.Custom, KidStatus.policyAcrossDaysOf(odds, lineupOf(odds)))
         for (state in listOf(ChannelState.Shelf, ChannelState.UserHidden)) {
-            assertEquals(PoolPolicy.Open, KidStatus.policyAcrossDaysOf(odds, lineupOf(kids.copy(state = state), odds)))
+            val off = lineupOf(kids.copy(state = state), odds)
+            assertEquals(PoolPolicy.Custom, KidStatus.policyAcrossDaysOf(odds, off))
         }
         // Everything else is as without a lineup.
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyAcrossDaysOf(alpha, lineupOf(alpha, odds)))
@@ -81,7 +82,7 @@ class KidStatusTest {
         val odds = channel(199, ChannelSource.Leftovers("odds-and-ends", null))
         val starting = kids.copy(onSinceMs = today.endMs)
         // Starting later: off today (open), on from its boundary; started: on.
-        assertEquals(PoolPolicy.Open, KidStatus.policyOf(odds, lineupOf(starting, odds), today))
+        assertEquals(PoolPolicy.Custom, KidStatus.policyOf(odds, lineupOf(starting, odds), today))
         val tomorrow = LineupDay.startingAt(today.endMs)
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(starting, odds), tomorrow))
         assertEquals(PoolPolicy.GrownUp, KidStatus.policyOf(odds, lineupOf(kids, odds), today))
@@ -99,7 +100,7 @@ class KidStatusTest {
     }
 
     @Test
-    fun aCustomChannelStaysOpen() {
-        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
+    fun aCustomChannelStaysCustom() {
+        assertEquals(PoolPolicy.Custom, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }
 }

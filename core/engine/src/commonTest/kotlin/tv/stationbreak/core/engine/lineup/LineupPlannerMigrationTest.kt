@@ -301,11 +301,11 @@ class LineupPlannerMigrationTest {
         assertTrue(programmed.isNotEmpty(), "the next day is curated")
     }
 
-    // Every kid starter is held to made-for-kids content (kid-hold-5) under its catalog 2 rules today and the current
+    // Every kid starter is held to made-for-kids content (kid-hold-6) under its catalog 2 rules today and the current
     // catalog's from the boundary, as the planner and the day build read it.
     @Test
-    fun kidChannelsOnlyEverSeeKidHoldFive() {
-        assertEquals("kid-hold-5", KidHold.VERSION_NAME)
+    fun kidChannelsOnlyEverSeeKidHoldSix() {
+        assertEquals("kid-hold-6", KidHold.VERSION_NAME)
         val next = swap(before(real2, realLibrary), realLibrary, StarterCatalog)
 
         var checked = 0

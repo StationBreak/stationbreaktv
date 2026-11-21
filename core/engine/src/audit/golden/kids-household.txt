@@ -5,7 +5,7 @@ LIBRARY: 1791 items, 75 titles (44 series, 31 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 75, with a home: 71, with no home: 4
+  titles: 75, with a home: 75, with no home: 0
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -13,12 +13,13 @@ TOTALS
     filtered-or-rated                  0
     not-airable                        0
     anime-rule                         0
-    only-on-shelved-channels           4
+    only-on-shelved-channels           0
   channels per title: 1 channels: 21 titles, 3 channels: 14 titles, 4 channels: 10 titles, 5 channels: 26 titles, 6 channels: 4 titles
   titles per channel that is on:
     saturday-morning                54
     backyard-fort                   40
     robot-factory                   40
+    hey-science                      4
     rainy-day-matinee               14
     little-spirits                  44
     giggle-garage                   40
@@ -26,7 +27,7 @@ TOTALS
     dial-up                         10
     flip-phone                       7
     leftovers:kids-odds-and-ends     0
-    leftovers:odds-and-ends          4
+    leftovers:odds-and-ends          0
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
@@ -37,7 +38,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   backyard-fort                  20  on(p)               40  40t 415.80h 0a score 11000         40t 415.80h 0a
   critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   robot-factory                  28  on(p)               40  40t 415.80h 0a score 11000         40t 415.80h 0a
-  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    32  on(p)                4  4t 32.00h 0a score  3600           4t 32.00h 0a
   rainy-day-matinee              36  on(p)               14  14t 22.75h 0a score  3675          14t 22.75h 0a
   little-spirits                 40  on(p)               44  44t 284.55h 0a score 11000         44t 284.55h 0a
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -57,7 +58,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   neon-decade                   118  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   dial-up                       122  on(p)               10  10t 16.07h 0a score  2606          10t 16.07h 0a
   flip-phone                    126  on(p)                7  7t 12.60h 0a score  1960           7t 12.60h 0a
-  binge-row                     130  off    TooThin       4  4t 32.00h 0a score  3600 THIN      -
+  binge-row                     130  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   fresh-cut                     134  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   glass-house                   138  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   game-night                    142  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -80,7 +81,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   dead-drop                     224  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   big-rumble                    228  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   kung-fu-theater               232  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  docs-and-dusters              236  off    TooThin       4  4t 32.00h 0a score  3600 THIN      -
+  docs-and-dusters              236  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   front-lines                   240  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   dusty-trails                  244  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   noir-nights                   248  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -397,18 +398,10 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up backyard-fort 335.54 = specificity 18.54 genre 80.00 kids 200.00 tone 37.00
     guest spots: saturday-morning, backyard-fort, robot-factory, little-spirits, giggle-garage
   00000028 Faoltor Velzuol [series, 20 items, 8.00h]
-    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
-    candidate only on: binge-row (TooThin), docs-and-dusters (TooThin)
-    airs on: leftovers:odds-and-ends
+    home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   00000029 Zuzuquin Quinxipe [series, 20 items, 8.00h]
-    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
-    candidate only on: binge-row (TooThin), docs-and-dusters (TooThin)
-    airs on: leftovers:odds-and-ends
+    home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   0000002a Renquinren Kydarvel [series, 20 items, 8.00h]
-    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
-    candidate only on: binge-row (TooThin), docs-and-dusters (TooThin)
-    airs on: leftovers:odds-and-ends
+    home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   0000002b Kymipe Braolmi [series, 20 items, 8.00h]
-    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
-    candidate only on: binge-row (TooThin), docs-and-dusters (TooThin)
-    airs on: leftovers:odds-and-ends
+    home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00

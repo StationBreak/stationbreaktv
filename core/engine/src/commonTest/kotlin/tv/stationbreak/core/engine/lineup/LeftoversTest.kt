@@ -7,6 +7,7 @@ import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.series
 import tv.stationbreak.core.engine.snapshot
+import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,6 +15,20 @@ import kotlin.test.assertFailsWith
 /** The leftovers pool: the snapshot minus what is claimed, under the same rating ceiling as `PoolEvaluator`. */
 class LeftoversTest {
     private val show = idOf(0x10)
+
+    // Fix round 2 (ADR-0028): with Kids' Odds & Ends off, the grown-up Odds & Ends lifts the grown-up hold only. Under
+    // its ceiling an unclaimed Approved movie is still unrated and does not air.
+    @Test
+    fun theGrownUpLeftoversFallbackStillReadsApprovedAsUnratedUnderACeiling() {
+        val source = ChannelSource.Leftovers("odds-and-ends", "G")
+        val odds = LineupChannel(ChannelId("odds"), 199, null, null, ChannelState.On, source, 0L)
+        val policy = KidStatus.policyAcrossDaysOf(odds, Lineup(SERVER, idOf(0xB0), 1, 0, true, listOf(odds)))
+        val snap = snapshot(items = listOf(movie(idOf(1), rating = "Approved"), movie(idOf(2), rating = "G")))
+        for (ceiling in listOf("G", "PG")) {
+            val pool = Leftovers.pool(snap, emptySet(), ceiling, policy)
+            assertEquals(listOf(idOf(2)), pool.items.map { it.id }, ceiling)
+        }
+    }
 
     @Test
     fun loneSeriesAirsOnLeftovers() {
@@ -90,8 +105,9 @@ class LeftoversTest {
             )
         val pool = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.KidsOnly)
         assertEquals(listOf(idOf(1)), pool.items.map { it.id })
-        assertEquals(1, pool.counts.heldOut)
-        assertEquals(1, pool.counts.blockedByCeiling)
+        // kid-hold-6: a TV-PG kids film is family, not kids, so it is held out, not blocked.
+        assertEquals(2, pool.counts.heldOut)
+        assertEquals(0, pool.counts.blockedByCeiling)
         val unheld = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.Open)
         assertEquals(0, unheld.counts.heldOut)
         assertEquals(listOf(idOf(1), idOf(2), idOf(3)), unheld.items.map { it.id })
@@ -112,7 +128,7 @@ class LeftoversTest {
             snapshot(
                 items =
                     listOf(
-                        movie(idOf(1), rating = "TV-Y"),
+                        movie(idOf(1), rating = "TV-Y", genres = listOf("Kids")),
                         movie(idOf(2), rating = "PG"),
                         movie(idOf(3), rating = null),
                     ),
@@ -129,7 +145,7 @@ class LeftoversTest {
             snapshot(
                 items =
                     listOf(
-                        movie(idOf(1), rating = "PG", studios = listOf("Pixar")),
+                        movie(idOf(1), rating = "G", studios = listOf("Pixar")),
                         movie(idOf(2), rating = "PG-13", genres = listOf("Kids")),
                         movie(idOf(3), rating = "G", genres = listOf("Animation", "Family")),
                         movie(idOf(4), rating = "PG", genres = listOf("Family", "Comedy")),

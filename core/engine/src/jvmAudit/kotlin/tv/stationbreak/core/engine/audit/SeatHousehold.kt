@@ -57,10 +57,12 @@ internal object SeatHousehold {
     ) {
         val sourced = recipe.sources.filterIsInstance<Source.Genre>().map { it.name }
         val genres = sourced + recipe.filters?.genres.orEmpty()
-        val tags = recipe.sources.filterIsInstance<Source.Tag>().map { it.name }
+        val kids = recipe.band == Band.Kids
+        // kid-hold-6 (ADR-0028): a TV-Y rating alone is family, so a kid shelf carries a kids tag as its evidence.
+        val kidsTag = if (kids) listOf("kids") else emptyList()
+        val tags = recipe.sources.filterIsInstance<Source.Tag>().map { it.name } + kidsTag
         val studios = recipe.sources.filterIsInstance<Source.Studio>().map { it.name }
         val years = recipe.sources.filterIsInstance<Source.YearRange>().firstOrNull()
-        val kids = recipe.band == Band.Kids
         val rating = if (kids) "TV-Y" else "TV-14"
         val minutes = if (kids) KIDS_MINUTES else SHOW_MINUTES
         val spec = TitleSpec(genres.distinct(), tags, studios, rating, minutes, years?.from ?: SHELF_YEAR)

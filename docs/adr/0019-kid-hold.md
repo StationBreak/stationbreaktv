@@ -6,7 +6,8 @@
 - **Amends:** [ADR-0002](0002-determinism-scope.md) §2
 - **Amended by:** [ADR-0020](0020-grown-up-hold.md) (the grown-up side of §7: children's ratings); the addenda of
   2026-11-03 (`kid-hold-3`) and 2026-11-13 (`kid-hold-5`) below; [ADR-0026](0026-studio-fold-2.md) (`kid-hold-4`: the
-  studio list matched by studio fold 2)
+  studio list matched by studio fold 2); [ADR-0028](0028-rating-tiers.md) (`kid-hold-6`: the four audience tiers, which
+  replace the rating table and the children's-rating evidence)
 - **Informs:** spec 18 phases A and B, F2.6 and F5.1 ([BACKLOG.md](../BACKLOG.md)), ASSUMPTIONS A-VER-1
 
 ## Context
