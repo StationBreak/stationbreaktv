@@ -18,8 +18,9 @@ import tv.stationbreak.core.model.ChannelId
  * default can differ from the catalog's for another reason (a number a viewer's channel held when it was made), which
  * stays. From a catalog before that version, a custom channel numbered 34 to 99 was a kid channel (the
  * Kids band was 1 to 99). The Kids band is 1 to 33 now, and a kid channel is known by its number, so such a channel
- * moves to the first free number in 1 to 33. If that band is full it stays where it is (known limit: it would then
- * read as a grown-up custom channel).
+ * moves to the first free number in 1 to 33. If that band is full it stays where it is, and its number stays reserved
+ * so no starter takes it (known limit: the engine knows a kid channel by its number, so it then reads as a grown-up
+ * custom channel).
  */
 internal object CatalogRenumbering {
     fun apply(
@@ -48,13 +49,7 @@ internal object CatalogRenumbering {
         reserved += catalog.leftovers.map { it.number }
         reserved += catalog.retiredNumbers
         val result = HashMap<ChannelId, LineupChannel>()
-        for ((channel, target, band) in moving) {
-            // A viewer's own number is not a clash with the channel's own new default.
-            val free = target !in held || target == channel.numberOverride
-            val number = if (free) target else firstFree(band.numbers.asSequence(), held, reserved)
-            if (number != null) held += number
-            result[channel.id] = withDefault(channel, number)
-        }
+        // Old kid customs first: one that cannot move keeps its number, which no starter may then take.
         for (channel in oldKids) {
             val number = firstFree(Band.Kids.numbers.asSequence(), held, reserved)
             if (number == null) {
@@ -63,6 +58,13 @@ internal object CatalogRenumbering {
                 held += number
                 result[channel.id] = renumberedCustom(channel, number)
             }
+        }
+        for ((channel, target, band) in moving) {
+            // A viewer's own number is not a clash with the channel's own new default.
+            val free = target !in held || target == channel.numberOverride
+            val number = if (free) target else firstFree(band.numbers.asSequence(), held, reserved)
+            if (number != null) held += number
+            result[channel.id] = withDefault(channel, number)
         }
         return channels.map { result[it.id] ?: it }
     }

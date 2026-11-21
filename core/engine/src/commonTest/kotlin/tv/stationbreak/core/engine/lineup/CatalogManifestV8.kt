@@ -7,9 +7,9 @@ package tv.stationbreak.core.engine.lineup
  * needs needs a newer catalog version (see `CatalogManifestTest`). Version 8 is the one catalog that moved shipped
  * numbers, under the owner's pre-release waiver of the never-reuse rule (see [StarterCatalog]); `CatalogManifestTest`
  * names the keys it moved. Against [CATALOG_MANIFEST_V7] it changed the number (and for four, the band) of 18 channels
- * and added nine recipes and two leftovers recipes; one recipe (Little Spirits) became anime-only; no other recipe
- * changed what it airs. It needs no new rules format and no
- * new hold version.
+ * and added nine recipes and two leftovers recipes. The one exception to "no recipe changed what it airs" is Little
+ * Spirits, which became anime-only (ADR-0030; Family is not the Kids band, so the grown-up anime rule would empty
+ * it). It needs no new rules format and no new hold version.
  */
 internal val CATALOG_MANIFEST_V8: CatalogManifest =
     CatalogManifest(

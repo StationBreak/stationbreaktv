@@ -198,6 +198,20 @@ class CatalogRenumberingTest {
     }
 
     @Test
+    fun aKidCustomThatCannotMoveKeepsItsNumberAndNoStarterTakesIt() {
+        // Once Upon wants 36, where an old kid custom sits; the Kids band has no free number for that custom.
+        val reserved = StarterCatalog.recipes.map { it.number } + StarterCatalog.leftovers.map { it.number }
+        val fillers =
+            Band.Kids.numbers
+                .filter { it !in reserved }
+                .map { custom("f$it", it) }
+        val after = move(installed(custom("old-kid", 36)) + fillers)
+        assertEquals(36, after.first { it.id.value == "custom:old-kid" }.number)
+        assertTrue(after.number("once-upon") != 36, "took ${after.number("once-upon")}")
+        assertNoSharedNumber(after)
+    }
+
+    @Test
     fun aLineupAlreadyOnCatalog8IsLeftAlone() {
         val before = installed(custom("old-kids", 50))
         assertEquals(before, CatalogRenumbering.apply(before, 8, StarterCatalog))
