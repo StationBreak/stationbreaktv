@@ -84,6 +84,23 @@ object GuideTags {
     const val SETTINGS_CHANNEL_CHANGE = "guide:settings:channelChange"
     const val SETTINGS_LEVELLING = "guide:settings:levelling"
 
+    /** The Kids Mode row (#789) and the Change PIN row of the Settings sheet. */
+    const val SETTINGS_KIDS_MODE = "guide:settings:kidsMode"
+    const val SETTINGS_CHANGE_PIN = "guide:settings:changePin"
+
+    /** The line under a Settings row that Kids Mode has switched off, and the one in the menu sheet. */
+    internal fun settingsLocked(row: SettingsRow): String = settingsRow(row) + ":locked"
+
+    const val MENU_LOCKED = "guide:menuLocked"
+
+    /** The Kids Mode PIN pad over the Settings sheet: its sheet, title, prompt, dots, notice and hint row. */
+    const val KIDS_PIN = "guide:kidsPin"
+    const val KIDS_PIN_TITLE = "guide:kidsPin:title"
+    const val KIDS_PIN_PROMPT = "guide:kidsPin:prompt"
+    const val KIDS_PIN_DOTS = "guide:kidsPin:dots"
+    const val KIDS_PIN_NOTICE = "guide:kidsPin:notice"
+    const val KIDS_PIN_HINT = "guide:kidsPin:hint"
+
     /** The Libraries row of the Settings sheet: OK shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 
@@ -106,6 +123,8 @@ object GuideTags {
             SettingsRow.ScreenFit -> SETTINGS_SCREEN_FIT
             SettingsRow.ChannelChange -> SETTINGS_CHANNEL_CHANGE
             SettingsRow.VolumeLevelling -> SETTINGS_LEVELLING
+            SettingsRow.KidsMode -> SETTINGS_KIDS_MODE
+            SettingsRow.ChangePin -> SETTINGS_CHANGE_PIN
             SettingsRow.Libraries -> SETTINGS_LIBRARIES
             SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
             SettingsRow.SignOut -> SETTINGS_SIGN_OUT

@@ -608,7 +608,10 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsSheetOnALinkAndAnAction() {
         shootSettings(GuideTheme.Dark, suffix = "")
-        repeat(SettingsRow.Libraries.ordinal) { press(Key.DirectionDown) }
+        // Libraries is the Nth row the sheet shows (Change PIN is on it only with a PIN set).
+        repeat(SettingsRow.entries.filter { it.isShown(SettingsValues()) }.indexOf(SettingsRow.Libraries)) {
+            press(Key.DirectionDown)
+        }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         shoot("$SETTINGS_FRAME-link.png")
         repeat(SettingsRow.SignOut.ordinal - SettingsRow.Libraries.ordinal) { press(Key.DirectionDown) }
@@ -1077,6 +1080,7 @@ class GuideScreenshotTest {
                 GuideTags.SETTINGS_SCREEN_FIT,
                 GuideTags.SETTINGS_CHANNEL_CHANGE,
                 GuideTags.SETTINGS_LEVELLING,
+                GuideTags.SETTINGS_KIDS_MODE,
                 GuideTags.SETTINGS_LIBRARIES,
                 GuideTags.SETTINGS_SYNC_NOW,
                 GuideTags.SETTINGS_SYNC_STATUS,

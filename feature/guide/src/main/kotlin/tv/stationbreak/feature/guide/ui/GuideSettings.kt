@@ -11,6 +11,7 @@ import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.core.ui.remoteKeyOf
 import tv.stationbreak.core.ui.remoteKeyToAct
+import tv.stationbreak.feature.guide.PinSubmit
 import tv.stationbreak.feature.guide.R
 
 /** What a Settings row is: a value to change, a way to another screen, or something to do. */
@@ -42,6 +43,15 @@ internal enum class SettingsRow(
     /** Off or On (volume levelling, #498). */
     VolumeLevelling(RowKind.Choice, R.string.guide_settings_levelling),
 
+    /**
+     * Kids Mode (#789): on shows PIN entry to turn it off; off asks for a first PIN, or with one set turns it on at
+     * once. Its value is On or Off.
+     */
+    KidsMode(RowKind.Action, R.string.guide_settings_kids_mode),
+
+    /** Changes the PIN: the old one, a new one, the new one again. Shown only with a PIN set and Kids Mode off. */
+    ChangePin(RowKind.Action, R.string.guide_settings_change_pin),
+
     /** Shows Settings, Libraries (spec 26) over the guide. */
     Libraries(RowKind.Link, R.string.guide_settings_libraries),
 
@@ -55,9 +65,25 @@ internal enum class SettingsRow(
     CrashReports(RowKind.Choice, R.string.guide_settings_crash_reports),
     ;
 
-    /** Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint. */
-    fun isShown(values: SettingsValues): Boolean = this != CrashReports || values.crashReportsAvailable
+    /**
+     * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint, and
+     * Change PIN, which needs a PIN to change and Kids Mode off.
+     */
+    fun isShown(values: SettingsValues): Boolean =
+        when (this) {
+            CrashReports -> values.crashReportsAvailable
+            ChangePin -> values.kidsPinSet && !values.kidsOn
+            else -> true
+        }
+
+    /**
+     * Whether Kids Mode has switched this row off for [values]: the rows that could undo or sidestep it (Libraries,
+     * Update library, Sign out) do nothing while it is on. The look, the fit and the volume stay the viewer's.
+     */
+    fun isInert(values: SettingsValues): Boolean = values.kidsOn && this in KIDS_LOCKED_ROWS
 }
+
+private val KIDS_LOCKED_ROWS = setOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)
 
 /** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
 internal enum class SettingsGroup(
@@ -66,6 +92,7 @@ internal enum class SettingsGroup(
 ) {
     Picture(R.string.guide_settings_group_picture, listOf(SettingsRow.Appearance, SettingsRow.ScreenFit)),
     Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
+    Kids(R.string.guide_settings_group_kids, listOf(SettingsRow.KidsMode, SettingsRow.ChangePin)),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
     Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),
@@ -79,16 +106,22 @@ internal data class SettingsValues(
     val levelling: Boolean = true,
     val crashReports: Boolean = false,
     val crashReportsAvailable: Boolean = false,
+    /** Kids Mode is on (#789). */
+    val kidsOn: Boolean = false,
+    /** A Kids Mode PIN is set. */
+    val kidsPinSet: Boolean = false,
 )
 
 /**
  * The Settings sheet while it is open: the [row] under the D-pad, and what it shows over the guide, the sheet staying
- * open under it on its row: Settings, Libraries ([librariesShown]) or the sign-out question ([signOutShown]).
+ * open under it on its row: Settings, Libraries ([librariesShown]), the sign-out question ([signOutShown]) or the Kids
+ * Mode PIN pad ([pin], drawn by the guide itself, which keeps its keys).
  */
 internal data class SettingsPanel(
     val row: SettingsRow = SettingsRow.Appearance,
     val librariesShown: Boolean = false,
     val signOutShown: Boolean = false,
+    val pin: PinEntry? = null,
 ) {
     /** A screen over the guide has the keys. */
     val covered: Boolean get() = librariesShown || signOutShown
@@ -108,6 +141,10 @@ internal data class SettingsStep(
     val panel: SettingsPanel?,
     val theme: GuideTheme? = null,
     val syncNow: Boolean = false,
+    /** Select on Kids Mode with a PIN set and the lock off: turn it on. */
+    val kidsEnable: Boolean = false,
+    /** What the PIN pad has finished and asks the lock for. */
+    val pinSubmit: PinSubmit? = null,
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
     val levellingFrom: String? = null,
@@ -183,8 +220,10 @@ internal enum class Change(
  * Up and Down move between the rows and stop at the ends. On a choice row Left and Right step its value back and on,
  * stopping at the ends, and OK moves it on to the next value, round to the first after the last: a choice never closes
  * the sheet. OK on Libraries shows the Libraries screen, on Update library asks for an update and keeps the sheet open
- * (the line under the row says how it goes), and on Sign out shows the sign-out question. Back closes the sheet, as the
- * guide's own Back does. While a screen shows over it, every key is kept and does nothing: that screen has the keys.
+ * (the line under the row says how it goes), and on Sign out shows the sign-out question. OK on Kids Mode and Change
+ * PIN opens the PIN pad (Kids Mode on with a PIN set and off turns it on at once); with Kids Mode on, OK on Libraries,
+ * Update library and Sign out does nothing. Back closes the sheet, as the guide's own Back does. While a screen shows
+ * over it, every key is kept and does nothing: that screen has the keys; so does the PIN pad ([pinKey]).
  * A step that leaves a value as it was does not choose it again.
  */
 internal fun settingsStep(
@@ -194,29 +233,61 @@ internal fun settingsStep(
     type: KeyEventType,
     repeatCount: Int,
 ): SettingsStep? {
-    remoteKeyOf(key) ?: return null
+    val pin = panel.pin
     val same = SettingsStep(panel)
-    return if (panel.covered) {
-        same
-    } else {
-        when (remoteKeyToAct(key, type, repeatCount)) {
-            RemoteKey.Back -> SettingsStep(null)
-            RemoteKey.Up -> SettingsStep(panel.moved(-1, values))
-            RemoteKey.Down -> SettingsStep(panel.moved(1, values))
-            RemoteKey.Left -> panel.changed(values, Change.Previous)
-            RemoteKey.Right -> panel.changed(values, Change.Next)
-            RemoteKey.Select -> panel.selected(values)
-            null -> same
+    return when {
+        pin != null -> {
+            panel.pinKey(pin, key, type, repeatCount)
+        }
+
+        remoteKeyOf(key) == null -> {
+            null
+        }
+
+        panel.covered -> {
+            same
+        }
+
+        else -> {
+            when (remoteKeyToAct(key, type, repeatCount)) {
+                RemoteKey.Back -> SettingsStep(null)
+                RemoteKey.Up -> SettingsStep(panel.moved(-1, values))
+                RemoteKey.Down -> SettingsStep(panel.moved(1, values))
+                RemoteKey.Left -> panel.changed(values, Change.Previous)
+                RemoteKey.Right -> panel.changed(values, Change.Next)
+                RemoteKey.Select -> panel.selected(values)
+                null -> same
+            }
         }
     }
 }
 
 // OK on the sheet's row, once per press.
 private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
+    when {
+        // A row Kids Mode has switched off, or one that is not shown, does nothing.
+        row.isInert(values) || !row.isShown(values) -> SettingsStep(this)
+
+        row == SettingsRow.KidsMode -> kidsModeStep(values)
+
+        row == SettingsRow.ChangePin -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Change)))
+
+        else -> selectedRow(values)
+    }
+
+private fun SettingsPanel.selectedRow(values: SettingsValues): SettingsStep =
     when (row.kind) {
         RowKind.Choice -> changed(values, Change.Cycle)
         RowKind.Link -> SettingsStep(copy(librariesShown = true))
         RowKind.Action -> if (row == SettingsRow.SignOut) SettingsStep(copy(signOutShown = true)) else syncStep
+    }
+
+// OK on Kids Mode: on asks for the PIN to turn it off, off with a PIN turns it on at once, off without one asks for it.
+private fun SettingsPanel.kidsModeStep(values: SettingsValues): SettingsStep =
+    when {
+        values.kidsOn -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.TurnOff)))
+        values.kidsPinSet -> SettingsStep(this, kidsEnable = true)
+        else -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Set)))
     }
 
 private val SettingsPanel.syncStep: SettingsStep get() = SettingsStep(this, syncNow = true)

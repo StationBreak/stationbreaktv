@@ -32,11 +32,12 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Kids Mode", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
+        assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin), SettingsGroup.Kids.rows)
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
@@ -50,6 +51,8 @@ class GuideSettingsRowsTest {
                 SettingsRow.ScreenFit to (RowKind.Choice to "Screen fit"),
                 SettingsRow.ChannelChange to (RowKind.Choice to "When changing channel"),
                 SettingsRow.VolumeLevelling to (RowKind.Choice to "Even out volume"),
+                SettingsRow.KidsMode to (RowKind.Action to "Kids Mode"),
+                SettingsRow.ChangePin to (RowKind.Action to "Change PIN"),
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
                 SettingsRow.SyncNow to (RowKind.Action to "Update library"),
                 SettingsRow.SignOut to (RowKind.Action to "Sign out"),
@@ -115,6 +118,38 @@ class GuideSettingsRowsTest {
         for (row in SettingsRow.entries) {
             assertEquals(listOf(UiR.string.hint_key_ok), settingsHintOf(row).filter { it.round }.map { it.key })
         }
+    }
+
+    @Test
+    fun kidsModeOffersWhatItCanDoNow() {
+        fun said(values: SettingsValues) =
+            settingsHintOf(SettingsRow.KidsMode, values).joinToString("   ") { "${text(it.key)} ${text(it.action)}" }
+
+        assertEquals("OK Set a PIN   Back Close", said(SettingsValues()))
+        assertEquals("OK Turn on   Back Close", said(SettingsValues(kidsPinSet = true)))
+        assertEquals("OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsPinSet = true)))
+        assertEquals("On", text(kidsModeWords(SettingsValues(kidsOn = true))))
+        assertEquals("Off", text(kidsModeWords(SettingsValues())))
+    }
+
+    @Test
+    fun changePinIsThereOnlyWithAPinSetAndKidsModeOff() {
+        assertEquals(false, SettingsRow.ChangePin.isShown(SettingsValues()))
+        assertEquals(true, SettingsRow.ChangePin.isShown(SettingsValues(kidsPinSet = true)))
+        assertEquals(false, SettingsRow.ChangePin.isShown(SettingsValues(kidsPinSet = true, kidsOn = true)))
+    }
+
+    @Test
+    fun kidsModeSwitchesOffExactlyTheRowsThatCouldUndoIt_andTheirHintHasOnlyBack() {
+        val on = SettingsValues(kidsOn = true, kidsPinSet = true)
+        val inert = SettingsRow.entries.filter { it.isInert(on) }
+        assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut), inert)
+        val pinOnly = SettingsValues(kidsPinSet = true)
+        assertEquals(emptyList<SettingsRow>(), SettingsRow.entries.filter { it.isInert(pinOnly) })
+        for (row in inert) {
+            assertEquals(listOf("Back Close"), settingsHintOf(row, on).map { "${text(it.key)} ${text(it.action)}" })
+        }
+        assertEquals("Turn off Kids Mode first", text(R.string.guide_kids_locked))
     }
 
     @Test

@@ -84,6 +84,10 @@ internal enum class GuideMenuEntry {
 
     /** Leaves live TV, as Back does from the menu row. */
     Exit,
+    ;
+
+    /** Whether this entry opens something that edits the lineup, which Kids Mode (#789) keeps shut. */
+    val editsLineup: Boolean get() = this == About || this == Channels
 }
 
 /**

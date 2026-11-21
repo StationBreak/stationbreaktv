@@ -237,11 +237,13 @@ internal fun GuideScreen(
                     noLibraries,
                 )
                 Spacer(Modifier.height(HintGap))
-                HintRow(snapshotOf, current, geometry.narrowBreakBelowMs)
+                HintRow(snapshotOf, current, geometry.narrowBreakBelowMs, settingsValues.kidsOn)
             }
-            GuideMenuSheetHost(shown, settings == null)
+            GuideMenuSheetHost(shown, settings == null, settingsValues.kidsOn)
             // The Settings sheet stands where the menu sheet that opened it stood.
             settings?.let { GuideSettingsSheet(settingsValues, it.row, syncNow) }
+            // The Kids Mode PIN pad stands over the sheet, as the sign-out question does.
+            settings?.pin?.let { GuideKidsPin(it) }
         }
     }
 }
@@ -397,15 +399,18 @@ private fun GuideSnapshot.isAtPlaying(current: ChannelId?): Boolean =
 /** Which hint the focused cell calls for: what OK does on it, as `GuideViewModel.select` does it. */
 internal enum class HintKind { Watch, WatchChannel, Properties, BackOnly }
 
-internal fun hintKindOf(snapshot: GuideSnapshot): HintKind {
+internal fun hintKindOf(
+    snapshot: GuideSnapshot,
+    kidsOn: Boolean = false,
+): HintKind {
     val ready = snapshot.state as? GuideState.Ready
     val located = snapshot.focus?.let { ready?.model?.indexOf(it) }
     // On the menu row OK does what the entry says by itself.
     if (ready == null || located == null || snapshot.menu != null) return HintKind.BackOnly
     val cell = ready.model.rows[located.first].cells[located.second]
     return when {
-        // On the channel column OK opens its properties (#631).
-        snapshot.onChannel -> HintKind.Properties
+        // On the channel column OK opens its properties (#631), which Kids Mode keeps shut (#789): nothing to say.
+        snapshot.onChannel -> if (kidsOn) HintKind.BackOnly else HintKind.Properties
 
         cell.startMs <= ready.nowMs && ready.nowMs < cell.endMs -> HintKind.Watch
 
@@ -430,8 +435,9 @@ private fun HintRow(
     snapshotOf: () -> GuideSnapshot,
     current: ChannelId?,
     narrowBelowMs: Long,
+    kidsOn: Boolean,
 ) {
-    val kind by remember(snapshotOf) { derivedStateOf { hintKindOf(snapshotOf()) } }
+    val kind by remember(snapshotOf, kidsOn) { derivedStateOf { hintKindOf(snapshotOf(), kidsOn) } }
     // Away from the playing channel's cell, Back goes there; on it, to the menu row; from the menu row it exits. Read
     // like the kind, so it recomposes only when the answer changes.
     val away by remember(snapshotOf, current) { derivedStateOf { snapshotOf().isAwayFrom(current) } }
@@ -455,8 +461,8 @@ private fun HintRow(
             HintKind.BackOnly -> null
         }
     // Left from the row's first stop goes to the channel column (#803): said where it would, and nowhere else.
-    val toChannel by remember(snapshotOf, narrowBelowMs) {
-        derivedStateOf { snapshotOf().leftGoesToChannel(narrowBelowMs) }
+    val toChannel by remember(snapshotOf, narrowBelowMs, kidsOn) {
+        derivedStateOf { !kidsOn && snapshotOf().leftGoesToChannel(narrowBelowMs) }
     }
     val left = stringResource(R.string.guide_key_left)
     val about = stringResource(R.string.guide_hint_properties)

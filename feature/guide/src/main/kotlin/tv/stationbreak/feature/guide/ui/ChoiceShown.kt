@@ -34,6 +34,7 @@ internal fun choiceShown(
         SettingsRow.ChannelChange -> shown(CHANGES, values.channelChange, ::channelChangeWords)
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
         SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
+        SettingsRow.KidsMode, SettingsRow.ChangePin -> null
         SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> null
     }
 
@@ -73,3 +74,10 @@ private fun crashReportsWords(on: Boolean): Int =
         on -> R.string.guide_crash_reports_on
         else -> R.string.guide_crash_reports_off
     }
+
+/** The words Kids Mode's row shows on its right: On or Off. */
+@StringRes
+internal fun kidsModeWords(values: SettingsValues): Int {
+    val on = values.kidsOn
+    return if (on) R.string.guide_kids_on else R.string.guide_kids_off
+}
