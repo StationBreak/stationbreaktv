@@ -39,8 +39,7 @@ import java.io.IOException
  * keeps Kids Mode on, and only clearing the app's data on the TV removes it. So does a missing one: when a PIN is first
  * set an empty [ARMED_NAME] file is written (staged, synced and renamed) before the record, and a record with no PIN
  * beside it reads as [KidsLockRecord.UNREADABLE].  A damaged or missing lock record keeps Kids Mode on.
- * Make one per process: DataStore allows one
- * instance per file.
+ * [create] makes one per process: DataStore allows one instance per file.
  */
 class DataStoreKidsLockStore internal constructor(
     internal val data: DataStore<Preferences>,
@@ -90,14 +89,20 @@ class DataStoreKidsLockStore internal constructor(
         /** An empty file written (before the record) when a PIN is first set: "a PIN was once set". */
         const val ARMED_NAME: String = "kids-lock.armed"
 
-        /** The store of the app's process, in `noBackupFilesDir`. */
+        // DataStore allows one instance per file, and Hilt rebuilds its graph per instrumented test inside one process,
+        // so the store is kept per file for the life of the process, as the viewer preferences' stores are.
+        private val made = HashMap<String, DataStoreKidsLockStore>()
+
+        /** The one store of the app's process over `noBackupFilesDir`, made on the first call. */
+        @Synchronized
         fun create(
             context: Context,
             warn: (String) -> Unit,
         ): DataStoreKidsLockStore {
             val dir = context.applicationContext.noBackupFilesDir
-            val data = dataStore(defaultScope()) { File(dir, FILE_NAME) }
-            return DataStoreKidsLockStore(data, File(dir, ARMED_NAME), warn)
+            return made.getOrPut(File(dir, FILE_NAME).path) {
+                DataStoreKidsLockStore(dataStore(defaultScope()) { File(dir, FILE_NAME) }, File(dir, ARMED_NAME), warn)
+            }
         }
 
         /**

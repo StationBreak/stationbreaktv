@@ -65,7 +65,12 @@ private val ValueGap = 12.dp
 private val PipGap = 4.dp
 private val PipSize = 8.dp
 private val PipStroke = 1.5.dp
-private val FlagGap = 6.dp
+
+// Tighter than the shared row measures (RowGap 4, RowMinHeight 36, a 6 dp flag gap): with the Kids section the sheet
+// has five flags and eight rows, and at the TV's own text size on the Safe fit they all show at once, unscrolled.
+private val RowGap = 2.dp
+private val RowMinHeight = 34.dp
+private val FlagGap = 4.dp
 private val TitleGap = 4.dp
 private val SheetHintGap = 4.dp
 private const val CHEVRON_SP = 20
@@ -126,7 +131,7 @@ internal fun GuideSettingsSheet(
                 .fillMaxWidth()
                 .scrollEdgeFade(scroll)
                 .verticalScroll(scroll),
-            verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap),
+            verticalArrangement = Arrangement.spacedBy(RowGap),
         ) {
             for (group in SettingsGroup.entries) {
                 val rows = group.rows.filter { it.isShown(values) }
@@ -211,7 +216,7 @@ private fun SettingsLine(
         Modifier
             .fillMaxWidth()
             .alpha(if (inert) INERT_ALPHA else 1f)
-            .heightIn(min = SheetMeasures.RowMinHeight)
+            .heightIn(min = RowMinHeight)
             .scrollIntoViewWhen(focused)
             .panelFocus(focused)
             .padding(horizontal = SheetMeasures.RowTextPadding, vertical = SheetMeasures.RowVerticalPadding)

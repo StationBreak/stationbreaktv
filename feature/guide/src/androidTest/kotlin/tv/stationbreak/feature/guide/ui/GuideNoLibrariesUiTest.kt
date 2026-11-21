@@ -383,7 +383,7 @@ class GuideNoLibrariesUiTest {
             }.isSuccess
         }
 
-        repeat(SettingsRow.SyncNow.ordinal) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(ROWS_TO_LIBRARIES + 1) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) {
@@ -481,9 +481,10 @@ class GuideNoLibrariesUiTest {
         const val HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
 
-        // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries.
+        // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries
+        // (past Kids Mode).
         const val ROWS_TO_LEVELLING = 3
-        const val ROWS_TO_LIBRARIES = 4
+        const val ROWS_TO_LIBRARIES = 5
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

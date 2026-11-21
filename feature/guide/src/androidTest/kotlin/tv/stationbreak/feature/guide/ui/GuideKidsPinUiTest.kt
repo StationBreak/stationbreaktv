@@ -37,7 +37,9 @@ class GuideKidsPinUiTest {
     fun thePadAsksFirst_andSaysTheKeyUnderTheDPad() {
         show { GuideKidsPin(PinEntry.start(PinPurpose.Set)) }
         compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Set a PIN")
-        compose.onNodeWithTag(GuideTags.KIDS_PIN_PROMPT).assertTextEquals("Choose a 4-digit PIN")
+        compose
+            .onNodeWithTag(GuideTags.KIDS_PIN_PROMPT, useUnmergedTree = true)
+            .assertTextEquals("Choose a 4-digit PIN")
         compose
             .onNodeWithTag(GuideTags.KIDS_PIN)
             .assertContentDescriptionEquals("Choose a 4-digit PIN. 5. 0 of 4 digits")
@@ -73,7 +75,8 @@ class GuideKidsPinUiTest {
     fun withKidsModeOnTheRowsThatCouldUndoItAreInert_withTheirReason() {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         show { GuideSettingsSheet(on, SettingsRow.Libraries, tv.stationbreak.core.domain.SyncNowState.Idle) }
-        compose.onNodeWithTag(GuideTags.settingsValue(SettingsRow.KidsMode)).assertTextEquals("On")
+        val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On")
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             compose
                 .onNodeWithTag(GuideTags.settingsRow(row))
@@ -90,7 +93,8 @@ class GuideKidsPinUiTest {
     fun withKidsModeOffAndAPinSetChangePinIsThere() {
         val off = SettingsValues(kidsPinSet = true)
         show { GuideSettingsSheet(off, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
-        compose.onNodeWithTag(GuideTags.settingsValue(SettingsRow.KidsMode)).assertTextEquals("Off")
+        val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off")
         compose.onNodeWithTag(GuideTags.SETTINGS_CHANGE_PIN).assertIsNotSelected()
         compose.onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Libraries)).assertDoesNotExist()
     }
