@@ -88,6 +88,7 @@ live tv, channels, tv guide, program guide, jellyfin, media server, home media, 
 ### Assets
 
 The icons and the Fire TV app icon are rendered from `art/brand/` into [`store/`](../../store/) (#572).
+The Fire TV background is the supplied PNG in that folder, with its SVG source beside it.
 Screenshots are in [`screenshots/`](screenshots/). Image specs were re-read 2026-11-21 from this page (last
 modified 2026-11-16).
 
@@ -96,9 +97,10 @@ modified 2026-11-16).
 | `store/icon-114.png` | Small icon, 114×114 PNG |
 | `store/icon-512.png` | Large icon, 512×512 PNG |
 | `store/fire-tv-icon-1280x720.png` | Fire TV app icon, 1280×720 PNG, no transparency |
+| `store/fire-tv-background-1920x1080.png` | Fire TV background, 1920×1080 PNG, no transparency, no text |
 | `screenshots/*.png` | Fire TV screenshots, 1920×1080, 3 to 10 |
 
-The 1920×1080 Fire TV background and the optional 1024×500 promotional image are not in this folder. Screenshots
+The optional 1024×500 promotional image is not in this folder. Screenshots
 must not show personal information; these were taken against the demo server.
 
 ## Pricing and availability (Step 3)
