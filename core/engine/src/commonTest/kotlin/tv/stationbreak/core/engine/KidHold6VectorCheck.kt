@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.VectorJson.stringOrNull
 import tv.stationbreak.core.engine.VectorJson.strings
 import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
+import tv.stationbreak.core.rules.Source
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -45,7 +46,30 @@ internal object KidHold6VectorCheck {
             val passes = KidHold.passesKidCeiling(film, null, row.stringOrNull("ceiling"))
             assertEquals(row.string("passes").toBooleanStrict(), passes, row.string("name"))
         }
+        for (row in doc.array("customCeiling").objects()) {
+            rows++
+            val passes = customCeilingPasses(row)
+            assertEquals(row.string("passes").toBooleanStrict(), passes, "customCeiling: ${row.string("name")}")
+        }
         assertTrue(rows >= MIN_ROWS, "the vector has rows: $rows")
+    }
+
+    // The row's item alone in a snapshot, through the evaluator under the row's policy and ceiling.
+    private fun customCeilingPasses(row: JsonObject): Boolean {
+        val rating = row.stringOrNull("rating")
+        val episodeOf = row.string("shape") == "episode"
+        val item = if (episodeOf) episode(idOf(2), showId, rating = rating) else movie(idOf(2), rating = rating)
+        val shows = if (episodeOf) listOf(series(showId, rating = row.stringOrNull("seriesRating"))) else emptyList()
+        val policy =
+            when (val name = row.string("policy")) {
+                "custom" -> PoolPolicy.Custom
+                "grownUp" -> PoolPolicy.GrownUp
+                "open" -> PoolPolicy.Open
+                else -> error("unknown policy $name")
+            }
+        val channel = rules(listOf(Source.Library(LIB)), maxRating = row.stringOrNull("ceiling"))
+        val library = snapshot(items = listOf(item), series = shows)
+        return PoolEvaluator.evaluate(channel, library, policy).items.isNotEmpty()
     }
 
     private fun JsonObject.names(name: String): List<String> = if (name in this) strings(name) else emptyList()

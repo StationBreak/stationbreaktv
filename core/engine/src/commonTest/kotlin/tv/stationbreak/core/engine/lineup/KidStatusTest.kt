@@ -43,9 +43,9 @@ class KidStatusTest {
     }
 
     @Test
-    fun aCustomChannelIsOpenOutsideTheKidsBandAndKidsOnlyInsideIt() {
+    fun aCustomChannelIsCustomOutsideTheKidsBandAndKidsOnlyInsideIt() {
         val rules = rulesOf("alpha")
-        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rules))))
+        assertEquals(PoolPolicy.Custom, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rules))))
         assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(channel(20, ChannelSource.Custom(rules))))
     }
 
@@ -99,7 +99,7 @@ class KidStatusTest {
     }
 
     @Test
-    fun aCustomChannelStaysOpen() {
-        assertEquals(PoolPolicy.Open, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
+    fun aCustomChannelStaysCustom() {
+        assertEquals(PoolPolicy.Custom, KidStatus.basePolicyOf(channel(150, ChannelSource.Custom(rulesOf("alpha")))))
     }
 }

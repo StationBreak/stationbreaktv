@@ -146,7 +146,7 @@ object PoolEvaluator {
             series: RuleSeries?,
         ) {
             when (policy) {
-                PoolPolicy.Open -> {
+                PoolPolicy.Open, PoolPolicy.Custom -> {
                     admit(entry, series)
                 }
 
@@ -174,8 +174,17 @@ object PoolEvaluator {
             if (item.kind == ScheduleItemKind.Episode && item.seriesId != null && series == null) unknownSeries++
             val passes =
                 when (policy) {
-                    PoolPolicy.KidsOnly -> KidHold.passesKidCeiling(entry, series, maxRating)
-                    PoolPolicy.Open, PoolPolicy.GrownUp -> passesCeiling(entry, series, maxRating)
+                    PoolPolicy.KidsOnly -> {
+                        KidHold.passesKidCeiling(entry, series, maxRating)
+                    }
+
+                    PoolPolicy.Open -> {
+                        passesCeiling(entry, series, maxRating)
+                    }
+
+                    PoolPolicy.Custom, PoolPolicy.GrownUp -> {
+                        passesCeiling(entry, series, maxRating, approvedIsUnrated = true)
+                    }
                 }
             if (passes) kept.add(item) else blocked++
         }

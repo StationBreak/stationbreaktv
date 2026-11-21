@@ -44,7 +44,10 @@ allows.
    up.
 3. **Unrated is adult.** No rating, a blank one, `NR`, `Not Rated`, `Unrated`, `Approved`, `Passed` and every string the
    map does not know are adult under every tier and every kid ceiling. The "trust this library" opt-in of #754 is
-   dropped: nothing lets an unrated title into kids or family.
+   dropped: nothing lets an unrated title into kids or family. The same holds for every other ceiling the app applies
+   (fix round 1, 2026-11-20): a custom channel outside the Kids band (`PoolPolicy.Custom`) and a grown-up channel read
+   `Approved` as unrated, so it fails a G, PG-13 or any other ceiling, as `NR`, `Passed` and no rating already did
+   under rule 4. The test is on the item's effective rating and its known series' rating, as rule 4 reads them.
 4. **The decisive rating** is the `kid-hold-5` one for every tier: a movie's own rating; for an episode of a known series,
    the series' rating when present, otherwise the episode's own (`EpisodeRating.decisive`). Its accepted risk (a TV-MA
    episode of a TV-Y series) is unchanged.
@@ -66,10 +69,15 @@ allows.
    Android TV ratings XML, Jellyfin, MediaPortal or TMDb. The country-prefix step is kept with an empty table registry,
    so a licensed table can be added later; the AU PG override (#987) waits for that table. A test pins AU PG as unknown
    today.
-8. **The rules format does not change.** The rating ladder and rule 4 of [rules-format.md](../rules-format.md) are
-   unchanged, as are `rating.json`, the pool vectors and every rule file. The map is read by the app's holds only. The
-   format doc now says that non-US systems are unknown until licensed tables land, and that a client must not map them
-   itself. `RatingLadder` names stay stable, so the typed ceiling of #380 can land on top later.
+8. **Rule 4 changes under `kid-hold-6`, not under a new `formatVersion`.** `kid-hold-6` is an app version, like
+   `kid-hold-5`; no rule file changes and `formatVersion` stays at 5. The rules-format reference evaluation
+   (`PoolPolicy.Open`, which `rating.json` and the pool vectors hold, and which older apps and ports run) keeps rule 4
+   as it was, with `Approved` on rank 0. Every channel the app builds under `kid-hold-6` narrows it (ADR-0019 §8:
+   app-version limits only narrow): `Approved` has no rank under a ceiling. [rules-format.md](../rules-format.md) says
+   so next to the ladder, and that non-US systems are unknown until licensed tables land. A `formatVersion` 6 was not
+   used: the file format did not change, and a bump would force a schema, a write rule and a catalog version for a
+   narrowing the app already applies at scheduling time. `RatingLadder` names stay stable, so the typed ceiling of #380
+   can land on top later.
 9. **Version names.** `KidHold.VERSION_NAME` is `kid-hold-6` and `GrownUpHold.VERSION_NAME` is `grown-up-hold-5`. The tier
    lists, the rating map and its aliases are frozen under `kid-hold-6`. `StarterCatalog.VERSION` is not bumped: the
    recipes do not change (the kid recipes keep their PG ceilings, which the hold caps).
@@ -96,12 +104,13 @@ allows.
 
 - Kid channels get thinner: PG and TV-PG titles, and children's-rated titles with no other evidence, move to family.
   Owner figures before the map (#576): of 344 titles the old hold admitted, 229 stay kids and 115 move to family.
-- Family and teen channels are not built here. Their numbers (bands) are owner and UX decisions still open (#576, L10),
-  so the `Band`, `Recipe` and `LeftoversRecipe` changes and the family and teen pool policies wait for them. Until then
-  family and teen titles air on grown-up channels.
-- A custom channel outside the Kids band keeps the rules-format evaluation (ADR-0020). Its ceiling still reads `Approved`
-  as rank 0, the same tier as G, so an `Approved` film can air on a custom grown-up channel with a G ceiling. Closing that
-  needs a rules-format change or a new app policy for custom channels; it is left to the owner.
+- Family and teen channels are not built here: the bands land in
+  [#1002](https://github.com/StationBreak/stationbreaktv/issues/1002) (Kids 1-33, Family 34-66, Teen 67-99), with the
+  `Band`, `Recipe` and `LeftoversRecipe` changes and the family and teen pool policies. Until then family and teen
+  titles air on grown-up channels.
+- A custom channel outside the Kids band is `PoolPolicy.Custom`, no longer `Open` (this amends ADR-0020's policy table):
+  what the viewer chose airs, except `Approved` under a ceiling. The policy is part of each channel's day key, so
+  custom channels' days rebuild once.
 - A grown-up title rated G and tagged with a kids keyword reaches kids. That is the rule as approved (it is how a G-rated
   Totoro with a kids tag reaches kids).
 - Every day made under `kid-hold-5` or earlier is remade once: `PersistedDays` keys its files by the hold version names.

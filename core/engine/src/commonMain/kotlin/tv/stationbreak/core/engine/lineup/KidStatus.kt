@@ -14,14 +14,15 @@ object KidStatus {
     /**
      * The policy of [channel] on its own (ADR-0019, ADR-0020): a kid channel (the kids leftovers included) is
      * kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
-     * is open. It ignores the grown-up leftovers fallback, so it is wrong for a leftovers channel: every pool and
-     * every inputs key must use [policyOf] with the lineup. Safe on its own only for a starter or custom channel.
+     * is [PoolPolicy.Custom] (open, with `Approved` unrated under a ceiling; ADR-0028). It ignores the grown-up
+     * leftovers fallback, so it is wrong for a leftovers channel: every pool and every inputs key must use [policyOf]
+     * with the lineup. Safe on its own only for a starter or custom channel.
      */
     fun basePolicyOf(channel: LineupChannel): PoolPolicy =
         when {
             isKidChannel(channel) -> PoolPolicy.KidsOnly
             channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
-            else -> PoolPolicy.Open
+            else -> PoolPolicy.Custom
         }
 
     /**

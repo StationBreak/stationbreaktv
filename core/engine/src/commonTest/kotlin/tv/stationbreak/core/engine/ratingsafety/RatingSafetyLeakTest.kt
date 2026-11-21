@@ -103,6 +103,21 @@ class RatingSafetyLeakTest {
     }
 
     @Test
+    fun anApprovedOrPassedTitleNeverReachesKidsOrFamilyNorPassesACustomCeiling() {
+        val unrated = setOf("Approved", "Passed")
+        val titles = library.items.filter { it.officialRating in unrated && it.item.seriesId == null }
+        assertTrue(titles.size > 100, "Approved and Passed titles: ${titles.size}")
+        for (entry in titles) assertEquals(RatingTier.Adult, tierOf(entry), "$entry")
+        val ids = titles.mapTo(HashSet()) { it.item.id }
+        for (ceiling in RatingLadder.names) {
+            for (policy in listOf(PoolPolicy.KidsOnly, PoolPolicy.Custom, PoolPolicy.GrownUp)) {
+                val pool = PoolEvaluator.evaluate(all.copy(maxRating = ceiling), library, policy)
+                assertTrue(pool.items.none { it.id in ids }, "an Approved or Passed title under $ceiling, $policy")
+            }
+        }
+    }
+
+    @Test
     fun aGRatedTitleWithoutKidEvidenceIsFamily() {
         val plain = library.items.filter(::isPlainG)
         assertTrue(plain.size >= 20, "G titles without evidence: ${plain.size}")

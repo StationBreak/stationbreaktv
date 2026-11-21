@@ -2009,7 +2009,11 @@ unknown, which means adult, until StationBreak ships licensed per-country tables
 ([#987](https://github.com/StationBreak/stationbreaktv/issues/987)); a client must not map them itself in the meantime.
 The app's audience tiers (kids, family, teen, adult; outside this format) read ratings through their own US-first map,
 which also reads `Rated `, `/` lists and bare minimum ages, and still treats every non-US name as unknown
-([ADR-0028](adr/0028-rating-tiers.md), vector `kid-hold-6.json`). This ladder and its rule 4 are unchanged by it.
+([ADR-0028](adr/0028-rating-tiers.md), vector `kid-hold-6.json`). This ladder and its rule 4 are unchanged by it, with
+one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated under a ceiling on every channel it builds
+(it fails every ceiling, like `NR` and `Passed`). The file format, `formatVersion` and the vectors of this document keep
+`Approved` on rank 0; a client that matches StationBreak's channels from `kid-hold-6` applies the narrowing as well
+(the `customCeiling` cases of `kid-hold-6.json`).
 
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating (one or more spaces; the empty string counts as no rating), `NR`, `Unrated`, or any rating

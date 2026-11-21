@@ -1719,6 +1719,7 @@ internal class LineupDays(
 private fun nameOf(policy: PoolPolicy): String =
     when (policy) {
         PoolPolicy.Open -> "open"
+        PoolPolicy.Custom -> "custom"
         PoolPolicy.KidsOnly -> "kidsOnly"
         PoolPolicy.GrownUp -> "grownUp"
     }
