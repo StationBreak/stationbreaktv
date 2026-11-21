@@ -104,6 +104,9 @@ class SeasonTest {
         assertFailsWith<IllegalArgumentException> { SeasonWindow(12, 20, 1, 5) }
         assertFailsWith<IllegalArgumentException> { SeasonWindow(13, 1, 13, 2) }
         assertFailsWith<IllegalArgumentException> { SeasonWindow(1, 0, 1, 2) }
+        assertFailsWith<IllegalArgumentException> { SeasonWindow(2, 30, 3, 2) }
+        assertFailsWith<IllegalArgumentException> { SeasonWindow(4, 1, 4, 31) }
+        SeasonWindow(2, 29, 3, 1)
     }
 
     @Test

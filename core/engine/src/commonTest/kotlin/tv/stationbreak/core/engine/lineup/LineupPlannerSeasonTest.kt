@@ -118,4 +118,25 @@ class LineupPlannerSeasonTest {
         assertFalse(plan(null, 2027, 11, 21, offset = -300).isOn("tinsel"))
         assertEquals(-300, inSeason.utcOffsetMinutes)
     }
+
+    @Test
+    fun aRenumberedSeasonalChannelIsStillGatedAndComesBack() {
+        var lineup = plan(null, 2027, 12, 10)
+        val id = LineupIds.starter("tinsel")
+        val noon = dayStartOf(2027, 12, 10) + 6 * 3_600_000L
+        val edited =
+            LineupEdits.apply(lineup, LineupEdit.SetNumber(id, 640), noon, dayStartOf(2027, 12, 11), catalog)
+        lineup = (edited as EditOutcome.Applied).lineup
+        assertEquals(ViewerChoice.Touched, lineup.channel("tinsel").viewerChoice)
+        // Out of season it is not pinned: it leaves at the boundary, goes to the shelf and keeps the viewer's number.
+        lineup = plan(lineup, 2028, 7, 4)
+        assertEquals(ShelfReason.Empty, lineup.channel("tinsel").shelfReason)
+        lineup = lineup.rolled(dayStartOf(2028, 7, 4))
+        assertEquals(ChannelState.Shelf, lineup.channel("tinsel").state)
+        assertEquals(640, lineup.channel("tinsel").number)
+        // In season the planner switches it on again, at the viewer's number.
+        lineup = plan(lineup, 2028, 12, 2)
+        assertEquals(ChannelState.On, lineup.channel("tinsel").state)
+        assertEquals(640, lineup.channel("tinsel").number)
+    }
 }

@@ -36,9 +36,15 @@ reserved ([ADR-0022](0022-rules-format-v2.md), ruling 15) and unused.
 
 ## Consequences
 
-- A viewer's own number and on/off survive the off months. A starter the viewer switched on is pinned and stays on all
-  year (it airs its pool, as the viewer chose); that is the per-channel always-on override in all but name, and the
-  separate setting sketched in icebox #126 is not built.
+- A viewer's own number survives the off months. A renumber, a swap or a switch-off and on of a planner pick only
+  touches a seasonal starter (`ViewerChoice.Touched`) and does not pin it: the gate still applies, so it goes to the
+  shelf out of season with its number kept and the planner switches it on again when the window opens.
+- A starter the viewer explicitly switches on while the planner had not picked it (`ViewerChoice.Added`) is not gated:
+  it stays on all year and airs its stored pool out of season. That is the viewer's own act (a Pro-only edit) and
+  stands in for the per-channel always-on override of icebox #126, which is not built.
+- An edited seasonal starter is not gated either: the planner leaves an edited starter alone (it airs its own rules,
+  like a custom channel), and gating it would mean the day build reading the season (`LineupDays` and its digests).
+  Accepted for now.
 - The gate is evaluated when the planner runs (start, sync, the day roll), at the boundary's date. A TV left running
   across a window edge changes at its next plan, as for any other planner change.
 - Out of season the titles of these channels fall to the other channels and the leftovers, as for any off channel.

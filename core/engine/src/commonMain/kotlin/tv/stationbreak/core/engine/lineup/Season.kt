@@ -14,6 +14,9 @@ data class SeasonWindow(
     init {
         require(startMonth in 1..MONTHS && endMonth in 1..MONTHS) { "The month is 1 to 12" }
         require(startDay in 1..MAX_DAY && endDay in 1..MAX_DAY) { "The day is 1 to 31" }
+        require(startDay <= DAYS_IN_MONTH[startMonth - 1] && endDay <= DAYS_IN_MONTH[endMonth - 1]) {
+            "The day is not in the month"
+        }
         require(monthDay(startMonth, startDay) <= monthDay(endMonth, endDay)) { "A window does not wrap the year end" }
     }
 
@@ -29,6 +32,8 @@ data class SeasonWindow(
     ): Int = month * MONTH_STEP + day
 
     private companion object {
+        // February has 29: a window may name the leap day, which is no special case.
+        val DAYS_IN_MONTH = intArrayOf(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
         const val MONTHS = 12
         const val MAX_DAY = 31
         const val MONTH_STEP = 100
