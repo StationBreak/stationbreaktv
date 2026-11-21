@@ -51,6 +51,7 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
@@ -126,7 +127,17 @@ class GuideNoLibrariesUiTest {
         fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
         val work = pool.asCoroutineDispatcher()
-        vm = GuideViewModel(fake, cache, clock, work, lineup, selection = choices.selection, sync = syncNow)
+        vm =
+            GuideViewModel(
+                fake,
+                cache,
+                clock,
+                work,
+                lineup,
+                selection = choices.selection,
+                sync = syncNow,
+                kids = FakeKidsLock(),
+            )
         compose.setContent {
             StationBreakTheme {
                 // The host: a key the guide does not keep comes here.
@@ -372,7 +383,7 @@ class GuideNoLibrariesUiTest {
             }.isSuccess
         }
 
-        repeat(SettingsRow.SyncNow.ordinal) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(ROWS_TO_LIBRARIES + 1) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_SYNC_NOW)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(TIMEOUT_MS) {
@@ -470,9 +481,10 @@ class GuideNoLibrariesUiTest {
         const val HEIGHT_DP = 540
         const val TIMEOUT_MS = 5_000L
 
-        // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries.
+        // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries
+        // (past Kids Mode).
         const val ROWS_TO_LEVELLING = 3
-        const val ROWS_TO_LIBRARIES = 4
+        const val ROWS_TO_LIBRARIES = 5
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

@@ -35,8 +35,47 @@ Jellyfin's own parental controls apply to everything the app shows. If an accoun
 or limited library access on the server, the app can only narrow that further, never get around it. To make sure an
 account can't see something, set it up that way on the server, for the account that TV signs in with.
 
-## A PIN, when it comes
+## Kids Mode and its PIN
 
-There is no PIN in this version. A kids mode with a PIN is planned. When it arrives, the PIN will stop someone from
-leaving kids mode casually. It is a convenience, like a lock on a TV cabinet, not a security boundary: the server's
-account controls remain the real limit.
+Kids Mode keeps the TV to the kids channels. While it is on, the guide, channel flipping and every other way of
+tuning show only the channels numbered from 1 up to its limit: 33, 66 or 99 (33 unless you choose otherwise). A
+channel above the limit, or with no number, is hidden and can't be tuned. If the last channel watched, or the one
+playing when Kids Mode comes on, is above the limit, the TV moves to the lowest-numbered channel that is allowed and
+has something on.
+
+### Turning it on and off
+
+Open the guide, press Menu (or press Back while the guide is on the channel that's playing) and choose **Settings**. **Kids Mode**
+has its own section there.
+
+- **First time.** Choose **Kids Mode**. The app asks you to pick a 4-digit PIN and then enter it again to be sure. If
+  the two don't match it says so and you start over. Once the PIN is set, Kids Mode turns on.
+- **Turning it on later.** Choose **Kids Mode**. It turns on at once; no PIN is needed.
+- **Turning it off.** Choose **Kids Mode** while it is on and enter the PIN.
+- **Changing the PIN.** While Kids Mode is off, choose **Change PIN**: enter the current PIN, then the new one twice.
+
+The PIN pad is on screen: move with the arrow keys and press OK on a digit, or type the digits on a remote that has
+number keys. Four dots show how many digits you've entered, never the digits themselves. Back cancels. A wrong PIN
+says how many tries are left; after too many, the pad says how long to wait and takes no digits until then.
+
+While Kids Mode is on, anything that could undo it does nothing and says **Turn off Kids Mode first**: **Channels**
+and **About** this channel in the menu, a channel's properties, and **Libraries**, **Update library** and **Sign out**
+in Settings. Flipping channels, opening the guide and watching all work as usual, and so do the look, screen fit and
+volume settings.
+
+### The PIN and the wait after wrong ones
+
+Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and
+changing the PIN all need it. After 5 wrong PINs in a row, no PIN is accepted for 30 seconds, and each further 5 wrong
+PINs double that wait, up to an hour. The count and the wait are kept on the TV, so restarting the app doesn't reset
+them. The PIN itself is never stored: only a salted hash of it, in the app's own files on the TV, never backed up. The
+wait after wrong PINs is the real defence against guessing; the file is not proof against someone who can copy it off
+the TV. Setting the TV's clock forward doesn't shorten a wait while the TV stays on (it counts from its own uptime as
+well); after a restart it goes back to the TV's clock.
+
+The PIN stops someone from leaving Kids Mode casually. It is a convenience, like a lock on a TV cabinet, not a security
+boundary: the server's account controls remain the real limit. If you forget the PIN, the only way to clear it for now
+is to clear the app's data in the TV's settings, which also signs the TV out and forgets its channels. A way to reset
+it with your server's admin sign-in is planned. A damaged or missing lock record keeps Kids Mode on: if the
+lock's file is ever damaged or deleted after a PIN was set, no PIN can be set or checked, and the TV needs its app data
+cleared.

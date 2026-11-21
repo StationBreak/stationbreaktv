@@ -28,6 +28,9 @@ import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockState
+import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
@@ -94,6 +97,8 @@ internal class GuideViewModel
         private val holdings: ChannelHoldingsReader = ChannelHoldingsReader.None,
         /** Who each channel is (#777), for the channel box at once: its tag line and tags. */
         private val identities: ChannelIdentityReader = ChannelIdentityReader.None,
+        /** The Kids Mode lock (#789): while it is on, channel management and a channel's properties stay shut. */
+        private val kids: KidsLock,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -107,6 +112,7 @@ internal class GuideViewModel
             logos: LogoCache,
             holdings: ChannelHoldingsReader,
             identities: ChannelIdentityReader,
+            kids: KidsLock,
         ) : this(
             schedule,
             details,
@@ -120,9 +126,11 @@ internal class GuideViewModel
             CachedGuideLogos(logos),
             holdings,
             identities,
+            kids,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
+        private val shownKids = MutableStateFlow<KidsLockState?>(null)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
         private val shownHoldings = MutableStateFlow<ShownHoldings?>(null)
         private val shownIdentities = MutableStateFlow<Map<ChannelId, ChannelIdentity>>(emptyMap())
@@ -153,8 +161,37 @@ internal class GuideViewModel
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
         val syncNowState: StateFlow<SyncNowState> = sync.state
 
-        /** Select on the Settings panel's Sync now row: starts a sync, or nothing while one runs (then false). */
-        fun syncNow(): Boolean = sync.start()
+        /** Select on the Settings panel's Sync now row: starts a sync, or nothing while one runs or Kids Mode is on. */
+        fun syncNow(): Boolean = !kidsOn && sync.start()
+
+        /** The Kids Mode lock as it is now, or null until the stored lock has been read. */
+        val kidsState: StateFlow<KidsLockState?> = shownKids.asStateFlow()
+
+        /**
+         * Whether Kids Mode is on, as it is now. Until the stored lock has been read (a moment after the guide is first
+         * built) it fails closed and reads as on: every guard that blocks editing waits for the lock's own answer.
+         */
+        val kidsOn: Boolean get() = shownKids.value?.enabled ?: true
+
+        /**
+         * What the Kids Mode PIN pad asked for ([step]): the lock's answer, never anything of the PIN. A pad for
+         * turning the lock on sets the first PIN and then turns the lock on with it.
+         */
+        suspend fun submitPin(step: PinSubmit): PinResult =
+            when (step) {
+                is PinSubmit.SetFirst -> setFirstPin(step.pin)
+                is PinSubmit.TurnOff -> kids.disable(step.pin)
+                is PinSubmit.CheckOld -> kids.verify(step.pin)
+                is PinSubmit.ChangeTo -> kids.changePin(step.old, step.new)
+            }
+
+        private suspend fun setFirstPin(pin: String): PinResult {
+            val set = kids.setPin(pin)
+            return if (set == PinResult.Ok && !kids.enable()) PinResult.Unavailable else set
+        }
+
+        /** Select on Kids Mode while it is off with a PIN set: turns it on at once. */
+        suspend fun enableKids(): Boolean = kids.enable()
 
         /**
          * The time a break must last on the grid to be a focus stop: a shorter one is drawn too narrow for its
@@ -168,6 +205,10 @@ internal class GuideViewModel
 
         private val lock = Any()
         private val root = SupervisorJob()
+
+        init {
+            CoroutineScope(dispatcher + SupervisorJob(root)).launch { kids.state.collect { shownKids.value = it } }
+        }
 
         // Everything below is read and written under [lock].
         private var session: CoroutineScope? = null
@@ -463,6 +504,10 @@ internal class GuideViewModel
             synchronized(lock) {
                 val current = shownSnapshot.value
                 when {
+                    // About (the channel's properties) and Channels (channel management) edit the lineup: shut while
+                    // Kids Mode is on. The rows are still there, drawn inert, so the sheet's keys are as they were.
+                    current.menu != null && kidsOn && current.menu.editsLineup -> Unit
+
                     current.menu != null -> selectOnMenu(current, current.menu)
 
                     // No grid is shown without libraries: there is no cell or channel to act on.
@@ -478,7 +523,8 @@ internal class GuideViewModel
             if (ready == null || located == null) return
             val row = ready.model.rows[located.first]
             if (current.onChannel) {
-                eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
+                // Properties can edit the channel: shut while Kids Mode is on.
+                if (!kidsOn) eventChannel.trySend(GuideEvent.OpenChannelProperties(row.channel))
             } else {
                 selectCell(row, row.cells[located.second], ready.nowMs)
             }

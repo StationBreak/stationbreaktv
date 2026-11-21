@@ -34,6 +34,9 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
+import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
+import tv.stationbreak.core.domain.kids.KidsLockedScheduleSource
 import tv.stationbreak.core.domain.lineup.BuildProbes
 import tv.stationbreak.core.domain.lineup.BuiltInChannelHoldings
 import tv.stationbreak.core.domain.lineup.BuiltInChannelProperties
@@ -174,8 +177,15 @@ internal object LineupModule {
         )
     }
 
+    /**
+     * The lineup features read: the service's, with what Kids Mode hides left out while it is on (#789). Anything that
+     * must see the whole lineup (the editor, the builder, the properties) takes the service itself.
+     */
     @Provides
-    fun channelRepository(service: LineupService): ChannelRepository = service
+    fun channelRepository(
+        service: LineupService,
+        lock: KidsLock,
+    ): ChannelRepository = KidsLockedChannelRepository(service, lock)
 
     /** The "Use my collections" flag, read by the Channels screen. */
     @Provides
@@ -371,8 +381,16 @@ internal object LineupModule {
             saved = savedSelectionOf(settings),
         )
 
+    /**
+     * The schedule features read (live TV, the guide, the channel screen's reasons, setup's cheer): the built-in
+     * source's, with what Kids Mode hides left out while it is on (#789), so nothing can tune a hidden channel. The
+     * warmer, the repairer and the selection take the built-in source itself.
+     */
     @Provides
-    fun scheduleSource(source: BuiltInScheduleSource): ScheduleSource = source
+    fun scheduleSource(
+        source: BuiltInScheduleSource,
+        lock: KidsLock,
+    ): ScheduleSource = KidsLockedScheduleSource(source, lock)
 
     /**
      * Builds the schedule's days ahead of the tune that needs them (#392). The builds are the source's own, at the

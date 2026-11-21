@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -33,7 +34,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.DpRect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.lineup.GuideOpening
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.ChannelChangeStyle
@@ -73,7 +76,10 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
  * Libraries in the Settings sheet shows [libraries] the same way; Back from it returns to the sheet, and Back from the
  * sheet closes it. Select on Update library in the sheet starts an update, and the sheet says how it goes. Select on
- * Sign out shows [signOut] (the question whether to sign out) over the sheet; staying returns to the sheet.
+ * Sign out shows [signOut] (the question whether to sign out) over the sheet; staying returns to the sheet. Kids Mode
+ * (#789) is the sheet's too: its PIN pad is drawn by the guide over the sheet, and while the lock is on the rows and
+ * keys that edit the lineup, the libraries or the account (Channels, a channel's properties, Libraries, Update library,
+ * Sign out) do nothing.
  */
 @Suppress("LongParameterList") // The guide's own four, its four slots, and the modifier.
 @Composable
@@ -290,6 +296,7 @@ internal fun GuideRoot(
     val chooseCrashReports = rememberUpdatedState(onCrashReports)
     // What the Settings sheet's choice rows show; a key there steps on from the stores' values as they stand
     // ([valuesNow]), or from these where there are no stores (a test's host).
+    val kids by viewModel.kidsState.collectAsStateWithLifecycle()
     val settingsValues =
         SettingsValues(
             themeChoice,
@@ -298,9 +305,27 @@ internal fun GuideRoot(
             levelling,
             crashReports,
             crashReportsAvailable,
+            // Fails closed: a lock not yet read counts as on for every guard; only the row's words show it unknown.
+            kidsOn = kids?.enabled ?: true,
+            kidsPinSet = kids?.pinSet == true,
+            kidsKnown = kids != null,
         )
     val shownValues by rememberUpdatedState(settingsValues)
-    val keyValues by rememberUpdatedState(valuesNow ?: { shownValues })
+    // Kids Mode, like the stores' values, as it stands at the key.
+    val keyValues by rememberUpdatedState {
+        val stores = valuesNow?.invoke() ?: shownValues
+        val lock = viewModel.kidsState.value
+        stores.copy(kidsOn = lock?.enabled ?: true, kidsPinSet = lock?.pinSet == true, kidsKnown = lock != null)
+    }
+    val scope = rememberCoroutineScope()
+    // A lockout on the PIN pad ends by itself: the pad takes PINs again then.
+    val lockout = settings?.pin?.notice as? PinNotice.LockedOut
+    LaunchedEffect(lockout) {
+        if (lockout != null) {
+            delay(lockout.remainingMillis)
+            settings = settings?.pinUnlocked()
+        }
+    }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             handleGuideEvent(
@@ -390,6 +415,11 @@ internal fun GuideRoot(
                                 }
                                 if (step.syncNow) viewModel.syncNow()
                                 settings = step.panel
+                                // The lock's answers come back to the pad; a PIN goes no further than the lock.
+                                step.pinSubmit?.let { ask ->
+                                    scope.launch { settings = settings?.pinAnswered(viewModel.submitPin(ask)) }
+                                }
+                                if (step.kidsEnable) scope.launch { viewModel.enableKids() }
                             },
                             grid = { event -> guideKey(event, move, viewModel::select, back, menu) },
                         )

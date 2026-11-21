@@ -34,6 +34,7 @@ internal fun choiceShown(
         SettingsRow.ChannelChange -> shown(CHANGES, values.channelChange, ::channelChangeWords)
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
         SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
+        SettingsRow.KidsMode, SettingsRow.ChangePin -> null
         SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> null
     }
 
@@ -72,4 +73,13 @@ private fun crashReportsWords(on: Boolean): Int =
     when {
         on -> R.string.guide_crash_reports_on
         else -> R.string.guide_crash_reports_off
+    }
+
+/** The words Kids Mode's row shows on its right: On or Off, or a dash until the stored lock has been read. */
+@StringRes
+internal fun kidsModeWords(values: SettingsValues): Int =
+    when {
+        !values.kidsKnown -> R.string.guide_kids_unknown
+        values.kidsOn -> R.string.guide_kids_on
+        else -> R.string.guide_kids_off
     }

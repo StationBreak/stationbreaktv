@@ -25,6 +25,9 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
+import tv.stationbreak.core.domain.kids.KidsLockedScheduleSource
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
@@ -476,6 +479,8 @@ class Rig(
     startMin: Long = 10,
     timings: LiveTimings = LiveTimings(),
     server: MediaServer? = null,
+    /** The Kids Mode lock (#789): when given, live reads the schedule and lineup through the app's lock wrappers. */
+    val kidsLock: FakeKidsLock? = null,
 ) {
     private val startMs = T0 + startMin * MIN
 
@@ -526,12 +531,12 @@ class Rig(
 
     val live =
         LiveChannel(
-            schedule,
+            kidsLock?.let { KidsLockedScheduleSource(schedule, it) } ?: schedule,
             tune,
             lastChannel,
             sessions,
             library,
-            channels,
+            kidsLock?.let { KidsLockedChannelRepository(channels, it) } ?: channels,
             clock,
             timings,
             { reports += it },
@@ -540,6 +545,7 @@ class Rig(
             selection = choices.selection,
             output = output,
             firstLineup = firstLineup,
+            kidsLock = kidsLock?.state,
             onFirstVisit = { firstVisits++ },
         )
 

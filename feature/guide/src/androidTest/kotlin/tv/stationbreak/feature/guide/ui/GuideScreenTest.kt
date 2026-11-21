@@ -74,6 +74,7 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
@@ -231,7 +232,7 @@ class GuideScreenTest {
         measure: Boolean = false,
     ) {
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(schedule, cache, clock, work, NoLineup, holdings = holdings)
+        vm = GuideViewModel(schedule, cache, clock, work, NoLineup, holdings = holdings, kids = FakeKidsLock())
         compose.setContent {
             // Stands in for the activity: a Back that nothing on screen takes leaves live TV.
             BackHandler { exits++ }

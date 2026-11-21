@@ -148,6 +148,43 @@
     <string name="first_visit_title">Here are your channels</string>
     <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
+    <!-- Kids Mode (#789): its section flag, its row and the row that changes its PIN. The row's value is On or Off. -->
+    <string name="guide_settings_group_kids">Kids Mode</string>
+    <string name="guide_settings_kids_mode">Kids Mode</string>
+    <string name="guide_kids_off">Off</string>
+    <string name="guide_kids_on">On</string>
+    <string name="guide_kids_unknown">&#8230;</string>
+    <string name="guide_settings_change_pin">Change PIN</string>
+    <!-- The one line under each Settings row that Kids Mode switches off, and under the menu's About and Channels rows. -->
+    <string name="guide_kids_locked">Turn off Kids Mode first</string>
+    <!-- What OK does on the Kids Mode row, in the Settings sheet's hint row. -->
+    <string name="guide_hint_kids_set_pin">Set a PIN</string>
+    <string name="guide_hint_kids_turn_on">Turn on</string>
+    <string name="guide_hint_kids_turn_off">Turn off</string>
+    <!-- The PIN pad over the Settings sheet: its title for each job, and what it asks for at each step. -->
+    <string name="guide_pin_title_set">Set a PIN</string>
+    <string name="guide_pin_title_turn_off">Turn off Kids Mode</string>
+    <string name="guide_pin_title_change">Change PIN</string>
+    <string name="guide_pin_prompt_current">Enter your PIN</string>
+    <string name="guide_pin_prompt_new">Choose a 4-digit PIN</string>
+    <string name="guide_pin_prompt_confirm">Enter it again to confirm</string>
+    <!-- What the pad says after an answer. The PIN itself is never shown or read out. -->
+    <string name="guide_pin_mismatch">The PINs did not match. Try again.</string>
+    <plurals name="guide_pin_wrong">
+        <item quantity="one">Wrong PIN. %1$d try left.</item>
+        <item quantity="other">Wrong PIN. %1$d tries left.</item>
+    </plurals>
+    <plurals name="guide_pin_locked">
+        <item quantity="one">Too many wrong PINs. Try again in %1$d minute.</item>
+        <item quantity="other">Too many wrong PINs. Try again in %1$d minutes.</item>
+    </plurals>
+    <string name="guide_pin_failed">Could not check the PIN. Try again.</string>
+    <!-- How many digits are typed, said instead of the digits (a screen reader hears this after each key). -->
+    <string name="guide_pin_entered">%1$d of %2$d digits</string>
+    <string name="guide_pin_delete">Delete</string>
+    <!-- The pad's hint row: OK types the key under the D-pad, Back cancels. -->
+    <string name="guide_hint_pin_type">Type</string>
+    <string name="guide_hint_pin_cancel">Cancel</string>
     <!-- The meta line under the title in the panel: runtime, then it is joined with the year and genres. -->
     <string name="guide_runtime_minutes">%1$d min</string>
     <string name="guide_runtime_hours_minutes">%1$d h %2$d min</string>

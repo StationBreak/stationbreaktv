@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -60,6 +61,8 @@ class GuideSyncNowTest : GuideRig() {
 
             // The guide starts it, and reads the state the sync says.
             assertNull("nothing to say before a press", syncNowLine(vm.syncNowState.value, noTime))
+            // The stored Kids Mode lock is read first: until it is, Update library is shut.
+            runCurrent()
             assertTrue(vm.syncNow())
             assertEquals(1, syncNow.starts)
             assertEquals(SyncNowState.Running, vm.syncNowState.value)

@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
@@ -63,11 +65,19 @@ private val ValueGap = 12.dp
 private val PipGap = 4.dp
 private val PipSize = 8.dp
 private val PipStroke = 1.5.dp
-private val FlagGap = 6.dp
+
+// Tighter than the shared row measures (RowGap 4, RowMinHeight 36, a 6 dp flag gap): with the Kids section the sheet
+// has five flags and eight rows, and at the TV's own text size on the Safe fit they all show at once, unscrolled.
+private val RowGap = 2.dp
+private val RowMinHeight = 34.dp
+private val FlagGap = 4.dp
 private val TitleGap = 4.dp
 private val SheetHintGap = 4.dp
 private const val CHEVRON_SP = 20
 private const val FLAG_SP = 10
+
+// A row Kids Mode has switched off is drawn dimmer, with its reason under it.
+private const val INERT_ALPHA = 0.55f
 
 /**
  * The guide's Settings sheet (DESIGN.md "Sheet and Rows"): a [LeftSheet] over the dimmed guide, in the place of the
@@ -121,7 +131,7 @@ internal fun GuideSettingsSheet(
                 .fillMaxWidth()
                 .scrollEdgeFade(scroll)
                 .verticalScroll(scroll),
-            verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap),
+            verticalArrangement = Arrangement.spacedBy(RowGap),
         ) {
             for (group in SettingsGroup.entries) {
                 val rows = group.rows.filter { it.isShown(values) }
@@ -129,12 +139,15 @@ internal fun GuideSettingsSheet(
                 SectionFlag(group)
                 for (each in rows) {
                     SettingsLine(each, values, focused = each == row)
-                    if (each == SettingsRow.SyncNow && status != null) SyncStatus(status)
+                    when {
+                        each.isInert(values) -> LockedNote(each)
+                        each == SettingsRow.SyncNow && status != null -> SyncStatus(status)
+                    }
                 }
             }
         }
         Spacer(Modifier.height(SheetHintGap))
-        SettingsHint(row)
+        SettingsHint(row, values)
     }
 }
 
@@ -146,8 +159,9 @@ private fun spokenOf(
     status: String?,
 ): String {
     val label = stringResource(row.label)
-    val value = choiceShown(row, values)?.let { stringResource(it.value) }
-    val said = status?.takeIf { row == SettingsRow.SyncNow } ?: value
+    val value = valueWords(row, values)?.let { stringResource(it) }
+    val locked = stringResource(R.string.guide_kids_locked).takeIf { row.isInert(values) }
+    val said = locked ?: status?.takeIf { row == SettingsRow.SyncNow } ?: value
     return said?.let { stringResource(R.string.guide_settings_spoken, label, it) } ?: label
 }
 
@@ -195,18 +209,36 @@ private fun SettingsLine(
     val colors = LocalPanelColors.current
     val label = stringResource(row.label)
     val choice = choiceShown(row, values)
-    val value = choice?.let { stringResource(it.value) }
+    val value = valueWords(row, values)?.let { stringResource(it) }
+    val inert = row.isInert(values)
+    val lockedText = stringResource(R.string.guide_kids_locked)
     Row(
         Modifier
             .fillMaxWidth()
-            .heightIn(min = SheetMeasures.RowMinHeight)
+            .alpha(if (inert) INERT_ALPHA else 1f)
+            .heightIn(min = RowMinHeight)
             .scrollIntoViewWhen(focused)
             .panelFocus(focused)
             .padding(horizontal = SheetMeasures.RowTextPadding, vertical = SheetMeasures.RowVerticalPadding)
             .testTag(GuideTags.settingsRow(row))
             .clearAndSetSemantics {
                 contentDescription = label
-                if (value != null) stateDescription = value else role = Role.Button
+                when {
+                    inert -> {
+                        role = Role.Button
+                        stateDescription = lockedText
+                        disabled()
+                    }
+
+                    choice != null && value != null -> {
+                        stateDescription = value
+                    }
+
+                    else -> {
+                        role = Role.Button
+                        value?.let { stateDescription = it }
+                    }
+                }
                 selected = focused
             },
         horizontalArrangement = Arrangement.spacedBy(ValueGap),
@@ -222,6 +254,7 @@ private fun SettingsLine(
         )
         when {
             choice != null && value != null -> ChoiceValue(value, choice, row)
+            value != null -> KidsValue(value)
             row.kind == RowKind.Link -> Chevron()
             else -> KeyCap(stringResource(UiR.string.hint_key_ok), round = true)
         }
@@ -299,32 +332,55 @@ internal data class SettingsHintPair(
 
 /**
  * What the keys do on [row]: on a choice Left and Right change it and OK moves it on, on a link OK opens it, on an
- * action OK does what the row says (Update, Sign out); Back closes the sheet everywhere, last.
+ * action OK does what the row says (Update, Sign out, and on Kids Mode what it does now: Set a PIN, Turn on or Turn
+ * off); Back closes the sheet everywhere, last. A row Kids Mode has switched off ([SettingsRow.isInert] for [values])
+ * has no
+ * OK: only Back.
  */
-internal fun settingsHintOf(row: SettingsRow): List<SettingsHintPair> {
+internal fun settingsHintOf(
+    row: SettingsRow,
+    values: SettingsValues = SettingsValues(),
+): List<SettingsHintPair> {
     val okDoes =
         when (row.kind) {
             RowKind.Choice -> R.string.guide_hint_next
             RowKind.Link -> R.string.guide_hint_open
-            RowKind.Action -> actionVerb(row)
+            RowKind.Action -> actionVerb(row, values)
         }
     val ok = SettingsHintPair(UiR.string.hint_key_ok, okDoes, round = true)
     val arrows = UiR.string.hint_key_left_right
     val change = SettingsHintPair(arrows, R.string.guide_hint_change, spokenKey = UiR.string.hint_key_left_right_spoken)
     val back = SettingsHintPair(UiR.string.hint_key_back, UiR.string.hint_close)
-    return if (row.kind == RowKind.Choice) listOf(change, ok, back) else listOf(ok, back)
+    return when {
+        row.isInert(values) -> listOf(back)
+        row.kind == RowKind.Choice -> listOf(change, ok, back)
+        else -> listOf(ok, back)
+    }
 }
 
 // What OK does on an action row, in the row's own verb.
 @StringRes
-private fun actionVerb(row: SettingsRow): Int =
-    if (row == SettingsRow.SignOut) R.string.guide_settings_sign_out else R.string.guide_hint_update
+private fun actionVerb(
+    row: SettingsRow,
+    values: SettingsValues,
+): Int =
+    when {
+        row == SettingsRow.SignOut -> R.string.guide_settings_sign_out
+        row == SettingsRow.ChangePin -> R.string.guide_hint_change
+        row != SettingsRow.KidsMode -> R.string.guide_hint_update
+        values.kidsOn -> R.string.guide_hint_kids_turn_off
+        values.kidsPinSet -> R.string.guide_hint_kids_turn_on
+        else -> R.string.guide_hint_kids_set_pin
+    }
 
 // The hint row (DESIGN.md "Key Hints"), with key caps, read out as one line.
 @Composable
-private fun SettingsHint(row: SettingsRow) {
+private fun SettingsHint(
+    row: SettingsRow,
+    values: SettingsValues,
+) {
     val pairs =
-        settingsHintOf(row).map {
+        settingsHintOf(row, values).map {
             val key = stringResource(it.key)
             KeyHintPair(key, stringResource(it.action), it.round, it.spokenKey?.let { id -> stringResource(id) } ?: key)
         }

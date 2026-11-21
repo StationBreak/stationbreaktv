@@ -167,6 +167,13 @@ initials tile; the channel column is 168 dp wide to hold it. Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot`, `PropertiesSlot`, `LibrariesSlot` and `SignOutSlot` types, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.
 
+Kids Mode in the guide (#789). `GuideViewModel` takes the `KidsLock` port from `core:domain` (bound by `app`), follows its
+state, and keeps shut what edits the lineup while the lock is on: Select on the channel column (properties), and the menu
+sheet's About and Channels entries. The Settings sheet has a Kids Mode row and, with a PIN set and the lock off, a Change PIN
+row; while the lock is on Libraries, Update library and Sign out are inert (`SettingsRow.isInert`), with the reason under
+each. The PIN pad is the guide's own (`PinEntry`, `GuideKidsPin`), drawn over the sheet and kept by the same model-driven key
+handling: its focus and its digits are a value, and nothing of the PIN is logged, shown or said to a screen reader.
+
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
 groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends
 on `core:domain`, `core:model` and `core:ui`, and applies the `hilt` convention plugin. It reaches the lineup only through the
@@ -257,6 +264,18 @@ Since spec 14, `data:settings` also holds `FileLastChannelStore` (the `LastChann
 one small file per account under `noBackupFilesDir/lastchannel`, named by a hash of the account so no server or user ID
 appears in a path, holding only the last channel's ID and replaced atomically. Sign-out leaves it. `app` binds it in
 `LiveModule`.
+
+Since #789, `data:settings` also holds `DataStoreKidsLockStore` (the `KidsLockStore` port in `core:domain`'s `kids`
+package): the Kids Mode lock in a DataStore file of its own, `noBackupFilesDir/kids-lock.preferences_pb` (the switch, the
+cap, the PIN's PBKDF2 salt, hash and iterations, never the PIN, and the wrong-PIN count and lockout times). A file that
+cannot be read, or cannot be parsed (a damaged file, never replaced), fails closed (the lock on, no PIN, so no PIN can be set over it; the TV needs its app data cleared). So does a missing record once a PIN was set: an empty `kids-lock.armed` marker is written (staged, synced, renamed) before the first PIN's record, and a record with no PIN beside the marker reads the same way. A damaged or missing lock record keeps Kids Mode on. `PinKidsLock` (in
+`core:domain`) is the lock over it: PIN rules, the constant-time check, the persisted count and the doubling lockout, on an
+injected `Clock` and `MonotonicClock` (a lockout is the longer of the wall-clock and the uptime remainder within one boot, so a clock set forward does not end it). The lock itself is two wrappers in the same package: `KidsLockedChannelRepository` and
+`KidsLockedScheduleSource`, which leave out every channel outside 1 to the cap while the lock is on. `app` binds them in
+`LineupModule` as *the* `ChannelRepository` and *the* `ScheduleSource` features read (`LineupService` and
+`BuiltInScheduleSource` stay what the editor, builder, warmer, repairer and selection take), and binds the store and the
+lock in `KidsLockModule`. `feature:live` follows `KidsLock.state` only to leave a channel the lock hides while it plays,
+and to pick the first allowed channel when the remembered one is hidden.
 
 **Privacy and removal of the lineup** ([#308](https://github.com/StationBreak/stationbreaktv/issues/308)). By design,
 sign-out, session expiry and an account switch never delete a household's lineup; only an explicit user action does. The
