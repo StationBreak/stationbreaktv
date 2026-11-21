@@ -39,6 +39,21 @@
         tools:targetApi="31">
 
         <!--
+            ACRA's manifest adds two sender services and a content provider, each in a process of its own (:acra). Reports
+            are sent in-process by the app's own sender (app/crash), so none of the three is needed: removed, so no second
+            process starts and nothing more is on the attack surface. BackupRulesTest keeps the exact list.
+        -->
+        <service
+            android:name="org.acra.sender.LegacySenderService"
+            tools:node="remove" />
+        <service
+            android:name="org.acra.sender.JobSenderService"
+            tools:node="remove" />
+        <provider
+            android:name="org.acra.attachment.AcraContentProvider"
+            tools:node="remove" />
+
+        <!--
             configChanges: an HDMI mode change, pairing a Bluetooth keyboard or gamepad, or a uiMode change must not
             recreate the activity and restart live playback; Compose reads the new Configuration itself.
             singleTask: whatever starts the app (the launcher, `am start -n`, monkey), a start while an instance exists

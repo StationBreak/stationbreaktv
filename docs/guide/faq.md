@@ -38,4 +38,5 @@ The certificate is probably from a private certificate authority, which the app 
 [What doesn't work](certificates.md#what-doesnt-work).
 
 **Does the app collect data about me?**
-No. It talks only to your Jellyfin server. See [Privacy](privacy.md).
+No. It talks only to your Jellyfin server, with one optional exception: a build that has crash reports turned
+on (they are off until you turn them on) can send a crash report to the developer. See [Privacy](privacy.md).

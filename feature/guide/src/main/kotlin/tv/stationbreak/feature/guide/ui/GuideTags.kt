@@ -96,6 +96,9 @@ object GuideTags {
     /** The Sign out row of the Settings sheet: OK asks whether to sign out of this TV (#336). */
     const val SETTINGS_SIGN_OUT = "guide:settings:signOut"
 
+    /** The Send crash reports row of the Settings sheet (#96); there only in a build with an endpoint. */
+    const val SETTINGS_CRASH_REPORTS = "guide:settings:crashReports"
+
     /** The tag of the Settings sheet's [row]. */
     internal fun settingsRow(row: SettingsRow): String =
         when (row) {
@@ -106,6 +109,7 @@ object GuideTags {
             SettingsRow.Libraries -> SETTINGS_LIBRARIES
             SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
             SettingsRow.SignOut -> SETTINGS_SIGN_OUT
+            SettingsRow.CrashReports -> SETTINGS_CRASH_REPORTS
         }
 
     /** The value a choice [row] shows on its right. */

@@ -45,6 +45,20 @@ val testReleaseVersion: TestReleaseVersion? =
         TestReleaseVersion.parse(it)
     }
 
+// Where opt-in crash reports go (#96, Q-PRIV-1): the owner's own endpoint, from the CRASH_REPORT_URL environment
+// variable or Gradle property. It is empty in the repository and in CI, and then the build has no crash reporting and the
+// Settings sheet hides its switch. Only an https URL with no credentials in it is accepted (CrashReportEndpoint checks
+// it again at run time); a value is never printed or committed.
+val crashReportUrl: String =
+    (providers.environmentVariable("CRASH_REPORT_URL").orNull ?: providers.gradleProperty("CRASH_REPORT_URL").orNull)
+        .orEmpty()
+        .trim()
+        .also {
+            require(it.isEmpty() || Regex("""https://[^\s"\\@]+""").matches(it)) {
+                "CRASH_REPORT_URL must be empty or an https URL with no credentials (user@host) in it"
+            }
+        }
+
 // The build types the Baseline Profile plugin generates (#416): (nonMinified, benchmark) x (release, benchmark).
 val profileBuildTypes: Set<String> =
     setOf("nonMinifiedRelease", "benchmarkRelease", "nonMinifiedBenchmark", "benchmarkBenchmark")
@@ -129,6 +143,7 @@ android {
         applicationId = "tv.stationbreak.app"
         versionCode = 1
         versionName = "0.0.1"
+        buildConfigField("String", "CRASH_REPORT_URL", "\"$crashReportUrl\"")
         // Hilt's test application replaces ours in instrumented tests.
         testInstrumentationRunner = "tv.stationbreak.app.HiltTestRunner"
     }
@@ -216,6 +231,9 @@ dependencies {
     implementation(project(":data:library"))
     // The base OkHttpClient is built here (ADR-0005); data:jellyfin keeps OkHttp to itself otherwise.
     implementation(libs.okhttp)
+    // Opt-in crash reports (#96, Q-PRIV-1): ACRA's core collects, the app's own sender (app/crash) posts through OkHttp.
+    implementation(libs.acra.core)
+    implementation(libs.kotlinx.serialization.json)
     // The player reads media through the credentialed OkHttp client; the app wraps it in this data source and hands it
     // over (ADR-0016, 9), so core:playback needs no HTTP client of its own.
     implementation(libs.androidx.media3.datasource.okhttp)

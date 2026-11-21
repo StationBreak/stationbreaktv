@@ -56,6 +56,7 @@
     <string name="guide_settings_group_playback">Playback</string>
     <string name="guide_settings_group_library">Library</string>
     <string name="guide_settings_group_account">Account</string>
+    <string name="guide_settings_group_privacy">Privacy</string>
     <!-- A choice row as a screen reader hears it while it has the focus: its label, then its value. -->
     <string name="guide_settings_spoken">%1$s, %2$s</string>
     <!-- The end of a row that opens another screen. -->
@@ -76,6 +77,11 @@
     <string name="guide_settings_levelling">Even out volume</string>
     <string name="guide_levelling_off">Off</string>
     <string name="guide_levelling_on">On</string>
+    <!-- The Settings sheet's crash reports row (#96): a switch for sending a report to the app's owner when the app
+         crashes. Shown only in a build that has somewhere to send it. -->
+    <string name="guide_settings_crash_reports">Send crash reports</string>
+    <string name="guide_crash_reports_off">Off</string>
+    <string name="guide_crash_reports_on">On</string>
     <!-- placeholder: design partner. The Settings sheet's row that opens Settings, Libraries (spec 26). -->
     <string name="guide_settings_libraries">Libraries</string>
     <!-- placeholder: design partner. The Settings sheet's row that updates the library now (spec 26), and the line

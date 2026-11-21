@@ -21,6 +21,7 @@ internal val THEMES = GuideTheme.entries
 internal val FITS = ScreenFit.entries
 internal val CHANGES = ChannelChangeStyle.entries
 internal val LEVELLINGS = listOf(false, true)
+internal val CRASH_REPORTS = listOf(false, true)
 
 /** What [row] shows on its right for [values], or null for a row that is not a choice. */
 internal fun choiceShown(
@@ -32,6 +33,7 @@ internal fun choiceShown(
         SettingsRow.ScreenFit -> shown(FITS, values.fit, ::fitWords)
         SettingsRow.ChannelChange -> shown(CHANGES, values.channelChange, ::channelChangeWords)
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
+        SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
         SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> null
     }
 
@@ -64,3 +66,6 @@ private fun channelChangeWords(style: ChannelChangeStyle): Int =
 
 @StringRes
 private fun levellingWords(on: Boolean): Int = if (on) R.string.guide_levelling_on else R.string.guide_levelling_off
+
+@StringRes
+private fun crashReportsWords(on: Boolean): Int = if (on) R.string.guide_crash_reports_on else R.string.guide_crash_reports_off
