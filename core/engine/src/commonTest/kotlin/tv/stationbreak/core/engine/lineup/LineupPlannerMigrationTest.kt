@@ -97,11 +97,11 @@ class LineupPlannerMigrationTest {
         assertFalse(next.channel("alpha").chosenByViewer, "a starter in the old top is the planner's")
     }
 
-    // 44 of the viewer's own channels and the two leftovers leave room for four: the v2 planner would have picked
+    // 46 of the viewer's own channels and the two leftovers leave room for four: the v2 planner would have picked
     // tots, alpha, bravo and charlie, so delta and echo, on all the same, are the viewer's.
     @Test
     fun anOnStarterOutsideTheOldTopReadsAsChosen() {
-        val lineup = before().withCustoms(44)
+        val lineup = before().withCustoms(46)
 
         val next = swap(lineup)
 
@@ -128,7 +128,7 @@ class LineupPlannerMigrationTest {
         val raw = base.copy(items = (base.items + trailers).sortedBy { it.item.id.value })
         val filtered = ExtrasFilter.filter(raw).snapshot
         assertEquals(base.items.size, filtered.items.size, "the filter takes the trailers out")
-        val lineup = before().withCustoms(44)
+        val lineup = before().withCustoms(46)
 
         val next = swap(lineup, filtered)
 
@@ -142,7 +142,7 @@ class LineupPlannerMigrationTest {
 
     @Test
     fun aLineupWhoseChoicesAreKnownInfersNothing() {
-        val lineup = before().withCustoms(44).copy(viewerChoicesKnown = true)
+        val lineup = before().withCustoms(46).copy(viewerChoicesKnown = true)
 
         val next = swap(lineup)
 

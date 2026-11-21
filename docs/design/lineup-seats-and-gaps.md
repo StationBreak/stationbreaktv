@@ -185,19 +185,19 @@ derivation moves), `LineupServiceResetKeepsCustomTest`, `LineupCodecV3Test`'s wo
 
 Owner decision, 2026-11-15: this rule replaces the cap of 50 for every viewer, and #793 adds the free-tier gates in v1.
 
-- **Free:** the planner's lineup (`PLANNER_PICKS` plus Odds & Ends, 50) and up to 5 custom channels on top, so 55 at
+- **Free:** the planner's lineup (`PLANNER_PICKS` plus the four Odds & Ends, 52) and up to 5 custom channels on top, so 57 at
   most. Copying a starter to customise it counts toward the 5. Shelved starters can be seen and browsed, but switching
   one on is Pro. On free, only custom channels sit on top.
 - **Pro (later):** switch-ons on top of the planner's picks, as this section defines them, and more than 5 custom
   channels.
 - The rule is built and tested in full in v1 (#785). The gates are #793's, behind one Pro check that returns false in
   v1. #785 adds no gate.
-- The timings at 60, 75 and every starter on measure the Pro worst case. Free tops out at 55. The switch-on warning only
+- The timings at 60, 75 and every starter on measure the Pro worst case. Free tops out at 57. The switch-on warning only
   ever shows on the Pro path.
 - **All lineup reshaping is Pro** (owner, 2026-11-15): switching starters on or off, hiding and renumbering them, all
   behind the same check. Free is "a free app that is actually useable, but not configurable": the viewer can still browse
   the whole lineup, shelved starters included. So on free every starter is the planner's, and the lineup is exactly the
-  planner's 50 plus the custom channels.
+  planner's 52 plus the custom channels.
 - Debug and benchmark builds keep Pro unlocked, so this rule's tests, the audit and the device timings run on the Pro
   path. Only the release build ships with the gates closed.
 - Not named in #793: a swap, switching on an opt-in starter, and editing a starter in place. The first two are reshaping;

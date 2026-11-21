@@ -7,11 +7,11 @@ object LineupDefaults {
     const val MIN_AIRABLE_RUNTIME_MS: Long = 43_200_000L
 
     /**
-     * The older planner's cap: the most channels switched on at once, the leftovers included. It stays only for
-     * `withInferredChoices`, which rebuilds that planner's choices from a stored file; the planner's own picks are
-     * capped at [PLANNER_PICKS].
+     * The free on-set: the planner's [PLANNER_PICKS] starters plus the four always-on Odds & Ends channels (33, 66, 99,
+     * 199), which cost no seat. It is also the older planner's cap, kept only for `withInferredChoices`, which rebuilds
+     * that planner's choices from a stored file; the planner's own picks are capped at [PLANNER_PICKS].
      */
-    const val CAP: Int = 50
+    const val CAP: Int = 52
 
     /**
      * The most starters the planner picks by identity (ADR-0023, the seat rule): its free picks and the pinned starters

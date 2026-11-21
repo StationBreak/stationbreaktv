@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 
 /**
- * How big the file of a realistic day is, and what reading it costs beside building the day: about 50 channels over
+ * How big the file of a realistic day is, and what reading it costs beside building the day: about 52 channels over
  * 20,000 items (as `DayBuildEquivalenceTest`'s timing harness). It prints its numbers and asserts only generous bounds:
  * the file stays well under the store's cap, and reading it allocates less than working the pools out does (the
  * device's cold build also reads the library snapshot, which allocates far more and is not counted here).
@@ -117,7 +117,7 @@ class PersistedDaysSizeTest {
     fun theFileOfAFiftyChannelDayIsSmallAndCheapToRead() {
         val items = library(ITEMS)
         val scheduled = lineupDays.scheduled(lineup, NOON.toEpochMilliseconds(), null)
-        assertTrue(scheduled.size >= FIFTY, "about 50 channels: ${scheduled.size}")
+        assertTrue(scheduled.size >= FIFTY, "about 52 channels: ${scheduled.size}")
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
                 RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
@@ -223,7 +223,7 @@ class PersistedDaysSizeTest {
         const val SERIES_IDS = 100_000
         const val ITEMS = 20_000
         const val CUSTOMS = 42
-        const val FIFTY = 48
+        const val FIFTY = 48 // at least the planner's picks; the day has 52
 
         // The six starters and two leftovers channels every lineup here has, besides its custom channels.
         const val BASE_CHANNELS = 8

@@ -20,7 +20,7 @@ import kotlin.time.TimeSource
 
 /**
  * The faster day build (#392) gives the same days as the one it replaced, kept as `LegacyLineupDays`; and a timing
- * harness over a library of 20,000 items and 50 channels. The harness prints its numbers and asserts only a very
+ * harness over a library of 20,000 items and about 52 channels. The harness prints its numbers and asserts only a very
  * generous bound (the optimised build is no slower than the old one plus a minute), so a slow CI host cannot fail it.
  */
 class DayBuildEquivalenceTest {
@@ -204,7 +204,7 @@ class DayBuildEquivalenceTest {
         val lineup = variedLineup(extraCustoms = 42)
         val items = library(20_000)
         val (scheduled, snapshots) = snapshotsFor(lineup, NOON.toEpochMilliseconds(), items)
-        assertTrue(scheduled.size >= 48, "about 50 channels: ${scheduled.size}")
+        assertTrue(scheduled.size >= 48, "about 52 channels: ${scheduled.size}")
         // Warm the JIT with both, then take the best of a few runs of each.
         repeat(2) {
             legacy.days(lineup, scheduled, snapshots)

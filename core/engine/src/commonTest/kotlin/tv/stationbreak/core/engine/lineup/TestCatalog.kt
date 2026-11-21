@@ -29,6 +29,9 @@ internal val TEST_LEFTOVERS: List<LeftoversRecipe> =
         LeftoversRecipe("odds", "Odds", "Synthetic.", 199, null),
     )
 
+/** What the planner switches on from a catalog of [TEST_LEFTOVERS]: its picks and the leftovers. */
+internal val FREE_ON: Int = LineupDefaults.PLANNER_PICKS + TEST_LEFTOVERS.size
+
 internal val SERVER: CanonicalId = idOf(0x5E)
 internal val USER: CanonicalId = idOf(0x5F)
 internal val NO_NAMES: CollectionNames = CollectionNames(emptyMap())

@@ -45,7 +45,7 @@ class LineupPlannerTest {
 
         assertTrue(lineup.finalised)
         val on = lineup.channels.filter { it.state == ChannelState.On }
-        assertEquals(LineupDefaults.CAP, on.size)
+        assertEquals(FREE_ON, on.size)
         val expectedOn = keys.drop(13).toSet() + "r11" + "kids-odds" + "odds"
         assertEquals(expectedOn, lineup.onKeys())
         assertEquals(ChannelState.Shelf, lineup.channel("r12").state)
@@ -193,7 +193,7 @@ class LineupPlannerTest {
 
         val names = CollectionNames(mapOf(kaijuId to "Kaiju"))
         val lineup = planOf(null, withCollection, catalog, names = names)
-        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        assertEquals(FREE_ON, lineup.channels.count { it.state == ChannelState.On })
         assertEquals(ChannelState.On, lineup.channel("kaiju").state, "ranked first by its fill")
         assertEquals(
             kaiju.sources + Source.Collection(kaijuId),
@@ -601,13 +601,13 @@ class LineupPlannerTest {
         val catalog = TestCatalog(keys.mapIndexed { i, k -> recipeOf(k, 200 + i) })
         val fill = keys.associateWith { QUALIFYING_ITEMS }
         val lineup = planOf(null, libraryOf(fill), catalog)
-        assertEquals(LineupDefaults.CAP, lineup.channels.count { it.state == ChannelState.On })
+        assertEquals(FREE_ON, lineup.channels.count { it.state == ChannelState.On })
         val more = LeftoversRecipe("more-odds", "More Odds", "Synthetic.", 198, null)
         val v2 = TestCatalog(catalog.recipes, version = 2, leftovers = TEST_LEFTOVERS + more)
         val next = planOf(lineup, libraryOf(fill), v2)
         assertEquals(ChannelState.On, next.channel("more-odds").state)
         assertEquals(198, next.channel("more-odds").number)
-        assertEquals(LineupDefaults.CAP + 1, next.channels.count { it.state == ChannelState.On })
+        assertEquals(FREE_ON + 1, next.channels.count { it.state == ChannelState.On })
     }
 
     @Test

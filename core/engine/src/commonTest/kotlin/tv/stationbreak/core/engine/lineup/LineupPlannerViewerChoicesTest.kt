@@ -66,7 +66,7 @@ class LineupPlannerViewerChoicesTest {
                 .filter { it.state == ChannelState.On }
                 .map { it.id }
                 .toSet()
-        assertEquals(LineupDefaults.CAP + 3, on.size)
+        assertEquals(FREE_ON + 3, on.size)
 
         val v2 = TestCatalog(catalog.recipes + recipeOf("nova", 270), version = 2)
         for (next in listOf(replan(lineup, catalog), replan(lineup, v2), replan(lineup, v2, synced = false))) {
@@ -102,7 +102,7 @@ class LineupPlannerViewerChoicesTest {
                 .filter { it.state == ChannelState.On }
                 .map { it.id }
                 .toSet()
-        assertEquals(LineupDefaults.CAP + 3, on.size)
+        assertEquals(FREE_ON + 3, on.size)
 
         val next = replan(lineup, catalog)
 

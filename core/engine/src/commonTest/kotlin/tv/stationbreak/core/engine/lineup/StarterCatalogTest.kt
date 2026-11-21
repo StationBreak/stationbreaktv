@@ -265,7 +265,7 @@ class StarterCatalogTest {
     @Test
     fun lineupDefaultsAreTheDecidedValues() {
         assertEquals(43_200_000L, LineupDefaults.MIN_AIRABLE_RUNTIME_MS)
-        assertEquals(50, LineupDefaults.CAP)
+        assertEquals(52, LineupDefaults.CAP)
         assertEquals(5, LineupDefaults.FINALISE_THRESHOLD)
         assertEquals("06:00", LineupDefaults.DAY_START)
         assertEquals(600..899, LineupDefaults.CUSTOM_NUMBERS)

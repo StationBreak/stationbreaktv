@@ -84,7 +84,7 @@ the catalog's single lane for a niche theme carry a lower bar of their own, 6 us
 recipe field frozen in the catalog manifest, so it depends on the catalog and the library only). A qualifying channel
 scores `min(usable hours, 80)` in hundredths of an hour, plus 1500 per anchor up to 4, plus 100 per title up to 30. The
 top scores fill the room, ties to the lower recipe number. The lineup keeps its cap of 50 (48 starters and the two leftovers
-channels). Channels the viewer chose count first. *Amended 2026-11-15: the cap and the seats are changed by the addendum at
+channels; *amended 2026-11-21: 52, with the four Odds & Ends of catalog 8, see the addendum*). Channels the viewer chose count first. *Amended 2026-11-15: the cap and the seats are changed by the addendum at
 the end.* There are at most 6 rounds, and a chosen channel that stopped
 qualifying is dropped and the round repeats. (In practice removing channels only adds homes, so the loop settles at once.
 A property test holds that claim, and the rounds stay as a safety net.)
@@ -356,8 +356,8 @@ channels). Channels the viewer chose count first.", and the keeper bound of 50.
 
 The planner's own picks are capped at `PLANNER_PICKS` = 48. A channel the planner would not have picked costs no seat.
 These cost none: custom channels, edited starters, opt-in pins, pinned starters outside the top 48 or with no score, and
-the two leftovers channels. The lineup is the planner's 48, plus those of the above that are on, plus the leftovers.
-`CAP` (50) remains only for ranked (non-selecting) catalogs and for the inference for older files.
+the leftovers channels. The lineup is the planner's 48, plus those of the above that are on, plus the leftovers.
+`CAP` (52, 48 plus the four Odds & Ends) remains only for ranked (non-selecting) catalogs and for the inference for older files.
 
 **Ranking pins.** Each Selection round homes every title over all the candidates left, pinned and free. It scores every
 qualifying candidate, pinned ones too, and puts them in one total order: by score, then `CHANNEL_ORDER` (ties to the lower
@@ -464,7 +464,7 @@ then state the growth it causes and the version-5 trigger, and a test must pin t
 refund. On free, switching a starter on is Pro (#793), so an `Added` channel can only exist for a household that has
 bought Pro. Owner decision (2026-11-16) for a refund revocation:
 
-- **The starters are reset by force.** The lineup returns to the planner's 48 picks plus Odds & Ends (50). The viewer's
+- **The starters are reset by force.** The lineup returns to the planner's 48 picks plus the four Odds & Ends (52). The viewer's
   renumbers, hides, switch-offs and switch-ons, and every `Added` mark, are discarded, as in a viewer's reset (which keeps
   custom channels). They are not stashed: a viewer who buys Pro again re-edits the starters, which the owner accepts as
   a small inconvenience. A lineup with no `Added` mark writes version 3 or 4 again.
@@ -551,3 +551,9 @@ starters on in lineup order.
 **The warning is permanent.** The owner chose a heads-up that is always on the Channels panel, with no threshold: "The more
 channels you turn on, the longer the guide takes to get ready." Nothing is shelved to make the guide faster. Since #799 it
 shows only to viewers who can switch channels on (Pro); free viewers can't switch starters on, so they don't see it.
+
+## Addendum 2026-11-21: the free on-set is 52
+
+Owner decision ([#1002](https://github.com/StationBreak/stationbreaktv/issues/1002)): `PLANNER_PICKS` stays 48. Catalog 8
+made Odds & Ends four always-on channels (33, 66, 99, 199) that cost no seat, so the free on-set is 48 + 4 = 52 and
+`LineupDefaults.CAP` is 52. Earlier sections that say 50 describe the lineup before catalog 8; their measurements stand.

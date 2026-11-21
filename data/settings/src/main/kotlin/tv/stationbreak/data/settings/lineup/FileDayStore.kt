@@ -186,12 +186,13 @@ class FileDayStore internal constructor(
         const val NEW = ".new"
 
         /**
-         * The largest file of days written or read: a realistic day of about 50 channels (the planner's 48 picks and
-         * the leftovers) is under 2 MiB. The viewer's own channels, edited and opt-in starters and pinned ones outside
-         * the top cost the planner no seat (ADR-0023, the seat rule), so the lineup can be larger. On the JVM, over a
-         * generated library of 20,000 items, the file is about 1.7 MiB at 50 channels, 1.7 at 60, 1.8 at 75 and 1.8 at
-         * 100 (`PersistedDaysSizeTest`), well under this bound. The Insignia's build, restore and guide-open timings at
-         * those counts are measured separately (the test session) and recorded in the ADR-0023 addendum.
+         * The largest file of days written or read: a realistic day of about 52 channels (the planner's 48 picks and
+         * the four Odds & Ends channels) is under 2 MiB. The viewer's own channels, edited and opt-in starters and
+         * pinned ones outside the top cost the planner no seat (ADR-0023, the seat rule), so the lineup can be larger.
+         * On the JVM, over a generated library of 20,000 items, the file is about 1.7 MiB at 50 channels, 1.7 at 60,
+         * 1.8 at 75 and 1.8 at 100 (`PersistedDaysSizeTest`), well under this bound. The Insignia's build, restore and
+         * guide-open timings at those counts are measured separately (the test session) and recorded in the ADR-0023
+         * addendum.
          */
         const val MAX_BYTES = 16 * 1024 * 1024
 
