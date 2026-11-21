@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 11, curation-1, extras-1)
+LINEUP AUDIT (catalog 12, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -86,7 +86,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   simmer                        170  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   backstage-pass                178  off    TooThin       2  2t 2.00h 0a score   400 THIN       -
-  always-december               182  off    TooThin       2  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  on(p)               66  46t 269.80h 0a score 11000         54t 353.92h 0a
   cold-case-cable               208  on(p)               19  18t 150.95h 0a score  9800         19t 168.55h 0a
@@ -113,7 +112,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cape-and-cowl                 328  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cult-following                332  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   shuffle-and-groan             336  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  jack-o-lantern-lounge         340  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   campfire-tales                344  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   paradox                       348  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   neon-rain                     352  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -138,6 +136,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   528  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
+  always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   prestige                     cold-case-cable              7 titles, 131.33h

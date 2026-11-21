@@ -144,7 +144,7 @@ internal object PlannerSelection {
         return when {
             !planned -> null
             checkNotNull(source).edited -> if (channel.state == ChannelState.Shelf) Role.Kept else null
-            else -> roleOfPlanned(channel, checkNotNull(recipe))
+            else -> roleOfPlanned(channel, checkNotNull(recipe), p)
         }
     }
 
@@ -152,11 +152,13 @@ internal object PlannerSelection {
     private fun roleOfPlanned(
         channel: LineupChannel,
         recipe: Recipe,
+        p: Planning,
     ): Role {
         val on = channel.state == ChannelState.On
         // Opt-in before Kept: a shelved opt-in starter the viewer touched is still off for being opt-in (N12), and
         // shows that reason, not one from the homing.
         return when {
+            gatedBySeason(channel, recipe, p) -> Role.Free
             channel.viewerChoice == ViewerChoice.Added && on -> Role.Added
             channel.chosenByViewer && on -> Role.Pinned
             recipe.optIn -> Role.OptIn
@@ -164,6 +166,21 @@ internal object PlannerSelection {
             channel.number == null -> Role.Numberless
             else -> Role.Free
         }
+    }
+
+    // A seasonal starter the viewer only touched (a renumber, a swap, a switch-off and on of a planner pick) stays
+    // under the gate, so it goes off out of season and, if the planner shelved it, comes back in season: on and out of
+    // season, or shelved by the planner (it has a reason; a viewer's switch-off has none) and in season. A viewer's
+    // explicit switch-on (Added) and an edited starter are not gated (ADR-0031). The number override is kept.
+    private fun gatedBySeason(
+        channel: LineupChannel,
+        recipe: Recipe,
+        p: Planning,
+    ): Boolean {
+        val season = recipe.season
+        if (season == null || channel.viewerChoice != ViewerChoice.Touched || channel.number == null) return false
+        val inSeason = season.contains(p.boundaryMs, p.offset)
+        return if (channel.state == ChannelState.On) !inSeason else channel.shelfReason != null && inSeason
     }
 
     /**
@@ -399,7 +416,7 @@ internal fun Planning.reResolved(
 
 /**
  * The curation's view of a starter: its pool under [policy], with the household's collections left out when
- * [household] is off (none left: an empty pool).
+ * [household] is off (none left: an empty pool). A seasonal recipe's pool is empty outside its season.
  */
 @Suppress("LongParameterList") // One for each fact the curation channel carries.
 internal fun Planning.curationChannel(
@@ -412,7 +429,10 @@ internal fun Planning.curationChannel(
 ): CurationChannel {
     val aired = if (household) rules else HouseholdSources.without(rules, snapshot)
     val used = aired ?: rules
-    val pool = if (aired == null) emptyList() else poolOf(id, aired, policy)
+    // A seasonal recipe out of season has no pool for the day the plan is for (the boundary's), so it is left out the
+    // way any channel with nothing that fits is, and returns when the window opens (a pure function of that day).
+    val inSeason = recipe.season?.contains(boundaryMs, offset) ?: true
+    val pool = if (aired == null || !inSeason) emptyList() else poolOf(id, aired, policy)
     return CurationChannel(id, number, recipe, policy == PoolPolicy.KidsOnly, used, used.toSchedulerSettings(), pool)
 }
 

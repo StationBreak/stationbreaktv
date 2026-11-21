@@ -105,6 +105,8 @@ class LineupFieldTripwireTest {
             // theme (the curation, the opt-in withholding, the leftovers' ceilings). No day reads: name, personality
             // (text), and the key beyond which recipe a starter is. qualifyingBar (catalog 5) is read only by the
             // planner's selection (`ChannelStats.qualifies`), never by a day's curation, so no day input changes.
+            // season (catalog 12) is read only by the planner, which leaves a seasonal recipe's pool empty out of its
+            // season; a day builds from the stored rules, never the recipe's season, so no day input changes.
             setOf(
                 "key",
                 "name",
@@ -120,6 +122,7 @@ class LineupFieldTripwireTest {
                 "filters",
                 "theme",
                 "qualifyingBar",
+                "season",
             ),
         )
 

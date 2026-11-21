@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 11, curation-1, extras-1)
+LINEUP AUDIT (catalog 12, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1791 items, 75 titles (44 series, 31 films)
@@ -75,7 +75,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   simmer                        170  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   backstage-pass                178  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  always-december               182  off    TooThin       5  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cold-case-cable               208  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -102,7 +101,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cape-and-cowl                 328  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cult-following                332  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   shuffle-and-groan             336  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  jack-o-lantern-lounge         340  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   campfire-tales                344  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   paradox                       348  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   neon-rain                     352  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -127,6 +125,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   528  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   saturday-morning             backyard-fort                4 titles, 61.60h

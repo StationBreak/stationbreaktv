@@ -1,20 +1,20 @@
-LINEUP AUDIT (catalog 11, curation-1, extras-1)
+LINEUP AUDIT (catalog 12, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 27936 items, 776 titles (776 series, 0 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 776, with a home: 776, with no home: 0
+  titles: 776, with a home: 768, with no home: 8
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
     held-by-kid-or-grown-up-hold       0
-    filtered-or-rated                  0
+    filtered-or-rated                  8
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 399 titles, 2 channels: 359 titles, 3 channels: 12 titles, 4 channels: 6 titles
+  channels per title: 1 channels: 391 titles, 2 channels: 367 titles, 3 channels: 12 titles, 4 channels: 6 titles
   titles per channel that is on:
     little-farm                      8
     sing-along-station               8
@@ -25,13 +25,11 @@ TOTALS
     hey-science                      8
     pocket-heroes                    8
     flipbook                         8
-    snowglobe                        8
     giggle-garage                    8
     wheels-and-whistles              8
     small-sleuths                    8
     once-upon                        8
     little-spirits                   8
-    spooky-sleepover                 8
     prime-time-pals                 24
     homeroom                         8
     mask-and-mantle                 16
@@ -56,7 +54,6 @@ TOTALS
     simmer                           8
     fixer-hour                       8
     backstage-pass                   8
-    always-december                  8
     curtain-call                     8
     prestige                        11
     cold-case-cable                 24
@@ -66,6 +63,9 @@ TOTALS
     dead-drop                        8
     big-rumble                      22
     kung-fu-theater                  8
+    docs-and-dusters                 8
+    front-lines                      8
+    dusty-trails                     8
     corsets-and-candlelight          8
     case-files                       8
     starport                        34
@@ -75,7 +75,7 @@ TOTALS
     one-season-only                  8
     cartoons-after-dark             16
     custom:1                        32
-    leftovers:kids-odds-and-ends     0
+    leftovers:kids-odds-and-ends     8
     leftovers:family-odds-and-ends     0
     leftovers:teen-odds-and-ends     0
     leftovers:odds-and-ends          0
@@ -91,14 +91,14 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   hey-science                    14  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
   pocket-heroes                  16  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
   flipbook                       18  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
-  snowglobe                      20  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
+  snowglobe                      20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   giggle-garage                  22  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
   wheels-and-whistles            24  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
   small-sleuths                  26  on(p)                8  8t 105.60h 0a score  8800          8t 105.60h 0a
   once-upon                      36  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   rainy-day-matinee              39  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   little-spirits                 42  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  spooky-sleepover               45  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -128,19 +128,18 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   simmer                        170  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   fixer-hour                    174  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   backstage-pass                178  on(p)               16  8t 211.20h 0a score  8800          8t 211.20h 0a
-  always-december               182  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   curtain-call                  186  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   prestige                      204  on(p)               16  8t 211.20h 0a score  8800          8t 211.20h 0a
   cold-case-cable               208  on(p)               24  16t 422.40h 0a score  9600         24t 633.60h 0a
   order-in-the-court            212  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  code-blue                     216  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  silver-screen                 220  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  code-blue                     216  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  silver-screen                 220  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   dead-drop                     224  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  big-rumble                    228  on(p)               48  8t 211.20h 0a score  8800          16t 422.40h 0a
-  kung-fu-theater               232  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  docs-and-dusters              236  off    BelowCap      8  8t 211.20h 0a score  8800          -
-  front-lines                   240  off    BelowCap      8  8t 211.20h 0a score  8800          -
-  dusty-trails                  244  off    BelowCap      8  8t 211.20h 0a score  8800          -
+  big-rumble                    228  on(v)               48  8t 211.20h 0a score  8800          16t 422.40h 0a
+  kung-fu-theater               232  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  docs-and-dusters              236  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  front-lines                   240  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
+  dusty-trails                  244  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   noir-nights                   248  off    BelowCap      8  8t 211.20h 0a score  8800          -
   corsets-and-candlelight       252  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   case-files                    256  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
@@ -155,7 +154,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cape-and-cowl                 328  off    BelowCap     16  8t 211.20h 0a score  8800          -
   cult-following                332  off    BelowCap      8  8t 211.20h 0a score  8800          -
   shuffle-and-groan             336  off    BelowCap      8  8t 211.20h 0a score  8800          -
-  jack-o-lantern-lounge         340  off    BelowCap     16  8t 211.20h 0a score  8800          -
   campfire-tales                344  off    BelowCap      8  8t 211.20h 0a score  8800          -
   paradox                       348  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   neon-rain                     352  off    BelowCap      8  8t 211.20h 0a score  8800          -
@@ -180,6 +178,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   family-business               520  off    BelowCap      8  8t 211.20h 0a score  8800          -
   anthology-hour                524  off    BelowCap      8  8t 211.20h 0a score  8800          -
   satire-desk                   528  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   flip-phone                   starport                     32 titles, 844.80h
@@ -192,7 +192,6 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   big-rumble                   14 titles, 369.60h
   cold-case-cable              custom:1                     8 titles, 211.20h
   dead-drop                    custom:1                     8 titles, 211.20h
-  flip-phone                   always-december              8 titles, 211.20h
   flip-phone                   backstage-pass               8 titles, 211.20h
   flip-phone                   case-files                   8 titles, 211.20h
   flip-phone                   code-blue                    8 titles, 211.20h
@@ -201,7 +200,10 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   curtain-call                 8 titles, 211.20h
   flip-phone                   date-night                   8 titles, 211.20h
   flip-phone                   dead-drop                    8 titles, 211.20h
+  flip-phone                   docs-and-dusters             8 titles, 211.20h
+  flip-phone                   dusty-trails                 8 titles, 211.20h
   flip-phone                   fixer-hour                   8 titles, 211.20h
+  flip-phone                   front-lines                  8 titles, 211.20h
   flip-phone                   game-night                   8 titles, 211.20h
   flip-phone                   glass-house                  8 titles, 211.20h
   flip-phone                   masala-hour                  8 titles, 211.20h
@@ -218,11 +220,9 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   nervous-laughter             big-rumble                   8 titles, 211.20h
   once-upon                    flip-phone                   8 titles, 211.20h
   punchline                    flip-phone                   8 titles, 211.20h
-  spooky-sleepover             flip-phone                   8 titles, 211.20h
   starport                     deep-space-drift             8 titles, 211.20h
   big-rumble                   custom:1                     6 titles, 158.40h
-  dead-drop                    big-rumble                   6 titles, 158.40h
-  ... and 5 more pairs (all in the JSON)
+  ... and 6 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   00000000 Velmami Pefator [series, 36 items, 13.20h]
@@ -370,21 +370,37 @@ TITLES (scores in points; a term that is zero is left out)
   00000047 Faoltor Velzuol [series, 36 items, 13.20h]
     home flipbook 175.10 = specificity 30.10 tag 35.00 decade -150.00 kids 200.00 tone 60.00
   00000048 Zuzuquin Quinxipe [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   00000049 Renquinren Kydarvel [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004a Kymipe Braolmi [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004b Olbrator Dartorquin [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004c Mamadar Renfafa [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004d Perenzu Xiperen [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004e Xiloma Sendarma [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   0000004f Bradarvel Zukyxi [series, 36 items, 13.20h]
-    home snowglobe 360.10 = specificity 30.10 tag 70.00 kids 200.00 tone 60.00
+    NO HOME: filtered-or-rated (it passes the hold but a recipe's filters or rating ceiling remove it)
+    closest: snowglobe
+    airs on: leftovers:kids-odds-and-ends
   00000050 Veltordar Peveltor [series, 36 items, 13.20h]
     home giggle-garage 400.10 = specificity 30.10 genre 40.00 tag 70.00 kids 200.00 tone 60.00
     guest spots: custom:1
@@ -536,37 +552,21 @@ TITLES (scores in points; a term that is zero is left out)
     home little-spirits 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
     runner-up level-up 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
   00000080 Veldarol Pebradar [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000081 Tortorbra Milolo [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000082 Miximi Famazu [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000083 Senollo Mamiol [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000084 Darzuky Torrenpe [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000085 Quinquinxi Lobravel [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000086 Lomimi Olquinmi [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000087 Fabralo Velmadar [series, 36 items, 26.40h]
-    home spooky-sleepover 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000088 Zumaren Quinmifa [series, 36 items, 26.40h]
     home prime-time-pals 121.27 = specificity 21.27 genre 40.00 tone 60.00
     runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
@@ -1352,37 +1352,21 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000170 Velsenbra Pekymi [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000171 Torvelsen Mitorquin [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000172 Mipelo Fafafa [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000173 Senkyky Maperen [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000174 Darfaxi Tordarma [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000175 Quindarmi Lokyxi [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000176 Lotorlo Olveltor [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000177 Faxiren Velfasen [series, 36 items, 26.40h]
-    home always-december 160.10 = specificity 30.10 tag 70.00 tone 60.00
-    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   00000178 Zuolpe Quinpequin [series, 36 items, 26.40h]
     home curtain-call 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
     runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
@@ -1651,53 +1635,101 @@ TITLES (scores in points; a term that is zero is left out)
     home kung-fu-theater 400.10 = specificity 30.10 genre 240.00 tag 70.00 tone 60.00
     runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
   000001c0 Velzuvel Pesenmi [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c1 Torquindar Mikydar [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c2 Mimizu Favelfa [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c3 Senbrama Maloren [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c4 Darmabra Torpeol [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c5 Quinrensen Losenxi [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c6 Lolofa Olrenvel [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c7 Fasenol Velvelsen [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home docs-and-dusters 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c8 Zuvelbra Quinloquin [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001c9 Renpemi Kymafa [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001ca Kykylo Brasenky [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001cb Olfaky Darrenma [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001cc Madarxi Renbrabra [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001cd Petormi Xiquintor [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001ce Xixiquin Senmasen [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001cf Bramaren Zumilo [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home front-lines 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d0 Velrenpe Pezuzu [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d1 Torlotor Mibraol [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d2 Misenquin Faquinpe [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d3 Senvelren Maolbra [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d4 Darpema Tormimi [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d5 Quinkyvel Lozudar [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d6 Lofadar Olxilo [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d7 Fadarzu Velquinren [series, 36 items, 26.40h]
-    home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    home dusty-trails 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
+    runner-up flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000001d8 Zutorma Quinolol [series, 36 items, 26.40h]
     home flip-phone -81.15 = specificity 10.85 decade -150.00 tone 58.00
   000001d9 Renxibra Kytorxi [series, 36 items, 26.40h]

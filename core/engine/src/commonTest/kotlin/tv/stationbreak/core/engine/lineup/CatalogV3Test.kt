@@ -190,9 +190,13 @@ class CatalogV3Test {
         assertEquals(CATALOG_MANIFEST_V2.recipes.keys - StarterCatalog.retiredKeys, kept)
         for (new in v3.filter { it.key !in NEW_YOUNG_AT_8 }) {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
-            // Catalog 8's waived renumbering (#1002); the Kids band of catalog 2 is the three young bands now.
-            assertEquals(NUMBERS_WAIVED_AT_8[new.key] ?: old.number, new.number, new.key)
-            assertEquals(if (old.band == Band.Kids) Band.of(new.number) else old.band, new.band, new.key)
+            // The waived renumberings of catalogs 8 and 12 (#1002, #592); the Kids band of catalog 2 is the three young
+            // bands now.
+            val waived = NUMBERS_WAIVED_AT_12[new.key] ?: NUMBERS_WAIVED_AT_8[new.key]
+            assertEquals(waived ?: old.number, new.number, new.key)
+            val rebanded = old.band == Band.Kids || new.key in NUMBERS_WAIVED_AT_12
+            val oldBand = if (rebanded) Band.of(new.number) else old.band
+            assertEquals(oldBand, new.band, new.key)
             assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
             assertEquals(old.optIn, new.optIn, new.key)
         }

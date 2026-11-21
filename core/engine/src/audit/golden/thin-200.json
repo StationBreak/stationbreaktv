@@ -2,7 +2,7 @@
   "format": "lineup-audit",
   "version": 1,
   "scope": "The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.",
-  "catalogVersion": 11,
+  "catalogVersion": 12,
   "curation": "curation-1",
   "extras": "extras-1",
   "termOrder": ["specificity","genre","tag","studio","decade","anchor","kids","format","tone"],
@@ -55,7 +55,6 @@
     {"key":"simmer","number":170,"name":"Simmer","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"fixer-hour","number":174,"name":"Fixer Hour","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"backstage-pass","number":178,"name":"Backstage Pass","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":2,"selection":{"titles":2,"totalCentiHours":335,"usableCentiHours":200,"usableMs":7200000,"anchors":0,"qualifies":false,"score":400},"onAir":null},
-    {"key":"always-december","number":182,"name":"Always December","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":2,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"curtain-call","number":186,"name":"Curtain Call","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"prestige","number":204,"name":"Prestige","state":"on","by":"planner","shelfReason":null,"kid":false,"optIn":false,"candidates":66,"selection":{"titles":46,"totalCentiHours":26980,"usableCentiHours":26980,"usableMs":971280000,"anchors":0,"qualifies":true,"score":11000},"onAir":{"titles":54,"totalCentiHours":35392,"usableCentiHours":35392,"usableMs":1274100000,"anchors":0,"qualifies":true,"score":null}},
     {"key":"cold-case-cable","number":208,"name":"Cold Case Cable","state":"on","by":"planner","shelfReason":null,"kid":false,"optIn":false,"candidates":19,"selection":{"titles":18,"totalCentiHours":15095,"usableCentiHours":15095,"usableMs":543420000,"anchors":0,"qualifies":true,"score":9800},"onAir":{"titles":19,"totalCentiHours":16855,"usableCentiHours":16855,"usableMs":606780000,"anchors":0,"qualifies":true,"score":null}},
@@ -82,7 +81,6 @@
     {"key":"cape-and-cowl","number":328,"name":"Cape & Cowl","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"cult-following","number":332,"name":"Cult Following","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"shuffle-and-groan","number":336,"name":"Shuffle & Groan","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
-    {"key":"jack-o-lantern-lounge","number":340,"name":"Jack-o'-Lantern Lounge","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"campfire-tales","number":344,"name":"Campfire Tales","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"paradox","number":348,"name":"Paradox","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"neon-rain","number":352,"name":"Neon Rain","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
@@ -106,7 +104,9 @@
     {"key":"cartoons-after-dark","number":516,"name":"Cartoons After Dark","state":"on","by":"planner","shelfReason":null,"kid":false,"optIn":false,"candidates":4,"selection":{"titles":4,"totalCentiHours":4810,"usableCentiHours":3153,"usableMs":113490000,"anchors":0,"qualifies":true,"score":3552},"onAir":{"titles":4,"totalCentiHours":4810,"usableCentiHours":3153,"usableMs":113490000,"anchors":0,"qualifies":true,"score":null}},
     {"key":"family-business","number":520,"name":"Family Business","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"anthology-hour","number":524,"name":"Anthology Hour","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
-    {"key":"satire-desk","number":528,"name":"Oddly Funny","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":1,"selection":{"titles":1,"totalCentiHours":1760,"usableCentiHours":440,"usableMs":15840000,"anchors":0,"qualifies":false,"score":540},"onAir":null}
+    {"key":"satire-desk","number":528,"name":"Oddly Funny","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":1,"selection":{"titles":1,"totalCentiHours":1760,"usableCentiHours":440,"usableMs":15840000,"anchors":0,"qualifies":false,"score":540},"onAir":null},
+    {"key":"always-december","number":900,"name":"Always December","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
+    {"key":"jack-o-lantern-lounge","number":910,"name":"Jack-o'-Lantern Lounge","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null}
   ],
   "overlaps": [
     {"a":"prestige","b":"cold-case-cable","titles":7,"centiHours":13133},

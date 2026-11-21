@@ -43,12 +43,14 @@ internal val NO_LIBRARY: LibraryNames = LibraryNames(snapshot(), NO_NAMES)
 internal const val QUALIFYING_ITEMS = 24
 
 /** A recipe whose one source is the genre named [key], in the band its [number] is in. A young band gets a G one. */
+@Suppress("LongParameterList")
 internal fun recipeOf(
     key: String,
     number: Int,
     optIn: Boolean = false,
     hints: List<String> = emptyList(),
     sources: List<Source> = listOf(Source.Genre(key)),
+    season: Season? = null,
 ): Recipe {
     val band = Band.entries.first { number in it.numbers }
     return Recipe(
@@ -63,6 +65,7 @@ internal fun recipeOf(
         maxRating = if (band.young) "G" else null,
         ordering = null,
         collectionHints = hints,
+        season = season,
     )
 }
 
