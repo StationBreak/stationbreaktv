@@ -25,7 +25,7 @@ internal class TestCatalog(
 
 internal val TEST_LEFTOVERS: List<LeftoversRecipe> =
     listOf(
-        LeftoversRecipe("kids-odds", "Kids Odds", "Synthetic.", 99, "PG"),
+        LeftoversRecipe("kids-odds", "Kids Odds", "Synthetic.", 33, "PG"),
         LeftoversRecipe("odds", "Odds", "Synthetic.", 199, null),
     )
 
@@ -39,7 +39,7 @@ internal val NO_LIBRARY: LibraryNames = LibraryNames(snapshot(), NO_NAMES)
 /** Each fixture item runs 30 minutes, so this many items make exactly the qualifying 12 hours. */
 internal const val QUALIFYING_ITEMS = 24
 
-/** A recipe whose one source is the genre named [key], in the band its [number] is in. Kids recipes get a G ceiling. */
+/** A recipe whose one source is the genre named [key], in the band its [number] is in. A young band gets a G one. */
 internal fun recipeOf(
     key: String,
     number: Int,
@@ -57,7 +57,7 @@ internal fun recipeOf(
         optIn = optIn,
         sources = sources,
         exclusions = emptyList(),
-        maxRating = if (band == Band.Kids) "G" else null,
+        maxRating = if (band.young) "G" else null,
         ordering = null,
         collectionHints = hints,
     )

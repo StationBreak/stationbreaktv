@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.KidStatus.isKidChannel
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.rules.RatingLadder
 
@@ -20,7 +21,7 @@ internal class Ceilings(
     /** The ceiling [channel] is scheduled under, or null for none. */
     fun of(channel: LineupChannel): String? {
         val stored = storedCeiling(channel.source)
-        return if (isKidChannel(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
+        return if (isPgCapped(channel) && !atMostPg(stored)) KIDS_MAX_RATING else stored
     }
 
     // The ceiling before the kids' cap: the catalog's wherever it governs, else the stored one.
@@ -42,6 +43,11 @@ internal class Ceilings(
         val recipe = catalog.leftovers.firstOrNull { it.key == source.recipeKey }
         return if (recipe != null) recipe.maxRating else source.maxRating
     }
+
+    // A kid channel, or a Family channel that was kid-safe before catalog 8 (an ever-kid-safe key): held to PG always.
+    private fun isPgCapped(channel: LineupChannel): Boolean =
+        isKidChannel(channel) ||
+            (channel.source as? ChannelSource.Starter)?.recipeKey in StarterCatalog.EVER_KID_SAFE_KEYS
 
     private companion object {
         /** The most a kids' channel may air: the Kids band's maximum. */

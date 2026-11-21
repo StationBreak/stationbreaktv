@@ -9,7 +9,7 @@ class ChannelNumbersTest {
     @Test
     fun theBandsAreThePlannersAndTheEditorsOwn() {
         assertEquals(1..999, ChannelNumbers.all)
-        assertEquals(1..99, ChannelNumbers.kids)
+        assertEquals(1..33, ChannelNumbers.kids)
         assertEquals(100, Band.General.numbers.first)
     }
 

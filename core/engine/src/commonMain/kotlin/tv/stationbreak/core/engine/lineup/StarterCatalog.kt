@@ -6,6 +6,7 @@ package tv.stationbreak.core.engine.lineup
  * later from whatever the library has, through genre, tag, studio and year-range sources and (from version 3) its
  * theme's anchors, with spelling variants listed as separate sources because scrapers disagree. Spread the numbers
  * out inside a band so later recipes can slot in between; a shipped key or number never changes and is never reused.
+ * (One owner-approved exception, version 8: see there.)
  *
  * A recipe key is a persistence identifier: stored lineups, channel IDs and the planner's matching all hang on it. It
  * is frozen once released, and after release only a recipe's `name` and `personality` (its one-line tagline) may
@@ -54,8 +55,28 @@ object StarterCatalog : StarterCatalogView {
      * Season Only, #1000): sources, filters, years and one pitch only. Every key, number, band, opt-in flag and
      * ceiling is kept, no kids recipe changes, and no rules format or hold version changes. Renames, merges, cuts and
      * Comedy County's move wait for the channel marks.
+     *
+     * Version 8 (the young bands, #1002, ADR-0030): Kids 1 to 33, Family 34 to 66, Teen 67 to 99, each ending in its
+     * own Odds & Ends (33, 66, 99). Thirteen kids channels take new Kids numbers; Once Upon, Rainy Day Matinee, Little
+     * Spirits and Spooky Sleepover move to Family (PG ceiling, no longer kids-only, still held to PG by
+     * [EVER_KID_SAFE_KEYS]); Kids' Odds & Ends moves from 99 to 33 and keeps a kid ceiling (PG); Family and Teen
+     * leftovers cap at PG and TV-14. New: Big Screen Toons, Popcorn Matinee, Starship Sunday, Prime Time Pals (Family),
+     * Homeroom, Mask & Mantle, Level Up, Popcorn Epic, Nervous Laughter (Teen). Lights Out, Tall Tales Club and Tiny
+     * Chefs keep their numbers (44, 72, 80) and stay kids-only until #995 and #996 merge or cut them. Little Spirits
+     * becomes anime-only (a Family channel that is not drops anime). Paper Lantern is dropped. No rules format or hold
+     * version changes.
+     *
+     * NEVER-REUSE WAIVER (owner-approved, pre-release only): the rule above, a shipped key or number never changes and
+     * is never reused, is waived once, for the renumbering of version 8 ("bypass the veto, this is a pre release
+     * change", owner, 2026-11-19). The waiver covers only this move; the rule resumes after v1 and applies to
+     * version 8's numbers as shipped. An installed lineup takes the new numbers at the next refresh
+     * ([LineupPlanner]); the frozen manifests V1 to V7 stay as they were and `CatalogManifestTest` names the waived
+     * keys.
      */
-    const val VERSION = 7
+    const val VERSION = 8
+
+    /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
+    const val YOUNG_BANDS_VERSION = 8
 
     override val version: Int = VERSION
 
@@ -68,8 +89,22 @@ object StarterCatalog : StarterCatalogView {
                 key = "kids-odds-and-ends",
                 name = "Kids' Odds & Ends",
                 personality = "Whatever the other kids' channels didn't take, still safe to watch.",
-                number = 99,
+                number = 33,
                 maxRating = "PG",
+            ),
+            LeftoversRecipe(
+                key = "family-odds-and-ends",
+                name = "Family Odds & Ends",
+                personality = "Whatever the other family channels didn't take, still fine for everyone.",
+                number = 66,
+                maxRating = "PG",
+            ),
+            LeftoversRecipe(
+                key = "teen-odds-and-ends",
+                name = "Teen Odds & Ends",
+                personality = "Whatever the other teen channels didn't take, nothing past PG-13.",
+                number = 99,
+                maxRating = "TV-14",
             ),
             LeftoversRecipe(
                 key = "odds-and-ends",
@@ -88,16 +123,25 @@ object StarterCatalog : StarterCatalogView {
     private val retiredKidSafeKeys: Set<String> = emptySet()
 
     /**
+     * The keys that were kids-only until catalog 8 and are Family recipes now. They are still held to PG (they are in
+     * [EVER_KID_SAFE_KEYS]) but are not kid channels: they air family titles, not the kids tier.
+     */
+    val KIDS_KEYS_NOW_FAMILY: Set<String> =
+        setOf("once-upon", "rainy-day-matinee", "little-spirits", "spooky-sleepover")
+
+    /**
      * Every recipe and leftovers key that has ever been kid-safe (a rating ceiling of PG or lower) in any released
      * catalog, retired or not. A stored channel with one of these keys is held to PG whatever its number or `edited`
      * flag, so renumbering it out of the Kids band, or retiring its recipe, never lifts its ceiling. Keys are only ever
-     * added here, never removed; the catalog tests hold it to every frozen manifest.
+     * added here, never removed; the catalog tests hold it to every frozen manifest. A Family or Teen key that is new
+     * at catalog 8 is not in it.
      */
     val EVER_KID_SAFE_KEYS: Set<String> =
         (
             recipes.filter { it.kidSafe }.map { it.key } +
+                KIDS_KEYS_NOW_FAMILY +
                 retiredKidSafeKeys +
-                leftovers.filter { it.maxRating != null }.map { it.key }
+                leftovers.filter { it.number in Band.Kids.numbers }.map { it.key }
         ).toSet()
 
     override val retiredNumbers: Set<Int> = emptySet()

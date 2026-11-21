@@ -74,10 +74,16 @@ object KidStatus {
     private fun isKidLeftoversOn(channel: LineupChannel): Boolean =
         channel.source is ChannelSource.Leftovers && channel.state == ChannelState.On && isKidChannel(channel)
 
-    /** A kid recipe: in the Kids band, or a key that was ever kid-safe. */
-    fun isKidRecipe(recipe: Recipe): Boolean {
-        val everKidSafe = recipe.key in StarterCatalog.EVER_KID_SAFE_KEYS
-        return recipe.band == Band.Kids || everKidSafe
+    /**
+     * A kid recipe: kids-only (the Kids band, or one of the kids recipes kept outside it), or a key that was ever
+     * kid-safe and is not a Family recipe now.
+     */
+    fun isKidRecipe(recipe: Recipe): Boolean = recipe.kidSafe || isKidKey(recipe.key)
+
+    // Ever kid-safe, and not one of the keys that moved to the Family band at catalog 8.
+    private fun isKidKey(key: String): Boolean {
+        val everKidSafe = key in StarterCatalog.EVER_KID_SAFE_KEYS
+        return everKidSafe && key !in StarterCatalog.KIDS_KEYS_NOW_FAMILY
     }
 
     /** A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit). */
@@ -89,6 +95,6 @@ object KidStatus {
                 is ChannelSource.Leftovers -> source.recipeKey
                 else -> null
             }
-        return inKidsBand || key?.let { it in StarterCatalog.EVER_KID_SAFE_KEYS } == true
+        return inKidsBand || key?.let(::isKidKey) == true
     }
 }

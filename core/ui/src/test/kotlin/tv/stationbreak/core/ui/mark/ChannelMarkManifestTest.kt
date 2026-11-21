@@ -209,11 +209,11 @@ class ChannelMarkManifestTest {
     }
 
     @Test
-    fun thereAreNinetySevenMarksWithFourFilesEach() {
+    fun thereAreOneHundredAndEightMarksWithFourFilesEach() {
         val matches = moduleMarks().mapNotNull { namePattern.matchEntire(it.name) }
-        assertEquals(97 * 4, matches.size)
+        assertEquals(108 * 4, matches.size)
         val byKey = matches.groupBy { it.groupValues[2] }
-        assertEquals("keys are distinct", 97, byKey.size)
+        assertEquals("keys are distinct", 108, byKey.size)
         val expected = setOf("" to 48, "" to 64, "_mono" to 48, "_mono" to 64)
         for ((key, files) in byKey) {
             val got = files.map { it.groupValues[3] to it.groupValues[4].toInt() }.toSet()

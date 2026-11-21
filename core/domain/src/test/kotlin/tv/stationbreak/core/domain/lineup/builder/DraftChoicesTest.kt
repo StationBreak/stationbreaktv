@@ -31,6 +31,6 @@ class DraftChoicesTest {
     @Test
     fun theNumberBandsAreTheLineups() {
         assertEquals(600..899, ChannelNumbers.custom)
-        assertEquals(1..99, ChannelNumbers.kids)
+        assertEquals(1..33, ChannelNumbers.kids)
     }
 }

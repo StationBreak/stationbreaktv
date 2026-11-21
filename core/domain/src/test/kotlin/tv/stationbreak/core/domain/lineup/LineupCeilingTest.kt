@@ -98,7 +98,7 @@ class LineupCeilingTest {
     @Test
     fun aRetiredLeftoversKeyInTheKidsBandIsHeldToPg() {
         seedRatings()
-        val retired = leftovers("kids-retired", 98, maxRating = null)
+        val retired = leftovers("kids-retired", 30, maxRating = null)
         assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(retired), retired))
     }
 
@@ -133,7 +133,7 @@ class LineupCeilingTest {
     @Test
     fun anyChannelNumberedInTheKidsBandIsHeldToPg() {
         seedRatings()
-        val custom = channel("c1".padEnd(32, '0'), 50, ChannelState.On, ChannelSource.Custom(toons))
+        val custom = channel("c1".padEnd(32, '0'), 20, ChannelState.On, ChannelSource.Custom(toons))
         assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(custom), custom))
     }
 

@@ -8,12 +8,18 @@ import tv.stationbreak.core.rules.Filters
 import tv.stationbreak.core.rules.RatingLadder
 import tv.stationbreak.core.rules.Source
 
-/** The cable-style number bands. Shipped default numbers stay inside their band and are never reused. */
+/**
+ * The cable-style number bands. Shipped default numbers stay inside their band and are never reused (catalog 8 moved
+ * the young channels once, with the owner's pre-release waiver; see [StarterCatalog]). The three young bands are age
+ * ordered (#1002, ADR-0028): Kids 1 to 33, Family 34 to 66, Teen 67 to 99. Each carries a rating ceiling.
+ */
 @Suppress("MagicNumber")
 enum class Band(
     val numbers: IntRange,
 ) {
-    Kids(1..99),
+    Kids(1..33),
+    Family(34..66),
+    Teen(67..99),
     General(100..199),
     Drama(200..299),
     Genre(300..399),
@@ -25,7 +31,33 @@ enum class Band(
         /** The band [number] is in, or null when it is in none (the custom, seasonal and any other range). */
         fun of(number: Int): Band? = entries.firstOrNull { number in it.numbers }
     }
+
+    /** True for the three young bands, whose channels carry a rating ceiling. */
+    val young: Boolean get() = this == Kids || this == Family || this == Teen
 }
+
+/** The highest ceiling a young band allows: PG (Kids, Family) or TV-14 (Teen, the PG-13 / TV-14 tier). */
+internal fun Band.ceilingLimit(): String? =
+    when (this) {
+        Band.Kids, Band.Family -> "PG"
+        Band.Teen -> "TV-14"
+        else -> null
+    }
+
+private fun withinLimit(
+    rating: String?,
+    limit: String,
+): Boolean {
+    val rank = RatingLadder.rankOf(rating)
+    return rank != null && rank <= checkNotNull(RatingLadder.rankOf(limit))
+}
+
+/**
+ * Kid recipes numbered outside the Kids band: Lights Out, Tall Tales Club and Tiny Chefs keep their numbers (44, 72,
+ * 80) until #995 and #996 merge or cut them, so by number they sit in the Family and Teen bands. They are still kid
+ * recipes (kids-only, a kid ceiling). Delete this set with those recipes.
+ */
+internal val KIDS_NUMBERED_OUTSIDE_BAND: Set<String> = setOf("lights-out", "tall-tales-club", "tiny-chefs")
 
 /**
  * What a starter must hold to qualify as a channel (catalog 5, #786). It is recipe data, frozen in the catalog
@@ -47,9 +79,9 @@ enum class QualifyingBar(
 /**
  * A themed channel the catalog can fill from a library. [sources] and [exclusions] are portable (genre, tag, year
  * range); [collectionHints] are collection names turned into collection sources by ID, from the collections the server
- * has now. A kid-safe recipe (the Kids band) carries a [maxRating], a rating-ladder name no higher than PG; a grown-up
- * recipe carries none. [qualifyingBar] is the standard one unless the catalog names the recipe as the single lane of a
- * niche theme; a kid recipe always has the standard bar.
+ * has now. A young-band recipe (Kids, Family, Teen) carries a [maxRating], a rating-ladder name no higher than its
+ * band's limit (PG, PG, TV-14); a grown-up recipe carries none. [qualifyingBar] is the standard one unless the
+ * catalog names the recipe as the single lane of a niche theme; a kid recipe always has the standard bar.
  */
 data class Recipe(
     val key: String,
@@ -70,9 +102,9 @@ data class Recipe(
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
         require(number in band.numbers) { "The number is outside the band" }
-        require(kidSafe == (maxRating != null)) { "A recipe is kid-safe exactly when it has a rating ceiling" }
+        require(band.young == (maxRating != null)) { "A young-band recipe has a rating ceiling, any other has none" }
         require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
-        if (kidSafe) require(atMostPg(maxRating)) { "A kid-safe recipe has a ceiling of PG or lower" }
+        band.ceilingLimit()?.let { require(withinLimit(maxRating, it)) { "The ceiling is above the band's limit" } }
         require(sources.isNotEmpty()) { "A recipe needs a source" }
         require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag, studio, year range" }
         require(!kidSafe || qualifyingBar == QualifyingBar.Standard) { "A kid recipe has the standard qualifying bar" }
@@ -82,8 +114,8 @@ data class Recipe(
         }
     }
 
-    /** True for the Kids band. */
-    val kidSafe: Boolean get() = band == Band.Kids
+    /** True for a kids-only recipe: the Kids band, or one of the three kept outside it for now. */
+    val kidSafe: Boolean get() = band == Band.Kids || key in KIDS_NUMBERED_OUTSIDE_BAND
 
     /** True when the channel is programmed: its order is curated. */
     val curated: Boolean get() = ordering == OrderingMode.Curated
@@ -102,11 +134,6 @@ data class Recipe(
     }
 }
 
-private fun atMostPg(rating: String?): Boolean {
-    val rank = RatingLadder.rankOf(rating)
-    return rank != null && rank <= checkNotNull(RatingLadder.rankOf("PG"))
-}
-
 private fun isPortable(source: Source): Boolean =
     when (source) {
         is Source.Genre, is Source.Tag, is Source.YearRange, is Source.Studio -> true
@@ -123,12 +150,14 @@ data class LeftoversRecipe(
 ) {
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
-        require(number in Band.Kids.numbers || number in Band.General.numbers) {
-            "The number is outside the Kids and General bands"
+        val band = Band.of(number)
+        require(band != null && (band.young || band == Band.General)) {
+            "The number is outside the Kids, Family, Teen and General bands"
         }
         require(maxRating == null || maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
-        if (number in Band.Kids.numbers) {
-            require(atMostPg(maxRating)) { "Kids' leftovers need a ceiling of PG or lower" }
+        val limit = band.ceilingLimit()
+        if (limit != null) {
+            require(withinLimit(maxRating, limit)) { "A young band's leftovers need a ceiling within the band's limit" }
         } else {
             require(maxRating == null) { "Grown-up leftovers have no rating ceiling" }
         }

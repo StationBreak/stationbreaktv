@@ -77,6 +77,41 @@ internal fun fingerprintOf(recipe: Recipe): String {
 }
 
 /**
+ * The one owner-approved exception to "a shipped number never changes" (pre-release only, #1002, see [StarterCatalog]):
+ * the keys catalog 8 moved, with the number each took. A catalog at version 8 or later may have these keys at these
+ * numbers (and in their new bands) against any earlier manifest; any other move still fails. The never-reuse rule
+ * resumes after v1.
+ */
+internal val NUMBERS_WAIVED_AT_8: Map<String, Int> =
+    mapOf(
+        "little-farm" to 2,
+        "sing-along-station" to 4,
+        "saturday-morning" to 6,
+        "backyard-fort" to 8,
+        "critter-channel" to 10,
+        "robot-factory" to 12,
+        "hey-science" to 14,
+        "pocket-heroes" to 16,
+        "flipbook" to 18,
+        "snowglobe" to 20,
+        "giggle-garage" to 22,
+        "wheels-and-whistles" to 24,
+        "small-sleuths" to 26,
+        "once-upon" to 36,
+        "rainy-day-matinee" to 39,
+        "little-spirits" to 42,
+        "spooky-sleepover" to 45,
+        "kids-odds-and-ends" to 33,
+    )
+
+private fun waived(
+    catalog: StarterCatalogView,
+    manifest: CatalogManifest,
+    key: String,
+    number: Int,
+): Boolean = manifest.version < 8 && catalog.version >= 8 && NUMBERS_WAIVED_AT_8[key] == number
+
+/**
  * What [catalog] breaks of [manifest]'s promises, empty when it keeps them all. Every shipped key is still in the
  * catalog at the same number and band, or is retired with its number. A catalog that has not moved past the
  * manifest's version has exactly the manifest's recipes and leftovers, with equal entries.
@@ -86,13 +121,14 @@ internal fun manifestProblems(
     manifest: CatalogManifest,
 ): List<String> {
     val problems = mutableListOf<String>()
+    val shippedRecipes = manifest.recipes.mapValues { (_, shipped) -> shipped.inTodaysBands(manifest.version) }
     val recipes = catalog.recipes.associateBy { it.key }
     val leftovers = catalog.leftovers.associateBy { it.key }
-    for ((key, shipped) in manifest.recipes) {
+    for ((key, shipped) in shippedRecipes) {
         val recipe = recipes[key]
         if (recipe == null) {
             problems += retirementProblems(catalog, key, shipped.number)
-        } else if (recipe.number != shipped.number || recipe.band != shipped.band) {
+        } else if (moved(recipe, shipped) && !waived(catalog, manifest, key, recipe.number)) {
             problems += "$key moved from ${shipped.number} (${shipped.band}) to ${recipe.number} (${recipe.band})"
         }
     }
@@ -100,13 +136,13 @@ internal fun manifestProblems(
         val recipe = leftovers[key]
         if (recipe == null) {
             problems += retirementProblems(catalog, key, shipped.number)
-        } else if (recipe.number != shipped.number) {
+        } else if (recipe.number != shipped.number && !waived(catalog, manifest, key, recipe.number)) {
             problems += "leftovers $key moved from ${shipped.number} to ${recipe.number}"
         }
     }
     if (catalog.version <= manifest.version) {
         val now = catalog.recipes.associate { it.key to ManifestRecipe.of(it) }
-        val changed = (now.keys + manifest.recipes.keys).filter { now[it] != manifest.recipes[it] }.sorted()
+        val changed = (now.keys + shippedRecipes.keys).filter { now[it] != shippedRecipes[it] }.sorted()
         if (changed.isNotEmpty()) problems += "recipes changed without a new catalog version: $changed"
         val nowLeftovers = catalog.leftovers.associate { it.key to ManifestLeftovers.of(it) }
         val keys = nowLeftovers.keys + manifest.leftovers.keys
@@ -117,6 +153,17 @@ internal fun manifestProblems(
     }
     return problems
 }
+
+// The Kids band was 1 to 99 before catalog 8; a manifest of an earlier version says Kids for every number in it, and
+// the
+// number tells the band it is in today (Kids, Family or Teen). Manifests are never edited, so this reads them.
+private fun ManifestRecipe.inTodaysBands(version: Int): ManifestRecipe =
+    if (version < 8 && band == Band.Kids) copy(band = checkNotNull(Band.of(number))) else this
+
+private fun moved(
+    recipe: Recipe,
+    shipped: ManifestRecipe,
+): Boolean = recipe.number != shipped.number || recipe.band != shipped.band
 
 private fun retirementProblems(
     catalog: StarterCatalogView,

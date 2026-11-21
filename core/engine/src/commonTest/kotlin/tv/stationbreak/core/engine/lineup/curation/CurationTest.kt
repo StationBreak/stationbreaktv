@@ -7,6 +7,7 @@ import tv.stationbreak.core.engine.lineup.CurationTables
 import tv.stationbreak.core.engine.lineup.FormatPromise
 import tv.stationbreak.core.engine.lineup.NameMatcher
 import tv.stationbreak.core.engine.lineup.QualifyingBar
+import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.Theme
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -211,6 +212,21 @@ class CurationTest {
         assertEquals(setOf(anime), pools.getValue(animeOnly.id).titles())
         // Alone, the grown-up channel still drops anime.
         assertNull(Curation.homes(snap, listOf(grownUp)).homeOf(anime))
+    }
+
+    // Catalog 8: Little Spirits moved from the Kids band to Family, where a channel that is not anime-only drops anime.
+    @Test
+    fun littleSpiritsStillFillsWithTheGrownUpAnimeRuleOn() {
+        val lib = Library()
+        val anime = lib.show(eps = 3, genres = listOf("Anime"), rating = "PG")
+        val recipe = checkNotNull(StarterCatalog.recipe("little-spirits"))
+        val theme = checkNotNull(recipe.theme)
+        val spirits = channel("ls", 300, listOf("Anime"), lib.itemsOf(listOf(anime)), theme = theme)
+        assertEquals(setOf(anime), Curation.pools(lib.snapshot(), listOf(spirits)).getValue(spirits.id).titles())
+        // Without the flag it would be empty, as any grown-up channel is of anime.
+        val plain = theme.copy(animeOnly = false)
+        val without = channel("ls2", 300, listOf("Anime"), lib.itemsOf(listOf(anime)), theme = plain)
+        assertNull(Curation.homes(lib.snapshot(), listOf(without)).homeOf(anime))
     }
 
     @Test

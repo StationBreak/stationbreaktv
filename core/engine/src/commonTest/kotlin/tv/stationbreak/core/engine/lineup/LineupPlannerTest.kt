@@ -286,11 +286,11 @@ class LineupPlannerTest {
     }
 
     @Test
-    fun leftoversAlwaysOnAt99And199() {
+    fun leftoversAlwaysOnAt33And199() {
         val lineup = firstLineup()
         val kids = lineup.channel("kids-odds")
         assertEquals(LineupIds.leftovers("kids-odds"), kids.id)
-        assertEquals(99, kids.number)
+        assertEquals(33, kids.number)
         assertEquals(ChannelState.On, kids.state)
         assertEquals(ChannelSource.Leftovers("kids-odds", "PG"), kids.source)
         val grown = lineup.channel("odds")
@@ -318,7 +318,7 @@ class LineupPlannerTest {
         }
 
         // A leftovers channel whose key left the catalog keeps the ceiling it has.
-        val without = TestCatalog(base.recipes, leftovers = StarterCatalog.leftovers.filter { it.number != 99 })
+        val without = TestCatalog(base.recipes, leftovers = StarterCatalog.leftovers.filter { it.number != 33 })
         val kept = planOf(stored, libraryOf(fills()), without, nowMs = 2_000L)
         assertEquals(ChannelSource.Leftovers("kids-odds-and-ends", null), kept.channel("kids-odds-and-ends").source)
     }

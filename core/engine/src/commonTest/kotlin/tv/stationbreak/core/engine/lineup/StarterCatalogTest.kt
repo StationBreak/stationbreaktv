@@ -74,9 +74,9 @@ class StarterCatalogTest {
 
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
-        assertTrue(recipes.size in 70..100, "size was ${recipes.size}")
-        assertEquals(7, StarterCatalog.VERSION)
-        assertEquals(7, StarterCatalog.version)
+        assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
+        assertEquals(8, StarterCatalog.VERSION)
+        assertEquals(8, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -125,10 +125,11 @@ class StarterCatalogTest {
     @Test
     fun kidRecipesCarryACeilingNoHigherThanPg() {
         val pg = checkNotNull(RatingLadder.rankOf("PG"))
-        val kids = recipes.filter { it.band == Band.Kids }
+        val kids = recipes.filter { it.kidSafe }
         assertTrue(kids.isNotEmpty())
+        // The Kids band, and the three kids recipes kept outside it until #995 and #996.
+        assertEquals(KIDS_NUMBERED_OUTSIDE_BAND, kids.filter { it.band != Band.Kids }.map { it.key }.toSet())
         for (r in kids) {
-            assertTrue(r.kidSafe)
             val rank = RatingLadder.rankOf(r.maxRating)
             assertNotNull(rank, "${r.key} has no valid ceiling")
             assertTrue(rank <= pg, "${r.key} ceiling ${r.maxRating} is above PG")
@@ -137,10 +138,33 @@ class StarterCatalogTest {
 
     @Test
     fun grownUpRecipesCarryNoCeiling() {
-        for (r in recipes.filter { it.band != Band.Kids }) {
+        for (r in recipes.filter { !it.band.young }) {
             assertFalse(r.kidSafe)
             assertNull(r.maxRating, "${r.key} has a ceiling")
         }
+    }
+
+    // The young bands (#1002, ADR-0028): Kids 1 to 33 and Family 34 to 66 are capped at PG, Teen 67 to 99 at TV-14.
+    @Test
+    fun theYoungBandsAreAgeOrderedAndCapped() {
+        assertEquals(1..33, Band.Kids.numbers)
+        assertEquals(34..66, Band.Family.numbers)
+        assertEquals(67..99, Band.Teen.numbers)
+        assertEquals(100..199, Band.General.numbers)
+        for (r in recipes.filter { it.band == Band.Family && !it.kidSafe }) assertEquals("PG", r.maxRating, r.key)
+        for (r in recipes.filter { it.band == Band.Teen && !it.kidSafe }) assertEquals("TV-14", r.maxRating, r.key)
+        assertEquals(setOf(33, 66, 99, 199), leftovers.map { it.number }.toSet())
+        assertEquals(listOf("PG", "PG", "TV-14", null), leftovers.sortedBy { it.number }.map { it.maxRating })
+        assertEquals(
+            setOf("big-screen-toons", "popcorn-matinee", "starship-sunday", "prime-time-pals"),
+            recipes
+                .filter { it.band == Band.Family && it.key !in StarterCatalog.EVER_KID_SAFE_KEYS }
+                .map { it.key }
+                .toSet() -
+                setOf("lights-out"),
+        )
+        // Paper Lantern (54) is dropped (#1002).
+        assertTrue(recipes.none { it.number == 54 })
     }
 
     @Test
@@ -163,8 +187,8 @@ class StarterCatalogTest {
     fun theLeftoversChannelsAreWhereTheyShouldBe() {
         val kids = leftovers.single { it.key == "kids-odds-and-ends" }
         val grownUps = leftovers.single { it.key == "odds-and-ends" }
-        assertEquals(2, leftovers.size)
-        assertEquals(99, kids.number)
+        assertEquals(4, leftovers.size)
+        assertEquals(33, kids.number)
         assertEquals("PG", kids.maxRating)
         assertEquals(199, grownUps.number)
         assertNull(grownUps.maxRating)
@@ -224,6 +248,7 @@ class StarterCatalogTest {
     @Test
     fun aRecipeIsKidSafeExactlyWhenItHasACeiling() {
         assertFailsWith<IllegalArgumentException> { sample(band = Band.Kids, number = 5, maxRating = null) }
+        assertFailsWith<IllegalArgumentException> { sample(band = Band.Family, number = 40, maxRating = null) }
         assertFailsWith<IllegalArgumentException> { sample(band = Band.General, number = 150, maxRating = "PG") }
         assertTrue(sample(band = Band.Kids, number = 5, maxRating = "G").kidSafe)
     }
@@ -264,14 +289,20 @@ class StarterCatalogTest {
             number: Int,
             rating: String?,
         ) = LeftoversRecipe("l", "L", "l", number, rating)
-        left(99, "PG")
+        left(33, "PG")
+        left(66, "PG")
+        left(99, "PG-13")
+        left(99, "TV-14")
         left(199, null)
         assertFailsWith<IllegalArgumentException> { left(250, null) }
+        assertFailsWith<IllegalArgumentException> { left(33, null) }
+        assertFailsWith<IllegalArgumentException> { left(33, "PG-13") }
+        assertFailsWith<IllegalArgumentException> { left(66, "PG-13") }
+        assertFailsWith<IllegalArgumentException> { left(99, "R") }
         assertFailsWith<IllegalArgumentException> { left(99, null) }
-        assertFailsWith<IllegalArgumentException> { left(99, "PG-13") }
-        assertFailsWith<IllegalArgumentException> { left(99, "bogus") }
+        assertFailsWith<IllegalArgumentException> { left(33, "bogus") }
         assertFailsWith<IllegalArgumentException> { left(199, "PG") }
-        assertFailsWith<IllegalArgumentException> { LeftoversRecipe("Bad Key", "L", "l", 99, "PG") }
+        assertFailsWith<IllegalArgumentException> { LeftoversRecipe("Bad Key", "L", "l", 33, "PG") }
     }
 
     @Test

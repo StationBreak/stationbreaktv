@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 7, curation-1, extras-1)
+LINEUP AUDIT (catalog 8, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1940 items, 58 titles (44 series, 14 films)
@@ -14,38 +14,50 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 44 titles, 2 channels: 14 titles
+  channels per title: 1 channels: 30 titles, 2 channels: 28 titles
   titles per channel that is on:
+    little-spirits                  14
+    level-up                        44
     binge-row                        8
     prestige                         8
-    tokyo-after-school              44
     giant-robot-hour                 6
     cartoons-after-dark              6
     leftovers:kids-odds-and-ends     0
+    leftovers:family-odds-and-ends     0
+    leftovers:teen-odds-and-ends     0
     leftovers:odds-and-ends          0
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
-  little-farm                     4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  saturday-morning               16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  rainy-day-matinee              36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-farm                     2  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sing-along-station              4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  saturday-morning                6  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backyard-fort                   8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  critter-channel                10  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    14  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  pocket-heroes                  16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flipbook                       18  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  snowglobe                      20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  22  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  wheels-and-whistles            24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rainy-day-matinee              39  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-spirits                 42  on(p)               14  14t 26.72h 0a score  4071          14t 26.72h 0a
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  flipbook                       52  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  popcorn-matinee                48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  spooky-sleepover               76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  level-up                       76  on(p)               44  24t 511.20h 0a score 10400         24t 511.20h 0a
+  popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   punchline                     106  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rabbit-ears                   110  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -103,7 +115,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   haunted-house                 368  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tokyo-after-school            404  on(p)               44  38t 537.92h 0a score 11000         38t 537.92h 0a
+  tokyo-after-school            404  off    TooThin      44  0t 0.00h 0a score     0 THIN       -
   giant-robot-hour              408  on(p)                6  6t 62.40h 0a score  6840           6t 62.40h 0a
   power-level                   412  off    TooThin       6  0t 0.00h 0a score     0 THIN       -
   tea-time                      416  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -124,109 +136,138 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   binge-row                    prestige                     8 titles, 176.00h
-  tokyo-after-school           giant-robot-hour             6 titles, 62.40h
+  level-up                     giant-robot-hour             6 titles, 62.40h
+  little-spirits               level-up                     14 titles, 26.72h
 
 TITLES (scores in points; a term that is zero is left out)
   000005ac Xisenquin Senquinren [film, 1 items, 1.75h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005ad Bratorren Zuolol [film, 1 items, 1.87h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005ae Velxima Petorxi [film, 1 items, 1.98h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005af Torolvel Mizuvel [film, 1 items, 2.10h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b0 Mizudar Faximi [film, 1 items, 1.75h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b1 Senquinzu Madarquin [film, 1 items, 1.87h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b2 Darmima Torolfa [film, 1 items, 1.98h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b3 Quinbravel Lotorky [film, 1 items, 2.10h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b4 Lomasen Olfama [film, 1 items, 1.75h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b5 Farenfa Velxixi [film, 1 items, 1.87h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b6 Zulool Quindartor [film, 1 items, 1.98h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b7 Rensenbra Kykysen [film, 1 items, 2.10h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b8 Kyvelsen Bratorlo [film, 1 items, 1.75h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   000005b9 Olpelo Darfazu [film, 1 items, 1.87h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000000 Velmami Pefator [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000001 Torrenlo Mixisen [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000002 Miloky Fadarlo [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000003 Sensenxi Makyzu [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000004 Darvelmi Tortorol [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000005 Quinpequin Lofape [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000006 Lokyren Olpebra [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000007 Fafape Veldarmi [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000008 Zudartor Quinkydar [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000009 Rentorquin Kyvelfa [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000a Kyxizu Brafaren [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000b Ololma Darpeol [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000c Mazuvel Rensenxi [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000d Pequindar Xirenvel [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000e Ximizu Senvelsen [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000000f Bravelma Zuloquin [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000010 Velpebra Pemafa [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000011 Torkysen Misenky [series, 48 items, 19.20h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000012 Mifafa Farenma [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000013 Sendarol Mabrabra [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000014 Dartorbra Torlotor [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000015 Quinximi Lomasen [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000016 Loollo Olmilo [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000017 Fazuky Velrenzu [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: tokyo-after-school
+    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
   00000018 Zuquinxi Quinbraol [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   00000019 Renmimi Kyquinpe [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001a Kybralo Bramabra [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001b Olmaren Darmimi [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001c Marenpe Renzudar [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001d Pelotor Xixilo [series, 72 items, 27.60h]
-    home tokyo-after-school 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001e Makyky Renpeky [series, 39 items, 14.30h]
     home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
   0000001f Pefaxi Xisenpe [series, 39 items, 14.30h]

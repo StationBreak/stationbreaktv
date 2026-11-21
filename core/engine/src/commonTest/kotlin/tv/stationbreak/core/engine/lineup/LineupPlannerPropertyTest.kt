@@ -19,8 +19,8 @@ import kotlin.test.assertTrue
  * channel, and leave a newer catalog waiting while collections are not synced.
  */
 class LineupPlannerPropertyTest {
-    // Numbers recipes may take: every band except the leftovers numbers.
-    private val numbers = (1..598).filter { it != 99 && it != 199 }
+    // Numbers recipes may take: every band except the test leftovers numbers (33, 199).
+    private val numbers = (1..598).filter { it != 33 && it != 199 }
 
     // How many edited, custom or unusable channels were compared across a plan.
     private var untouchedChecks = 0
