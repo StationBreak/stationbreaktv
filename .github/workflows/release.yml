@@ -1,6 +1,6 @@
 name: Release
 
-# Tagged releases, built and signed by CI (ADR-0011, S4.1.1, #98, #276). Only a pushed `vX.Y.Z` tag starts it: never
+# Tagged releases, built and signed by CI (ADR-0011, S4.1.1, #98, #276). Only a pushed `vX.Y.Z`, `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N` or `vX.Y.Z-rc.N` tag starts it: never
 # pull_request or pull_request_target, never workflow_dispatch, so a fork can't reach the release key.
 # Three jobs. `build` runs the repository's code (Gradle) and holds no secret. `sign` holds the release key and runs no
 # repository code: no checkout, no Gradle, no cache. `publish` holds no key and no checkout: it alone has the write
@@ -43,10 +43,12 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          # MAJOR 1 or more, MINOR and PATCH 0 to 99, no leading zeros: versionCode is MAJOR*10000 + MINOR*100 + PATCH.
-          # The same pattern is ReleaseVersion's in build-logic: change both together.
-          if ! [[ "$TAG" =~ ^v([1-9][0-9]*\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?))$ ]]; then
-            echo "::error::tag '$TAG' is not vMAJOR.MINOR.PATCH (MAJOR 1 or more, MINOR and PATCH 0 to 99)"
+          # MAJOR 0 or more, MINOR and PATCH 0 to 99, no leading zeros, optionally -alpha.N, -beta.N or -rc.N (N 0 to 29). The
+          # versionCode is (MAJOR*10000 + MINOR*100 + PATCH)*100 + a stage (see expected_code below), so a pre-release
+          # sorts below its final release. The same pattern is ReleaseVersion's in build-logic, and release-notes.sh
+          # checks its tag argument with it too: change all three together.
+          if ! [[ "$TAG" =~ ^v((0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-(alpha|beta|rc)\.(0|[1-9]|[12][0-9]))?)$ ]]; then
+            echo "::error::tag '$TAG' is not vMAJOR.MINOR.PATCH, optionally with -alpha.N, -beta.N or -rc.N (MINOR and PATCH 0 to 99, N 0 to 29)"
             exit 1
           fi
           echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
@@ -247,8 +249,13 @@ jobs:
             57:4B:E8:75:93:09:FF:2E:AE:16:57:9B:89:55:4D:84:E8:7B:2B:4E:96:D7:FF:82:D1:51:CC:59:19:BA:80:B1
         run: |
           BUILD_TOOLS="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
-          IFS=. read -r major minor patch <<<"$VERSION"
-          expected_code=$((major * 10000 + minor * 100 + patch))
+          # ReleaseVersion's versionCode (build-logic): the stage is 99 for a final, N for -alpha.N, 30 + N for -beta.N and 60 + N for -rc.N.
+          [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-(alpha|beta|rc)\.([0-9]+))?$ ]]
+          stage=99
+          if [ "${BASH_REMATCH[5]}" = alpha ]; then stage=$((BASH_REMATCH[6])); fi
+          if [ "${BASH_REMATCH[5]}" = beta ]; then stage=$((30 + BASH_REMATCH[6])); fi
+          if [ "${BASH_REMATCH[5]}" = rc ]; then stage=$((60 + BASH_REMATCH[6])); fi
+          expected_code=$(((BASH_REMATCH[1] * 10000 + BASH_REMATCH[2] * 100 + BASH_REMATCH[3]) * 100 + stage))
           # As apksigner prints digests: lower-case hex, no colons.
           release_cert="$(tr -d ': ' <<<"$RELEASE_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
           if ! [[ "$release_cert" =~ ^[0-9a-f]{64}$ ]]; then
@@ -473,6 +480,9 @@ jobs:
           } > "$RUNNER_TEMP/notes.md"
           # Once more, right before the release exists.
           bash -eo pipefail "$RUNNER_TEMP/check-tag.sh"
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$TAG" \
+          # A pre-release tag (-alpha.N, -beta.N, -rc.N) is marked a pre-release, so it is never shown as the latest release.
+          prerelease=()
+          if [[ "$VERSION" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft "${prerelease[@]}" --verify-tag --title "$TAG" \
             --notes-file "$RUNNER_TEMP/notes.md" \
             "stationbreak-github-v$VERSION.apk" "stationbreak-amazon-v$VERSION.apk" "$RUNNER_TEMP/SHA256SUMS"

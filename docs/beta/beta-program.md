@@ -24,10 +24,11 @@ Amazon's **Appstore Beta Hub** app. On Fire OS 6 they use the invitation email.
 The beta build is a release build (the `amazon` flavor from a tag), not a CI debug build: release builds have the free
 tier's gates closed (#808), as customers will see them.
 
-A LAT build's version comes from the tag (`vMAJOR.MINOR.PATCH`, MAJOR 1 or more): `versionName` is the tag and
-`versionCode` is `MAJOR * 10000 + MINOR * 100 + PATCH`, so every LAT upload needs a higher tag than the last one. Do not
-upload a `TEST_RELEASE_VERSION` build to LAT: its codes are on a larger scale, and Appstore would then refuse the store
-codes that follow. The tagged workflow does not set `CRASH_REPORT_URL`, so a LAT build has no crash-report switch and
+A LAT build's version comes from the tag. Tag a beta `vMAJOR.MINOR.PATCH-beta.N` (`-alpha.N` and `-rc.N` work the same way) (for example `v0.9.0-beta.1`, then
+`v0.9.0-beta.2`): `versionName` is the tag without the `v`, and `versionCode` is
+`(MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + 30 + N`, so each upload needs a higher tag than the last. A pre-release
+always sorts below its final release, so `v1.0.0` stays free for the store release and its code is above every beta's
+(ADR-0011). The tagged workflow does not set `CRASH_REPORT_URL`, so a LAT build has no crash-report switch and
 sends nothing, which the privacy page and the listing's data-collection answer (No) both assume.
 
 ## Sideload path
