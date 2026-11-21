@@ -52,8 +52,8 @@ class CatalogManifestTest {
         assertEquals(7, CATALOG_MANIFEST_V7.version)
     }
 
-    // Catalog 7 (the recipe pack: #994, #997 to #999, #1000) keeps every key, number, band, opt-in flag, ceiling and the
-    // leftovers, and changes no kids recipe. It changes the sources or filters of the recipes named here.
+    // Catalog 7 (the recipe pack: #994, #997 to #999, #1000) keeps every key, number, band, opt-in flag, ceiling and
+    // the leftovers, and changes no kids recipe. It changes the sources or filters of the recipes named here.
     @Test
     fun versionSevenChangesOnlyTheRecipesThePackNames() {
         assertEquals(CATALOG_MANIFEST_V6.recipes.keys, CATALOG_MANIFEST_V7.recipes.keys)
