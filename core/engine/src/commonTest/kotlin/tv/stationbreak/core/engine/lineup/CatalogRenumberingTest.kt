@@ -310,4 +310,48 @@ class CatalogRenumberingTest {
         val once = moveSeasonal(atEleven())
         assertEquals(once, moveSeasonal(once))
     }
+
+    // Catalog 13 (#1000) moves Oddly Funny from 528 (Premium) to 190 (General).
+    private fun atTwelve(vararg extra: LineupChannel): List<LineupChannel> =
+        listOf(
+            starter("always-december", 900),
+            starter("prestige", 204),
+            starter("satire-desk", 528, state = ChannelState.Shelf),
+            leftovers("odds-and-ends", 199, null),
+        ) + extra
+
+    private fun moveOddlyFunny(channels: List<LineupChannel>) = CatalogRenumbering.apply(channels, 12, StarterCatalog)
+
+    @Test
+    fun oddlyFunnyTakesItsGeneralNumberAndNothingElseMoves() {
+        val before = atTwelve()
+        val after = moveOddlyFunny(before)
+        assertEquals(190, after.number("satire-desk"))
+        for (key in listOf("always-december", "prestige", "odds-and-ends")) {
+            assertEquals(before.number(key), after.number(key), key)
+        }
+        assertNoSharedNumber(after)
+        assertEquals(before.map { it.state }, after.map { it.state })
+        assertTrue(after.none { it.number == 528 })
+        assertEquals(after, moveOddlyFunny(after))
+        assertEquals(before, CatalogRenumbering.apply(before, 13, StarterCatalog))
+    }
+
+    @Test
+    fun aViewerNumberOnOddlyFunnysNumberSendsItToTheNextFreeGeneralOne() {
+        val after = moveOddlyFunny(atTwelve(custom("mine", 190, override = true)))
+        assertEquals(190, after.first { it.id.value == "custom:mine" }.number)
+        val oddly = checkNotNull(after.number("satire-desk"))
+        assertTrue(oddly in Band.General.numbers && oddly != 190 && oddly != 199, "took $oddly")
+        assertNoSharedNumber(after)
+    }
+
+    @Test
+    fun aViewersOwnNumberOnOddlyFunnyStaysThroughTheMove() {
+        val oddlyId = LineupIds.starter("satire-desk")
+        val before = atTwelve().map { if (it.id == oddlyId) it.copy(numberOverride = 640) else it }
+        val oddly = moveOddlyFunny(before).first { it.id == LineupIds.starter("satire-desk") }
+        assertEquals(640, oddly.number)
+        assertEquals(190, oddly.defaultNumber)
+    }
 }

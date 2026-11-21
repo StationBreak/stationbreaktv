@@ -131,6 +131,13 @@ internal val NUMBERS_WAIVED_AT_12: Map<String, Int> =
         "jack-o-lantern-lounge" to 910,
     )
 
+/**
+ * The same exception for catalog 13 (Oddly Funny into General, #1000, owner-approved pre-release): the key and the
+ * number it took. Its old number (528) is retired. A catalog at version 13 or later may have this key at this number
+ * against any earlier manifest; any other move still fails.
+ */
+internal val NUMBERS_WAIVED_AT_13: Map<String, Int> = mapOf("satire-desk" to 190)
+
 private fun waived(
     catalog: StarterCatalogView,
     manifest: CatalogManifest,
@@ -138,7 +145,8 @@ private fun waived(
     number: Int,
 ): Boolean =
     (manifest.version < 8 && catalog.version >= 8 && NUMBERS_WAIVED_AT_8[key] == number) ||
-        (manifest.version < 12 && catalog.version >= 12 && NUMBERS_WAIVED_AT_12[key] == number)
+        (manifest.version < 12 && catalog.version >= 12 && NUMBERS_WAIVED_AT_12[key] == number) ||
+        (manifest.version < 13 && catalog.version >= 13 && NUMBERS_WAIVED_AT_13[key] == number)
 
 /**
  * What [catalog] breaks of [manifest]'s promises, empty when it keeps them all. Every shipped key is still in the

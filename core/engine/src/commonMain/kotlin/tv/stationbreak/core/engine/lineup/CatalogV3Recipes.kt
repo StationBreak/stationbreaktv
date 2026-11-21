@@ -433,7 +433,7 @@ private val teenBand: List<Recipe> =
     )
 
 /**
- * The genres Oddly Funny (528) needs one of: the "twist" a comedy takes. Laugh Track (102) leaves them out, so it
+ * The genres Oddly Funny (190) needs one of: the "twist" a comedy takes. Laugh Track (102) leaves them out, so it
  * does not take Oddly Funny's titles on ties; Oddly Funny is the channel to watch when this list changes.
  */
 private val COMEDY_TWIST_GENRES: List<String> =
@@ -670,6 +670,22 @@ private val generalBand: List<Recipe> =
             says = "Stage and screen musicals, jazz hands mandatory.",
             sources = genres("Musical") + tags("musical", "broadway", "stage show"),
             anchors = collections(Exact("Musicals")),
+        ),
+        recipe(
+            Band.General,
+            n = 190,
+            key = "satire-desk",
+            name = "Oddly Funny",
+            says = "Comedy with a twist of something else, in half-hour bites.",
+            sources = genres("Comedy"),
+            filters =
+                filters(
+                    genres = COMEDY_TWIST_GENRES,
+                    kind = FilterKind.Episode,
+                    maxRuntime = 35,
+                    notGenres = listOf("Animation"),
+                ),
+            format = FormatPromise.ShortSeries,
         ),
     )
 
@@ -1240,22 +1256,6 @@ private val premiumBand: List<Recipe> =
             name = "Anthology Hour",
             says = "A new story every week, a new twist every time.",
             sources = tags("anthology", "anthology series"),
-        ),
-        recipe(
-            Band.Premium,
-            n = 528,
-            key = "satire-desk",
-            name = "Oddly Funny",
-            says = "Comedy with a twist, a little off, and that's the point.",
-            sources = genres("Comedy"),
-            filters =
-                filters(
-                    genres = COMEDY_TWIST_GENRES,
-                    kind = FilterKind.Episode,
-                    maxRuntime = 35,
-                    notGenres = listOf("Animation"),
-                ),
-            format = FormatPromise.ShortSeries,
         ),
     )
 
