@@ -323,12 +323,13 @@ internal abstract class SeriesDao {
         val toUpdate = mutableListOf<SeriesEntity>()
         val versions = mutableListOf<SeriesVersionEntity>()
         var unchanged = 0
-        for ((id, row) in incoming) {
+        for ((id, answer) in incoming) {
             val old = existing[id]
             if (old == null) {
-                toInsert += row.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
+                toInsert += answer.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
                 continue
             }
+            val row = answer.copy(providerIds = idsToKeep(old, answer))
             val kept = row.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
             when {
                 !old.sameVersionedFields(row) -> {
@@ -349,6 +350,21 @@ internal abstract class SeriesDao {
         }
         return SeriesPlan(toInsert, toUpdate, versions, unchanged)
     }
+
+    // An answer with none of the ids the engine reads, for a series that has some, is taken as a glitch (the client
+    // reads an odd answer as no ids): the old ids stay, with no version. A stale id can only keep a listed series in
+    // family, the safe direction. A change from one set of engine ids to another still wins.
+    private fun idsToKeep(
+        old: SeriesEntity,
+        answer: SeriesEntity,
+    ): String =
+        if (ProviderIdsCodec.engineProjection(answer.providerIds).isEmpty() &&
+            ProviderIdsCodec.engineProjection(old.providerIds).isNotEmpty()
+        ) {
+            old.providerIds
+        } else {
+            answer.providerIds
+        }
 
     /**
      * Works out the revival of the tombstoned [rows] at [nowMs]: each is copied as a version first, ending at the new

@@ -18,7 +18,8 @@ import androidx.sqlite.execSQL
  *   `LibraryDao.generationSeed` seeds one, for every account that has an `account_state` row and no `sync_meta` row
  *   (as 7 to 8 and 8 to 9 do), so the flag reaches every account with a saved library. A row tombstoned before now is
  *   never read again, so it keeps `''`.
- * - The content generation does not move: provider ids are no part of what a day is built from.
+ * - The content generation does not move: provider ids were no part of what a day is built from. (From version 13 a
+ *   series' ids the engine reads are, and a change to them is a version; ADR-0029.)
  *
  * `account_state` is not touched. There is no way down: a downgrade drops and rebuilds the cache, as it always has
  * ([LibraryDatabases]).

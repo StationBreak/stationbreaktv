@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine
 
+import tv.stationbreak.core.model.ProviderIdKeys
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.studioKey2
 import kotlin.test.Test
@@ -139,7 +140,7 @@ class KidHold7Test {
             assertTrue(entry.reason.isNotBlank(), "an entry has no reason")
             assertTrue(entry.ids.isNotEmpty(), "an entry has no id: ${entry.reason}")
             for ((key, value) in entry.ids) {
-                assertTrue(key in setOf("imdb", "tmdb", "tvdb"), key)
+                assertTrue(key in ProviderIdKeys.ENGINE, key)
                 assertTrue(value.isNotBlank() && value == value.trim(), "$key id")
             }
         }

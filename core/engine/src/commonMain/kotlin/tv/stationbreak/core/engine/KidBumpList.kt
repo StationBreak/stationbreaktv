@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine
 
+import tv.stationbreak.core.model.ProviderIdKeys
 import tv.stationbreak.core.model.RuleSeries
 
 /**
@@ -10,9 +11,9 @@ import tv.stationbreak.core.model.RuleSeries
  * it. Frozen under `KidHold.VERSION_NAME`. Not a general exclusions library: an entry needs a reason, a provider id and
  * a test.
  *
- * A series matches when one of its provider ids ([RuleSeries.providerIds]; keys `imdb`, `tmdb`, `tvdb`, as the cache
- * keeps them) equals one of the entry's. The title is never the match, so a mis-scraped or renamed title cannot hit.
- * Episodes follow their known series; a movie or an episode whose series is unknown is never listed.
+ * A series matches when one of its provider ids ([RuleSeries.providerIds]; keys of [ProviderIdKeys.ENGINE], as the
+ * cache keeps them) equals one of the entry's. The title is never the match, so a mis-scraped or renamed title
+ * cannot hit. Episodes follow their known series; a movie or an episode whose series is unknown is never listed.
  */
 internal object KidBumpList {
     /** One listed series: [reason] in a line, and at least one id in [ids] (key to value). */

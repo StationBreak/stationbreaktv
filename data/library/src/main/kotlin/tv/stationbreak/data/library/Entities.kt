@@ -80,8 +80,9 @@ internal data class ItemAlsoListedEntity(
  * and the row is purged 30 days after it. The runtime is kept in whole milliseconds, exactly
  * floorDiv(RunTimeTicks, 10000) (rules format v1); it may be null, zero or negative, and then the item is stored
  * but never in a snapshot. [providerIds] are the item's ids at outside databases (spec 26) as one [ProviderIdsCodec]
- * column, `''` for none: no version keeps them and no read for a day uses them, so a change to them alone is stored
- * without a version and moves no content generation. They are never logged.
+ * column, `''` for none: an item's ids are no part of any day (the bump list reads a series'), so a change to them
+ * alone is stored without a version and moves no content generation (a series' ids differ: [SeriesEntity]). They are
+ * never logged.
  */
 @Entity(
     tableName = "item",
@@ -227,6 +228,8 @@ internal data class SeriesEntity(
     val seenFromMs: Long,
     val firstSeenMs: Long,
     @ColumnInfo(defaultValue = "") val studios: String,
+    // The series' ids at outside databases ([ProviderIdsCodec]). The ones the rule engine reads
+    // ([ProviderIdKeys.ENGINE]) are versioned (ADR-0029); a change to another key is stored without a version.
     @ColumnInfo(defaultValue = "") val providerIds: String = "",
 ) {
     // A name is text a person typed, and provider ids are never logged: neither reaches a log.
@@ -544,8 +547,9 @@ internal fun nextStamp(
 
 /**
  * True when every field of a series that is versioned is equal: the rating, the ordered genres, the ordered tags, the
- * ordered studios (spec 18), the tombstone, the name (spec 23, D8: a rename is a new version) and the provider ids (the
- * kid hold's bump list reads them, ADR-0029: a change of id is a new version). The library is not (Vimes L2).
+ * ordered studios (spec 18), the tombstone, the name (spec 23, D8: a rename is a new version) and the provider ids the
+ * rule engine reads ([ProviderIdKeys.ENGINE]; the kid hold's bump list, ADR-0029: a change to them is a new version, a
+ * change to any other key is not). The library is not (Vimes L2).
  */
 internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
     officialRating == other.officialRating &&
@@ -554,7 +558,7 @@ internal fun SeriesEntity.sameVersionedFields(other: SeriesEntity): Boolean =
         studios == other.studios &&
         deletedAtMs == other.deletedAtMs &&
         name == other.name &&
-        providerIds == other.providerIds
+        ProviderIdsCodec.engineProjection(providerIds) == ProviderIdsCodec.engineProjection(other.providerIds)
 
 /** This row as an earlier version, ending at [supersededAtMs]. */
 internal fun SeriesEntity.toVersion(supersededAtMs: Long) =
