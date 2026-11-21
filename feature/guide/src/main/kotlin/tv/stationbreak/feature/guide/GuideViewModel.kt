@@ -98,7 +98,7 @@ internal class GuideViewModel
         /** Who each channel is (#777), for the channel box at once: its tag line and tags. */
         private val identities: ChannelIdentityReader = ChannelIdentityReader.None,
         /** The Kids Mode lock (#789): while it is on, channel management and a channel's properties stay shut. */
-        private val kids: KidsLock = NoKidsLock,
+        private val kids: KidsLock,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -169,10 +169,9 @@ internal class GuideViewModel
 
         /**
          * Whether Kids Mode is on, as it is now. Until the stored lock has been read (a moment after the guide is first
-         * built) it reads as off: the lineup the guide draws is cut by the lock itself, so only the two screens this
-         * guards could open in that moment.
+         * built) it fails closed and reads as on: every guard that blocks editing waits for the lock's own answer.
          */
-        val kidsOn: Boolean get() = shownKids.value?.enabled == true
+        val kidsOn: Boolean get() = shownKids.value?.enabled ?: true
 
         /**
          * What the Kids Mode PIN pad asked for ([step]): the lock's answer, never anything of the PIN. A pad for

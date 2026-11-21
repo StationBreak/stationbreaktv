@@ -77,6 +77,7 @@ import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
@@ -839,6 +840,7 @@ class GuideScreenshotTest {
                     logos = { logoArt() },
                     holdings = FrameHoldings,
                     identities = FrameIdentities,
+                    kids = FakeKidsLock(),
                 )
             compose.setContent { GuideHost(current) }
             composed = true

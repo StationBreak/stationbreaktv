@@ -19,12 +19,20 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 class PinKidsLockTest {
-    private class FakeClock(
+    private val monotonic = FakeMonotonicClock()
+
+    /** The wall clock; [advance] is time passing (the monotonic clock moves too), [jump] is the clock being set. */
+    private inner class FakeClock(
         var ms: Long = 1_700_000_000_000L,
     ) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
 
         fun advance(by: Duration) {
+            ms += by.inWholeMilliseconds
+            monotonic.ms += by.inWholeMilliseconds
+        }
+
+        fun jump(by: Duration) {
             ms += by.inWholeMilliseconds
         }
     }
@@ -37,7 +45,7 @@ class PinKidsLockTest {
 
     private fun lock(on: KidsLockStore = store): KidsLock {
         // The hash runs on the caller's thread: the tests check behaviour, not where it runs.
-        return PinKidsLock(on, clock, hasher = fastHasher, work = EmptyCoroutineContext)
+        return PinKidsLock(on, clock, monotonic, hasher = fastHasher, work = EmptyCoroutineContext)
     }
 
     private fun KidsLock.now() = runBlocking { state.first() }
@@ -244,12 +252,44 @@ class PinKidsLockTest {
             val lock = lock()
             lock.setPin("1234")
             lock.wrong(5)
-            clock.advance((-1).hours)
+            clock.jump((-1).hours)
             assertEquals(PinResult.LockedOut(30_000), lock.verify("1234"))
             clock.advance(29.seconds)
             assertEquals(PinResult.LockedOut(1_000), lock.verify("1234"))
             clock.advance(1.seconds)
             assertEquals(PinResult.Ok, lock.verify("1234"))
+        }
+
+    @Test
+    fun aClockSetForwardDoesNotEndALockoutWithinTheSameBoot() =
+        runBlocking {
+            val lock = lock()
+            lock.setPin("1234")
+            lock.wrong(5)
+            clock.jump(1.hours)
+            assertEquals(PinResult.LockedOut(30_000), lock.verify("1234"))
+            // Time really passing counts down the same lockout, and the right PIN is taken when it is over.
+            clock.advance(10.seconds)
+            assertEquals(PinResult.LockedOut(20_000), lock().verify("1234"))
+            clock.advance(20.seconds)
+            assertEquals(PinResult.Ok, lock.verify("1234"))
+        }
+
+    @Test
+    fun aRebootLeavesOnlyTheWallClockToTimeTheLockout() =
+        runBlocking {
+            lock().apply {
+                setPin("1234")
+                wrong(5)
+            }
+            // Rebooted 10 seconds on by the wall clock, which still reads on: 20 seconds left.
+            clock.ms += 10_000
+            monotonic.reboot()
+            assertEquals(PinResult.LockedOut(20_000), lock().verify("1234"))
+            // Rebooted with the clock set forward past the end: the lockout is over, as the limit says.
+            clock.ms += 1.hours.inWholeMilliseconds
+            monotonic.reboot()
+            assertEquals(PinResult.Ok, lock().verify("1234"))
         }
 
     @Test

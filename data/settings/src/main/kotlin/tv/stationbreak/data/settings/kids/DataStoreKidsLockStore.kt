@@ -3,14 +3,12 @@ package tv.stationbreak.data.settings.kids
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.byteArrayPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -24,6 +22,8 @@ import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLockRecord
 import tv.stationbreak.core.domain.kids.KidsLockStore
 import tv.stationbreak.core.domain.kids.PinHash
+import tv.stationbreak.data.settings.syncDirectoryWithOs
+import tv.stationbreak.data.settings.writeStaged
 import java.io.File
 import java.io.IOException
 
@@ -31,28 +31,64 @@ import java.io.IOException
  * The [KidsLockStore] (#789) in a Jetpack DataStore file of its own, [FILE_NAME] in `noBackupFilesDir`, so it is never
  * backed up or carried to another device, and clearing the app's data clears it. DataStore writes each change to a new
  * file, syncs it and renames it over the old one, and [update] returns only after that. It holds the lock's switch,
- * its cap, the PIN's salt, hash and iterations (never the PIN), the wrong-PIN count and the lockout's times.
+ * its cap, the PIN's salt, hash and iterations (never the PIN), the wrong-PIN count and the lockout's times
+ * (wall-clock, and the monotonic reading it started at).
  *
- * A file that cannot be read gives [KidsLockRecord.UNREADABLE] (the lock on, failing closed). A corrupt file (one
- * DataStore cannot parse) is logged through [warn] and replaced by an empty one: the lock is off with no PIN, as after
- * clearing the app's data. Make one per process: DataStore allows one instance per file.
+ * A file that cannot be read, or that DataStore cannot parse (a damaged file), gives [KidsLockRecord.UNREADABLE]: the
+ * lock on with no PIN, logged through [warn], and [update] throws, so no PIN can be set over it. A damaged lock file
+ * keeps Kids Mode on, and only clearing the app's data on the TV removes it. So does a missing one: when a PIN is first
+ * set an empty [ARMED_NAME] file is written (staged, synced and renamed) before the record, and a record with no PIN
+ * beside it reads as [KidsLockRecord.UNREADABLE].  A damaged or missing lock record keeps Kids Mode on.
+ * Make one per process: DataStore allows one
+ * instance per file.
  */
-class DataStoreKidsLockStore(
+class DataStoreKidsLockStore internal constructor(
     internal val data: DataStore<Preferences>,
+    private val armed: File,
     warn: (String) -> Unit = {},
+    private val syncDirectory: (File) -> Unit = ::syncDirectoryWithOs,
 ) : KidsLockStore {
     override val record: Flow<KidsLockRecord> =
-        data.data.map(::decode).catch { e ->
+        data.data.map(::read).catch { e ->
             if (e !is IOException) throw e
             warn("kids lock read failed: ${e.javaClass.simpleName}")
             emit(KidsLockRecord.UNREADABLE)
         }
 
-    override suspend fun update(change: (KidsLockRecord) -> KidsLockRecord): KidsLockRecord =
-        decode(data.edit { prefs -> encode(change(decode(prefs)), prefs) })
+    override suspend fun update(change: (KidsLockRecord) -> KidsLockRecord): KidsLockRecord {
+        var armedHere = false
+        try {
+            return read(
+                data.edit { prefs ->
+                    val next = change(decode(prefs))
+                    // The marker is on disk before the PIN's record is: a record lost later is then never "no PIN yet".
+                    if (next.pin != null && !armed.exists()) {
+                        writeStaged(armed, ByteArray(0), syncDirectory)
+                        armedHere = true
+                    }
+                    encode(next, prefs)
+                },
+            )
+        } catch (e: IOException) {
+            // The PIN never reached the record, so nothing was ever set: take the marker back, or the lock would be
+            // left on over a PIN that does not exist.
+            if (armedHere) armed.delete()
+            throw e
+        }
+    }
+
+    // The record [prefs] hold, unless a PIN was once set (the marker is there) and none can be read now: a lost or
+    // damaged record keeps the lock on, as a file that cannot be read does.
+    private fun read(prefs: Preferences): KidsLockRecord {
+        val stored = decode(prefs)
+        return if (stored.pin == null && armed.exists()) KidsLockRecord.UNREADABLE else stored
+    }
 
     companion object {
         const val FILE_NAME: String = "kids-lock.preferences_pb"
+
+        /** An empty file written (before the record) when a PIN is first set: "a PIN was once set". */
+        const val ARMED_NAME: String = "kids-lock.armed"
 
         /** The store of the app's process, in `noBackupFilesDir`. */
         fun create(
@@ -60,24 +96,19 @@ class DataStoreKidsLockStore(
             warn: (String) -> Unit,
         ): DataStoreKidsLockStore {
             val dir = context.applicationContext.noBackupFilesDir
-            return DataStoreKidsLockStore(dataStore(defaultScope(), warn) { File(dir, FILE_NAME) }, warn)
+            val data = dataStore(defaultScope()) { File(dir, FILE_NAME) }
+            return DataStoreKidsLockStore(data, File(dir, ARMED_NAME), warn)
         }
 
-        /** The DataStore over [file], whose corrupt file is reported to [warn] and replaced by an empty one. */
+        /**
+         * The DataStore over [file]. It has no corruption handler: a file it cannot parse is never replaced (that would
+         * read as a lock that is off), so the read fails with a `CorruptionException` and [record] gives
+         * [KidsLockRecord.UNREADABLE].
+         */
         internal fun dataStore(
             scope: CoroutineScope,
-            warn: (String) -> Unit,
             file: () -> File,
-        ): DataStore<Preferences> =
-            PreferenceDataStoreFactory.create(
-                corruptionHandler =
-                    ReplaceFileCorruptionHandler { e ->
-                        warn("kids lock file corrupt, reset: ${e.javaClass.simpleName}")
-                        emptyPreferences()
-                    },
-                scope = scope,
-                produceFile = file,
-            )
+        ): DataStore<Preferences> = PreferenceDataStoreFactory.create(scope = scope, produceFile = file)
 
         // DataStore's own default: its file work off the main thread, for the life of the process.
         @Suppress("InjectDispatcher") // A process-wide root, as the viewer preferences' is: nothing to inject into.
@@ -91,6 +122,7 @@ class DataStoreKidsLockStore(
         private val FAILURES = intPreferencesKey("failures")
         private val LOCKED_AT = longPreferencesKey("locked_at_ms")
         private val LOCKED_UNTIL = longPreferencesKey("locked_until_ms")
+        private val LOCKED_AT_ELAPSED = longPreferencesKey("locked_at_elapsed_ms")
 
         /**
          * The record [prefs] hold. An unknown cap reads as the narrowest; a PIN with any part missing reads as none,
@@ -108,6 +140,7 @@ class DataStoreKidsLockStore(
                 failures = (prefs[FAILURES] ?: 0).coerceAtLeast(0),
                 lockedAtMs = prefs[LOCKED_AT] ?: 0,
                 lockedUntilMs = prefs[LOCKED_UNTIL] ?: 0,
+                lockedAtElapsedMs = prefs[LOCKED_AT_ELAPSED] ?: 0,
             )
         }
 
@@ -130,6 +163,7 @@ class DataStoreKidsLockStore(
             prefs[FAILURES] = record.failures
             prefs[LOCKED_AT] = record.lockedAtMs
             prefs[LOCKED_UNTIL] = record.lockedUntilMs
+            prefs[LOCKED_AT_ELAPSED] = record.lockedAtElapsedMs
         }
     }
 }

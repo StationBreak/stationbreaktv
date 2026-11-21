@@ -110,6 +110,8 @@ internal data class SettingsValues(
     val kidsOn: Boolean = false,
     /** A Kids Mode PIN is set. */
     val kidsPinSet: Boolean = false,
+    /** The stored lock has been read; until then [kidsOn] is true (closed) and only the row's words say unknown. */
+    val kidsKnown: Boolean = true,
 )
 
 /**

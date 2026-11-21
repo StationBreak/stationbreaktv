@@ -68,10 +68,14 @@ volume settings.
 Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and
 changing the PIN all need it. After 5 wrong PINs in a row, no PIN is accepted for 30 seconds, and each further 5 wrong
 PINs double that wait, up to an hour. The count and the wait are kept on the TV, so restarting the app doesn't reset
-them. The PIN itself is never stored: only a salted, slow hash of it, in the app's own files on the TV, never backed
-up.
+them. The PIN itself is never stored: only a salted hash of it, in the app's own files on the TV, never backed up. The
+wait after wrong PINs is the real defence against guessing; the file is not proof against someone who can copy it off
+the TV. Setting the TV's clock forward doesn't shorten a wait while the TV stays on (it counts from its own uptime as
+well); after a restart it goes back to the TV's clock.
 
 The PIN stops someone from leaving Kids Mode casually. It is a convenience, like a lock on a TV cabinet, not a security
 boundary: the server's account controls remain the real limit. If you forget the PIN, the only way to clear it for now
 is to clear the app's data in the TV's settings, which also signs the TV out and forgets its channels. A way to reset
-it with your server's admin sign-in is planned.
+it with your server's admin sign-in is planned. A damaged or missing lock record keeps Kids Mode on: if the
+lock's file is ever damaged or deleted after a PIN was set, no PIN can be set or checked, and the TV needs its app data
+cleared.

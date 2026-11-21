@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
@@ -130,6 +131,15 @@ class GuideSettingsRowsTest {
         assertEquals("OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsPinSet = true)))
         assertEquals("On", text(kidsModeWords(SettingsValues(kidsOn = true))))
         assertEquals("Off", text(kidsModeWords(SettingsValues())))
+    }
+
+    @Test
+    fun anUnreadLockClosesEveryInertRowAndOnlyTheRowsWordsSayUnknown() {
+        val unread = SettingsValues(kidsOn = true, kidsKnown = false)
+        for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
+            assertTrue(row.name, row.isInert(unread))
+        }
+        assertEquals(R.string.guide_kids_unknown, kidsModeWords(unread))
     }
 
     @Test

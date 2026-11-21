@@ -25,6 +25,9 @@ class PinHash(
  * Everything the Kids Mode lock keeps on the device: whether it is [enabled], its [cap], the [pin] (null while none is
  * set), the [failures] counted since the last right PIN, and the lockout those started, as wall-clock milliseconds:
  * when it was started ([lockedAtMs]) and when it ends ([lockedUntilMs]); both 0 when none was.
+ * [lockedAtElapsedMs] is the
+ * [MonotonicClock] reading when it was started (0 when none was, or none was read), to tell how much of it has really
+ * passed within the same boot, whatever the wall clock was set to.
  */
 data class KidsLockRecord(
     val enabled: Boolean = false,
@@ -33,7 +36,11 @@ data class KidsLockRecord(
     val failures: Int = 0,
     val lockedAtMs: Long = 0,
     val lockedUntilMs: Long = 0,
+    val lockedAtElapsedMs: Long = 0,
 ) {
+    /** This record with no wrong PINs counted and no lockout running. */
+    fun withoutLockout(): KidsLockRecord = copy(failures = 0, lockedAtMs = 0, lockedUntilMs = 0, lockedAtElapsedMs = 0)
+
     val state: KidsLockState get() = KidsLockState(enabled, cap, pin != null)
 
     companion object {

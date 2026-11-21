@@ -53,6 +53,7 @@ import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FakeSchedule
@@ -118,7 +119,7 @@ class GuideMenuUiTest {
         fake.channel(CH5, 5, (0L until 600L step 60).map { program(it, it + 60, 200 + (it / 60).toInt()) })
         fake.channel(CH7, 7, (0L until 600L step 30).map { program(it, it + 30, 100 + (it / 30).toInt()) })
         val cache = ProgramDetailsCache(server, sessions, CoroutineScope(SupervisorJob()))
-        vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), QuietLineup)
+        vm = GuideViewModel(fake, cache, clock, pool.asCoroutineDispatcher(), QuietLineup, kids = FakeKidsLock())
         compose.setContent {
             StationBreakTheme {
                 // Stands in for the activity: a Back that nothing on screen takes leaves live TV.

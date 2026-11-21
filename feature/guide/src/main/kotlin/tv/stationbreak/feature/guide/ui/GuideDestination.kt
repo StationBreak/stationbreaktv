@@ -305,15 +305,17 @@ internal fun GuideRoot(
             levelling,
             crashReports,
             crashReportsAvailable,
-            kidsOn = kids?.enabled == true,
+            // Fails closed: a lock not yet read counts as on for every guard; only the row's words show it unknown.
+            kidsOn = kids?.enabled ?: true,
             kidsPinSet = kids?.pinSet == true,
+            kidsKnown = kids != null,
         )
     val shownValues by rememberUpdatedState(settingsValues)
     // Kids Mode, like the stores' values, as it stands at the key.
     val keyValues by rememberUpdatedState {
         val stores = valuesNow?.invoke() ?: shownValues
         val lock = viewModel.kidsState.value
-        stores.copy(kidsOn = lock?.enabled == true, kidsPinSet = lock?.pinSet == true)
+        stores.copy(kidsOn = lock?.enabled ?: true, kidsPinSet = lock?.pinSet == true, kidsKnown = lock != null)
     }
     val scope = rememberCoroutineScope()
     // A lockout on the PIN pad ends by itself: the pad takes PINs again then.

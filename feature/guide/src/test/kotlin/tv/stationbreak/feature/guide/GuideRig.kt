@@ -19,6 +19,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
@@ -118,6 +119,9 @@ open class GuideRig {
     /** The Kids Mode lock the guide reads (#789); off with no PIN by default. */
     internal val kidsLock = FakeKidsLock()
 
+    /** The lock the guide is built over: [kidsLock], unless a test swaps in one that has not been read yet. */
+    internal var kidsForGuide: KidsLock = kidsLock
+
     /** Sync now as the guide's Settings panel starts it (spec 26); idle by default. */
     internal val syncNow = FakeSyncNow()
 
@@ -198,7 +202,7 @@ open class GuideRig {
             logos = logos,
             holdings = holdings,
             identities = identities,
-            kids = kidsLock,
+            kids = kidsForGuide,
         )
     }
 

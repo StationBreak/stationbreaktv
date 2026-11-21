@@ -268,9 +268,9 @@ appears in a path, holding only the last channel's ID and replaced atomically. S
 Since #789, `data:settings` also holds `DataStoreKidsLockStore` (the `KidsLockStore` port in `core:domain`'s `kids`
 package): the Kids Mode lock in a DataStore file of its own, `noBackupFilesDir/kids-lock.preferences_pb` (the switch, the
 cap, the PIN's PBKDF2 salt, hash and iterations, never the PIN, and the wrong-PIN count and lockout times). A file that
-cannot be read fails closed (the lock on); a corrupt one is replaced by an empty one (the lock off). `PinKidsLock` (in
+cannot be read, or cannot be parsed (a damaged file, never replaced), fails closed (the lock on, no PIN, so no PIN can be set over it; the TV needs its app data cleared). So does a missing record once a PIN was set: an empty `kids-lock.armed` marker is written (staged, synced, renamed) before the first PIN's record, and a record with no PIN beside the marker reads the same way. A damaged or missing lock record keeps Kids Mode on. `PinKidsLock` (in
 `core:domain`) is the lock over it: PIN rules, the constant-time check, the persisted count and the doubling lockout, on an
-injected `Clock`. The lock itself is two wrappers in the same package: `KidsLockedChannelRepository` and
+injected `Clock` and `MonotonicClock` (a lockout is the longer of the wall-clock and the uptime remainder within one boot, so a clock set forward does not end it). The lock itself is two wrappers in the same package: `KidsLockedChannelRepository` and
 `KidsLockedScheduleSource`, which leave out every channel outside 1 to the cap while the lock is on. `app` binds them in
 `LineupModule` as *the* `ChannelRepository` and *the* `ScheduleSource` features read (`LineupService` and
 `BuiltInScheduleSource` stay what the editor, builder, warmer, repairer and selection take), and binds the store and the

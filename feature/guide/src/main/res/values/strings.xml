@@ -153,6 +153,7 @@
     <string name="guide_settings_kids_mode">Kids Mode</string>
     <string name="guide_kids_off">Off</string>
     <string name="guide_kids_on">On</string>
+    <string name="guide_kids_unknown">&#8230;</string>
     <string name="guide_settings_change_pin">Change PIN</string>
     <!-- The one line under each Settings row that Kids Mode switches off, and under the menu's About and Channels rows. -->
     <string name="guide_kids_locked">Turn off Kids Mode first</string>

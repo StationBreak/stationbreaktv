@@ -75,9 +75,11 @@ private fun crashReportsWords(on: Boolean): Int =
         else -> R.string.guide_crash_reports_off
     }
 
-/** The words Kids Mode's row shows on its right: On or Off. */
+/** The words Kids Mode's row shows on its right: On or Off, or a dash until the stored lock has been read. */
 @StringRes
-internal fun kidsModeWords(values: SettingsValues): Int {
-    val on = values.kidsOn
-    return if (on) R.string.guide_kids_on else R.string.guide_kids_off
-}
+internal fun kidsModeWords(values: SettingsValues): Int =
+    when {
+        !values.kidsKnown -> R.string.guide_kids_unknown
+        values.kidsOn -> R.string.guide_kids_on
+        else -> R.string.guide_kids_off
+    }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide
 
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -8,6 +11,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockState
 import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 
@@ -106,6 +111,41 @@ class GuideKidsLockTest : GuideRig() {
             runCurrent()
             assertTrue(vm.syncNow())
         }
+
+    /** A lock whose stored state has not been read: it never emits, as the real one before its file is read. */
+    private fun unread(): KidsLock =
+        object : KidsLock by kidsLock {
+            override val state: Flow<KidsLockState> = flow { awaitCancellation() }
+        }
+
+    @Test
+    fun beforeTheLockIsFirstReadEveryGuardThatBlocksEditingIsClosed() {
+        kidsForGuide = unread()
+        guideTest { vm ->
+            val got = eventsOf(vm)
+            vm.open(CH7)
+            runCurrent()
+            assertEquals(null, vm.kidsState.value)
+            assertTrue(vm.kidsOn)
+            // Update library stays shut.
+            assertFalse(vm.syncNow())
+            // About on the grid's channel column stays shut.
+            vm.press(GuideDirection.Left)
+            assertTrue(vm.snapshot.value.onChannel)
+            vm.select()
+            runCurrent()
+            assertTrue(got.isEmpty())
+            // Channels and About on the menu stay shut.
+            vm.toggleMenu()
+            runCurrent()
+            vm.select()
+            vm.press(GuideDirection.Up)
+            assertEquals(GuideMenuEntry.About, vm.snapshot.value.menu)
+            vm.select()
+            runCurrent()
+            assertTrue(got.isEmpty())
+        }
+    }
 
     @Test
     fun theFirstPinIsSetAndTheLockTurnsOnWithIt() =

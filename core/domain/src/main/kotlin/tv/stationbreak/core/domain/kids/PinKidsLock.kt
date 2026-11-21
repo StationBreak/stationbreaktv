@@ -59,8 +59,9 @@ data class LockoutPolicy(
 
 /**
  * Makes and checks [PinHash]es: PBKDF2 with HMAC-SHA1 (the variant Android has on API 25; the SHA-256 ones came in API
- * 26), [iterations] rounds over a random salt of [SALT_BYTES] bytes, compared in constant time. The slow hash only
- * matters to someone holding the file: the lockout is what stops guessing on the TV.
+ * 26), [iterations] rounds over a random salt of [SALT_BYTES] bytes, compared in constant time. A four-digit PIN has
+ * only 10,000 values, so the hash does not keep the PIN secret from someone who can copy the file: the lockout is the
+ * real defence, and it stops guessing on the TV only.
  */
 class PinHasher(
     private val iterations: Int = ITERATIONS,
@@ -110,13 +111,18 @@ private const val PIN_LENGTH = 4
  * The [KidsLock] over a [KidsLockStore] (#789). Its calls take turns on one lock, so two PIN entries never race the
  * count. A PIN attempt is counted on disk before the PIN is checked, and the count cleared after a right one, so
  * stopping the app mid-check cannot win a free try; a store that cannot be written checks nothing
- * ([PinResult.Unavailable]). Lockouts are timed by [clock] (wall time, so they hold across a restart): a clock set back
- * before a lockout's start starts it again from now, never ends it; a clock set forward does end it early (a cabinet
- * lock, not a security boundary). The hash runs in [work], off the caller's thread.
+ * ([PinResult.Unavailable]). Lockouts are timed by [clock] (wall time, so they hold across a restart) and by
+ * [monotonic] (so they hold against the wall clock being set): within one boot a lockout has the larger of the two
+ * remainders left, so a clock set forward does not end it early; a clock set back before a lockout's start starts it
+ * again from now, never ends it. A reboot (the monotonic reading went back before the lockout's start) leaves only the
+ * wall clock to go by, so a lockout can be ended early by rebooting and setting the clock forward; this is a cabinet
+ * lock, not a security boundary. The hash runs in [work], off the caller's thread.
  */
+@Suppress("LongParameterList") // The lock's collaborators, each with a default but the store and the two clocks.
 class PinKidsLock(
     private val store: KidsLockStore,
     private val clock: Clock,
+    private val monotonic: MonotonicClock,
     private val policy: LockoutPolicy = LockoutPolicy(),
     private val hasher: PinHasher = PinHasher(),
     private val work: CoroutineContext = Dispatchers.Default,
@@ -134,7 +140,7 @@ class PinKidsLock(
             if (record.pin != null || record.enabled) return@withLock PinResult.AlreadySet
             val made = withContext(work) { hasher.hash(newPin) }
             saving(PinResult.Unavailable) {
-                store.update { it.copy(pin = made, failures = 0, lockedAtMs = 0, lockedUntilMs = 0) }
+                store.update { it.withoutLockout().copy(pin = made) }
                 report(KidsLockEvent.PinSet)
                 PinResult.Ok
             }
@@ -249,7 +255,8 @@ class PinKidsLock(
             val record = current()
             val stored = record.pin ?: return@saving PinResult.NoPin
             val now = clock.now().toEpochMilliseconds()
-            val remaining = lockedFor(record, now)
+            val elapsed = monotonic.elapsedMillis()
+            val remaining = lockedFor(record, now, elapsed)
             if (remaining > 0) return@saving PinResult.LockedOut(remaining)
             val failures = record.failures + 1
             val lockout = policy.lockoutAfter(failures)?.inWholeMilliseconds
@@ -257,13 +264,18 @@ class PinKidsLock(
                 if (lockout == null) {
                     it.copy(failures = failures)
                 } else {
-                    it.copy(failures = failures, lockedAtMs = now, lockedUntilMs = now + lockout)
+                    it.copy(
+                        failures = failures,
+                        lockedAtMs = now,
+                        lockedUntilMs = now + lockout,
+                        lockedAtElapsedMs = elapsed,
+                    )
                 }
             }
             val right = withContext(work) { isPin(pin) && hasher.matches(pin, stored) }
             when {
                 right -> {
-                    store.update { it.copy(failures = 0, lockedAtMs = 0, lockedUntilMs = 0) }
+                    store.update { it.withoutLockout() }
                     PinResult.Ok
                 }
 
@@ -280,12 +292,16 @@ class PinKidsLock(
         }
 
     /**
-     * How long [record]'s lockout has left at [now]; 0 when none runs. A clock set back before the lockout's start
-     * starts it again from [now] (saved, so a restart keeps it), with its whole length left.
+     * How long [record]'s lockout has left at [now] (wall) and [elapsed] (monotonic); 0 when none runs. A clock set
+     * back before the lockout's start starts it again from [now] (saved, so a restart keeps it), with its whole length
+     * left. Otherwise it is the larger of the wall-clock remainder and, within the boot the lockout started in, the
+     * monotonic one (never more than the lockout's length). A monotonic reading before the lockout's start is a
+     * reboot: the wall clock alone is used.
      */
     private suspend fun lockedFor(
         record: KidsLockRecord,
         now: Long,
+        elapsed: Long,
     ): Long {
         val length = record.lockedUntilMs - record.lockedAtMs
         return when {
@@ -294,12 +310,17 @@ class PinKidsLock(
             }
 
             now < record.lockedAtMs -> {
-                store.update { it.copy(lockedAtMs = now, lockedUntilMs = now + length) }
+                store.update {
+                    it.copy(lockedAtMs = now, lockedUntilMs = now + length, lockedAtElapsedMs = elapsed)
+                }
                 length
             }
 
             else -> {
-                (record.lockedUntilMs - now).coerceAtLeast(0)
+                val wall = (record.lockedUntilMs - now).coerceAtLeast(0)
+                val startedAt = record.lockedAtElapsedMs
+                val sameBoot = startedAt > 0 && elapsed >= startedAt
+                if (sameBoot) maxOf(wall, (length - (elapsed - startedAt)).coerceIn(0, length)) else wall
             }
         }
     }
