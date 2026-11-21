@@ -533,12 +533,12 @@ class PoolEvaluatorTest {
     @Test
     fun aHeldPgChannelKeepsOnlyKidsContentUnderTheKidTable() {
         val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), heldSnapshot(), policy = PoolPolicy.KidsOnly)
-        // The TV-Y episode counts as made for kids by its children's rating, whatever its series' genre.
-        assertEquals(listOf(idOf(1), idOf(6)), pool.items.map { it.id })
-        // The Fantasy movie and the episode of an unknown series (rated G, a Drama) are not made for kids.
-        assertEquals(2, pool.counts.heldOut)
-        // The TV-PG kids episode and the Approved kids movie are refused by the kid table.
-        assertEquals(2, pool.counts.blockedByCeiling)
+        // kid-hold-6: only the G kids movie is in the kids tier. The TV-Y Drama episode has a kid rating but no
+        // evidence (family); the TV-PG kids episode is family; the Approved kids movie is unrated (adult); the Fantasy
+        // movie and the episode of an unknown series are not kids either. All five are held out, none blocked.
+        assertEquals(listOf(idOf(1)), pool.items.map { it.id })
+        assertEquals(5, pool.counts.heldOut)
+        assertEquals(0, pool.counts.blockedByCeiling)
         assertEquals(0, pool.counts.excluded)
     }
 
@@ -554,14 +554,14 @@ class PoolEvaluatorTest {
     }
 
     @Test
-    fun anEpisodeOfAMissingSeriesThatPassesTheGateOnItsOwnNamesIsCountedUnknownAndBlocked() {
+    fun anEpisodeOfAMissingSeriesIsAdultEvenWithKidsNamesSoItIsHeldOut() {
         val ep = episode(idOf(1), goneShow, rating = "G", genres = listOf("Kids"))
         val snap = snapshot(items = listOf(ep))
         val pool = PoolEvaluator.evaluate(libraryRules(maxRating = "PG"), snap, policy = PoolPolicy.KidsOnly)
         assertEquals(emptyList(), pool.items)
-        assertEquals(0, pool.counts.heldOut)
-        assertEquals(1, pool.counts.episodesWithUnknownSeries)
-        assertEquals(1, pool.counts.blockedByCeiling)
+        assertEquals(1, pool.counts.heldOut)
+        assertEquals(0, pool.counts.episodesWithUnknownSeries)
+        assertEquals(0, pool.counts.blockedByCeiling)
     }
 
     @Test
@@ -570,8 +570,9 @@ class PoolEvaluatorTest {
         val pool = PoolEvaluator.evaluate(r, heldSnapshot(), policy = PoolPolicy.KidsOnly)
         // The Fantasy movie, and the episode whose series is missing (a genre exclusion fails closed on it).
         assertEquals(2, pool.counts.excluded)
-        // Nothing else is held out: the TV-Y episode is made for kids by its rating.
-        assertEquals(0, pool.counts.heldOut)
+        // kid-hold-6: the TV-PG kids episode (family), the Approved movie (unrated) and the TV-Y Drama episode (no
+        // evidence) are held out.
+        assertEquals(3, pool.counts.heldOut)
     }
 
     @Test
@@ -593,15 +594,19 @@ class PoolEvaluatorTest {
         snapshot(
             items =
                 listOf(
-                    movie(idOf(1), rating = "TV-Y"),
+                    movie(idOf(1), rating = "TV-Y", genres = listOf("Kids")),
                     movie(idOf(2), rating = "PG"),
                     movie(idOf(3), rating = "TV-PG"),
                     movie(idOf(4), rating = null),
                     episode(idOf(5), kidsSeries, rating = "TV-PG"),
                     episode(idOf(6), pgSeries, rating = "TV-PG"),
-                    movie(idOf(7), rating = "TV-Y7-FV"),
+                    movie(idOf(7), rating = "TV-Y7-FV", genres = listOf("Kids")),
                 ),
-            series = listOf(series(kidsSeries, rating = "TV-Y7"), series(pgSeries, rating = "TV-PG")),
+            series =
+                listOf(
+                    series(kidsSeries, rating = "TV-Y7", genres = listOf("Kids")),
+                    series(pgSeries, rating = "TV-PG"),
+                ),
         )
 
     @Test
@@ -627,7 +632,8 @@ class PoolEvaluatorTest {
     @Test
     fun aGrownUpPoolDropsAnEpisodeWhoseSeriesIsChildrensEvenWhenTheEpisodeIsOverTheKidCeiling() {
         val ep = episode(idOf(1), kidsSeries, rating = "TV-PG")
-        val snap = snapshot(items = listOf(ep), series = listOf(series(kidsSeries, rating = "TV-Y7")))
+        val snap =
+            snapshot(items = listOf(ep), series = listOf(series(kidsSeries, rating = "TV-Y7", genres = listOf("Kids"))))
         val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
         assertEquals(emptyList(), pool.items)
         assertEquals(1, pool.counts.madeForKidsOut)

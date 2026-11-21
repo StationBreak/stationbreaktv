@@ -20,9 +20,9 @@ import tv.stationbreak.core.rules.RatingLadder
  * as `PoolEvaluator` applies it. The caller decides what is claimed. Items are in snapshot order. Counts: nothing
  * matched by source, `blockedByCeiling` and `episodesWithUnknownSeries` as `PoolEvaluator` counts them,
  * `collectionsSynced` from the snapshot, no unresolved entries. Under `PoolPolicy.KidsOnly`, an unclaimed item that
- * is not made for kids is dropped and counted in `heldOut`, and the kid rating table replaces the ladder; under
- * `PoolPolicy.GrownUp` an unclaimed item that `GrownUpHold.dropsFromGrownUp` accepts (made for kids and passing the
- * widest kid ceiling) is dropped and counted in `madeForKidsOut`; both
+ * is not in the kids tier (`KidHold.admits`) is dropped and counted in `heldOut`, and the kid ceiling replaces the
+ * ladder; under `PoolPolicy.GrownUp` an unclaimed item that `GrownUpHold.dropsFromGrownUp` accepts (the kids tier) is
+ * dropped and counted in `madeForKidsOut`; both
  * as `PoolEvaluator` does.
  */
 object Leftovers {
@@ -85,7 +85,7 @@ object Leftovers {
                 }
 
                 PoolPolicy.KidsOnly -> {
-                    if (KidHold.isMadeForKids(entry, series)) admit(entry, series) else heldOut++
+                    if (KidHold.admits(entry, series)) admit(entry, series) else heldOut++
                 }
 
                 PoolPolicy.GrownUp -> {

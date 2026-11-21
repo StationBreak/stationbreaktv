@@ -251,7 +251,7 @@ class CatalogV3Test {
             val name = anchor.match.folded
             val adult = movie(idOf(0x100 + 3 * i), rating = "R", genres = listOf("Drama"))
             val plain = movie(idOf(0x102 + 3 * i), rating = "G", genres = listOf("Drama"))
-            val kid = movie(idOf(0x101 + 3 * i), rating = "TV-Y")
+            val kid = movie(idOf(0x101 + 3 * i), rating = "TV-Y", genres = listOf("Kids"))
             grownUp.add(adult.item.id)
             grownUp.add(plain.item.id)
             kids.add(kid.item.id)

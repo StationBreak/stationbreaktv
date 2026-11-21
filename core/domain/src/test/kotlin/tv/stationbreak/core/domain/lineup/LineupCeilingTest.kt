@@ -45,7 +45,10 @@ class LineupCeilingTest {
     private fun seedRatings() {
         library.seed(
             movie(1, "Animation", "Kids", rating = "G"),
-            movie(2, "Animation", "Kids", rating = "PG"),
+            // kid-hold-6 (ADR-0028): a kid channel airs at most TV-Y7 whatever its ceiling, so "held to PG" now
+            // admits up to TV-Y7; a PG kids film is family and never airs on a kid channel.
+            movie(2, "Animation", "Kids", rating = "TV-Y7"),
+            movie(5, "Animation", "Kids", rating = "PG"),
             movie(3, "Animation", "Kids", rating = "R"),
             movie(4, "Animation", "Kids", rating = "TV-MA"),
         )

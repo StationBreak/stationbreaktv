@@ -90,8 +90,9 @@ class LeftoversTest {
             )
         val pool = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.KidsOnly)
         assertEquals(listOf(idOf(1)), pool.items.map { it.id })
-        assertEquals(1, pool.counts.heldOut)
-        assertEquals(1, pool.counts.blockedByCeiling)
+        // kid-hold-6: a TV-PG kids film is family, not kids, so it is held out, not blocked.
+        assertEquals(2, pool.counts.heldOut)
+        assertEquals(0, pool.counts.blockedByCeiling)
         val unheld = Leftovers.pool(snap, setOf(idOf(4)), "PG", policy = PoolPolicy.Open)
         assertEquals(0, unheld.counts.heldOut)
         assertEquals(listOf(idOf(1), idOf(2), idOf(3)), unheld.items.map { it.id })
@@ -112,7 +113,7 @@ class LeftoversTest {
             snapshot(
                 items =
                     listOf(
-                        movie(idOf(1), rating = "TV-Y"),
+                        movie(idOf(1), rating = "TV-Y", genres = listOf("Kids")),
                         movie(idOf(2), rating = "PG"),
                         movie(idOf(3), rating = null),
                     ),
@@ -129,7 +130,7 @@ class LeftoversTest {
             snapshot(
                 items =
                     listOf(
-                        movie(idOf(1), rating = "PG", studios = listOf("Pixar")),
+                        movie(idOf(1), rating = "G", studios = listOf("Pixar")),
                         movie(idOf(2), rating = "PG-13", genres = listOf("Kids")),
                         movie(idOf(3), rating = "G", genres = listOf("Animation", "Family")),
                         movie(idOf(4), rating = "PG", genres = listOf("Family", "Comedy")),

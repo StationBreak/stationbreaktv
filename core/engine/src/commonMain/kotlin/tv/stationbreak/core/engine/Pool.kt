@@ -48,12 +48,13 @@ data class Pool(
  * @property collectionsSynced the snapshot's own flag, passed through: false means a collection missing from the
  *   snapshot may only not have been listed yet.
  * @property heldOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and were not
- *   made for kids, on a kids-only channel. Always 0 under any other policy.
+ *   in the kids tier ([KidHold.admits]: not made for kids, not kid-rated, or vetoed), on a kids-only channel. Always 0
+ *   under any other policy.
  * @property filteredOut items that matched a source, survived the exclusions and the hold, and were dropped by the
  *   rules' `filters` (genres, years, kind), before the ceiling. Always 0 for rules with no filters.
  * @property madeForKidsOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
- *   were dropped by [GrownUpHold.dropsFromGrownUp] (made for kids and passing the widest kid ceiling, so a kid
- *   channel could take them), on a grown-up channel (ADR-0020). Always 0 under any other policy.
+ *   were dropped by [GrownUpHold.dropsFromGrownUp] (the kids tier, so a kid channel could take them), on a grown-up
+ *   channel (ADR-0020). Always 0 under any other policy.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,

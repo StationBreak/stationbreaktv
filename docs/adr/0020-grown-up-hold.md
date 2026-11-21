@@ -7,6 +7,7 @@
   2026-10-29)
 - **Amends:** [ADR-0019](0019-kid-hold.md) §7 and §8, [ADR-0002](0002-determinism-scope.md) §2
 - **Informs:** spec 18, ASSUMPTIONS A-VER-1
+- **Amended by:** [ADR-0028](0028-rating-tiers.md) (`grown-up-hold-5`: a grown-up channel drops exactly the kids tier)
 - **See also:** [ADR-0023](0023-lineup-curation.md), which builds on the 2026-11-03 addendum below (lineup curation, spec 23)
 
 ## Context

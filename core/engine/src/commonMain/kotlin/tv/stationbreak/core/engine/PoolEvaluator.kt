@@ -29,11 +29,11 @@ import tv.stationbreak.core.rules.Source
  *    otherwise.
  *
  * **Policies.** Under [PoolPolicy.KidsOnly] (a kid channel, spec 18), an item that survives the exclusions must also be
- * made for kids ([KidHold.isMadeForKids]) and passes the kid rating table ([KidHold.passesKidCeiling]) in place of the
+ * in the kids tier ([KidHold.admits], ADR-0028) and within the kid ceiling ([KidHold.passesKidCeiling]) in place of the
  * ladder (ADR-0019). Under [PoolPolicy.GrownUp] it must not be something a kid channel could take
- * ([GrownUpHold.dropsFromGrownUp]: made for kids and passing the widest kid ceiling); the ladder applies as usual
- * (ADR-0020). This is the app's narrowing, not rules-format behaviour: rules
- * format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the evaluation above.
+ * ([GrownUpHold.dropsFromGrownUp]: the kids tier); the ladder applies as usual (ADR-0020). This is the app's
+ * narrowing, not rules-format behaviour: rules format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the
+ * evaluation above.
  *
  * **Filters.** The `genres`, `years` and `kind` parts of `rules.filters` apply to what remains after the exclusions and
  * the policy hold, before the ceiling ([ItemFilters]). The `runtime` part is the scheduler's (`EpochPool`).
@@ -151,7 +151,7 @@ object PoolEvaluator {
                 }
 
                 PoolPolicy.KidsOnly -> {
-                    if (KidHold.isMadeForKids(entry, series)) admit(entry, series) else heldOut++
+                    if (KidHold.admits(entry, series)) admit(entry, series) else heldOut++
                 }
 
                 PoolPolicy.GrownUp -> {
