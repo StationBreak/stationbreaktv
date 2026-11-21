@@ -18,6 +18,7 @@ import tv.stationbreak.core.domain.lineup.fillingLibrary
 import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.rules
 import tv.stationbreak.core.domain.lineup.starter
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
@@ -430,6 +431,40 @@ class ChannelBuildManagerTest {
             assertEquals(600, number)
             assertEquals(BuildResult.Done(id), result)
             assertEquals(600, stored().channel(id).number)
+        }
+
+    // A retired kid recipe's channel (#1044): Custom, keeps its starter ID, outside the Kids band.
+    private fun migrated(number: Int) =
+        channel(
+            "starter:lights-out",
+            number,
+            ChannelState.On,
+            ChannelSource.Custom(rules("Lights Out", Source.Genre("Animation"), maxRating = "PG")),
+        )
+
+    @Test
+    fun editingAMigratedKidChannelOpensAsKidsAtAnyNumber() =
+        runBlocking<Unit> {
+            for (number in listOf(44, 150)) {
+                seed(migrated(number))
+                val id = ChannelId("starter:lights-out")
+                val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+                assertTrue(draft.kids, "at $number")
+            }
+        }
+
+    @Test
+    fun replacingAMigratedKidChannelWithKidsOnOrOffKeepsTheIdAndTheHold() =
+        runBlocking<Unit> {
+            for (kids in listOf(false, true)) {
+                seed(migrated(44))
+                val id = ChannelId("starter:lights-out")
+                val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+                val number = if (kids) null else firstFree(kids = false)
+                assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, draft.copy(kids = kids, number = number)))
+                assertTrue(KidStatus.isKidChannel(stored().channel(id)), "kids = $kids")
+                assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(stored().channel(id)), "kids = $kids")
+            }
         }
 
     @Test
