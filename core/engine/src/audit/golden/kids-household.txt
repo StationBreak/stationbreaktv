@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 8, curation-1, extras-1)
+LINEUP AUDIT (catalog 9, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1791 items, 75 titles (44 series, 31 films)
@@ -14,13 +14,12 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 54 titles, 2 channels: 17 titles, 3 channels: 4 titles
+  channels per title: 1 channels: 54 titles, 2 channels: 21 titles
   titles per channel that is on:
     saturday-morning                54
     backyard-fort                    4
     hey-science                      4
     rainy-day-matinee               17
-    tall-tales-club                  4
     dial-up                         10
     flip-phone                       7
     leftovers:kids-odds-and-ends     0
@@ -46,14 +45,12 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              39  on(p)               17  17t 28.67h 0a score  4566          17t 28.67h 0a
   little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    TooThin      17  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tall-tales-club                72  on(p)                4  4t 61.60h 0a score  6560           4t 61.60h 0a
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   level-up                       76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -113,7 +110,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   deep-space-drift              356  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   creature-feature              360  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  haunted-house                 368  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tokyo-after-school            404  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -136,9 +132,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   directors-chair               532  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
-  backyard-fort                tall-tales-club              4 titles, 61.60h
   saturday-morning             backyard-fort                4 titles, 61.60h
-  saturday-morning             tall-tales-club              4 titles, 61.60h
   rainy-day-matinee            dial-up                      10 titles, 16.07h
   rainy-day-matinee            flip-phone                   7 titles, 12.60h
 
@@ -313,20 +307,20 @@ TITLES (scores in points; a term that is zero is left out)
     home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
   00000024 Darmima Torolfa [series, 42 items, 15.40h]
     home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, tall-tales-club
+    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000025 Quinbravel Lotorky [series, 42 items, 15.40h]
     home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, tall-tales-club
+    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000026 Lomasen Olfama [series, 42 items, 15.40h]
     home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, tall-tales-club
+    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000027 Farenfa Velxixi [series, 42 items, 15.40h]
     home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up tall-tales-club 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning, tall-tales-club
+    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    guest spots: saturday-morning
   00000028 Faoltor Velzuol [series, 20 items, 8.00h]
     home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   00000029 Zuzuquin Quinxipe [series, 20 items, 8.00h]

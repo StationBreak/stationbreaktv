@@ -326,16 +326,6 @@ private val familyBand: List<Recipe> =
         ),
         recipe(
             Band.Family,
-            n = 44,
-            key = "lights-out",
-            name = "Lights Out",
-            says = "Calm, quiet and sleepy. The bedtime channel.",
-            sources = tags("bedtime", "calm", "lullaby", "relaxing"),
-            plain = true,
-            rating = "TV-Y",
-        ),
-        recipe(
-            Band.Family,
             n = 45,
             key = "spooky-sleepover",
             name = "Spooky Sleepover",
@@ -397,24 +387,6 @@ private val teenBand: List<Recipe> =
             says = "Lockers, first loves and growing up, one bell at a time.",
             sources = tags("coming of age", "high school", "teenager"),
             rating = "TV-14",
-        ),
-        recipe(
-            Band.Teen,
-            n = 72,
-            key = "tall-tales-club",
-            name = "Tall Tales Club",
-            says = "Pirates, explorers and stories that grow in the telling.",
-            sources = genres("Adventure") + tags("pirates", "explorers", "treasure"),
-            plain = true,
-            rating = "PG",
-            anchors =
-                collections(
-                    Contains("Narnia"),
-                    Contains("NeverEnding"),
-                    Contains("Jumanji"),
-                    Contains("How to Train Your Dragon"),
-                    Contains("Sinbad"),
-                ),
         ),
         recipe(
             Band.Teen,
@@ -1084,14 +1056,6 @@ private val genreBand: List<Recipe> =
             name = "End Times",
             says = "Post-apocalyptic wastelands and the last diner on Earth.",
             sources = tags("post-apocalyptic", "post-apocalyptic future", "apocalypse", "wasteland"),
-        ),
-        recipe(
-            Band.Genre,
-            n = 368,
-            key = "haunted-house",
-            name = "Haunted House",
-            says = "Ghosts, spirits and noises in the night.",
-            sources = tags("ghost", "ghosts", "paranormal", "haunted", "supernatural"),
         ),
         recipe(
             Band.Genre,

@@ -1,7 +1,7 @@
 {
   "description": "A published reference fixture for implementers of the rules format (docs/rules-format.md, \"Verify your client\"). A synthetic library (versions.generator; nothing real) is given to the lineup planner at first setup, and the days of every switched-on channel are built from the lineup it plans. snapshot is the planner's input: items, series and collections as the engine reads them; the library's other kinds (videos, music videos) and every item with no runtime are left out, as the app's own snapshot leaves them out. lineup is what the planner chose: per channel its id, number, source, state and seed (decimal text), and for a starter or custom channel its rules in the exact text RulesWriter writes. A leftovers channel has no rules: its pool is the engine's, from the other channels. days[i] is the broadcast day i of every switched-on channel: the day that holds inputs.nowMs is day 0. A channel's blocks tile [epochStartMs, epochEndMs) and are half-open; a block is {startMs, endMs, itemId, mediaStartOffsetMs} for a program or {startMs, endMs, slate: true}. Every millisecond count is decimal text. A mismatch of versions (catalog, kid hold, grown-up hold, curation) means the files are not comparable.",
   "fixtureFormat": 1,
-  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 8, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
+  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 9, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
   "inputs": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
@@ -9,7 +9,7 @@
     "standardOffsetMinutes": 0,
     "nowMs": "1792411200000",
     "days": 3,
-    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 8}
+    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 9}
   },
   "snapshot": {
     "libraryId": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
@@ -2630,7 +2630,7 @@
   "lineup": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
-    "catalogVersion": 8,
+    "catalogVersion": 9,
     "utcOffsetMinutes": 0,
     "finalised": true,
     "useMyCollections": true,
@@ -2823,17 +2823,6 @@
         "previousRules": null
       },
       {
-        "id": "starter:lights-out",
-        "number": 44,
-        "source": {"kind": "starter", "recipeKey": "lights-out", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "5071541650095082243",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Lights Out\",\n  \"seed\": \"5071541650095082243\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"bedtime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"calm\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"lullaby\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"relaxing\"\n    }\n  ],\n  \"maxRating\": \"TV-Y\",\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
         "id": "starter:spooky-sleepover",
         "number": 45,
         "source": {"kind": "starter", "recipeKey": "spooky-sleepover", "edited": false},
@@ -2908,17 +2897,6 @@
         "onSinceMs": "1792411200000",
         "seed": "8871490767753461214",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Homeroom\",\n  \"seed\": \"8871490767753461214\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"coming of age\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"high school\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"teenager\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"maxRating\": \"TV-14\",\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
-        "id": "starter:tall-tales-club",
-        "number": 72,
-        "source": {"kind": "starter", "recipeKey": "tall-tales-club", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "13380869080373619871",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Tall Tales Club\",\n  \"seed\": \"13380869080373619871\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Adventure\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"pirates\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"explorers\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"treasure\"\n    }\n  ],\n  \"maxRating\": \"PG\",\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       },
       {
@@ -3590,17 +3568,6 @@
         "onSinceMs": "1792411200000",
         "seed": "16414903427966163037",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"End Times\",\n  \"seed\": \"16414903427966163037\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"post-apocalyptic\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"post-apocalyptic future\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"apocalypse\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"wasteland\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
-        "id": "starter:haunted-house",
-        "number": 368,
-        "source": {"kind": "starter", "recipeKey": "haunted-house", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "377941796628191620",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Haunted House\",\n  \"seed\": \"377941796628191620\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"ghost\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"ghosts\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"paranormal\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"haunted\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"supernatural\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       },
       {

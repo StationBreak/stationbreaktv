@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(8, StarterCatalog.VERSION)
-        assertEquals(8, StarterCatalog.version)
+        assertEquals(9, StarterCatalog.VERSION)
+        assertEquals(9, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -127,7 +127,7 @@ class StarterCatalogTest {
         val pg = checkNotNull(RatingLadder.rankOf("PG"))
         val kids = recipes.filter { it.kidSafe }
         assertTrue(kids.isNotEmpty())
-        // The Kids band, and the three kids recipes kept outside it until #995 and #996.
+        // The Kids band, and Tiny Chefs, kept outside it until #996.
         assertEquals(KIDS_NUMBERED_OUTSIDE_BAND, kids.filter { it.band != Band.Kids }.map { it.key }.toSet())
         for (r in kids) {
             val rank = RatingLadder.rankOf(r.maxRating)
@@ -160,8 +160,7 @@ class StarterCatalogTest {
             recipes
                 .filter { it.band == Band.Family && it.key !in StarterCatalog.EVER_KID_SAFE_KEYS }
                 .map { it.key }
-                .toSet() -
-                setOf("lights-out"),
+                .toSet(),
         )
         // Paper Lantern (54) is dropped (#1002).
         assertTrue(recipes.none { it.number == 54 })

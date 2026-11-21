@@ -7,7 +7,7 @@ modules), or a symlink there, is missing from the manifest. Dot-folders and `bui
 
 ## What they are
 
-- 108 fictional in-app channels, one mark each: the 104 recipes of the channel catalog and its four catch-all channels
+- 105 fictional in-app channels, one mark each: the 101 recipes of the channel catalog and its four catch-all channels
   (the Kids, Family and Teen Odds & Ends, 33, 66 and 99, and Odds & Ends, 199). Not the StationBreak company brand.
 - Eleven of them are temporary placeholders (initials on a colour plate, made for catalog 8, #1002) until Look draws
   the real marks: Big Screen Toons, Popcorn Matinee, Starship Sunday, Prime Time Pals, Family Odds & Ends, Homeroom, Mask & Mantle, Level
@@ -56,7 +56,7 @@ PNG renders, transparent, 48 dp and 64 dp at 2x  core/ui/src/main/assets/channel
 
 `<NNN>` is the channel's catalog number and `<key>` its recipe or leftovers key; `CatalogMarksDriftTest` (in `core:domain`) checks both
 ways that every catalog key has a mark and every mark is for a catalog key, with the number matching. `<N>` is 48 or 64.
-Four files per key, 432 in all; `ChannelMarkManifestTest` checks the count, the pixel sizes, the PNG chunks and the size.
+Four files per key, 420 in all; `ChannelMarkManifestTest` checks the count, the pixel sizes, the PNG chunks and the size.
 
 ## How the app uses them
 

@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 8, curation-1, extras-1)
+LINEUP AUDIT (catalog 9, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -56,14 +56,12 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              39  on(p)               11  11t 16.97h 0a score  2796          11t 16.97h 0a
   little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    TooThin       8  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    TooThin       3  0t 0.00h 0a score     0 THIN       -
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   level-up                       76  on(p)                6  6t 70.31h 0a score  7630           6t 70.31h 0a
   popcorn-epic                   79  off    TooThin       5  5t 10.50h 0a score  1550 THIN      -
@@ -92,7 +90,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   always-december               182  off    TooThin       2  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  on(p)               66  46t 269.80h 0a score 11000         54t 353.92h 0a
-  cold-case-cable               208  on(p)               19  17t 149.25h 0a score  9700         19t 168.55h 0a
+  cold-case-cable               208  on(p)               19  18t 150.95h 0a score  9800         19t 168.55h 0a
   order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   silver-screen                 220  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -123,7 +121,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   deep-space-drift              356  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   creature-feature              360  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  haunted-house                 368  off    TooThin       1  1t 1.00h 0a score   200 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    TooThin       3  3t 3.64h 0a score   663 THIN       -
   tokyo-after-school            404  off    TooThin       6  0t 0.00h 0a score     0 THIN       -

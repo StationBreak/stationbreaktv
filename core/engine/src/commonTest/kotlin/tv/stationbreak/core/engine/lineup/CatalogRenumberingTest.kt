@@ -231,11 +231,20 @@ class CatalogRenumberingTest {
             assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(channel), key)
             assertTrue(key in StarterCatalog.EVER_KID_SAFE_KEYS, key)
         }
-        // The three kept outside the Kids band stay kids-only by key.
+        // The one kept outside the Kids band stays kids-only by key.
         for (key in KIDS_NUMBERED_OUTSIDE_BAND) {
             assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(after.byId(LineupIds.starter(key))), key)
         }
         val kidsOdds = after.byId(LineupIds.leftovers("kids-odds-and-ends"))
         assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(kidsOdds))
+    }
+
+    // Catalog 9 retires Lights Out and Tall Tales Club (#995). A stored copy, before the planner turns it custom, is
+    // still a kids-only channel by key, whatever its number.
+    @Test
+    fun aRetiredKidKeyKeepsItsKidHold() {
+        for ((key, number) in listOf("lights-out" to 44, "tall-tales-club" to 72)) {
+            assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(starter(key, number)), key)
+        }
     }
 }

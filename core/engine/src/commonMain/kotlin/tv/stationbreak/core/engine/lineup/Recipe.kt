@@ -53,11 +53,10 @@ private fun withinLimit(
 }
 
 /**
- * Kid recipes numbered outside the Kids band: Lights Out, Tall Tales Club and Tiny Chefs keep their numbers (44, 72,
- * 80) until #995 and #996 merge or cut them, so by number they sit in the Family and Teen bands. They are still kid
- * recipes (kids-only, a kid ceiling). Delete this set with those recipes.
+ * Kid recipes numbered outside the Kids band: Tiny Chefs keeps its number (80) until #996 cuts it, so by number it
+ * sits in the Teen band. It is still a kid recipe (kids-only, a kid ceiling). Delete this set with that recipe.
  */
-internal val KIDS_NUMBERED_OUTSIDE_BAND: Set<String> = setOf("lights-out", "tall-tales-club", "tiny-chefs")
+internal val KIDS_NUMBERED_OUTSIDE_BAND: Set<String> = setOf("tiny-chefs")
 
 /**
  * What a starter must hold to qualify as a channel (catalog 5, #786). It is recipe data, frozen in the catalog
@@ -114,7 +113,7 @@ data class Recipe(
         }
     }
 
-    /** True for a kids-only recipe: the Kids band, or one of the three kept outside it for now. */
+    /** True for a kids-only recipe: the Kids band, or Tiny Chefs, kept outside it for now. */
     val kidSafe: Boolean get() = band == Band.Kids || key in KIDS_NUMBERED_OUTSIDE_BAND
 
     /** True when the channel is programmed: its order is curated. */
