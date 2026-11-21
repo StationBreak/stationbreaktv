@@ -72,6 +72,21 @@ internal fun fingerprintOf(recipe: Recipe): String {
                     .append(bar.titles)
                     .append("]")
             }
+            // Catalog 12: only a seasonal recipe writes its season and window, so every other keeps its fingerprint.
+            recipe.season?.let {
+                val w = it.window
+                append("season[")
+                    .append(it.name)
+                    .append(',')
+                    .append(w.startMonth)
+                    .append('/')
+                    .append(w.startDay)
+                    .append('-')
+                    .append(w.endMonth)
+                    .append('/')
+                    .append(w.endDay)
+                    .append("]")
+            }
         }
     return fnv1a64(canonical.encodeToByteArray()).toString(HEX_DIGITS).padStart(HEX_DIGITS, '0')
 }
@@ -104,12 +119,26 @@ internal val NUMBERS_WAIVED_AT_8: Map<String, Int> =
         "kids-odds-and-ends" to 33,
     )
 
+/**
+ * The same exception for catalog 12 (the seasonal band, #592, owner-approved pre-release, the issue says the two need
+ * not keep their numbers): the two holiday keys and the number each took in the Seasonal band. Their old numbers (182
+ * and 340) are retired. A catalog at version 12 or later may have these keys at these numbers against any earlier
+ * manifest; any other move still fails.
+ */
+internal val NUMBERS_WAIVED_AT_12: Map<String, Int> =
+    mapOf(
+        "always-december" to 900,
+        "jack-o-lantern-lounge" to 910,
+    )
+
 private fun waived(
     catalog: StarterCatalogView,
     manifest: CatalogManifest,
     key: String,
     number: Int,
-): Boolean = manifest.version < 8 && catalog.version >= 8 && NUMBERS_WAIVED_AT_8[key] == number
+): Boolean =
+    (manifest.version < 8 && catalog.version >= 8 && NUMBERS_WAIVED_AT_8[key] == number) ||
+        (manifest.version < 12 && catalog.version >= 12 && NUMBERS_WAIVED_AT_12[key] == number)
 
 /**
  * What [catalog] breaks of [manifest]'s promises, empty when it keeps them all. Every shipped key is still in the

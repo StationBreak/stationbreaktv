@@ -36,6 +36,12 @@ object LineupDefaults {
     /** Numbers kept for the user's own channels: spec 12's reserved band, where a new custom channel is numbered. */
     val CUSTOM_NUMBERS: IntRange = 600..899
 
-    /** Numbers kept for later (seasonal channels). */
-    val RESERVED_NUMBERS: IntRange = 900..999
+    /**
+     * When the Christmas channels (Snowglobe, Always December) air: late November to the year end, by the viewer's
+     * calendar. The seasons are named here once, so a window is one change.
+     */
+    val CHRISTMAS_SEASON: SeasonWindow = SeasonWindow(startMonth = 11, startDay = 22, endMonth = 12, endDay = 31)
+
+    /** When the Halloween channels (Spooky Sleepover, Jack-o'-Lantern Lounge) air: September 24 to October 31. */
+    val HALLOWEEN_SEASON: SeasonWindow = SeasonWindow(startMonth = 9, startDay = 24, endMonth = 10, endDay = 31)
 }

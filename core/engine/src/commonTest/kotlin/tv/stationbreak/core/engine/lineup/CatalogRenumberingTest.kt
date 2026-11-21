@@ -243,4 +243,71 @@ class CatalogRenumberingTest {
             assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(starter(key, number)), key)
         }
     }
+
+    // Catalog 12 (#592) moves Always December (182) and Jack-o'-Lantern Lounge (340) into the seasonal band.
+    private fun atEleven(vararg extra: LineupChannel): List<LineupChannel> =
+        listOf(
+            starter("snowglobe", 20),
+            starter("spooky-sleepover", 45),
+            starter("always-december", 182),
+            starter("jack-o-lantern-lounge", 340, state = ChannelState.Shelf),
+            starter("prestige", 204),
+            leftovers("odds-and-ends", 199, null),
+        ) + extra
+
+    private fun moveSeasonal(channels: List<LineupChannel>) = CatalogRenumbering.apply(channels, 11, StarterCatalog)
+
+    @Test
+    fun theHolidayChannelsTakeTheSeasonalNumbersAndNothingElseMoves() {
+        val before = atEleven()
+        val after = moveSeasonal(before)
+        assertEquals(900, after.number("always-december"))
+        assertEquals(910, after.number("jack-o-lantern-lounge"))
+        for (key in listOf("snowglobe", "spooky-sleepover", "prestige", "odds-and-ends")) {
+            assertEquals(before.number(key), after.number(key), key)
+        }
+        assertNoSharedNumber(after)
+        // Identity, state and rules are kept: a shelved channel stays shelved, an on one stays on.
+        assertEquals(before.map { it.id }, after.map { it.id })
+        assertEquals(before.map { it.state }, after.map { it.state })
+        assertEquals(before.map { it.source }, after.map { it.source })
+        // Never reused: nothing is on the old numbers.
+        assertTrue(after.none { it.number == 182 || it.number == 340 })
+    }
+
+    @Test
+    fun aViewersOwnNumberOnAHolidayChannelStaysThroughTheMove() {
+        val before =
+            atEleven().map {
+                if (it.id == LineupIds.starter("always-december")) it.copy(numberOverride = 640) else it
+            }
+        val december = moveSeasonal(before).first { it.id == LineupIds.starter("always-december") }
+        assertEquals(640, december.number)
+        assertEquals(900, december.defaultNumber)
+    }
+
+    @Test
+    fun aViewerNumberOnASeasonalNumberSendsTheHolidayChannelToTheNextFreeOne() {
+        val after = moveSeasonal(atEleven(custom("mine", 900, override = true)))
+        assertEquals(900, after.first { it.id.value == "custom:mine" }.number)
+        val december = checkNotNull(after.number("always-december"))
+        assertTrue(december in Band.Seasonal.numbers && december != 900 && december != 910, "took $december")
+        assertNoSharedNumber(after)
+    }
+
+    @Test
+    fun aLineupAlreadyOnCatalog12IsLeftAlone() {
+        val seasonal =
+            atEleven().map {
+                when (it.id) {
+                    LineupIds.starter("always-december") -> starter("always-december", 900)
+                    LineupIds.starter("jack-o-lantern-lounge") -> starter("jack-o-lantern-lounge", 910)
+                    else -> it
+                }
+            }
+        assertEquals(seasonal, CatalogRenumbering.apply(seasonal, 12, StarterCatalog))
+        // A moved lineup is stable: running the move again changes nothing.
+        val once = moveSeasonal(atEleven())
+        assertEquals(once, moveSeasonal(once))
+    }
 }

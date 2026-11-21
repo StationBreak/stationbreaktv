@@ -89,11 +89,22 @@ object StarterCatalog : StarterCatalogView {
      * three. No recipe, key, number or ceiling changes, so the manifest is as at 10; the version goes up so an
      * installed lineup is re-planned and its unedited starters take the new name (a viewer's own rename is kept). No
      * rules format or hold version changes.
+     *
+     * Version 12 (the seasonal band, #592): 900 to 999 is switched on ([Band.Seasonal]) with channel-level date-gating
+     * ([Season], windows in [LineupDefaults]). Always December moves from 182 to 900 and Jack-o'-Lantern Lounge from
+     * 340 to 910 (their old numbers are retired; the owner's pre-release waiver, as at version 8, named in
+     * `NUMBERS_WAIVED_AT_12`), and keep their keys, recipes and marks. Snowglobe (Kids 20) and Spooky Sleepover (Family
+     * 45) stay in place and take the same gating. A seasonal recipe's pool is empty out of season, so the planner
+     * shelves it (reason Empty) and switches it on again by itself when the window opens. A viewer's own number and
+     * choice are kept. No rules format or hold version changes.
      */
-    const val VERSION = 11
+    const val VERSION = 12
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
+
+    /** The catalog that switched on the seasonal band: a lineup from before it has its seasonal channels moved. */
+    const val SEASONAL_VERSION = 12
 
     override val version: Int = VERSION
 
@@ -162,7 +173,7 @@ object StarterCatalog : StarterCatalogView {
                 leftovers.filter { it.number in Band.Kids.numbers }.map { it.key }
         ).toSet()
 
-    override val retiredNumbers: Set<Int> = setOf(44, 72, 80, 368, 508, 532)
+    override val retiredNumbers: Set<Int> = setOf(44, 72, 80, 182, 340, 368, 508, 532)
 
     override val retiredKeys: Set<String> =
         setOf("lights-out", "tall-tales-club", "haunted-house", "tiny-chefs", "graveyard-shift", "directors-chair")

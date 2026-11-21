@@ -76,6 +76,7 @@ private fun recipe(
     animeOnly: Boolean = false,
     bar: QualifyingBar = QualifyingBar.Standard,
     plain: Boolean = false,
+    season: Season? = null,
 ): Recipe =
     Recipe(
         key = key,
@@ -97,6 +98,7 @@ private fun recipe(
         filters = filters,
         theme = Theme(anchors, themeStudios, format, animeOnly),
         qualifyingBar = bar,
+        season = season,
     )
 
 /** The British networks and studios Tea Time and Whodunit Isles share (#999). */
@@ -227,6 +229,7 @@ private val kidsBand: List<Recipe> =
             sources = tags("Christmas", "holiday", "winter holiday"),
             rating = "G",
             anchors = collections(Exact("Christmas")),
+            season = Season.Christmas,
         ),
         recipe(
             Band.Kids,
@@ -334,6 +337,7 @@ private val familyBand: List<Recipe> =
             plain = true,
             rating = "PG",
             anchors = collections(Exact("Halloween")),
+            season = Season.Halloween,
         ),
         recipe(
             Band.Family,
@@ -642,11 +646,12 @@ private val generalBand: List<Recipe> =
             bar = QualifyingBar.Niche,
         ),
         recipe(
-            Band.General,
-            n = 182,
+            Band.Seasonal,
+            n = 900,
             key = "always-december",
             name = "Always December",
-            says = "Holiday cheer on every day of the year, snow guaranteed.",
+            says = "Holiday cheer from late November to New Year, snow guaranteed.",
+            season = Season.Christmas,
             sources = tags("Christmas", "holiday", "winter holiday"),
             anchors =
                 collections(
@@ -976,11 +981,12 @@ private val genreBand: List<Recipe> =
             sources = tags("zombies", "zombie", "undead"),
         ),
         recipe(
-            Band.Genre,
-            n = 340,
+            Band.Seasonal,
+            n = 910,
             key = "jack-o-lantern-lounge",
             name = "Jack-o'-Lantern Lounge",
-            says = "Halloween, all year round. Candy corn not included.",
+            says = "Halloween, from late September to the 31st. Candy corn not included.",
+            season = Season.Halloween,
             sources = tags("Halloween", "trick or treat"),
             anchors =
                 collections(

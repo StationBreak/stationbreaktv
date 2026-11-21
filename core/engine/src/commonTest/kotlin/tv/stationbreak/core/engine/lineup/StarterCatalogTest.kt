@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(11, StarterCatalog.VERSION)
-        assertEquals(11, StarterCatalog.version)
+        assertEquals(12, StarterCatalog.VERSION)
+        assertEquals(12, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -269,7 +269,7 @@ class StarterCatalogTest {
         assertEquals(5, LineupDefaults.FINALISE_THRESHOLD)
         assertEquals("06:00", LineupDefaults.DAY_START)
         assertEquals(600..899, LineupDefaults.CUSTOM_NUMBERS)
-        assertEquals(900..999, LineupDefaults.RESERVED_NUMBERS)
+        assertEquals(900..999, Band.Seasonal.numbers)
     }
 
     @Test

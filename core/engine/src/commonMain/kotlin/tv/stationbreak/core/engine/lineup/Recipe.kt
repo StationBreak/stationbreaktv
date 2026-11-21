@@ -25,6 +25,9 @@ enum class Band(
     Genre(300..399),
     World(400..499),
     Premium(500..599),
+
+    /** The seasonal band (catalog 12, #592): the channels that air only in their [Season]. */
+    Seasonal(900..999),
     ;
 
     companion object {
@@ -74,7 +77,8 @@ enum class QualifyingBar(
  * range); [collectionHints] are collection names turned into collection sources by ID, from the collections the server
  * has now. A young-band recipe (Kids, Family, Teen) carries a [maxRating], a rating-ladder name no higher than its
  * band's limit (PG, PG, TV-14); a grown-up recipe carries none. [qualifyingBar] is the standard one unless the
- * catalog names the recipe as the single lane of a niche theme; a kid recipe always has the standard bar.
+ * catalog names the recipe as the single lane of a niche theme; a kid recipe always has the standard bar. A recipe with
+ * a [season] airs only inside its window (its pool is empty outside it); every recipe in the Seasonal band has one.
  */
 data class Recipe(
     val key: String,
@@ -91,6 +95,7 @@ data class Recipe(
     val filters: Filters? = null,
     val theme: Theme? = null,
     val qualifyingBar: QualifyingBar = QualifyingBar.Standard,
+    val season: Season? = null,
 ) {
     init {
         require(AutoSeed.isValidRecipeKey(key)) { "The recipe key is not valid" }
@@ -100,6 +105,7 @@ data class Recipe(
         band.ceilingLimit()?.let { require(withinLimit(maxRating, it)) { "The ceiling is above the band's limit" } }
         require(sources.isNotEmpty()) { "A recipe needs a source" }
         require((sources + exclusions).all(::isPortable)) { "A recipe uses genre, tag, studio, year range" }
+        require(band != Band.Seasonal || season != null) { "A seasonal recipe has a season" }
         require(!kidSafe || qualifyingBar == QualifyingBar.Standard) { "A kid recipe has the standard qualifying bar" }
         if (theme != null) {
             require(ordering == OrderingMode.Curated) { "A themed recipe is programmed (curated)" }

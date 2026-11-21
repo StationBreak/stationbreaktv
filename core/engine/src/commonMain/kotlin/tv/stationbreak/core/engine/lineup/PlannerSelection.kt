@@ -399,7 +399,7 @@ internal fun Planning.reResolved(
 
 /**
  * The curation's view of a starter: its pool under [policy], with the household's collections left out when
- * [household] is off (none left: an empty pool).
+ * [household] is off (none left: an empty pool). A seasonal recipe's pool is empty outside its season.
  */
 @Suppress("LongParameterList") // One for each fact the curation channel carries.
 internal fun Planning.curationChannel(
@@ -412,7 +412,10 @@ internal fun Planning.curationChannel(
 ): CurationChannel {
     val aired = if (household) rules else HouseholdSources.without(rules, snapshot)
     val used = aired ?: rules
-    val pool = if (aired == null) emptyList() else poolOf(id, aired, policy)
+    // A seasonal recipe out of season has no pool for the day the plan is for (the boundary's), so it is left out the
+    // way any channel with nothing that fits is, and returns when the window opens (a pure function of that day).
+    val inSeason = recipe.season?.contains(boundaryMs, offset) ?: true
+    val pool = if (aired == null || !inSeason) emptyList() else poolOf(id, aired, policy)
     return CurationChannel(id, number, recipe, policy == PoolPolicy.KidsOnly, used, used.toSchedulerSettings(), pool)
 }
 
