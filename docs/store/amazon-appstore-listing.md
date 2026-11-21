@@ -98,9 +98,8 @@ modified 2026-11-16).
 | `store/fire-tv-icon-1280x720.png` | Fire TV app icon, 1280×720 PNG, no transparency |
 | `screenshots/*.png` | Fire TV screenshots, 1920×1080, 3 to 10 |
 
-Still open, because `art/brand/` has no source for it: the required Fire TV background (1920×1080, subject on the
-right, no logo or title). The optional 1024×500 promotional image is not made. Screenshots must not show personal
-information; these were taken against the demo server.
+The 1920×1080 Fire TV background and the optional 1024×500 promotional image are not in this folder. Screenshots
+must not show personal information; these were taken against the demo server.
 
 ## Pricing and availability (Step 3)
 
@@ -200,7 +199,7 @@ Not part of this draft, tracked elsewhere:
 
 - The Phase 2 and Phase 3 gates (owner, 2026-11-06): 14 days of daily use, then outside testers (#31).
 - The final text and review of the app-store GPL exception (#745).
-- Branding (#118). The listing icons and the 1280×720 Fire TV icon are in `store/` (#572). The Fire TV background is still open (see Assets).
+- Branding (#118). The listing icons and the 1280×720 Fire TV icon are in `store/` (#572). The 1920×1080 Fire TV background is not in that folder.
 - The privacy policy published on stationbreak.tv, so its URL works.
 - The reviewers' demo server running, with its address and sign-in ready for the Testing instructions field.
 - Fire TV certification on a device (F4.2, 📺).

@@ -13,19 +13,13 @@ Checked against Amazon's store listing page on 2026-11-21
 | `icon-512.png` | 512×512 PNG | Large icon, website and tablets | `icon-main.svg` |
 | `fire-tv-icon-1280x720.png` | 1280×720 PNG, opaque | Fire TV app icon | `tv-banner.svg` |
 
-The small and large icons are the launcher icon: cream Stan on the orange tile, rounded corners and transparent
-corners included. The Fire TV icon is the brand banner: Stan on the left, "Station Break" stacked, the tagline
-underneath, on the dark ground.
+The small and large icons are Stan from `icon-main.svg`, at the same size on the tile, on a full-bleed `#E8642C`
+square. No rounded corners and no transparency. The launcher mipmaps stay the rounded tile.
 
-Amazon's Fire TV icon keeps the subject and the title inside an 882×448 area. Centered on 1280×720, that box is
-x 199–1080 and y 136–583. On this file Stan's left side, ear tips and shoes, and the right edge of the wordmark,
-sit outside it. The file is `tv-banner.svg` at its own size.
+The Fire TV icon keeps the banner's ground across the whole 1280×720. Stan, "Station Break" and the tagline are
+the same lockup, scaled and moved together so they sit inside the centred 882×448 safe area (x 199–1080, y 136–583).
 
-The launcher mipmaps and the Android TV banner (`app/src/main/res`) are the same two SVGs. Screenshots are in
-`docs/store/screenshots/`.
+The launcher mipmaps and the Android TV banner (`app/src/main/res`) are rendered from the same SVGs, without this
+store-only fit. Screenshots are in `docs/store/screenshots/`.
 
-Two slots have no source in `art/brand/` and are not in this folder:
-
-- The Fire TV background, 1920×1080, is required. Amazon asks for the subject on the right and no logo or title.
-  The brand banner is Stan on the left with the wordmark.
-- The promotional image, 1024×500, is optional.
+Not in this folder: the Fire TV background (1920×1080) and the optional 1024×500 promotional image.
