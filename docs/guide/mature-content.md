@@ -18,6 +18,9 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   can't choose otherwise or change it later. Copying After Hours is only for Pro, as any change to a built-in channel
   is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.
 
+Keeping children safe is free: the kids rules above, and Kids mode with a PIN when it arrives. Only conveniences for
+parents, such as hours of operation and a bedtime card, are part of Pro. See [Free and Pro](free-and-pro.md).
+
 ## What the app relies on
 
 Ratings are only as good as your server's metadata. A rating can be missing, wrong, or from a system the app reads

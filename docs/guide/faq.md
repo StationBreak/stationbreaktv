@@ -50,3 +50,13 @@ The certificate is probably from a private certificate authority, which the app 
 **Does the app collect data about me?**
 No. It talks only to your Jellyfin server, with one optional exception: a build that has crash reports turned
 on (they are off until you turn them on) can send a crash report to the developer. See [Privacy](privacy.md).
+
+**Is StationBreak free? What does Pro add?**
+The app is free, with the channels it builds for you and up to 5 of your own. Pro, a one-time purchase that comes after
+the free app, adds changing the lineup (switching built-in channels on or off, hiding, renumbering, reset) and more
+than 5 channels of your own. See [Free and Pro](free-and-pro.md).
+
+**Where can I buy Pro? What if I get a refund?**
+Paid Pro is sold on Amazon, for Fire TV only. The GitHub download has Pro unlocked. After a refund your built-in
+channels return to the lineup StationBreak builds, and channels of your own beyond the first 5 are locked, not
+deleted. See [If a purchase is refunded](free-and-pro.md#if-a-purchase-is-refunded).

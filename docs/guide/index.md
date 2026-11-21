@@ -15,6 +15,7 @@ How to set StationBreak up and what it does. StationBreak plays your own Jellyfi
 | [Certificates and http](certificates.md) | Plain http at home, Let's Encrypt, and self-signed certificates |
 | [Channels](channels.md) | The built-in channels, switching channels on and off, numbers, and building your own |
 | [Mature content and kids](mature-content.md) | What the app filters, what it relies on, and where the real lock is |
+| [Free and Pro](free-and-pro.md) | What's free, what Pro adds, and what a refund does |
 | [FAQ](faq.md) | Short answers to common questions |
 
 ## Privacy and support
