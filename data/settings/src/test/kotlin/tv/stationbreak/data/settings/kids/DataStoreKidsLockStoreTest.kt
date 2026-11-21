@@ -184,6 +184,35 @@ class DataStoreKidsLockStoreTest {
         }
 
     @Test
+    fun forgettingThePinClearsTheMarkerSoTheLockReadsOffWithNoPinAndKeepsItsCap() =
+        runBlocking {
+            lockOver(open()).apply {
+                setPin("1234")
+                setCap(KidsCap.Teen, null)
+                enable()
+            }
+            assertTrue(armedFile.exists())
+            assertTrue(lockOver(open()).resetPin())
+            assertFalse(armedFile.exists())
+            val read = open().record.first()
+            assertEquals(KidsLockRecord(cap = KidsCap.Teen), read)
+            val lock = lockOver(open())
+            assertEquals(PinResult.Ok, lock.setPin("4321"))
+            assertTrue(armedFile.exists())
+        }
+
+    @Test
+    fun aResetThatStoppedBeforeRemovingTheMarkerReadsAsDamagedAndASecondResetFinishesIt() =
+        runBlocking {
+            lockOver(open()).setPin("1234")
+            // The record was written without a PIN, the marker is still there.
+            open().update { KidsLockRecord() }
+            assertEquals(KidsLockRecord.UNREADABLE, open().record.first())
+            assertTrue(lockOver(open()).resetPin())
+            assertEquals(KidsLockRecord(), open().record.first())
+        }
+
+    @Test
     fun aFreshInstallWithNeitherFileIsOffAndANeverSetLockLeavesNoMarker() =
         runBlocking {
             val store = open()

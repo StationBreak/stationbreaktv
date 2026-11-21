@@ -65,4 +65,11 @@ interface KidsLockStore {
      * `java.io.IOException` when it could not be read or written; then nothing changed.
      */
     suspend fun update(change: (KidsLockRecord) -> KidsLockRecord): KidsLockRecord
+
+    /**
+     * Forgets the PIN: the record with no PIN, the lock off, no wrong PINs counted and no lockout, and the cap kept. A
+     * store that marks a PIN as once set (so that losing the record keeps the lock on) clears that mark as well, after
+     * the record. Throws `java.io.IOException` as [update] does. Only [KidsPinReset] calls it.
+     */
+    suspend fun forgetPin(): KidsLockRecord = update { KidsLockRecord(cap = it.cap) }
 }

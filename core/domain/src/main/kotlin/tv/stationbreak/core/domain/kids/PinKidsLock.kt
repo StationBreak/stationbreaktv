@@ -29,6 +29,7 @@ enum class KidsLockEvent {
     CapChanged,
     WrongPin,
     LockedOut,
+    PinReset,
     StoreFailed,
 }
 
@@ -127,7 +128,8 @@ class PinKidsLock(
     private val hasher: PinHasher = PinHasher(),
     private val work: CoroutineContext = Dispatchers.Default,
     private val report: (KidsLockEvent) -> Unit = {},
-) : KidsLock {
+) : KidsLock,
+    KidsPinReset {
     private val turns = Mutex()
 
     override val state: Flow<KidsLockState> = store.record.map { it.state }.distinctUntilChanged()
@@ -177,6 +179,15 @@ class PinKidsLock(
                 PinResult.Unavailable -> {
                     PinResult.Unavailable
                 }
+            }
+        }
+
+    override suspend fun resetPin(): Boolean =
+        turns.withLock {
+            saving(false) {
+                store.forgetPin()
+                report(KidsLockEvent.PinReset)
+                true
             }
         }
 
