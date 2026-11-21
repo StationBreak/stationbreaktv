@@ -7,11 +7,11 @@ modules), or a symlink there, is missing from the manifest. Dot-folders and `bui
 
 ## What they are
 
-- 106 fictional in-app channels, one mark each: the 102 recipes of the channel catalog and its four catch-all channels
+- 108 fictional in-app channels, one mark each: the 104 recipes of the channel catalog and its four catch-all channels
   (the Kids, Family and Teen Odds & Ends, 33, 66 and 99, and Odds & Ends, 199). Not the StationBreak company brand.
-- Nine of them are temporary placeholders (initials on a colour plate, made for catalog 8, #1002) until Look draws
-  the real marks: Big Screen Toons, Starship Sunday, Prime Time Pals, Family Odds & Ends, Homeroom, Level Up, Popcorn
-  Epic, Nervous Laughter and Teen Odds & Ends. They are not made by the generator in `scripts/channelmarks/v2/`.
+- Eleven of them are temporary placeholders (initials on a colour plate, made for catalog 8, #1002) until Look draws
+  the real marks: Big Screen Toons, Popcorn Matinee, Starship Sunday, Prime Time Pals, Family Odds & Ends, Homeroom, Mask & Mantle, Level
+  Up, Popcorn Epic, Nervous Laughter and Teen Odds & Ends. They are not made by the generator in `scripts/channelmarks/v2/`.
 - Made for this project: designed in the StationBreak brand session under the owner's direction, with AI assistance,
   and approved by the owner band by band. Each mark is a flat picture plus the channel's name, drawn as
   code in `scripts/channelmarks/v2/`; the rules are in `docs/design/channel-identity.md`.
@@ -56,7 +56,7 @@ PNG renders, transparent, 48 dp and 64 dp at 2x  core/ui/src/main/assets/channel
 
 `<NNN>` is the channel's catalog number and `<key>` its recipe or leftovers key; `CatalogMarksDriftTest` (in `core:domain`) checks both
 ways that every catalog key has a mark and every mark is for a catalog key, with the number matching. `<N>` is 48 or 64.
-Four files per key, 424 in all; `ChannelMarkManifestTest` checks the count, the pixel sizes, the PNG chunks and the size.
+Four files per key, 432 in all; `ChannelMarkManifestTest` checks the count, the pixel sizes, the PNG chunks and the size.
 
 ## How the app uses them
 
