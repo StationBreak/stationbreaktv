@@ -37,6 +37,9 @@ sealed interface BuildRefusal {
     /** The lineup holds as many custom channels as the free tier allows, and there is no Pro (#793). */
     data object CustomLimit : BuildRefusal
 
+    /** The channel is adult content (After Hours), so copying it needs Pro (#984), like any change to a built-in. */
+    data object NeedsPro : BuildRefusal
+
     /** Another channel, [holder], has the number. The builder never trades numbers: that is the Channels screen's. */
     data class NumberTaken(
         val holder: ChannelId,
@@ -74,6 +77,9 @@ sealed interface OpenResult {
         val draft: ChannelDraft,
         val builtInName: String?,
     ) : OpenResult
+
+    /** The copy is of an adult built-in channel (After Hours), and there is no Pro (#984). Nothing was made. */
+    data object NeedsPro : OpenResult
 
     /** The channel has no rules the builder can show (a leftovers channel, one that needs a newer app). */
     data object NotCustomisable : OpenResult

@@ -23,6 +23,7 @@ internal fun opening(
 ): Opening =
     when (result) {
         is OpenResult.Opened -> Opening.Draft(draftOf(result))
+        OpenResult.NeedsPro -> Opening.Failed(BuilderMessage.NeedsPro)
         OpenResult.NotCustomisable -> Opening.Failed(BuilderMessage.NotCustomisable)
         OpenResult.NotFound -> Opening.Failed(BuilderMessage.NotFound)
         OpenResult.Failed -> Opening.Failed(BuilderMessage.OpenFailed)
@@ -53,4 +54,5 @@ internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
         BuildRefusal.LastOn -> BuilderMessage.LastOn
         is BuildRefusal.NumberTaken -> BuilderMessage.NumberTaken
         BuildRefusal.CustomLimit -> BuilderMessage.CustomLimit
+        BuildRefusal.NeedsPro -> BuilderMessage.NeedsPro
     }

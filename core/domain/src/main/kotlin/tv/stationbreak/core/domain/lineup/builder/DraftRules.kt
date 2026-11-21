@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
+import tv.stationbreak.core.rules.AdultMark
 import tv.stationbreak.core.rules.BroadcastDay
 import tv.stationbreak.core.rules.ChannelRules
 import tv.stationbreak.core.rules.FillerMode
@@ -65,20 +66,32 @@ internal object DraftRules {
         // every new channel, which has the floor of 5 (so the lowering below is never reached for one).
         val carryNewest = carry?.withVersion(NEWEST)
         val newest = assemble(draft, utcOffsetMinutes, NEWEST, carryNewest)
+        // The adult mark is put on last, from the target (the stored channel), never from the draft: see [adultOf].
+        val adult = adultOf(target)
         val version =
             when (target) {
                 is RulesTarget.NewChannel -> newest.newRulesWriteVersion(previous?.formatVersion, gatePassed)
                 is RulesTarget.Edit -> newest.writeVersion(previous?.formatVersion, gatePassed)
             }
-        if (version >= FORMAT_3) return newest.withVersion(version)
+        if (version >= FORMAT_3) return AdultMark.with(newest.withVersion(version), adult)
         // Version 2 next, with the carried extras version 2 knows left out (a version 1 copy's stale `filters` or
         // `caps` extra makes room for the real ones). A carry that needed 3 has lost it by now (the viewer took the
         // builder's order), so it is read at the newest version.
         val carry2 = if (carry != null && carry.requiredVersion >= FORMAT_3) carryNewest else carry?.withVersion(2)
         val v2 = assemble(draft, utcOffsetMinutes, 2, carry2)
         val staysV1 = carry != null && carry.formatVersion == 1 && v2.requiredVersion == 1
-        return if (staysV1) assemble(draft, utcOffsetMinutes, 1, carry) else v2.normalised()
+        return AdultMark.with(if (staysV1) assemble(draft, utcOffsetMinutes, 1, carry) else v2.normalised(), adult)
     }
+
+    /**
+     * Whether the rules written for [target] are adult: an edit of rules that carry the mark, a new channel of an adult
+     * built-in ([RulesTarget.NewChannel.adult]) or of a channel that carries it. Nothing in a draft is read.
+     */
+    fun adultOf(target: RulesTarget): Boolean =
+        when (target) {
+            is RulesTarget.NewChannel -> target.adult || target.carry?.let(AdultMark::isMarked) == true
+            is RulesTarget.Edit -> AdultMark.isMarked(target.previous)
+        }
 
     private fun assemble(
         draft: ChannelDraft,
@@ -298,6 +311,7 @@ internal object DraftRules {
             kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name, it) },
             numberChosen = false,
             seed = rules.seed,
+            adult = AdultMark.isMarked(rules),
         )
     }
 
@@ -394,7 +408,7 @@ internal object DraftRules {
                     rules.timing.broadcastDay.extras
                         .isNotEmpty()
             val nested = (filterExtras + orderingExtras).any { it.isNotEmpty() }
-            return rules.extras.isNotEmpty() || sourceExtras || nested || timingExtras
+            return (rules.extras.keys - AdultMark.KEY).isNotEmpty() || sourceExtras || nested || timingExtras
         }
 
         private fun extrasOf(filters: Filters): List<JsonObject> =

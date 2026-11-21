@@ -17,9 +17,12 @@ internal sealed interface RulesTarget {
     /**
      * A new channel (the builder's create). [carry] is the stored rules of the channel the draft was opened from (its
      * origin, a starter or a custom channel), which kept settings are read from; null for a channel built from scratch.
+     * [adult] is true when the origin is an adult built-in channel (#984); a carry that holds the adult mark is adult
+     * too.
      */
     data class NewChannel(
         val carry: ChannelRules?,
+        val adult: Boolean = false,
     ) : RulesTarget {
         override val previous: ChannelRules? get() = carry
     }

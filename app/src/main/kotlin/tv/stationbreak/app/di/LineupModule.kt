@@ -327,7 +327,8 @@ internal object LineupModule {
         library: LibraryRepository,
         shared: SharedSnapshots,
         settings: ServerSettings,
-    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared) { settings.loadPlayableLibraries() }
+        pro: ProEntitlement,
+    ): ChannelPreviews = BuiltInChannelPreviews(service, library, shared, pro) { settings.loadPlayableLibraries() }
 
     @Provides
     @Singleton

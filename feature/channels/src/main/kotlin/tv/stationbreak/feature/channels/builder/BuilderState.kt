@@ -175,6 +175,9 @@ internal enum class BuilderMessage {
 
     /** Free holds a few custom channels and they are all made (#793). */
     CustomLimit,
+
+    /** The channel is adult content and a free viewer may not copy it (#984); the line never names Pro. */
+    NeedsPro,
 }
 
 /** One-shot effects, collected by the destination (as the guide's event channel is). */

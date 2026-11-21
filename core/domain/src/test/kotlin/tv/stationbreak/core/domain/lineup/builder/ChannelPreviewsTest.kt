@@ -79,7 +79,7 @@ class ChannelPreviewsTest {
     private val service = LineupService(store, library, clock, { 0 }, {}, TestCatalog)
     private val shared = SharedSnapshots(CoroutineScope(SupervisorJob()))
     private val source = BuiltInScheduleSource(service, library, shared = shared) { selectionOf(LIBRARIES) }
-    private val previews = BuiltInChannelPreviews(service, library, shared) { LIBRARIES }
+    private val previews = BuiltInChannelPreviews(service, library, shared, FakeProEntitlement()) { LIBRARIES }
     private val keyLabels: suspend (LibraryAccount, List<DraftSource>) -> Map<DraftSource, String> =
         { _, sources -> sources.associateWith { it.key } }
     private val builder =
@@ -450,7 +450,8 @@ class ChannelPreviewsTest {
         val executor = Executors.newSingleThreadExecutor { Thread(it, "preview-thread") }
         val ownShared = SharedSnapshots(CoroutineScope(SupervisorJob()))
         val dispatcher = executor.asCoroutineDispatcher()
-        val elsewhere = BuiltInChannelPreviews(service, watching, ownShared, dispatcher) { LIBRARIES }
+        val pro = FakeProEntitlement()
+        val elsewhere = BuiltInChannelPreviews(service, watching, ownShared, pro, dispatcher) { LIBRARIES }
 
         val shown = runBlocking { elsewhere.preview(ACCOUNT, draft(), NOON, null) }
 
@@ -465,12 +466,12 @@ class ChannelPreviewsTest {
     fun aDraftThatCannotBeReadIsUnavailableNotNothingFits() {
         sevenComedies()
         val kept = KeptSettings("Laughs", listOf(KeptItem.NoCaps))
-        val noLibraries = BuiltInChannelPreviews(service, library, shared) { null }
+        val noLibraries = BuiltInChannelPreviews(service, library, shared, FakeProEntitlement()) { null }
         val failing =
             object : LibraryRepository by library {
                 override suspend fun contentGeneration(account: LibraryAccount): Long = error("the library is gone")
             }
-        val broken = BuiltInChannelPreviews(service, failing, shared) { LIBRARIES }
+        val broken = BuiltInChannelPreviews(service, failing, shared, FakeProEntitlement()) { LIBRARIES }
 
         val withoutSource = preview(draft().copy(kept = kept))
         val withoutLibraries = runBlocking { noLibraries.preview(ACCOUNT, draft(), NOON, null) }
@@ -690,7 +691,7 @@ class ChannelPreviewsTest {
                     return library.contentGeneration(account)
                 }
             }
-        val cancellable = BuiltInChannelPreviews(service, watching, shared) { LIBRARIES }
+        val cancellable = BuiltInChannelPreviews(service, watching, shared, FakeProEntitlement()) { LIBRARIES }
 
         runBlocking {
             preview = launch(start = CoroutineStart.LAZY) { cancellable.preview(ACCOUNT, draft(), NOON, null) }

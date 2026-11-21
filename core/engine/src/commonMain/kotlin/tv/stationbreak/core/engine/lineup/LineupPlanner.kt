@@ -10,6 +10,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.CollectionNames
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.rules.AdultMark
 import tv.stationbreak.core.rules.ChannelRules
 
 /**
@@ -327,6 +328,15 @@ object LineupPlanner {
         return channel.copy(source = fixed)
     }
 
+    // The rules a starter keeps as a custom channel when its recipe leaves the catalog. After Hours stays adult (#984).
+    private fun customRulesOf(
+        source: ChannelSource.Starter,
+        nowMs: Long,
+    ): ChannelRules {
+        val rules = source.rulesFor(nowMs)
+        return if (source.recipeKey == AdultMark.AFTER_HOURS_KEY) AdultMark.marked(rules) else rules
+    }
+
     // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
     // Only a [keeper] (see [previousKeepers]: the protected starters that hold previous rules come first) keeps
     // previous rules, so a protected starter's rules for today never change in the middle of a day.
@@ -345,7 +355,7 @@ object LineupPlanner {
                             // A custom channel has no day to leave on and no shelf reason. It keeps the rules of today,
                             // so a change still waiting for its boundary is not applied to a channel that is frozen.
                             channel.copy(
-                                source = ChannelSource.Custom(source.rulesFor(p.nowMs)),
+                                source = ChannelSource.Custom(customRulesOf(source, p.nowMs)),
                                 // A custom channel cannot hold the added mark (`canHoldAddedMark`).
                                 viewerChoice = minOf(channel.viewerChoice, ViewerChoice.Touched),
                                 leavesAtMs = null,

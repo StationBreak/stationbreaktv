@@ -9,6 +9,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.Ceilings
 import tv.stationbreak.core.domain.lineup.LineupDays
@@ -126,6 +127,7 @@ class BuiltInChannelPreviews(
     private val service: LineupService,
     private val library: LibraryRepository,
     shared: SharedSnapshots,
+    private val pro: ProEntitlement,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val libraries: suspend () -> Set<ItemId>?,
 ) : ChannelPreviews {
@@ -161,7 +163,9 @@ class BuiltInChannelPreviews(
         val lineup = service.loaded(account)?.lineup
         val chosen = libraries()?.takeIf { it.isNotEmpty() }
         if (lineup == null) return null
-        val target = targetOf(lineup, draft, editing)
+        // A preview of a copy of an adult built-in channel is not made without Pro, as create refuses it.
+        val refused = lineup.isAdultOrigin(draft.origin) && editing == null && !pro.pro.value
+        val target = targetOf(lineup, draft, editing).takeUnless { refused }
         // Kept settings come from the rules they were read from: without them the draft cannot be previewed.
         val keptReadable = draft.kept == null || target?.previous != null
         return if (chosen == null || target == null || !keptReadable) {
@@ -249,7 +253,7 @@ class BuiltInChannelPreviews(
                 is ChannelSource.Custom -> held.rules
                 else -> null
             }
-        return RulesTarget.NewChannel(carry)
+        return RulesTarget.NewChannel(carry, lineup.isAdultOrigin(draft.origin))
     }
 
     // A channel as the lineup would hold it: the draft's number (a kids draft in the Kids band, so the hold and the

@@ -4,4 +4,5 @@
      arrives (#36), so the only free-tier copy left is the custom channel limit. -->
 <resources>
     <string name="pro_custom_limit_note">Free includes 5 custom channels. Delete one to make another.</string>
+    <string name="builder_adult_copy_refused">Adult content. Can\'t be copied.</string>
 </resources>
