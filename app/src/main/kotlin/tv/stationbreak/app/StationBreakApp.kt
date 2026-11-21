@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import tv.stationbreak.app.crash.CrashReporting
 import tv.stationbreak.app.di.AppStart
+import tv.stationbreak.app.di.ProRevocationWatch
 import tv.stationbreak.core.domain.kids.KidsIdleFallback
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
@@ -60,6 +61,8 @@ class StationBreakApp :
         fun deviceCapabilities(): DeviceCapabilitiesCache
 
         fun kidsIdleFallback(): KidsIdleFallback
+
+        fun proRevocationWatch(): ProRevocationWatch
     }
 
     /** The app's start's own reach into the graph: the selection's resume and the gate it opens, for nothing else. */
@@ -121,6 +124,8 @@ class StationBreakApp :
             val start = EntryPointAccessors.fromApplication(this@StationBreakApp, AppStartEntryPoint::class.java)
             resumeSelection({ start.selectionResume() }, start.resumeGate()) { Log.w(LINEUP_TAG, it) }
             graph.lineupRefresher().start(lineupScope)
+            // A verified refund returns the starters to their defaults (#99); the app scope outlives this block.
+            graph.proRevocationWatch().start(scope)
         }
         // The codec probe walks the device's decoder list and takes seconds on a slow TV: do it now, off the main
         // thread, so the first screen that plays finds it done (spec 13). It reports no failure of its own.

@@ -619,8 +619,8 @@ app ──► feature:* ──► core:domain, core:ui, core:playback
 Also allowed (not drawn above):
 - `app` → any module, except `benchmark` (the Baseline Profile generator, #416), which `app` names only in its
   `baselineProfile` configuration, never in a shipped or test configuration. It's the composition root: it wires `core:rules`, `core:engine` and `core:scheduler`
-  with `@Provides` (they hold no `javax.inject`; see "Hilt in pure modules"), and implements the flavor-specific
-  `ProEntitlement` from `core:domain`.
+  with `@Provides` (they hold no `javax.inject`; see "Hilt in pure modules"), and binds the flavor-specific
+  `StoreEntitlement` from `core:domain` (ADR-0032).
 - `feature:*` → `core:model`, because screens show domain entities.
 - `core:playback` → `core:model` and `core:domain`: it speaks the playback vocabulary (`PlaybackInfo`, `DeviceCapabilities`)
   and the `MediaServer` port. It never reaches `data:jellyfin`; the app gives it the adapter's media client wrapped as
@@ -737,8 +737,11 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
 | `play` | Google Play | Play Billing | Google TV / Shield / Sony / TCL etc. |
 | `github` | GitHub Releases (sideload) | None (see Q-BIZ-1) | Fully FOSS dependency set. Potential F-Droid candidate. |
 
-Billing sits behind the `ProEntitlement` port in `core:domain`, with a flavor-specific implementation in
-`app/src/<flavor>/`. The code stays public for every flavor, as the spec requires.
+Billing sits behind the `StoreEntitlement` port in `core:domain` (`store` package), with a flavor-specific binding in
+`app/src/<flavor>/`: the `amazon` source set holds the one file the Appstore SDK may enter, the `github` source set binds
+a store that never owns, and no other source set or test names a billing SDK. `ProEntitlement` is "the build's
+`PRO_UNLOCKED` OR the store's verified entitlement" (`StoreBackedPro`; [ADR-0032](adr/0032-purchase-switch.md)). The
+code stays public for every flavor, as the spec requires.
 
 Flavor isolation is checked in the build (A-REL-1, ADR-0023). `checkArchitecture` fails if `com.amazon.device:*` is
 declared anywhere but `app`'s `amazon*` configurations, or if Google Play Services or Play Billing is declared at all
