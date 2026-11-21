@@ -53,7 +53,7 @@ def _():
     group = '<g transform="translate(6 0)">' + "".join(hand + [thumb, stroke("M8 88 Q19 80 28 88 T48 88 T68 88", WHITE, 4.5)]) + "</g>"
     return [group, fill(a, slime), fill(b, WHITE)]
 
-@mark(340, "jack-o-lantern-lounge", "Jack-o'-Lantern Lounge", "Halloween, all year round. Candy corn not included.",
+@mark(910, "jack-o-lantern-lounge", "Jack-o'-Lantern Lounge", "Halloween, all year round. Candy corn not included.",
       "The full name at last, and its O is the jack-o'-lantern.", "idea")
 def _():
     glow, violet = "#FFD84D", "#B78CFF"; face = "anton-400"; size = 44; base = 50
@@ -136,7 +136,7 @@ def _():
     b, _b = text_box("teko-700", "TIMES", 84, 58, 188, 96, "l")
     return glass + [fill(a, dusk), fill(b, WHITE)]
 
-@mark(368, "haunted-house", "Haunted House", "Ghosts, spirits and noises in the night.",
+@mark(0, "haunted-house", "Haunted House", "Ghosts, spirits and noises in the night.",
       "A crooked house with one window lit.", "symbol")
 def _():
     violet, lit = "#B79CFF", "#FFE08A"
