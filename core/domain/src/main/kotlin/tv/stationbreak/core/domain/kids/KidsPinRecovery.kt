@@ -2,91 +2,112 @@
 package tv.stationbreak.core.domain.kids
 
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.withContext
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
-import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.SessionRepository
-import tv.stationbreak.core.model.SignInRequest
+import tv.stationbreak.core.model.Session
 
 /**
  * Forgets the Kids Mode PIN, with no PIN checked. It is the one way past a lost PIN, so it is not part of [KidsLock]:
- * only [KidsPinRecovery] calls it, after the server's administrator has signed in.
+ * only [KidsPinRecovery] calls it, after one of the server's administrators has approved.
  */
 interface KidsPinReset {
     /** Clears the PIN and turns the lock off (the cap is kept). False when the lock's file could not be written. */
     suspend fun resetPin(): Boolean
 }
 
-/** What [KidsPinRecovery.recover] came to. */
-enum class PinRecovery {
-    /** The administrator signed in: the PIN is cleared and Kids Mode is off. */
-    Done,
+/** The steps of [KidsPinRecovery.recover]. Every state but [Code] is the last. */
+sealed interface PinRecovery {
+    /** The code to approve with Quick Connect in the server's app or web page, signed in as an administrator. */
+    data class Code(
+        val code: String,
+    ) : PinRecovery
+
+    /** An administrator approved: the PIN is cleared and Kids Mode is off. */
+    data object Done : PinRecovery
 
     /** This TV is not signed in to a server, so there is no administrator to ask. */
-    NoServer,
+    data object NoServer : PinRecovery
 
-    /** The server refused the name or the password. */
-    WrongCredentials,
+    /** The code was approved by a user who is not an administrator; nothing changed. */
+    data object NotAdministrator : PinRecovery
 
-    /** The server refused the sign-in for another reason (the user is locked out or disabled). */
-    Refused,
+    /** The code ran out before anyone approved it. */
+    data object Expired : PinRecovery
 
-    /** The name and password are right, but the user is not an administrator. */
-    NotAdministrator,
+    /** The server refused the code. */
+    data object Denied : PinRecovery
+
+    /** Quick Connect is switched off on the server, so the PIN cannot be reset this way. */
+    data object Disabled : PinRecovery
 
     /** The server could not be reached or answered something unexpected. */
-    Unreachable,
+    data object Unreachable : PinRecovery
 
-    /** The administrator signed in but the lock's file could not be written, so nothing changed. */
-    Unavailable,
+    /** An administrator approved but the lock's file could not be written, so nothing changed. */
+    data object Unavailable : PinRecovery
 }
 
 /**
- * The PIN's recovery (#789, free): a forgotten PIN is cleared by signing in to this TV's own Jellyfin server as one of
- * its administrators (instead of clearing the app's data, which also forgets the channels). The sign-in goes to the
- * address this TV is signed in at and nowhere else. Its session is never kept: it is revoked at once, unless the
- * server answered with the TV's own token (the administrator is the viewer signed in here), which is left alone so the
- * TV is not signed out. Wrong passwords are the server's to count and limit. Nothing here logs or returns the name or
- * password.
+ * The PIN's recovery (#789, free): a forgotten PIN is cleared once one of this TV's own Jellyfin server's
+ * administrators approves a Quick Connect code the TV shows (instead of clearing the app's data, which also forgets the
+ * channels). Nothing is typed on the TV. The request goes to the address this TV is signed in at and nowhere else. The
+ * session the approval gives is never kept: it is revoked at once, unless the server answered with the TV's own token,
+ * which is left alone so the TV is not signed out.
  */
 class KidsPinRecovery(
     private val sessions: SessionRepository,
     private val server: MediaServer,
     private val reset: KidsPinReset,
 ) {
-    /** Signs in with [username] and [password] (wiped when the call ends) and, for an administrator, resets the PIN. */
-    suspend fun recover(
-        username: String,
-        password: CharArray,
-    ): PinRecovery {
-        val signedIn =
-            sessions.current.value ?: run {
-                password.fill('\u0000')
-                return PinRecovery.NoServer
+    /** Starts a Quick Connect request when collected; cancelling the collector stops it. Ends with a final state. */
+    fun recover(): Flow<PinRecovery> =
+        flow {
+            val signedIn = sessions.current.value
+            if (signedIn == null) {
+                emit(PinRecovery.NoServer)
+                return@flow
             }
-        val request = SignInRequest(signedIn.address, username, password, signedIn.acknowledgement)
-        return when (val result = server.signIn(request)) {
-            is ServerResult.Failure -> {
-                refusal(result.error)
-            }
-
-            is ServerResult.Success -> {
-                val admin = result.value
-                if (admin.token != signedIn.token) withContext(NonCancellable) { server.revoke(admin) }
-                when {
-                    !admin.isAdministrator -> PinRecovery.NotAdministrator
-                    reset.resetPin() -> PinRecovery.Done
-                    else -> PinRecovery.Unavailable
+            val steps =
+                server.quickConnect(signedIn.address, signedIn.acknowledgement).transformWhile { state ->
+                    val step = stepOf(state, signedIn)
+                    if (step != null) emit(step)
+                    step == null || step is PinRecovery.Code
                 }
-            }
+            emitAll(steps)
+        }
+
+    private suspend fun stepOf(
+        state: QuickConnectState,
+        signedIn: Session,
+    ): PinRecovery? =
+        when (state) {
+            is QuickConnectState.CodeIssued -> PinRecovery.Code(state.code)
+            QuickConnectState.Waiting -> null
+            is QuickConnectState.SignedIn -> approved(state.session, signedIn)
+            QuickConnectState.Expired -> PinRecovery.Expired
+            QuickConnectState.Denied -> PinRecovery.Denied
+            is QuickConnectState.Failed -> failed(state.error)
+        }
+
+    private suspend fun approved(
+        approver: Session,
+        signedIn: Session,
+    ): PinRecovery {
+        if (approver.token != signedIn.token) withContext(NonCancellable) { server.revoke(approver) }
+        return when {
+            !approver.isAdministrator -> PinRecovery.NotAdministrator
+            reset.resetPin() -> PinRecovery.Done
+            else -> PinRecovery.Unavailable
         }
     }
 
-    private fun refusal(error: MediaServerError): PinRecovery =
-        when (error) {
-            is MediaServerError.HttpUnauthorized -> PinRecovery.WrongCredentials
-            is MediaServerError.HttpForbidden -> PinRecovery.Refused
-            else -> PinRecovery.Unreachable
-        }
+    private fun failed(error: MediaServerError): PinRecovery =
+        if (error is MediaServerError.QuickConnectDisabled) PinRecovery.Disabled else PinRecovery.Unreachable
 }

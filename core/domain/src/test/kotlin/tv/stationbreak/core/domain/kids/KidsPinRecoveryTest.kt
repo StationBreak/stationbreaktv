@@ -2,11 +2,12 @@
 package tv.stationbreak.core.domain.kids
 
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeMediaServer
 import tv.stationbreak.core.domain.InMemorySecretStore
 import tv.stationbreak.core.domain.MediaServerError
-import tv.stationbreak.core.domain.ServerResult
+import tv.stationbreak.core.domain.QuickConnectState
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.model.AccessToken
 import tv.stationbreak.core.model.Scheme
@@ -19,7 +20,6 @@ import tv.stationbreak.core.model.Session
 import tv.stationbreak.core.model.UserId
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -46,95 +46,105 @@ class KidsPinRecoveryTest {
     private val here = Session(UserId("viewer"), AccessToken("tv-token-0123"), info, address, null, false)
     private val admin = Session(UserId("admin"), AccessToken("admin-token-0123"), info, address, null, true)
 
-    private fun recover(name: String = "admin") = runBlocking { recovery.recover(name, "secret".toCharArray()) }
+    private fun approvedBy(session: Session) {
+        server.quickConnectStates =
+            listOf(
+                QuickConnectState.CodeIssued("123456"),
+                QuickConnectState.Waiting,
+                QuickConnectState.SignedIn(session),
+            )
+    }
 
-    private fun withAPinAndKidsModeOn(cap: KidsCap = KidsCap.Family) =
+    private fun recover(): List<PinRecovery> = runBlocking { recovery.recover().toList() }
+
+    private fun lockState() = runBlocking { lock.state.first() }
+
+    private fun withAPinAndKidsModeOn() =
         runBlocking {
             sessions.save(here)
             lock.setPin("1234")
-            lock.setCap(cap, null)
+            lock.setCap(KidsCap.Family, null)
             lock.enable()
         }
 
     @Test
-    fun anAdministratorsSignInClearsThePinAndTurnsKidsModeOffKeepingTheCap() {
+    fun anAdministratorsApprovalClearsThePinAndTurnsKidsModeOffKeepingTheCap() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(admin)
-        assertEquals(PinRecovery.Done, recover())
-        val state = runBlocking { lock.state.first() }
-        assertEquals(KidsLockState(enabled = false, cap = KidsCap.Family, pinSet = false), state)
+        approvedBy(admin)
+        assertEquals(listOf(PinRecovery.Code("123456"), PinRecovery.Done), recover())
+        assertEquals(KidsLockState(enabled = false, cap = KidsCap.Family, pinSet = false), lockState())
         assertNull(store.current.value.pin)
     }
 
     @Test
     fun aNewPinCanBeSetAfterwards() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(admin)
+        approvedBy(admin)
         recover()
         assertEquals(PinResult.Ok, runBlocking { lock.setPin("4321") })
         assertTrue(runBlocking { lock.enable() })
     }
 
     @Test
-    fun theSignInGoesToTheAddressTheTvIsSignedInAtAndItsSessionIsRevoked() {
+    fun theRequestGoesToTheAddressTheTvIsSignedInAtAndTheApproversSessionIsRevoked() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(admin)
-        recover("boss")
-        assertEquals(listOf(address to "boss"), server.signInCalls)
+        approvedBy(admin)
+        recover()
+        assertEquals(listOf(address), server.quickConnectCalls.map { it.first })
         assertEquals(listOf(admin), server.revokeCalls)
     }
 
     @Test
-    fun whenTheAdministratorIsTheViewerSignedInHereTheTvsOwnTokenIsNotRevoked() {
+    fun whenTheServerAnswersWithTheTvsOwnTokenItIsNotRevoked() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(here.copy(isAdministrator = true))
-        assertEquals(PinRecovery.Done, recover())
+        approvedBy(here.copy(isAdministrator = true))
+        assertEquals(PinRecovery.Done, recover().last())
         assertTrue(server.revokeCalls.isEmpty())
     }
 
     @Test
-    fun aUserWhoIsNotAnAdministratorChangesNothing() {
+    fun anApprovalByAUserWhoIsNotAnAdministratorChangesNothing() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(admin.copy(isAdministrator = false))
-        assertEquals(PinRecovery.NotAdministrator, recover())
-        assertTrue(runBlocking { lock.state.first() }.enabled)
+        approvedBy(admin.copy(isAdministrator = false))
+        assertEquals(PinRecovery.NotAdministrator, recover().last())
+        assertTrue(lockState().enabled)
         assertNotNull(store.current.value.pin)
         assertEquals(1, server.revokeCalls.size)
     }
 
     @Test
-    fun theServersRefusalsChangeNothing() {
+    fun aRequestThatEndsWithoutApprovalChangesNothing() {
         withAPinAndKidsModeOn()
         val cases =
             mapOf(
-                MediaServerError.HttpUnauthorized() to PinRecovery.WrongCredentials,
-                MediaServerError.HttpForbidden() to PinRecovery.Refused,
-                MediaServerError.Timeout() to PinRecovery.Unreachable,
+                QuickConnectState.Expired to PinRecovery.Expired,
+                QuickConnectState.Denied to PinRecovery.Denied,
+                QuickConnectState.Failed(MediaServerError.QuickConnectDisabled()) to PinRecovery.Disabled,
+                QuickConnectState.Failed(MediaServerError.Timeout()) to PinRecovery.Unreachable,
             )
-        for ((error, expected) in cases) {
-            server.signInResult = ServerResult.Failure(error)
-            assertEquals(expected, recover())
+        for ((end, expected) in cases) {
+            server.quickConnectStates = listOf(QuickConnectState.CodeIssued("123456"), end)
+            assertEquals(listOf(PinRecovery.Code("123456"), expected), recover())
         }
         assertNotNull(store.current.value.pin)
-        assertTrue(runBlocking { lock.state.first() }.enabled)
+        assertTrue(lockState().enabled)
+        assertTrue(server.revokeCalls.isEmpty())
     }
 
     @Test
-    fun withNoServerSignedInThereIsNoOneToAskAndThePasswordIsWiped() {
-        val password = "secret".toCharArray()
-        assertEquals(PinRecovery.NoServer, runBlocking { recovery.recover("admin", password) })
-        assertContentEquals(CharArray(6), password)
-        assertTrue(server.signInCalls.isEmpty())
+    fun withNoServerSignedInThereIsNoOneToAsk() {
+        assertEquals(listOf<PinRecovery>(PinRecovery.NoServer), recover())
+        assertTrue(server.quickConnectCalls.isEmpty())
     }
 
     @Test
     fun aLockFileThatCannotBeWrittenIsUnavailableAndChangesNothing() {
         withAPinAndKidsModeOn()
-        server.signInResult = ServerResult.Success(admin)
+        approvedBy(admin)
         store.failWrites = true
-        assertEquals(PinRecovery.Unavailable, recover())
+        assertEquals(PinRecovery.Unavailable, recover().last())
         store.failWrites = false
         assertNotNull(store.current.value.pin)
-        assertTrue(runBlocking { lock.state.first() }.pinSet)
+        assertTrue(lockState().pinSet)
     }
 }

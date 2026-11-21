@@ -9,9 +9,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import tv.stationbreak.core.domain.MediaServer
+import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.kids.KidsIdleFallback
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockStore
+import tv.stationbreak.core.domain.kids.KidsPinRecovery
 import tv.stationbreak.core.domain.kids.MonotonicClock
 import tv.stationbreak.core.domain.kids.PinKidsLock
 import tv.stationbreak.data.settings.kids.DataStoreKidsLockStore
@@ -41,11 +44,23 @@ internal object KidsLockModule {
 
     @Provides
     @Singleton
-    fun kidsLock(
+    fun pinKidsLock(
         store: KidsLockStore,
         clock: Clock,
         monotonic: MonotonicClock,
-    ): KidsLock = PinKidsLock(store, clock, monotonic, report = { Log.i(TAG, it.name) })
+    ): PinKidsLock = PinKidsLock(store, clock, monotonic, report = { Log.i(TAG, it.name) })
+
+    @Provides
+    fun kidsLock(lock: PinKidsLock): KidsLock = lock
+
+    /** The PIN's recovery by a server administrator's Quick Connect approval: the only caller of the PIN reset. */
+    @Provides
+    @Singleton
+    fun kidsPinRecovery(
+        sessions: SessionRepository,
+        server: MediaServer,
+        lock: PinKidsLock,
+    ): KidsPinRecovery = KidsPinRecovery(sessions, server, lock)
 
     /** The idle fallback (free): the one that [MainActivity] feeds key presses and the app runs for the process. */
     @Provides
