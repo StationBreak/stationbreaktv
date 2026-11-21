@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The real loader over the bundled logos (spec 27): 108 channels (the 104 recipes and the four leftovers), colour and
+ * The real loader over the bundled logos (spec 27): 105 channels (the 101 recipes and the four leftovers), colour and
  * mono, at 48 and 64 dp.
  */
 class AssetMarkLoaderTest {
@@ -18,9 +18,9 @@ class AssetMarkLoaderTest {
     private val loader = AssetMarkLoader(assets)
 
     @Test
-    fun keysListsOneHundredAndEight() {
+    fun keysListsOneHundredAndFive() {
         val keys = loader.keys()
-        assertEquals(108, keys.size)
+        assertEquals(105, keys.size)
         val shape = Regex("[a-z0-9-]+")
         assertTrue(keys.all { shape.matches(it) })
     }

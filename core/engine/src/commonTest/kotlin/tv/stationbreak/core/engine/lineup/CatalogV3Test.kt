@@ -185,8 +185,9 @@ class CatalogV3Test {
     // What catalog 2 promised, as frozen in its manifest, and in catalog order.
     @Test
     fun keysNumbersBandsCeilingsAndOptInMatchCatalogTwo() {
-        assertEquals(v2.map { it.key }.toSet(), v3.map { it.key }.filter { it !in NEW_YOUNG_AT_8 }.toSet())
-        assertEquals(CATALOG_MANIFEST_V2.recipes.keys, v3.map { it.key }.toSet() - NEW_YOUNG_AT_8)
+        val kept = v3.map { it.key }.toSet() - NEW_YOUNG_AT_8
+        assertEquals(v2.map { it.key }.toSet() - StarterCatalog.retiredKeys, kept)
+        assertEquals(CATALOG_MANIFEST_V2.recipes.keys - StarterCatalog.retiredKeys, kept)
         for (new in v3.filter { it.key !in NEW_YOUNG_AT_8 }) {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
             // Catalog 8's waived renumbering (#1002); the Kids band of catalog 2 is the three young bands now.
@@ -400,7 +401,6 @@ class CatalogV3Test {
                 "snowglobe" to "1 CE 706901514473f67b",
                 "giggle-garage" to "5 CC CC TC TC TC b74581ee91f458c0",
                 "small-sleuths" to "2 CC TC 2d3ecea5830e4066",
-                "tall-tales-club" to "5 CC CC CC CC CC cd1c5c39e9fa9a9d",
                 "spooky-sleepover" to "1 CE 7b1838992abd5610",
                 "spoof-central" to "5 CC CC CC CC CC f325453ba896fe0a",
                 "date-night" to "2 CC CC 8f09b42cbbc4db14",

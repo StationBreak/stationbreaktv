@@ -222,9 +222,12 @@ class LineupPlannerMigrationTest {
         val numbers = next.channels.mapNotNull { it.number }
         assertEquals(numbers.size, numbers.toSet().size, "no live number is shared")
         val byId = next.channels.associateBy { it.id }
-        for (old in lineup.channels) {
+        val (retired, kept) = lineup.channels.partition { keyOf(it) in StarterCatalog.retiredKeys }
+        assertEquals(StarterCatalog.retiredKeys, retired.map(::keyOf).toSet())
+        for (old in retired) assertRetiredLeftAsCustom(old, byId.getValue(old.id))
+        for (old in kept) {
             val now = byId.getValue(old.id)
-            val key = old.id.value.substringAfter(':')
+            val key = keyOf(old)
             val expected = StarterCatalog.recipe(key)?.number ?: StarterCatalog.leftovers.first { it.key == key }.number
             assertEquals(expected, now.number, old.id.value)
             val source = old.source as? ChannelSource.Starter ?: continue
@@ -235,6 +238,17 @@ class LineupPlannerMigrationTest {
             // Catalog 3's rules: programmed, from the boundary for one on the air.
             assertEquals(OrderingMode.Curated, now.starter.rules.orderingMode, old.id.value)
         }
+    }
+
+    private fun keyOf(channel: LineupChannel) = channel.id.value.substringAfter(':')
+
+    // A retired recipe (catalog 9, #995) leaves as a custom channel: same ID, number and rules, nothing else.
+    private fun assertRetiredLeftAsCustom(
+        old: LineupChannel,
+        now: LineupChannel,
+    ) {
+        assertEquals(old.number, now.number, old.id.value)
+        assertEquals(ChannelSource.Custom(old.starter.rules), now.source, old.id.value)
     }
 
     // A starter of a file before version 2 that the planner put on (in the old top) is untouched: the selection

@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 8, curation-1, extras-1)
+LINEUP AUDIT (catalog 9, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 2045 items, 57 titles (41 series, 16 films)
@@ -46,14 +46,12 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              39  on(p)                7  7t 12.48h 0a score  1948           7t 12.48h 0a
   little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    TooThin       6  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    TooThin       2  1t 1.00h 0a score   200 THIN       -
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prime-time-pals                60  off    TooThin       3  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   level-up                       76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -113,7 +111,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   deep-space-drift              356  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   creature-feature              360  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  haunted-house                 368  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tokyo-after-school            404  off    Empty         0  0t 0.00h 0a score     0 THIN       -
