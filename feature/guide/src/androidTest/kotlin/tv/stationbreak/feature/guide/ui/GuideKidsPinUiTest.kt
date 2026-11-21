@@ -37,9 +37,9 @@ class GuideKidsPinUiTest {
     fun thePadAsksFirst_andSaysTheKeyUnderTheDPad() {
         show { GuideKidsPin(PinEntry.start(PinPurpose.Set)) }
         compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Set a PIN")
-        compose
-            .onNodeWithTag(GuideTags.KIDS_PIN_PROMPT, useUnmergedTree = true)
-            .assertTextEquals("Choose a 4-digit PIN")
+        // The prompt's own semantics are cleared on purpose (the pad's description says it), so only its presence is
+        // checked here; the words are asserted on the pad below.
+        compose.onNodeWithTag(GuideTags.KIDS_PIN_PROMPT, useUnmergedTree = true).assertExists()
         compose
             .onNodeWithTag(GuideTags.KIDS_PIN)
             .assertContentDescriptionEquals("Choose a 4-digit PIN. 5. 0 of 4 digits")
