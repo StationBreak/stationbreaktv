@@ -7,6 +7,7 @@ import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.series
 import tv.stationbreak.core.engine.snapshot
+import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -14,6 +15,20 @@ import kotlin.test.assertFailsWith
 /** The leftovers pool: the snapshot minus what is claimed, under the same rating ceiling as `PoolEvaluator`. */
 class LeftoversTest {
     private val show = idOf(0x10)
+
+    // Fix round 2 (ADR-0028): with Kids' Odds & Ends off, the grown-up Odds & Ends lifts the grown-up hold only. Under
+    // its ceiling an unclaimed Approved movie is still unrated and does not air.
+    @Test
+    fun theGrownUpLeftoversFallbackStillReadsApprovedAsUnratedUnderACeiling() {
+        val source = ChannelSource.Leftovers("odds-and-ends", "G")
+        val odds = LineupChannel(ChannelId("odds"), 199, null, null, ChannelState.On, source, 0L)
+        val policy = KidStatus.policyAcrossDaysOf(odds, Lineup(SERVER, idOf(0xB0), 1, 0, true, listOf(odds)))
+        val snap = snapshot(items = listOf(movie(idOf(1), rating = "Approved"), movie(idOf(2), rating = "G")))
+        for (ceiling in listOf("G", "PG")) {
+            val pool = Leftovers.pool(snap, emptySet(), ceiling, policy)
+            assertEquals(listOf(idOf(2)), pool.items.map { it.id }, ceiling)
+        }
+    }
 
     @Test
     fun loneSeriesAirsOnLeftovers() {

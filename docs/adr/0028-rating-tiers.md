@@ -109,8 +109,10 @@ allows.
   `Band`, `Recipe` and `LeftoversRecipe` changes and the family and teen pool policies. Until then family and teen
   titles air on grown-up channels.
 - A custom channel outside the Kids band is `PoolPolicy.Custom`, no longer `Open` (this amends ADR-0020's policy table):
-  what the viewer chose airs, except `Approved` under a ceiling. The policy is part of each channel's day key, so
-  custom channels' days rebuild once.
+  what the viewer chose airs, except `Approved` under a ceiling. The grown-up leftovers' fallback while no kid leftovers
+  channel is on (ADR-0020) is `PoolPolicy.Custom` too, no longer `Open` (fix round 2): it lifts the grown-up hold only,
+  and still reads `Approved` as unrated under its ceiling. `Open` is used for no channel; it is the rules-format
+  reference. The policy is part of each channel's day key, so those channels' days rebuild once.
 - A grown-up title rated G and tagged with a kids keyword reaches kids. That is the rule as approved (it is how a G-rated
   Totoro with a kids tag reaches kids).
 - Every day made under `kid-hold-5` or earlier is remade once: `PersistedDays` keys its files by the hold version names.
