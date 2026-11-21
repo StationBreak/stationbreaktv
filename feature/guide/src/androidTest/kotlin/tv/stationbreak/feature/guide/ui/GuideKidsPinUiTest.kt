@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.ProvideGuideColors
 
@@ -64,6 +65,22 @@ class GuideKidsPinUiTest {
     }
 
     @Test
+    fun theCapPadIsTitledForTheCap_andAsksForTheCurrentPin() {
+        show { GuideKidsPin(PinEntry.start(PinPurpose.Cap, KidsCap.Family)) }
+        compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Change the Kids Mode cap")
+        compose.onNodeWithTag(GuideTags.KIDS_PIN).assertContentDescriptionEquals("Enter your PIN. 5. 0 of 4 digits")
+    }
+
+    @Test
+    fun theKidsModeRowShowsItsCap_andSaysItAloud() {
+        val on = SettingsValues(kidsOn = true, kidsPinSet = true, kidsCap = KidsCap.Family)
+        show { GuideSettingsSheet(on, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
+        val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Family")
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Kids Mode, On, up to Family")
+    }
+
+    @Test
     fun aLockoutRoundsUpToWholeMinutes() {
         val locked = PinEntry.start(PinPurpose.TurnOff).copy(notice = PinNotice.LockedOut(remainingMillis = 61_000))
         show { GuideKidsPin(locked) }
@@ -76,7 +93,7 @@ class GuideKidsPinUiTest {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         show { GuideSettingsSheet(on, SettingsRow.Libraries, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Kids")
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             compose
                 .onNodeWithTag(GuideTags.settingsRow(row))
@@ -94,7 +111,7 @@ class GuideKidsPinUiTest {
         val off = SettingsValues(kidsPinSet = true)
         show { GuideSettingsSheet(off, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off \u00b7 Kids")
         compose.onNodeWithTag(GuideTags.SETTINGS_CHANGE_PIN).assertIsNotSelected()
         compose.onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Libraries)).assertDoesNotExist()
     }

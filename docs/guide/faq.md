@@ -25,6 +25,11 @@ In the guide, open the menu and choose **Settings → Kids Mode**. The first tim
 after that it turns on at once, and turning it off needs the PIN. While it is on, Channels, Libraries, Update library and
 Sign out stay shut until you turn it off. See [Mature content and Kids Mode](mature-content.md#turning-it-on-and-off).
 
+**Can Kids Mode show more than the kids channels?**
+Yes. On the **Kids Mode** row in Settings, press Left or Right to choose how far it reaches: Kids (channels 1 to 33),
+Family (1 to 66) or Teen (1 to 99). While Kids Mode is on, changing it asks for the PIN. See
+[Choosing how far it reaches](mature-content.md#choosing-how-far-it-reaches).
+
 **How do I sign out, or change server?**
 In the guide, open the menu and choose **Settings → Sign out**. The app asks first, with **Stay signed in** highlighted, so
 pressing OK by accident keeps you signed in. Choose **Sign out** to sign out of this TV. You'll need to sign in again on

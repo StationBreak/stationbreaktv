@@ -9,6 +9,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.feature.guide.PinSubmit
 
@@ -58,11 +59,68 @@ class KidsPinTest {
         assertFalse(step.kidsEnable)
     }
 
+    private val kidsRow = SettingsPanel(SettingsRow.KidsMode)
+
     @Test
-    fun leftAndRightDoNothingOnKidsMode() {
-        val panel = SettingsPanel(SettingsRow.KidsMode)
-        assertEquals(SettingsStep(panel), panel.press(Key.DirectionRight))
-        assertEquals(SettingsStep(panel), panel.press(Key.DirectionLeft))
+    fun rightAndLeftOnKidsModeWhileOffMoveTheCapAtOnce_withNoPin() {
+        val atKids = off.copy(kidsCap = KidsCap.Kids)
+        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Family), kidsRow.press(Key.DirectionRight, atKids))
+        val atFamily = off.copy(kidsCap = KidsCap.Family)
+        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Teen), kidsRow.press(Key.DirectionRight, atFamily))
+        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Kids), kidsRow.press(Key.DirectionLeft, atFamily))
+    }
+
+    @Test
+    fun theCapStopsAtItsEnds_noWrap() {
+        val atTeen = off.copy(kidsCap = KidsCap.Teen)
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, atTeen))
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, off.copy(kidsCap = KidsCap.Kids)))
+        val onAtTeen = on.copy(kidsCap = KidsCap.Teen)
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, onAtTeen))
+    }
+
+    @Test
+    fun rightOnKidsModeWhileOnAsksForThePinForTheNewCap_andChangesNothingYet() {
+        val step = kidsRow.press(Key.DirectionRight, on.copy(kidsCap = KidsCap.Kids))
+        assertEquals(PinEntry.start(PinPurpose.Cap, KidsCap.Family), step.panel?.pin)
+        assertEquals(PinStage.Current, step.panel?.pin?.stage)
+        assertNull(step.kidsCap)
+        assertNull(step.pinSubmit)
+    }
+
+    @Test
+    fun theCapPadAsksTheLockForTheCapAfterFourDigits_andOkClosesIt_andAWrongPinStaysOnThePad() {
+        val panel = SettingsPanel(SettingsRow.KidsMode, pin = PinEntry.start(PinPurpose.Cap, KidsCap.Teen))
+        val step = panel.type("1234", on)
+        val ask = step.pinSubmit as PinSubmit.SetCap
+        assertEquals(KidsCap.Teen, ask.cap)
+        assertEquals("1234", ask.pin)
+        assertEquals(true, step.panel?.pin?.busy)
+        assertNull(checkNotNull(step.panel).pinAnswered(PinResult.Ok).pin)
+        val wrong = checkNotNull(step.panel).pinAnswered(PinResult.Wrong(triesLeft = 1)).padOf()
+        assertEquals(PinNotice.Wrong(1), wrong.notice)
+        assertEquals(PinPurpose.Cap, wrong.purpose)
+        assertEquals(KidsCap.Teen, wrong.cap)
+        assertEquals(PinStage.Current, wrong.stage)
+        val locked = checkNotNull(step.panel).pinAnswered(PinResult.LockedOut(60_000)).padOf()
+        assertTrue(locked.locked)
+        assertEquals(PinNotice.Failed, checkNotNull(step.panel).pinAnswered(PinResult.Unavailable).padOf().notice)
+    }
+
+    @Test
+    fun theCapDoesNothingBeforeTheLockIsRead_orOnAnyOtherRow() {
+        val unread = SettingsValues(kidsOn = true, kidsKnown = false)
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, unread))
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, unread.copy(kidsCap = KidsCap.Teen)))
+        val libraries = SettingsPanel(SettingsRow.Libraries)
+        assertNull(libraries.press(Key.DirectionRight, on).kidsCap)
+        assertNull(libraries.press(Key.DirectionRight, on).panel?.pin)
+    }
+
+    @Test
+    fun okOnKidsModeStillOpensItsOwnPad_notTheCapOne() {
+        val step = kidsRow.press(Key.DirectionCenter, on.copy(kidsCap = KidsCap.Teen))
+        assertEquals(PinPurpose.TurnOff, step.panel?.pin?.purpose)
     }
 
     @Test
@@ -249,6 +307,7 @@ class KidsPinTest {
     @Test
     fun noPinIsInAnyText() {
         val entry = PinEntry(PinPurpose.Change, PinStage.Confirm, digits = "1234", old = "9876", candidate = "5555")
+        assertFalse(PinSubmit.SetCap(KidsCap.Family, "1234").toString().contains("1234"))
         val said = entry.toString() + SettingsPanel(pin = entry).toString()
         for (secret in listOf("1234", "9876", "5555")) assertFalse(said.contains(secret))
     }

@@ -28,6 +28,7 @@ import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockState
 import tv.stationbreak.core.domain.kids.PinResult
@@ -183,7 +184,18 @@ internal class GuideViewModel
                 is PinSubmit.TurnOff -> kids.disable(step.pin)
                 is PinSubmit.CheckOld -> kids.verify(step.pin)
                 is PinSubmit.ChangeTo -> kids.changePin(step.old, step.new)
+                is PinSubmit.SetCap -> kids.setCap(step.cap, step.pin)
             }
+
+        /**
+         * Changes the Kids Mode cap to [cap] with no PIN, which only a lock that is off allows (#993). Fails closed:
+         * [PinResult.Unavailable], and nothing asked of the lock, until the stored lock has been read and whenever it
+         * is on (a cap change then goes through the PIN pad, so a wrong PIN is never counted by a key press).
+         */
+        suspend fun setKidsCap(cap: KidsCap): PinResult {
+            val lock = shownKids.value
+            return if (lock == null || lock.enabled) PinResult.Unavailable else kids.setCap(cap, null)
+        }
 
         private suspend fun setFirstPin(pin: String): PinResult {
             val set = kids.setPin(pin)

@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockState
 import tv.stationbreak.core.domain.kids.PinResult
@@ -191,6 +192,57 @@ class GuideKidsLockTest : GuideRig() {
         }
 
     @Test
+    fun theCapShowsThroughTheState() =
+        guideTest { vm ->
+            runCurrent()
+            assertEquals(KidsCap.Kids, vm.kidsState.value?.cap)
+            kidsLock.lock(KidsCap.Family)
+            runCurrent()
+            assertEquals(KidsCap.Family, vm.kidsState.value?.cap)
+            assertTrue(vm.kidsState.value?.allows(40) == true)
+            assertFalse(vm.kidsState.value?.allows(70) == true)
+        }
+
+    @Test
+    fun whileOffTheCapChangesAtOnceWithNoPin() =
+        guideTest { vm ->
+            runCurrent()
+            assertEquals(PinResult.Ok, vm.setKidsCap(KidsCap.Teen))
+            runCurrent()
+            assertEquals(KidsCap.Teen, vm.kidsState.value?.cap)
+            assertFalse(vm.kidsOn)
+        }
+
+    @Test
+    fun whileOnACapChangeNeedsThePin_andAWrongPinKeepsTheCap() =
+        guideTest { vm ->
+            kidsLock.pin = "1234"
+            kidsLock.lock(KidsCap.Kids)
+            runCurrent()
+            // The no-PIN path is shut while the lock is on: it asks nothing of the lock.
+            assertEquals(PinResult.Unavailable, vm.setKidsCap(KidsCap.Teen))
+            runCurrent()
+            assertEquals(KidsCap.Kids, vm.kidsState.value?.cap)
+            assertEquals(PinResult.Wrong(triesLeft = 1), vm.submitPin(PinSubmit.SetCap(KidsCap.Teen, "0000")))
+            runCurrent()
+            assertEquals(KidsCap.Kids, vm.kidsState.value?.cap)
+            assertEquals(PinResult.Ok, vm.submitPin(PinSubmit.SetCap(KidsCap.Family, "1234")))
+            runCurrent()
+            assertEquals(KidsCap.Family, vm.kidsState.value?.cap)
+            assertTrue(vm.kidsOn)
+        }
+
+    @Test
+    fun beforeTheLockIsReadTheCapDoesNotChange() {
+        kidsForGuide = unread()
+        guideTest { vm ->
+            runCurrent()
+            assertEquals(PinResult.Unavailable, vm.setKidsCap(KidsCap.Teen))
+            assertEquals(KidsCap.Kids, kidsLock.current.value.cap)
+        }
+    }
+
+    @Test
     fun aPinNeverShowsInAText() {
         val said =
             listOf(
@@ -198,6 +250,7 @@ class GuideKidsLockTest : GuideRig() {
                 PinSubmit.TurnOff("1234"),
                 PinSubmit.CheckOld("1234"),
                 PinSubmit.ChangeTo("1234", "4321"),
+                PinSubmit.SetCap(KidsCap.Teen, "1234"),
             ).joinToString { it.toString() }
         assertFalse(said.contains("1234") || said.contains("4321"))
     }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.guide.ui
 
+import tv.stationbreak.core.domain.kids.KidsCap
+
 // A step through a Settings choice row's values (ChoiceShown.kt holds the values and their words).
 
 // The choice row's value moved by [change]; the sheet as it was when the row is not a choice or nothing moved.
@@ -8,8 +10,25 @@ internal fun SettingsPanel.changed(
     values: SettingsValues,
     change: Change,
 ): SettingsStep =
-    (pictureChanged(values, change) ?: playbackChanged(values, change) ?: privacyChanged(values, change))
-        ?: SettingsStep(this)
+    (
+        pictureChanged(values, change) ?: playbackChanged(values, change) ?: privacyChanged(values, change)
+            ?: kidsChanged(values, change)
+    ) ?: SettingsStep(this)
+
+// Left and Right on Kids Mode move the cap (#993): through the PIN pad while the lock is on, at once while it is off,
+// and not at all before the lock has been read.
+private fun SettingsPanel.kidsChanged(
+    values: SettingsValues,
+    change: Change,
+): SettingsStep? {
+    val target =
+        if (row == SettingsRow.KidsMode && values.kidsKnown) stepped(KidsCap.entries, values.kidsCap, change) else null
+    return when {
+        target == null -> null
+        values.kidsOn -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Cap, target)))
+        else -> SettingsStep(this, kidsCap = target)
+    }
+}
 
 private fun SettingsPanel.pictureChanged(
     values: SettingsValues,

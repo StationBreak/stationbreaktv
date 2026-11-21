@@ -154,6 +154,15 @@
     <string name="guide_kids_off">Off</string>
     <string name="guide_kids_on">On</string>
     <string name="guide_kids_unknown">&#8230;</string>
+    <!-- The cap (#993): how far up the channel numbers Kids Mode reaches. Kids is 1 to 33, Family 1 to 66, Teen 1 to 99. -->
+    <string name="guide_kids_cap_kids">Kids</string>
+    <string name="guide_kids_cap_family">Family</string>
+    <string name="guide_kids_cap_teen">Teen</string>
+    <!-- The Kids Mode row's value with its cap, as drawn and as a screen reader says it. -->
+    <string name="guide_kids_on_cap">On &#183; up to %1$s</string>
+    <string name="guide_kids_off_cap">Off &#183; %1$s</string>
+    <string name="guide_kids_on_cap_spoken">On, up to %1$s</string>
+    <string name="guide_kids_off_cap_spoken">Off, cap %1$s</string>
     <string name="guide_settings_change_pin">Change PIN</string>
     <!-- The one line under each Settings row that Kids Mode switches off, and under the menu's About and Channels rows. -->
     <string name="guide_kids_locked">Turn off Kids Mode first</string>
@@ -165,6 +174,7 @@
     <string name="guide_pin_title_set">Set a PIN</string>
     <string name="guide_pin_title_turn_off">Turn off Kids Mode</string>
     <string name="guide_pin_title_change">Change PIN</string>
+    <string name="guide_pin_title_cap">Change the Kids Mode cap</string>
     <string name="guide_pin_prompt_current">Enter your PIN</string>
     <string name="guide_pin_prompt_new">Choose a 4-digit PIN</string>
     <string name="guide_pin_prompt_confirm">Enter it again to confirm</string>

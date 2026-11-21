@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.annotation.StringRes
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.R
@@ -75,11 +76,35 @@ private fun crashReportsWords(on: Boolean): Int =
         else -> R.string.guide_crash_reports_off
     }
 
-/** The words Kids Mode's row shows on its right: On or Off, or a dash until the stored lock has been read. */
+/** The word for a Kids Mode cap. */
 @StringRes
-internal fun kidsModeWords(values: SettingsValues): Int =
-    when {
-        !values.kidsKnown -> R.string.guide_kids_unknown
-        values.kidsOn -> R.string.guide_kids_on
-        else -> R.string.guide_kids_off
+internal fun kidsCapWords(cap: KidsCap): Int =
+    when (cap) {
+        KidsCap.Kids -> R.string.guide_kids_cap_kids
+        KidsCap.Family -> R.string.guide_kids_cap_family
+        KidsCap.Teen -> R.string.guide_kids_cap_teen
     }
+
+/**
+ * Kids Mode's value on its row: the string [format] and the cap's words it takes ([cap], null for the dash shown until
+ * the stored lock has been read, which takes none).
+ */
+internal data class KidsModeShown(
+    @param:StringRes val format: Int,
+    @param:StringRes val cap: Int? = null,
+)
+
+/** What Kids Mode's row shows on its right for [values]: On or Off with the cap, as drawn or [spoken]. */
+internal fun kidsModeShown(
+    values: SettingsValues,
+    spoken: Boolean = false,
+): KidsModeShown {
+    val cap = kidsCapWords(values.kidsCap)
+    return when {
+        !values.kidsKnown -> KidsModeShown(R.string.guide_kids_unknown)
+        values.kidsOn && spoken -> KidsModeShown(R.string.guide_kids_on_cap_spoken, cap)
+        values.kidsOn -> KidsModeShown(R.string.guide_kids_on_cap, cap)
+        spoken -> KidsModeShown(R.string.guide_kids_off_cap_spoken, cap)
+        else -> KidsModeShown(R.string.guide_kids_off_cap, cap)
+    }
+}

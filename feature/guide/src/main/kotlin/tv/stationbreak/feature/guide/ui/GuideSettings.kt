@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
@@ -45,7 +46,7 @@ internal enum class SettingsRow(
 
     /**
      * Kids Mode (#789): on shows PIN entry to turn it off; off asks for a first PIN, or with one set turns it on at
-     * once. Its value is On or Off.
+     * once. Its value is On or Off with its cap; Left and Right move the cap (#993).
      */
     KidsMode(RowKind.Action, R.string.guide_settings_kids_mode),
 
@@ -110,6 +111,8 @@ internal data class SettingsValues(
     val kidsOn: Boolean = false,
     /** A Kids Mode PIN is set. */
     val kidsPinSet: Boolean = false,
+    /** How far up the channel numbers Kids Mode reaches (#993): shown on the Kids Mode row, Left and Right move it. */
+    val kidsCap: KidsCap = KidsCap.DEFAULT,
     /** The stored lock has been read; until then [kidsOn] is true (closed) and only the row's words say unknown. */
     val kidsKnown: Boolean = true,
 )
@@ -145,6 +148,8 @@ internal data class SettingsStep(
     val syncNow: Boolean = false,
     /** Select on Kids Mode with a PIN set and the lock off: turn it on. */
     val kidsEnable: Boolean = false,
+    /** Left or Right on Kids Mode while it is off: the cap to store, with no PIN (#993). While on, the PIN pad asks. */
+    val kidsCap: KidsCap? = null,
     /** What the PIN pad has finished and asks the lock for. */
     val pinSubmit: PinSubmit? = null,
     val fit: ScreenFit? = null,
@@ -223,7 +228,9 @@ internal enum class Change(
  * stopping at the ends, and OK moves it on to the next value, round to the first after the last: a choice never closes
  * the sheet. OK on Libraries shows the Libraries screen, on Update library asks for an update and keeps the sheet open
  * (the line under the row says how it goes), and on Sign out shows the sign-out question. OK on Kids Mode and Change
- * PIN opens the PIN pad (Kids Mode on with a PIN set and off turns it on at once); with Kids Mode on, OK on Libraries,
+ * PIN opens the PIN pad (Kids Mode on with a PIN set and off turns it on at once); Left and Right on Kids Mode move
+ * its cap, Kids, Family, Teen (no wrap), at once while it is off and through the PIN pad while it is on, and do
+ * nothing until the lock has been read; with Kids Mode on, OK on Libraries,
  * Update library and Sign out does nothing. Back closes the sheet, as the guide's own Back does. While a screen shows
  * over it, every key is kept and does nothing: that screen has the keys; so does the PIN pad ([pinKey]).
  * A step that leaves a value as it was does not choose it again.
