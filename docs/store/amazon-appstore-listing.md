@@ -1,9 +1,9 @@
 # Amazon Appstore listing (draft)
 
-Status: **Draft for the owner (#33).** Nothing here has been entered in the Developer Console or submitted. Store art,
-the display title and any tagline are branding decisions and are not in this file ([#118](https://github.com/StationBreak/stationbreaktv/issues/118),
-[#572](https://github.com/StationBreak/stationbreaktv/issues/572)). Answers marked **Owner** are recommendations
-only.
+Status: **Draft for the owner (#33).** Nothing here has been entered in the Developer Console or submitted. The
+display title and any tagline are branding decisions and are not in this file ([#118](https://github.com/StationBreak/stationbreaktv/issues/118)).
+The listing images are in [`store/`](../../store/) ([#572](https://github.com/StationBreak/stationbreaktv/issues/572)).
+Answers marked **Owner** are recommendations only.
 
 Field names, limits and questionnaire categories are from Amazon's submission docs, read 2026-11-17:
 [Step 2: store listing](https://developer.amazon.com/docs/app-submission/add-store-listing-information.html),
@@ -87,10 +87,19 @@ live tv, channels, tv guide, program guide, jellyfin, media server, home media, 
 
 ### Assets
 
-**Owner** (branding). Placeholders are tracked in [#572](https://github.com/StationBreak/stationbreaktv/issues/572).
-What Amazon needs for Fire TV and the website: the 114×114 and 512×512 PNG icons, 3 to 10 screenshots (1920×1080
-on Fire TV), and the 1280×720 banner the backlog names (F4.2). Screenshots must not show personal information, so
-take them against a test server with a demo library, not a household's.
+The icons and the Fire TV app icon are rendered from `art/brand/` into [`store/`](../../store/) (#572).
+Screenshots are in [`screenshots/`](screenshots/). Image specs were re-read 2026-11-21 from this page (last
+modified 2026-11-16).
+
+| File | Amazon slot |
+| --- | --- |
+| `store/icon-114.png` | Small icon, 114×114 PNG |
+| `store/icon-512.png` | Large icon, 512×512 PNG |
+| `store/fire-tv-icon-1280x720.png` | Fire TV app icon, 1280×720 PNG, no transparency |
+| `screenshots/*.png` | Fire TV screenshots, 1920×1080, 3 to 10 |
+
+The 1920×1080 Fire TV background and the optional 1024×500 promotional image are not in this folder. Screenshots
+must not show personal information; these were taken against the demo server.
 
 ## Pricing and availability (Step 3)
 
@@ -190,7 +199,7 @@ Not part of this draft, tracked elsewhere:
 
 - The Phase 2 and Phase 3 gates (owner, 2026-11-06): 14 days of daily use, then outside testers (#31).
 - The final text and review of the app-store GPL exception (#745).
-- Store and launcher art (#572) and branding (#118).
+- Branding (#118). The listing icons and the 1280×720 Fire TV icon are in `store/` (#572). The 1920×1080 Fire TV background is not in that folder.
 - The privacy policy published on stationbreak.tv, so its URL works.
 - The reviewers' demo server running, with its address and sign-in ready for the Testing instructions field.
 - Fire TV certification on a device (F4.2, 📺).
