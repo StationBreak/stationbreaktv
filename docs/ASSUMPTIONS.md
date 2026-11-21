@@ -67,9 +67,9 @@ can be answered later, by the phase shown.
 
 ### Before Phase 4
 
-- **Q-BIZ-1** Should the GitHub APK have Pro unlocked (it's GPL anyway), be honor-system, or have no Pro features?
+- ~~**Q-BIZ-1**~~ ✅ **Decided 2026-11-20 ([#119](https://github.com/StationBreak/stationbreaktv/issues/119)):** the GitHub-flavor APK ships with Pro fully unlocked (the code is GPL, and there is no store billing to unlock it), with a "Support StationBreak" link and no nag. The store (Amazon) release stays gated until the Pro unlock ships (#793). The `PRO_UNLOCKED` table in `app/build.gradle.kts` and the per-flavor release tests enforce it. The "Support StationBreak" link is not built yet.
 - **Q-BIZ-2** What *is* Pro? Candidates: unlimited custom channels, retro mode/themes, filler, multiple servers, and (later) sync. Free must still fully replace NostalgiaTV.
-- **Q-BIZ-3** Pricing, and whether there are regional prices.
+- ~~**Q-BIZ-3**~~ ✅ **Decided 2026-11-20 ([#121](https://github.com/StationBreak/stationbreaktv/issues/121)):** the Pro unlock is a one-time **$20**. The owner: "market ready ASAP, with pro unlock to follow as quickly as possible. I think $20 is fine to start. That can always go up for new users but never down, and existing users never loose features or access to new features." and "$20 keeps me competitive." So the price may rise for new buyers but never falls, and existing buyers never lose features or access to new ones. Regional prices are not decided; the stores' default conversion applies until then.
 - **Q-REL-1** Which Google Play account owns the listing (personal vs org)? New personal Play accounts have closed-testing requirements before production access, and this affects Phase 4 timing.
 
 ## Next steps (once approved)

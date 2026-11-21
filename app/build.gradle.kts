@@ -50,8 +50,9 @@ val profileBuildTypes: Set<String> =
     setOf("nonMinifiedRelease", "benchmarkRelease", "nonMinifiedBenchmark", "benchmarkBenchmark")
 
 // Whether StationBreak Pro is unlocked, by (build type, flavor) (#793). Debug and benchmark builds keep it open, so
-// dogfood and device runs see no gate. Release ships closed in both flavors: any pair not listed is closed. What the
-// GitHub release build does is #119's call, and one edit to this table. See di/ProModule and the testRelease guard.
+// dogfood and device runs see no gate. The store (amazon) release ships closed, and so does any pair not listed. The
+// GitHub release ships with Pro fully unlocked (Q-BIZ-1, #119): it is GPL and has no store billing. See di/ProModule and
+// the testAmazonRelease and testGithubRelease guards.
 val proUnlockedByVariant: Map<Pair<String, String?>, Boolean> =
     mapOf(
         ("debug" to "amazon") to true,
@@ -59,7 +60,7 @@ val proUnlockedByVariant: Map<Pair<String, String?>, Boolean> =
         ("benchmark" to "amazon") to true,
         ("benchmark" to "github") to true,
         ("release" to "amazon") to false,
-        ("release" to "github") to false,
+        ("release" to "github") to true,
     )
 
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
@@ -80,9 +81,10 @@ androidComponents {
     onVariants { variant ->
         val distribution = variant.productFlavors.firstOrNull { it.first == "distribution" }?.second
         val proUnlocked = proUnlockedByVariant[(variant.buildType ?: "release") to distribution] ?: false
-        // A release build must ship with the gates closed (#793): fail the build, not just a test.
-        if (variant.buildType == "release" && proUnlocked) {
-            throw GradleException("PRO_UNLOCKED must be false in a release build (${variant.name})")
+        // The store release must ship with the gates closed (#793): fail the build, not just a test. The GitHub release
+        // is the one deliberate exception (Q-BIZ-1, #119).
+        if (variant.buildType == "release" && distribution != "github" && proUnlocked) {
+            throw GradleException("PRO_UNLOCKED must be false in a store release build (${variant.name})")
         }
         variant.buildConfigFields?.put(
             "PRO_UNLOCKED",
