@@ -20,7 +20,10 @@ was 1 to 99, and `StarterCatalog.kt` promised that a shipped key or number never
 2. **No new pool policy.** A Family or Teen channel is a grown-up channel (`PoolPolicy.GrownUp`, which drops the kids
    tier) under its ceiling, so it airs family or teen titles. Only the Kids band is kids-only now. (Lights Out, Tall Tales Club and Tiny Chefs were kids recipes kept outside it
    until they were merged away or cut at catalogs 9 and 10, #995 and #996.) The four former kids recipes that moved
-   to Family stay in `EVER_KID_SAFE_KEYS`, so a stored copy is still held to PG whatever its edits.
+   to Family stay in `EVER_KID_SAFE_KEYS`, so a stored copy is still held to PG whatever its edits. The hold also
+   survives retirement (#1044): a retired kid recipe's stored copy becomes a Custom channel but keeps its
+   `starter:<key>` or `leftovers:<key>` ID, and `KidStatus.isKidChannel` reads a kid key from that ID, so the channel
+   stays kids-only at any number. A viewer's own `custom:<id>` channel never matches.
 3. **Catalog 8** (frozen manifest V8) moves 17 recipes and the kids leftovers to their new numbers, adds nine recipes
    (Big Screen Toons, Popcorn Matinee, Starship Sunday, Prime Time Pals, Homeroom, Mask & Mantle, Level Up, Popcorn Epic, Nervous
    Laughter) and two leftovers recipes. No recipe changes what it airs. Little Spirits is anime-only (Family is not the Kids band). Paper Lantern is dropped.

@@ -86,14 +86,33 @@ object KidStatus {
         return everKidSafe && key !in StarterCatalog.KIDS_KEYS_NOW_FAMILY
     }
 
-    /** A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit). */
+    /**
+     * A kid channel: numbered in the Kids band, or a key that was ever kid-safe (whatever its number or edit). A
+     * retired kid recipe's channel is Custom but keeps its `starter:<key>` or `leftovers:<key>` ID, so the key is read
+     * from the ID there and the kids-only hold survives retirement (#1044). A viewer's own channel is `custom:<id>`
+     * and never matches.
+     */
     fun isKidChannel(channel: LineupChannel): Boolean {
         val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
         val key =
             when (val source = channel.source) {
-                is ChannelSource.Starter -> source.recipeKey
-                is ChannelSource.Leftovers -> source.recipeKey
-                else -> null
+                is ChannelSource.Starter -> {
+                    source.recipeKey
+                }
+
+                is ChannelSource.Leftovers -> {
+                    source.recipeKey
+                }
+
+                is ChannelSource.Custom -> {
+                    channel.id.value
+                        .takeIf { it.startsWith("starter:") || it.startsWith("leftovers:") }
+                        ?.substringAfter(':')
+                }
+
+                else -> {
+                    null
+                }
             }
         return inKidsBand || key?.let(::isKidKey) == true
     }

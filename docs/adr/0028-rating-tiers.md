@@ -99,6 +99,8 @@ allows.
   tier instead of "made for kids and within PG".
 - **#104** (US TV and MPAA only; unrated and unsupported systems blocked under a ceiling) is kept for unknown and
   unrated. #987 widens what counts as supported, by the US spellings and bare ages above for now.
+- **Retired kid recipes** (#1044) keep the kids-only policy: a stored copy that migrates to a Custom channel is still
+  a kid channel by the key in its `starter:` or `leftovers:` ID (ADR-0030 rule 2), so rule 5 applies to it at any number.
 - **#576** replaces the earlier proposal of a PG-13 family ceiling with unrated titles allowed.
 
 ## Consequences

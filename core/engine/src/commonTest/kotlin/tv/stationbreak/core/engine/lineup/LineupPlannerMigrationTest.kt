@@ -249,6 +249,13 @@ class LineupPlannerMigrationTest {
     ) {
         assertEquals(old.number, now.number, old.id.value)
         assertEquals(ChannelSource.Custom(old.starter.rules), now.source, old.id.value)
+        // The kids-only hold is read from the ID's key, so it survives (#1044).
+        assertEquals(KidStatus.isKidChannel(old), KidStatus.isKidChannel(now), old.id.value)
+        assertEquals(
+            KidStatus.basePolicyOf(old) == PoolPolicy.KidsOnly,
+            KidStatus.basePolicyOf(now) == PoolPolicy.KidsOnly,
+            old.id.value,
+        )
     }
 
     // A starter of a file before version 2 that the planner put on (in the old top) is untouched: the selection
