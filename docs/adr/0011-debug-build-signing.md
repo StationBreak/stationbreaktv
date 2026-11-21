@@ -119,24 +119,31 @@ never published and never carries the release application ID: CI fails unless it
 
 Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github/workflows/release.yml`.
 
-- **Trigger and version.** Only a pushed tag `vMAJOR.MINOR.PATCH` starts it (MAJOR 1 or more, MINOR and PATCH 0 to 99, no
-  leading zeros); any other `v*` tag fails the first job, before anything is built, and so does a tag whose commit is
-  not on `main`. The workflow passes the tag without the `v` to Gradle as `RELEASE_VERSION`: `versionName` is that
-  value and `versionCode = MAJOR * 10000 + MINOR * 100 + PATCH` (so `1.2.3` is 10203), checked against Android's limit
-  of 2100000000 (`ReleaseVersion` in build-logic, with a unit test). A malformed value fails the build. A release
-  build without `RELEASE_VERSION` keeps versionCode 1 and versionName 0.0.1. CI's debug and benchmark builds use the
-  workflow run number as `versionCode` (#146) and are never shipped, so the two numbering schemes never meet.
-  A local or device-test release build (#966) sets `TEST_RELEASE_VERSION` instead (never both): it takes MAJOR 0 and a
-  `-alpha`, `-beta` or `-rc` suffix with a number 0 to 29 (`0.9.0-rc1`, `1.0.0-rc.2`), as `versionName`, with
-  `versionCode = (MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + stage`, where the stage is 99 for a final version and
-  below 90 for a pre-release, so an rc sorts below its final release (`TestReleaseVersion`, with a unit test). Those
-  codes are on a different scale from the tagged release's and are never compared with it. Only `RELEASE_VERSION`, the
-  tagged store path, keeps the strict check.
+- **Trigger and version.** Only a pushed tag `vMAJOR.MINOR.PATCH`, `vMAJOR.MINOR.PATCH-alpha.N`,
+  `vMAJOR.MINOR.PATCH-beta.N` or `vMAJOR.MINOR.PATCH-rc.N` starts it (MAJOR 0 or more, MINOR and PATCH 0 to 99, N 0 to 29, no leading zeros); any
+  other `v*` tag fails the first job, before anything is built, and so does a tag whose commit is not on `main`. The
+  workflow passes the tag without the `v` to Gradle as `RELEASE_VERSION`: `versionName` is that value and
+  `versionCode = (MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + stage`, where the stage is 99 for a final version,
+  `N` for `-alpha.N`, `30 + N` for `-beta.N` and `60 + N` for `-rc.N` (so `1.0.0` is 1000099 and `1.0.0-beta.1` is 1000031). A pre-release
+  therefore always sorts below its final release and every later final, and `0.9.0-beta.1` (90031) sorts below
+  `1.0.0-beta.1`, so a beta needs no MAJOR of 1 and `v1.0.0` stays free for the store release (#966). Amazon refuses a
+  versionCode that is not above the last one uploaded, which this ordering is for. The versionCode is checked against
+  Android's limit of 2100000000 (`ReleaseVersion` in build-logic, with a unit test; the workflow's tag check,
+  `expected_code` and `scripts/release-notes.sh` use the same pattern and number, and change with it). A malformed value
+  fails the build. A release build without `RELEASE_VERSION` keeps versionCode 1 and versionName 0.0.1; a local or
+  device-test release build can set `RELEASE_VERSION` too (it replaced `TEST_RELEASE_VERSION`, whose codes were on a
+  different scale). CI's debug and benchmark builds use the workflow run number as `versionCode` (#146) and are never
+  shipped, so the two numbering schemes never meet. What is still refused, because Amazon needs a unique, increasing versionCode that fits an Int: a MAJOR above 2099, MINOR or PATCH
+  above 99, build metadata (`+build`, which SemVer ranks as equal, so two tags could share a code), and a pre-release
+  other than `alpha`, `beta` or `rc` with a dot and a number 0 to 29 (free text cannot be ranked in an integer).
+  The MAJOR 1 floor came from the original release workflow (#98, #276, PR #774) and is gone. A draft is marked a
+  pre-release when the tag has a suffix. Its release notes list the commits since the last final release tag (`v1.2.3` only), which is `First release.` before
+  the first one.
 - **A keyless build, a signing job, then a publishing job.** The `build` job checks out the repository and runs Gradle
   with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
   APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
   one-day `internal-` artifact. The `sign` job has no checkout, no Gradle, no cache and no token permission: it fails
-  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk` and each
+  unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk` (with the tag's `-beta.N` or `-rc.N`, if any) and each
   matches the SHA-256 the `build` job published as a job output (checked before the key is decoded), decodes the key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
   36.0.0), deletes the key when the step ends, and runs the checks inline in the workflow YAML. The `publish` job has
   no key and no checkout, and is the only one with `contents: write`, `id-token: write` and `attestations: write`: it

@@ -192,11 +192,26 @@ check "an unknown tag fails" "1" "$rc"
 if notes main 2>/dev/null; then rc=0; else rc=$?; fi
 check "a non-release tag is refused" "2" "$rc"
 if notes v1.2.0-rc1 2>/dev/null; then rc=0; else rc=$?; fi
-check "a pre-release tag is refused" "2" "$rc"
+check "a pre-release tag without the dot is refused" "2" "$rc"
+if notes v1.2.0-dev.1 2>/dev/null; then rc=0; else rc=$?; fi
+check "a pre-release label other than alpha, beta and rc is refused" "2" "$rc"
+if notes v1.2.0-beta.30 2>/dev/null; then rc=0; else rc=$?; fi
+check "a pre-release number above 29 is refused" "2" "$rc"
 if notes v1.10.2 --help 2>/dev/null; then rc=0; else rc=$?; fi
 check "an end commit that is not a full SHA is refused" "2" "$rc"
 if notes v1.10.2 "$(git rev-parse --short HEAD)" 2>/dev/null; then rc=0; else rc=$?; fi
 check "a short SHA is refused" "2" "$rc"
+
+# A beta tag, and a tag with MAJOR 0, are release tags (release.yml's tag check): the range runs from the last final.
+commit "fix: only in the beta"
+beta="$(sha)"
+git tag v1.10.3-beta.1
+check "a beta tag gets the notes since the last final release" '### Fixes
+
+- only in the beta ('"$beta"')' "$(notes v1.10.3-beta.1)"
+git tag v0.9.0-rc.2
+if notes v0.9.0-rc.2 >/dev/null 2>&1; then rc=0; else rc=$?; fi
+check "a tag with MAJOR 0 is accepted" "0" "$rc"
 
 # A shallow clone can't give the right range.
 git clone -q --no-local --depth 1 "file://$repo" "$work/shallow"

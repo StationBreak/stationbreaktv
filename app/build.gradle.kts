@@ -3,7 +3,6 @@
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
 import tv.stationbreak.buildlogic.ReleaseVersion
-import tv.stationbreak.buildlogic.TestReleaseVersion
 
 plugins {
     // SDK levels, flavors, desugaring, toolchain, Lint, Spotless and detekt: build-logic's AndroidAppPlugin.
@@ -30,20 +29,12 @@ val ciVersionCode: Int =
         code
     } ?: 1
 
-// A tagged release (ADR-0011): the release workflow's build job passes the tag's version, without the `v`, in
-// RELEASE_VERSION. versionName is that value and versionCode is MAJOR * 10000 + MINOR * 100 + PATCH (ReleaseVersion,
-// which fails the build on a malformed value). Without it a release build keeps defaultConfig's 1 and 0.0.1.
+// A release build's version (ADR-0011): the release workflow's build job passes the tag's version, without the `v`, in
+// RELEASE_VERSION, and a local or device-test release build can set it too. It is MAJOR.MINOR.PATCH, optionally with
+// -beta.N or -rc.N; versionName is that value and versionCode comes from ReleaseVersion (a pre-release always sorts
+// below its final). A malformed value fails the build. Without it a release build keeps defaultConfig's 1 and 0.0.1.
 val releaseVersion: ReleaseVersion? =
     providers.environmentVariable("RELEASE_VERSION").orNull?.let { ReleaseVersion.parse(it) }
-
-// A local or device-test release build (#966): TEST_RELEASE_VERSION takes 0.x versions and a -rc.N, -beta.N or -alpha.N
-// suffix (TestReleaseVersion), so a test APK is told apart from the store build. Only RELEASE_VERSION, which the
-// tagged release passes, stays strict. Never set both.
-val testReleaseVersion: TestReleaseVersion? =
-    providers.environmentVariable("TEST_RELEASE_VERSION").orNull?.let {
-        check(releaseVersion == null) { "Set RELEASE_VERSION (a tagged release) or TEST_RELEASE_VERSION, not both" }
-        TestReleaseVersion.parse(it)
-    }
 
 // Where opt-in crash reports go (#96, Q-PRIV-1): the owner's own endpoint, from the CRASH_REPORT_URL environment
 // variable or Gradle property. It is empty in the repository and in CI, and then the build has no crash reporting and the
@@ -126,11 +117,6 @@ androidComponents {
             variant.outputs.forEach {
                 it.versionCode.set(releaseVersion.code)
                 it.versionName.set(releaseVersion.name)
-            }
-        } else if (testReleaseVersion != null) {
-            variant.outputs.forEach {
-                it.versionCode.set(testReleaseVersion.code)
-                it.versionName.set(testReleaseVersion.name)
             }
         }
     }

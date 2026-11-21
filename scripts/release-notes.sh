@@ -6,10 +6,11 @@
 #
 # Usage: scripts/release-notes.sh <tag> [<end-commit>]
 #
-# <tag> is a release tag, vMAJOR.MINOR.PATCH. <end-commit> (a full 40-character SHA, default: the commit <tag> points
-# at) ends the range: release.yml passes $GITHUB_SHA, the commit that was built. The range is the commits after the
-# previous release tag reachable from the end commit (highest version first, <tag> itself excluded; only
-# vMAJOR.MINOR.PATCH tags count, so `v1.2.0-rc1` and `vendor-x` are ignored) up to the end commit. With no previous
+# <tag> is a release tag, vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N (release.yml's tag check).
+# <end-commit> (a full 40-character SHA, default: the commit <tag> points at) ends the range: release.yml passes
+# $GITHUB_SHA, the commit that was built. The range is the commits after the previous release tag reachable from the
+# end commit (highest version first, <tag> itself excluded; only final vMAJOR.MINOR.PATCH tags count, so
+# `v1.2.0-beta.1`, `v1.2.0-rc1` and `vendor-x` are ignored) up to the end commit. With no previous
 # tag it prints just `First release.` (the whole history is no use as a draft). A shallow clone is refused: the range
 # would be wrong. Merge commits are skipped. Groups, in order: Breaking changes (a `!` after the type or scope, or a
 # `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer), Features (feat), Fixes (fix), Performance (perf), Other changes
@@ -32,9 +33,10 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   exit 2
 fi
 tag="$1"
-release_tag_re='^v[1-9][0-9]*\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$'
-if ! [[ "$tag" =~ $release_tag_re ]]; then
-  echo "release-notes.sh: '$tag' is not a vMAJOR.MINOR.PATCH tag" >&2
+# The tag argument: release.yml's tag check. The previous tag below is a final release only.
+release_tag_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$'
+if ! [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-(alpha|beta|rc)\.(0|[1-9]|[12][0-9]))?$ ]]; then
+  echo "release-notes.sh: '$tag' is not a vMAJOR.MINOR.PATCH tag, optionally with -alpha.N, -beta.N or -rc.N" >&2
   exit 2
 fi
 end_arg="${2:-}"
