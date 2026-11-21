@@ -53,12 +53,6 @@ private fun withinLimit(
 }
 
 /**
- * Kid recipes numbered outside the Kids band: Tiny Chefs keeps its number (80) until #996 cuts it, so by number it
- * sits in the Teen band. It is still a kid recipe (kids-only, a kid ceiling). Delete this set with that recipe.
- */
-internal val KIDS_NUMBERED_OUTSIDE_BAND: Set<String> = setOf("tiny-chefs")
-
-/**
  * What a starter must hold to qualify as a channel (catalog 5, #786). It is recipe data, frozen in the catalog
  * manifest, so it depends on the catalog and the library only, never on which channels are on, and the selection
  * rounds still settle. [Standard] is the global bar (12 usable hours, 6 titles; a kid channel 4 titles). [Niche] is 6
@@ -113,8 +107,8 @@ data class Recipe(
         }
     }
 
-    /** True for a kids-only recipe: the Kids band, or Tiny Chefs, kept outside it for now. */
-    val kidSafe: Boolean get() = band == Band.Kids || key in KIDS_NUMBERED_OUTSIDE_BAND
+    /** True for a kids-only recipe: one in the Kids band. */
+    val kidSafe: Boolean get() = band == Band.Kids
 
     /** True when the channel is programmed: its order is curated. */
     val curated: Boolean get() = ordering == OrderingMode.Curated

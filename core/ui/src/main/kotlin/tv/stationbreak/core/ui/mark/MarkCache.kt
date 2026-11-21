@@ -89,7 +89,7 @@ class MarkCache(
 
 /**
  * The one cache for the process, so logos survive the guide opening and closing. It is never trimmed on low memory: it
- * holds at most 105 logos in each of two variants, each a 128 by 72 bitmap of 37 KB (the Light theme decodes only the
+ * holds at most 102 logos in each of two variants, each a 128 by 72 bitmap of 37 KB (the Light theme decodes only the
  * mono ones, the Dark theme only the colour ones). The dispatcher is the cache's `io` argument alone (the scope adds
  * none).
  */

@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 9, curation-1, extras-1)
+LINEUP AUDIT (catalog 10, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -80,7 +80,6 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   level-up                       76  on(p)               60  60t 904.80h 0a score 11000         60t 904.80h 0a
   popcorn-epic                   79  on(p)               50  50t 106.50h 0a score 11000         50t 106.50h 0a
-  tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  on(p)              112  112t 1658.58h 0a score 11000       112t 1658.58h 0a
   punchline                     106  off    TooThin      25  0t 0.00h 0a score     0 THIN       -
@@ -149,13 +148,11 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   telenovela-tonight            436  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   after-hours                   504  off    OptIn         0  -                                  -
-  graveyard-shift               508  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   one-season-only               512  on(p)               20  20t 462.67h 0a score 10000         20t 462.67h 0a
   cartoons-after-dark           516  on(p)               29  29t 417.73h 0a score 10900         29t 417.73h 0a
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   528  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
-  directors-chair               532  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   prestige                     cold-case-cable              49 titles, 1004.67h

@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(9, StarterCatalog.VERSION)
-        assertEquals(9, StarterCatalog.version)
+        assertEquals(10, StarterCatalog.VERSION)
+        assertEquals(10, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -127,8 +127,7 @@ class StarterCatalogTest {
         val pg = checkNotNull(RatingLadder.rankOf("PG"))
         val kids = recipes.filter { it.kidSafe }
         assertTrue(kids.isNotEmpty())
-        // The Kids band, and Tiny Chefs, kept outside it until #996.
-        assertEquals(KIDS_NUMBERED_OUTSIDE_BAND, kids.filter { it.band != Band.Kids }.map { it.key }.toSet())
+        assertTrue(kids.all { it.band == Band.Kids }, "a kids-only recipe is in the Kids band")
         for (r in kids) {
             val rank = RatingLadder.rankOf(r.maxRating)
             assertNotNull(rank, "${r.key} has no valid ceiling")

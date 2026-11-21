@@ -1,7 +1,7 @@
 {
   "description": "A published reference fixture for implementers of the rules format (docs/rules-format.md, \"Verify your client\"). A synthetic library (versions.generator; nothing real) is given to the lineup planner at first setup, and the days of every switched-on channel are built from the lineup it plans. snapshot is the planner's input: items, series and collections as the engine reads them; the library's other kinds (videos, music videos) and every item with no runtime are left out, as the app's own snapshot leaves them out. lineup is what the planner chose: per channel its id, number, source, state and seed (decimal text), and for a starter or custom channel its rules in the exact text RulesWriter writes. A leftovers channel has no rules: its pool is the engine's, from the other channels. days[i] is the broadcast day i of every switched-on channel: the day that holds inputs.nowMs is day 0. A channel's blocks tile [epochStartMs, epochEndMs) and are half-open; a block is {startMs, endMs, itemId, mediaStartOffsetMs} for a program or {startMs, endMs, slate: true}. Every millisecond count is decimal text. A mismatch of versions (catalog, kid hold, grown-up hold, curation) means the files are not comparable.",
   "fixtureFormat": 1,
-  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 9, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
+  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 10, "rulesFormat": 5, "kidHold": "kid-hold-7", "grownUpHold": "grown-up-hold-6", "curation": "curation-1", "extras": "extras-1"},
   "inputs": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
@@ -9,7 +9,7 @@
     "standardOffsetMinutes": 0,
     "nowMs": "1792411200000",
     "days": 3,
-    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 9}
+    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 10}
   },
   "snapshot": {
     "libraryId": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
@@ -2630,7 +2630,7 @@
   "lineup": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
-    "catalogVersion": 9,
+    "catalogVersion": 10,
     "utcOffsetMinutes": 0,
     "finalised": true,
     "useMyCollections": true,
@@ -2930,17 +2930,6 @@
         "onSinceMs": "1792411200000",
         "seed": "4284014266775705961",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Popcorn Epic\",\n  \"seed\": \"4284014266775705961\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Science Fiction\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Fantasy\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Sci-Fi\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"maxRating\": \"TV-14\",\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"genres\": [\n      \"Action\",\n      \"Adventure\"\n    ],\n    \"kind\": \"movie\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
-        "id": "starter:tiny-chefs",
-        "number": 80,
-        "source": {"kind": "starter", "recipeKey": "tiny-chefs", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "12226405686129328225",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Tiny Chefs\",\n  \"seed\": \"12226405686129328225\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"cooking\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"baking\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"kids cooking\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"food\"\n    }\n  ],\n  \"maxRating\": \"G\",\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       },
       {
@@ -3714,17 +3703,6 @@
         "previousRules": null
       },
       {
-        "id": "starter:graveyard-shift",
-        "number": 508,
-        "source": {"kind": "starter", "recipeKey": "graveyard-shift", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "12957930580407355006",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Graveyard Shift\",\n  \"seed\": \"12957930580407355006\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"late night\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"midnight movie\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"insomnia\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
         "id": "starter:one-season-only",
         "number": 512,
         "source": {"kind": "starter", "recipeKey": "one-season-only", "edited": false},
@@ -3777,17 +3755,6 @@
         "onSinceMs": "1792411200000",
         "seed": "9725185553991010256",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Comedy County\",\n  \"seed\": \"9725185553991010256\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Comedy\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"genres\": [\n      \"Crime\",\n      \"Action\",\n      \"Mystery\",\n      \"Fantasy\",\n      \"Science Fiction\",\n      \"Music\",\n      \"Action & Adventure\",\n      \"Sci-Fi & Fantasy\"\n    ],\n    \"notGenres\": [\n      \"Animation\"\n    ],\n    \"runtime\": {\n      \"maxMinutes\": 35\n    },\n    \"kind\": \"episode\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
-        "previousRules": null
-      },
-      {
-        "id": "starter:directors-chair",
-        "number": 532,
-        "source": {"kind": "starter", "recipeKey": "directors-chair", "edited": false},
-        "state": "Shelf",
-        "shelfReason": "Empty",
-        "onSinceMs": "1792411200000",
-        "seed": "10485060957307120206",
-        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Director's Chair\",\n  \"seed\": \"10485060957307120206\",\n  \"sources\": [\n    {\n      \"type\": \"tag\",\n      \"name\": \"director's cut\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"making of\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"behind the scenes\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"extended cut\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       }
     ]
