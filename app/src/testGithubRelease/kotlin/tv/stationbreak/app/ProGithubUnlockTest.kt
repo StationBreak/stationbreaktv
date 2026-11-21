@@ -4,7 +4,7 @@ package tv.stationbreak.app
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The GitHub release ships with Pro fully unlocked (Q-BIZ-1, #119): it is GPL and has no store billing to unlock it. */
+/** The GitHub release ships with Pro fully unlocked (Q-BIZ-1, #119): it is GPL, with no store billing. */
 class ProGithubUnlockTest {
     @Test
     fun theGithubReleaseShipsWithProUnlocked() {
