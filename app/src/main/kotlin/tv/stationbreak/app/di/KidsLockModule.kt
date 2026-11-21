@@ -9,6 +9,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import tv.stationbreak.core.domain.kids.KidsIdleFallback
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockStore
 import tv.stationbreak.core.domain.kids.MonotonicClock
@@ -45,4 +46,12 @@ internal object KidsLockModule {
         clock: Clock,
         monotonic: MonotonicClock,
     ): KidsLock = PinKidsLock(store, clock, monotonic, report = { Log.i(TAG, it.name) })
+
+    /** The idle fallback (free): the one that [MainActivity] feeds key presses and the app runs for the process. */
+    @Provides
+    @Singleton
+    fun kidsIdleFallback(
+        lock: KidsLock,
+        monotonic: MonotonicClock,
+    ): KidsIdleFallback = KidsIdleFallback(lock, monotonic)
 }
