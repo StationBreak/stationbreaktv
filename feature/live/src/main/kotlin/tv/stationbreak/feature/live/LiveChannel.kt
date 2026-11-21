@@ -40,6 +40,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.kids.KidsLockState
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -71,7 +72,7 @@ import kotlin.time.Instant
  * Time comes only from [clock] and `delay`, so virtual time drives it in tests. Nothing here logs: titles and IDs are
  * for the screen only. What it measures about each tune goes to [report] as numbers (see [TuneReport]); the host logs.
  */
-@Suppress("LongParameterList", "TooManyFunctions") // The machine's ports, one for one.
+@Suppress("LongParameterList", "TooManyFunctions", "LargeClass") // Its ports, one for one; large, due a split.
 class LiveChannel(
     private val schedule: ScheduleSource,
     private val tuner: TunePort,
@@ -104,6 +105,12 @@ class LiveChannel(
      * unwatched: no channel is no channels.
      */
     private val firstLineup: FirstLineup? = null,
+    /**
+     * The Kids Mode lock (#789). [schedule] and [channels] already leave out what it hides; this is followed so that a
+     * channel the lock hides while it plays is left at once for the first allowed one, and so that a remembered channel
+     * it hides gives the first allowed one rather than its neighbour. Null leaves it unwatched.
+     */
+    private val kidsLock: Flow<KidsLockState>? = null,
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
     private val onFirstVisit: () -> Unit = {},
 ) {
@@ -345,6 +352,7 @@ class LiveChannel(
         launch { followLineup { flipper.lineupChanged() } }
         launch { followLibrariesGone { send(requests, SitRequest(null, null)) } }
         launch { followOutputGone { send(requests, SitRequest(null, null)) } }
+        launch { followKidsLock(kidsLock, { tuned.playing }) { send(requests, SitRequest(null, null)) } }
     }
 
     /** Queues a commit's sitting; a commit still waiting for its sitting is replaced, and its flip is logged so. */
@@ -836,12 +844,15 @@ class LiveChannel(
     /**
      * The saved channel, else the first of these with something on now (#375): the lowest-numbered unhidden channel
      * whose rating ceiling is the PG tier, then the lowest held to a ceiling below PG, then the lowest. Nobody has
-     * chosen yet and anyone may be in the room, so little kids' channels are not preferred.
+     * chosen yet and anyone may be in the room, so little kids' channels are not preferred. While Kids Mode is on and
+     * the saved channel is hidden (#789), the first allowed channel in number order instead: no neighbour, no group.
      */
     private suspend fun choose(account: LibraryAccount): ChannelOnAir? {
         val saved = lastChannel.load(account)
         firstVisit = saved == null
+        val locked = kidsLock?.first()?.enabled == true
         return schedule.firstOnAir(clock.now()) { visible ->
+            if (locked && saved != null && visible.none { it.id == saved }) return@firstOnAir visible
             // A saved channel that has left the lineup (the viewer switched it off, say) lands on its neighbour first.
             val near = saved?.takeIf { s -> visible.none { it.id == s } }?.let { neighbourOfGone(account, it, visible) }
             // The sort is stable, so each group stays in number order.
@@ -869,6 +880,21 @@ class LiveChannel(
         val number = listed ?: lastChannel.loadNumber(account) ?: return null
         val id = unhidden.map { it.id to it.number }.neighbourOf(number)
         return unhidden.firstOrNull { it.id == id }
+    }
+}
+
+/**
+ * Calls [hidden] each time the Kids Mode [lock] changes so that it hides the channel [playing] (#789): the run then
+ * chooses afresh, which lands on the first allowed channel. Returns at once with no lock.
+ */
+private suspend fun followKidsLock(
+    lock: Flow<KidsLockState>?,
+    playing: () -> ChannelAiring?,
+    hidden: () -> Unit,
+) {
+    lock?.collect { state ->
+        val now = playing()
+        if (now != null && !state.allows(now.number)) hidden()
     }
 }
 

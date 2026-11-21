@@ -12,6 +12,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.program
 import tv.stationbreak.core.domain.selection.FakeLibraryChoices
@@ -75,6 +76,7 @@ class LiveViewModelLeaveTest {
                 FakeLibraryChoices(null),
                 DisplayOutput.Present,
                 r.firstLineup,
+                FakeKidsLock(),
             )
         return Setup(r, server, vm)
     }
