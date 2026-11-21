@@ -76,6 +76,10 @@ internal object SyntheticLibrary {
             listOf("kids", "nudity"),
             listOf("kids", "gore"),
             listOf("friendship"),
+            listOf("mass murder"),
+            listOf("child-death"),
+            listOf("murder"),
+            listOf("kids", "child-death"),
         )
 
     val GENRE_SETS: List<List<String>> =
@@ -88,13 +92,20 @@ internal object SyntheticLibrary {
             listOf("Drama"),
             listOf("Animation", "Adult"),
             listOf("Horror"),
+            listOf("Thriller", "Mystery"),
+            listOf("Horror", "Kids"),
         )
 
-    val STUDIO_SETS: List<List<String>> = listOf(emptyList(), listOf("Nickelodeon"), listOf("Studio Ghibli"))
+    val STUDIO_SETS: List<List<String>> =
+        listOf(emptyList(), listOf("Nickelodeon"), listOf("Studio Ghibli"), listOf("TV Tokyo"))
 
     private const val UNKNOWN_SERIES_EVERY = 5
     private const val NO_SERIES_EVERY = 7
     private const val OWN_RATING_STRIDE = 11
+    private const val BUMP_LISTED_EVERY = 50
+
+    /** The provider ids of the first entry of the bump list: every 50th series carries them. */
+    val BUMP_LISTED_IDS: Map<String, String> = mapOf("tvdb" to "76088")
 
     private class Combo(
         val rating: String?,
@@ -119,7 +130,8 @@ internal object SyntheticLibrary {
         for ((index, c) in combos.withIndex()) {
             items += movie(idOf(++n), rating = c.rating, genres = c.genres, tags = c.tags, studios = c.studios)
             val showId = idOf(++n)
-            shows += series(showId, rating = c.rating, genres = c.genres, tags = c.tags, studios = c.studios)
+            val ids = if (index % BUMP_LISTED_EVERY == 0) BUMP_LISTED_IDS else emptyMap()
+            shows += series(showId, c.rating, c.genres, c.tags, c.studios, ids)
             items += episode(idOf(++n), showId, rating = RATINGS[(index * OWN_RATING_STRIDE) % RATINGS.size])
             if (index % UNKNOWN_SERIES_EVERY == 0) {
                 items += episode(idOf(++n), missingSeries, rating = c.rating, genres = c.genres, tags = c.tags)

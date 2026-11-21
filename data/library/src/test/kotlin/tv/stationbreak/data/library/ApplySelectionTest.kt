@@ -273,7 +273,7 @@ class ApplySelectionTest {
         }
 
     @Test
-    fun providerIdsOnlyChange_doesNotBumpGeneration() =
+    fun providerIdsOnlyChange_bumpsGenerationForASeriesOnly() =
         runBlocking {
             apply(setOf(MOVIES, SHOWS))
             val film = sitem(1).copy(providerIds = mapOf("imdb" to "tt0000001", "tmdb" to "101"))
@@ -285,11 +285,13 @@ class ApplySelectionTest {
 
             val changed = film.copy(providerIds = mapOf("imdb" to "tt0000002"))
             repository.put(ALICE, MOVIES, changed)
+            assertEquals(before, generation())
+            // A series' ids are versioned (ADR-0029: the kid hold's bump list reads them), so they move it.
             repository.putSeries(ALICE, SHOWS, series(hexId(500)).copy(providerIds = mapOf("tvdb" to "5002")))
 
-            assertEquals(before, generation())
-            assertEquals("no version for provider ids", versions, repository.versions(ALICE).size)
-            assertEquals(seriesVersions, repository.seriesVersions(ALICE).size)
+            assertEquals(before + 1, generation())
+            assertEquals("no version for an item's provider ids", versions, repository.versions(ALICE).size)
+            assertEquals(seriesVersions + 1, repository.seriesVersions(ALICE).size)
             assertEquals("imdb=tt0000002", repository.currentRows(ALICE).single().providerIds)
             assertEquals(
                 mapOf("imdb" to "tt0000002"),
@@ -302,7 +304,7 @@ class ApplySelectionTest {
 
             // A field the scheduler reads still moves it.
             repository.put(ALICE, MOVIES, changed.copy(name = "Renamed Invented Film"))
-            assertEquals(before + 1, generation())
+            assertEquals(before + 2, generation())
         }
 
     // Spec 26, schema 11: an add that lists a chosen library's item no longer takes it (the first-owner rule), so the

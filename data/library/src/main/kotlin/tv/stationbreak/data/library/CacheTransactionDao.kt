@@ -195,7 +195,7 @@ internal abstract class CacheTransactionDao(
     /**
      * True when the page changed a field the scheduler or the rules read (a new row, or one that took a version: an
      * edit to a versioned field or a revival) in a library that is not being added, before or after the write (spec
-     * 26). A change to an unversioned field alone (the parent, the provider ids) is stored and moves nothing.
+     * 26). A change to an unversioned field alone (the parent, an item's provider ids) is stored and moves nothing.
      */
     private fun itemsMoveTheDay(
         plan: PagePlan,
@@ -234,8 +234,9 @@ internal abstract class CacheTransactionDao(
         series.update(plan.toUpdate)
         series.insertVersions(plan.versions)
         // A new or versioned series moves the day, whatever library holds its row: an episode of any library reads it
-        // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only or provider-id-only
-        // change takes no version and moves nothing. An add's write (D8) moves it only when an episode outside the
+        // by its id, so an add is not exempt here (whole-part review, data MED-1). A library-only change, or one to a
+        // provider id the engine does not read, takes no version and moves nothing. An add's write (D8) moves it only
+        // when an episode outside the
         // adds names the series: no day reads a series that only an add's episodes name.
         val changed = plan.toInsert.map { it.seriesId } + plan.versions.map { it.seriesId }
         val moves =

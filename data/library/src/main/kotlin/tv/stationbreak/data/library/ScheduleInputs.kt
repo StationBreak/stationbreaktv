@@ -296,7 +296,16 @@ internal object RuleInputs {
         val result = LinkedHashMap<CanonicalId, RuleSeries>(wanted.size * 2)
         for (id in wanted) {
             val series = byId.getValue(id)
-            val rule = RuleSeries(id, series.officialRating, series.genres, series.tags, series.studios, series.name)
+            val rule =
+                RuleSeries(
+                    id,
+                    series.officialRating,
+                    series.genres,
+                    series.tags,
+                    series.studios,
+                    series.name,
+                    series.providerIds,
+                )
             rule.primeFolds(folds)
             result[id] = rule
         }

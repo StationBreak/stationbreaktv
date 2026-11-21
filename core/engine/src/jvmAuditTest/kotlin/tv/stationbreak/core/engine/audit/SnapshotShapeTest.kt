@@ -23,7 +23,7 @@ class SnapshotShapeTest {
                 RuleSnapshot::class.java to 6,
                 RuleItem::class.java to 8,
                 ScheduleItem::class.java to 10,
-                RuleSeries::class.java to 6,
+                RuleSeries::class.java to 7,
                 RuleCollection::class.java to 6,
             )
         for ((type, count) in expected) {

@@ -84,17 +84,22 @@ internal object SnapshotWriter {
         )
     }
 
-    private fun seriesOf(series: RuleSeries): JsonObject =
-        JsonObject(
-            linkedMapOf(
+    // `providerIds` is written only when the series has some, so a file without them keeps its bytes.
+    private fun seriesOf(series: RuleSeries): JsonObject {
+        val fields =
+            linkedMapOf<String, JsonElement>(
                 "id" to id(series.id),
                 "officialRating" to text(series.officialRating),
                 "genres" to texts(series.genres),
                 "tags" to texts(series.tags),
                 "studios" to texts(series.studios),
                 "name" to text(series.name),
-            ),
-        )
+            )
+        if (series.providerIds.isNotEmpty()) {
+            fields["providerIds"] = JsonObject(series.providerIds.toSortedMap().mapValues { JsonPrimitive(it.value) })
+        }
+        return JsonObject(fields)
+    }
 
     private fun ids(values: Set<CanonicalId>): JsonElement {
         val sorted = values.map { it.value }.sorted()

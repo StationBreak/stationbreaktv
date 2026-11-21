@@ -301,8 +301,8 @@ class KidHoldTest {
     }
 
     @Test
-    fun theVersionIsKidHoldSix() {
-        assertEquals("kid-hold-6", KidHold.VERSION_NAME)
+    fun theVersionIsKidHoldSeven() {
+        assertEquals("kid-hold-7", KidHold.VERSION_NAME)
     }
 
     // --- the frozen manifest ---
@@ -310,7 +310,7 @@ class KidHoldTest {
     // A change to either list is a new version name: the hold's behaviour is versioned by it.
     @Test
     fun theManifestIsFrozenUnderItsVersionName() {
-        assertEquals("kid-hold-6", KidHold.VERSION_NAME)
+        assertEquals("kid-hold-7", KidHold.VERSION_NAME)
         assertEquals(
             listOf("Children", "Children's", "Children’s", "Childrens", "Kids", "Kid", "Preschool", "Pre-school"),
             KidHold.KIDS_GENRES,
@@ -413,8 +413,8 @@ class KidHoldTest {
     // The signal's lists are frozen under both hold versions: a change is a new version name of each.
     @Test
     fun theAnimatedFamilyListsAreFrozenUnderBothHoldVersions() {
-        assertEquals("kid-hold-6", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-5", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-7", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-6", GrownUpHold.VERSION_NAME)
         assertEquals("animation", AnimatedFamilySignal.GENRE_ANIMATION)
         assertEquals("family", AnimatedFamilySignal.GENRE_FAMILY)
         assertEquals(setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved"), AnimatedFamilySignal.RATINGS)
@@ -425,7 +425,7 @@ class KidHoldTest {
     @Test
     fun theHoldVersionNamesMoveTogether() {
         assertEquals(
-            mapOf("kid-hold-6" to "grown-up-hold-5"),
+            mapOf("kid-hold-7" to "grown-up-hold-6"),
             mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
         )
     }
@@ -433,8 +433,8 @@ class KidHoldTest {
     // The gate's behaviour is pinned under both version names: a change to any vector is a new version of each hold.
     @Test
     fun theGrownUpGateIsPinnedUnderBothHoldVersions() {
-        assertEquals("kid-hold-6", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-5", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-7", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-6", GrownUpHold.VERSION_NAME)
         val animated = listOf("Animation", "Family")
         val drops =
             mapOf(

@@ -109,7 +109,8 @@ data class RuleItem(
 
 /**
  * A series as held before the cut-off, with the fields a rule reads. [officialRating] is as stored. [name] is the
- * series name as stored, never folded.
+ * series name as stored, never folded. [providerIds] are its ids at outside databases as `SeriesInfo` cleaned them
+ * (keys lower case: `imdb`, `tmdb`, `tvdb`); only the kid hold's hand-kept list reads them, and they never reach a log.
  */
 data class RuleSeries(
     val id: CanonicalId,
@@ -118,8 +119,10 @@ data class RuleSeries(
     val tags: List<String>,
     val studios: List<String> = emptyList(),
     val name: String? = null,
+    val providerIds: Map<String, String> = emptyMap(),
 ) {
-    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log.
+    // The name is text a person typed: it shows as "<name>", never as itself, so it cannot reach a log. Neither do
+    // the provider ids.
     override fun toString(): String =
         "RuleSeries(id=$id, officialRating=$officialRating, genres=$genres, tags=$tags, " +
             "studios=$studios, " +

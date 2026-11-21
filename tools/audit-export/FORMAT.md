@@ -56,7 +56,11 @@ movie has no series data), so a file the app's own types would refuse is refused
 
 ### A series (`RuleSeries`)
 
-`id`, `officialRating` (text or null, as stored), `genres`, `tags`, `studios`, `name`.
+`id`, `officialRating` (text or null, as stored), `genres`, `tags`, `studios`, `name`, and optionally `providerIds`
+(an object of at most eight ids at outside databases, key to id, keys lower case such as `imdb`, `tmdb`, `tvdb`; absent
+means none, and the writer leaves it out when there are none, so a file without ids keeps its bytes). Only the kid
+hold's bump list reads it (ADR-0029). `export.py` does not write it yet, so a snapshot made by the exporter has no ids and
+the audit shows a listed series as the app would without ids; a file made another way may carry them.
 
 ### A collection (`RuleCollection`)
 

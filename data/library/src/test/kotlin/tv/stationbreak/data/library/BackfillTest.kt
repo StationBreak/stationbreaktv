@@ -378,7 +378,8 @@ class BackfillTest {
         }
 
     // Spec 26: the migration to version 10 sets the flag so this re-read writes the provider ids the cache lacked. They
-    // are stored without a version, and the generation does not move: no day is built from them.
+    // are stored without a version for an item; a series' ids are a new version (ADR-0029), so the one series that
+    // gained ids moves the generation once.
     @Test
     fun backfill_fillsProviderIds() =
         runBlocking {
@@ -403,7 +404,7 @@ class BackfillTest {
             }
             assertEquals("tvdb=77", repository.currentSeries(ALICE).single { it.seriesId == "s1" }.providerIds)
             assertEquals("", repository.currentSeries(ALICE).single { it.seriesId == "s2" }.providerIds)
-            assertEquals(before, repository.contentGeneration(ALICE))
+            assertEquals(before + 1, repository.contentGeneration(ALICE))
             assertEquals(versions, repository.versions(ALICE).size)
             assertFalse(repository.backfillPending(ALICE))
         }

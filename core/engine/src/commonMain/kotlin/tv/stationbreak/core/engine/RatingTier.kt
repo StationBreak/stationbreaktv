@@ -6,15 +6,18 @@ import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 
 /**
- * The four exclusive audience tiers of `kid-hold-6` (ADR-0028, #576). Every title is in exactly one; a rejection only
- * moves it up, toward [Adult]. Unrated and unknown ratings are [Adult]. Frozen, with its lists, under
- * `KidHold.VERSION_NAME`.
+ * The four exclusive audience tiers of `kid-hold-6` (ADR-0028, #576), with the moves up of `kid-hold-7` (ADR-0029).
+ * Every title is in exactly one; a rejection only moves it up, toward [Adult]. Unrated and unknown ratings are
+ * [Adult]. Frozen, with its lists, under `KidHold.VERSION_NAME`.
  */
 enum class RatingTier {
     /** A kid rating (level ALL or 7) plus made-for-kids evidence (`KidHold.isMadeForKids`), and no veto. */
     Kids,
 
-    /** Up to PG / TV-PG (level 10), not kids, no veto. */
+    /**
+     * Up to PG / TV-PG (level 10), not kids, no veto. A violence-heavy tag or the Horror genre sends it to [Teen]; the
+     * hand-kept bump list ([KidBumpList]) sends a kids-tier series here.
+     */
     Family,
 
     /** PG-13 / TV-14 (levels 13 and 14), no explicit tag or adult genre. */
@@ -74,6 +77,19 @@ enum class RatingTier {
                 "cannibalism",
             )
 
+        /**
+         * Tags that keep a PG-or-below title out of [Family] (folded, exact): violence-heavy content (#988).
+         * `murder` and `killer` alone are not here. A kid-rated title with made-for-kids evidence stays [Kids] (the
+         * kids rule is unchanged); `decapitation` is also in [GORE_TAGS], which already kept it out of both.
+         */
+        val FAMILY_VETO_TAGS: List<String> = listOf("mass murder", "decapitation", "child-death")
+
+        /**
+         * Genres that keep a PG-or-below title out of [Family] (folded, exact): horror (#1001). Thriller and Mystery do
+         * not. As [FAMILY_VETO_TAGS], a title that is [Kids] stays [Kids].
+         */
+        val FAMILY_VETO_GENRES: List<String> = listOf("horror")
+
         private const val KID_LEVEL = 1
         private const val FAMILY_LEVEL = 2
         private const val TEEN_LEVEL = 4
@@ -81,6 +97,8 @@ enum class RatingTier {
         private val explicitTags = EXPLICIT_TAGS.toSet()
         private val adultGenres = ADULT_GENRES.toSet()
         private val goreTags = GORE_TAGS.toSet()
+        private val familyVetoTags = FAMILY_VETO_TAGS.toSet()
+        private val familyVetoGenres = FAMILY_VETO_GENRES.toSet()
 
         /**
          * The tier of [entry], with [series] its series from the snapshot (null when it has none or the snapshot lacks
@@ -103,7 +121,12 @@ enum class RatingTier {
             level: Int,
             entry: RuleItem,
             series: RuleSeries?,
-        ): RatingTier = if (level <= KID_LEVEL && KidHold.isMadeForKids(entry, series)) Kids else Family
+        ): RatingTier =
+            when {
+                level <= KID_LEVEL && KidHold.isMadeForKids(entry, series) && !KidBumpList.lists(series) -> Kids
+                familyVeto(entry, series) -> Teen
+                else -> Family
+            }
 
         /**
          * The rating level ([RatingMap]) that decides for [entry]: a movie's or a series-less episode's own; for an
@@ -142,6 +165,17 @@ enum class RatingTier {
             entry: RuleItem,
             series: RuleSeries?,
         ): Boolean = anyIn(goreTags, entry.foldedTags) || (series != null && anyIn(goreTags, series.foldedTags))
+
+        private fun familyVeto(
+            entry: RuleItem,
+            series: RuleSeries?,
+        ): Boolean =
+            anyIn(familyVetoTags, entry.foldedTags) ||
+                anyIn(familyVetoGenres, entry.foldedGenres) ||
+                (
+                    series != null &&
+                        (anyIn(familyVetoTags, series.foldedTags) || anyIn(familyVetoGenres, series.foldedGenres))
+                )
 
         private fun anyIn(
             set: Set<String>,

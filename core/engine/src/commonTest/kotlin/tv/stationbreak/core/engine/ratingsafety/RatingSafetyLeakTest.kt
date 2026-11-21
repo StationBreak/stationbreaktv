@@ -98,7 +98,8 @@ class RatingSafetyLeakTest {
         val evidence =
             "kids" in genres || "kids" in tags || "children" in tags || "Nickelodeon" in entry.studios ||
                 ("animation" in genres && "family" in genres)
-        val vetoed = "adult" in genres || tags.any { it in RatingTier.EXPLICIT_TAGS || it in RatingTier.GORE_TAGS }
+        val vetoTags = RatingTier.EXPLICIT_TAGS + RatingTier.GORE_TAGS + RatingTier.FAMILY_VETO_TAGS
+        val vetoed = "adult" in genres || "horror" in genres || tags.any { it in vetoTags }
         return entry.officialRating == "G" && entry.item.seriesId == null && !evidence && !vetoed
     }
 
@@ -145,14 +146,70 @@ class RatingSafetyLeakTest {
             val tier = RatingTier.of(entry, series)
             assertEquals(RatingTier.Adult, RatingTier.of(entry.copy(tags = entry.tags + "nudity"), series), "$entry")
             assertTrue(RatingTier.of(entry.copy(tags = entry.tags + "gore"), series) >= tier, "$entry")
+            for (tag in RatingTier.FAMILY_VETO_TAGS) {
+                assertTrue(RatingTier.of(entry.copy(tags = entry.tags + tag), series) >= tier, "$tag: $entry")
+            }
+            assertTrue(RatingTier.of(entry.copy(genres = entry.genres + "Horror"), series) >= tier, "$entry")
+            if (series != null) {
+                val listed = series.copy(providerIds = SyntheticLibrary.BUMP_LISTED_IDS)
+                assertTrue(RatingTier.of(entry, listed) >= tier, "$entry")
+            }
             if (entry.item.seriesId == null) {
                 assertEquals(RatingTier.Adult, RatingTier.of(entry.copy(officialRating = null), null), "$entry")
             }
         }
     }
 
+    // #988 and #1001: no PG-or-below title with a violence-heavy tag or the Horror genre is family.
+    @Test
+    fun noFamilyVetoTitleIsFamily() {
+        var checked = 0
+        for (entry in library.items) {
+            val tags = names(entry, { it.tags }, { it.tags })
+            val genres = names(entry, { it.genres }, { it.genres })
+            if (tags.none { it in RatingTier.FAMILY_VETO_TAGS } && "horror" !in genres) continue
+            checked++
+            assertNotEquals(RatingTier.Family, tierOf(entry), "$entry")
+        }
+        assertTrue(checked > 1_000, "titles checked: $checked")
+    }
+
+    // #989: TV Tokyo never decides a tier: taking the studio away from a title (and its series) changes nothing.
+    @Test
+    fun tvTokyoNeverDecidesATier() {
+        var checked = 0
+        for (entry in library.items) {
+            val series = seriesOf(entry)
+            if ("TV Tokyo" !in entry.studios && series?.studios?.contains("TV Tokyo") != true) continue
+            checked++
+            val bare = entry.copy(studios = entry.studios - "TV Tokyo")
+            val bareSeries = series?.copy(studios = series.studios - "TV Tokyo")
+            assertEquals(RatingTier.of(bare, bareSeries), RatingTier.of(entry, series), "$entry")
+        }
+        assertTrue(checked > 1_000, "TV Tokyo titles checked: $checked")
+    }
+
+    // #990: a listed series is never kids, and its episodes land exactly where they would land without the list,
+    // except kids becomes family (or teen with a family veto).
+    @Test
+    fun theBumpListOnlyEverMovesKidsUpToFamily() {
+        var listed = 0
+        for (entry in library.items) {
+            val series = seriesOf(entry)?.takeIf { it.providerIds.isNotEmpty() } ?: continue
+            listed++
+            val without = RatingTier.of(entry, series.copy(providerIds = emptyMap()))
+            val with = RatingTier.of(entry, series)
+            assertNotEquals(RatingTier.Kids, with, "$entry")
+            if (without != RatingTier.Kids) assertEquals(without, with, "$entry")
+        }
+        assertTrue(listed > 50, "listed series' episodes: $listed")
+    }
+
     // The tier counts of this synthetic library, pinned so a change to the rules shows up here. Not a target: a
-    // deliberate rule change updates them, with the reason in the commit.
+    // deliberate rule change updates them, with the reason in the commit. The library grew with kid-hold-7 (more tag,
+    // genre and studio sets, and a listed series every 50th): under kid-hold-6 it had 3090 kids, 3913 family, 5603 teen
+    // and 45122 adult. kid-hold-7 moves 2010 titles: 1987 family to teen (violence tags or Horror), 13 kids to family
+    // and 10 kids to teen (the bump list, the latter also Horror).
     @Test
     fun theSyntheticLibraryTierCounts() {
         val counts = library.items.groupingBy { tierOf(it) }.eachCount()
@@ -161,6 +218,11 @@ class RatingSafetyLeakTest {
 
     private companion object {
         val EXPECTED_COUNTS =
-            mapOf(RatingTier.Kids to 989, RatingTier.Family to 1059, RatingTier.Teen to 2380, RatingTier.Adult to 20313)
+            mapOf(
+                RatingTier.Kids to 3067,
+                RatingTier.Family to 1939,
+                RatingTier.Teen to 7600,
+                RatingTier.Adult to 45122,
+            )
     }
 }

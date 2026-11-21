@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.library
 
+import tv.stationbreak.core.model.ProviderIdKeys
+
 /**
  * The text of an item's or a series' provider ids (spec 26) for one column: `key=value;key=value`, the keys sorted, and
  * `''` for none. The sync hands over maps already cleaned (keys `[a-z0-9._-]{1,32}`; values printable ASCII U+0021 to
@@ -40,6 +42,9 @@ internal object ProviderIdsCodec {
         }
         return ids
     }
+
+    /** [text] cut down to the keys the rule engine reads ([ProviderIdKeys.ENGINE]), in the codec's own text. */
+    fun engineProjection(text: String): String = encode(decode(text).filterKeys { it in ProviderIdKeys.ENGINE })
 
     private fun validKey(key: String): Boolean =
         key.length in 1..MAX_KEY && key.all { it in 'a'..'z' || it in '0'..'9' || it == '.' || it == '_' || it == '-' }

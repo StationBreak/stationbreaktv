@@ -24,6 +24,7 @@ internal class SeriesRevival(
 )
 
 /** One series as this TV held it before a cut-off: [seriesId] as stored, and the fields a rule reads. */
+@Suppress("LongParameterList") // A plain row: one field per input a rule reads.
 internal class HeldSeries(
     val seriesId: String,
     val officialRating: String?,
@@ -31,8 +32,9 @@ internal class HeldSeries(
     val tags: List<String>,
     val studios: List<String>,
     val name: String?,
+    val providerIds: Map<String, String> = emptyMap(),
 ) {
-    // A name is text a person typed: it never reaches a log.
+    // A name is text a person typed, and provider ids are never logged: neither reaches a log.
     override fun toString(): String = "HeldSeries(seriesId=$seriesId, name=<name>)"
 }
 
@@ -272,6 +274,7 @@ internal abstract class SeriesDao {
         val genres = if (version != null) version.genres else row.genres
         val tags = if (version != null) version.tags else row.tags
         val studios = if (version != null) version.studios else row.studios
+        val providerIds = if (version != null) version.providerIds else row.providerIds
         return HeldSeries(
             row.seriesId,
             rating?.let(strings::of),
@@ -279,6 +282,7 @@ internal abstract class SeriesDao {
             strings.all(VersionCodec.decode(tags)),
             strings.all(VersionCodec.decode(studios)),
             if (version != null) version.name else row.name,
+            ProviderIdsCodec.decode(providerIds),
         )
     }
 
@@ -304,8 +308,9 @@ internal abstract class SeriesDao {
 
     /**
      * Works out what writing [incoming] over the rows the database holds ([existing]) does. The change test compares
-     * the rating, the ordered genres, tags and studios, the tombstone and the name (spec 23, D8), and nothing else: not
-     * the library (Vimes L2). A series listed in two ticked libraries keeps one row whose library flips with each
+     * the rating, the ordered genres, tags and studios, the tombstone, the name (spec 23, D8) and the provider ids, and
+     * nothing else: not the library (Vimes L2). A series listed in two ticked libraries keeps one row whose library
+     * flips with each
      * write, by an unversioned update (Vimes L-1; items behave so too). A row that clears a tombstone is a change by
      * the last of those. The stamp of a changed row is `max(nowMs, old.seenFromMs + 1)`. This reads and writes nothing.
      */
@@ -318,12 +323,13 @@ internal abstract class SeriesDao {
         val toUpdate = mutableListOf<SeriesEntity>()
         val versions = mutableListOf<SeriesVersionEntity>()
         var unchanged = 0
-        for ((id, row) in incoming) {
+        for ((id, answer) in incoming) {
             val old = existing[id]
             if (old == null) {
-                toInsert += row.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
+                toInsert += answer.copy(seenFromMs = nowMs, firstSeenMs = nowMs)
                 continue
             }
+            val row = answer.copy(providerIds = idsToKeep(old, answer))
             val kept = row.copy(seenFromMs = old.seenFromMs, firstSeenMs = old.firstSeenMs)
             when {
                 !old.sameVersionedFields(row) -> {
@@ -344,6 +350,21 @@ internal abstract class SeriesDao {
         }
         return SeriesPlan(toInsert, toUpdate, versions, unchanged)
     }
+
+    // An answer with none of the ids the engine reads, for a series that has some, is taken as a glitch (the client
+    // reads an odd answer as no ids): the old ids stay, with no version. A stale id can only keep a listed series in
+    // family, the safe direction. A change from one set of engine ids to another still wins.
+    private fun idsToKeep(
+        old: SeriesEntity,
+        answer: SeriesEntity,
+    ): String =
+        if (ProviderIdsCodec.engineProjection(answer.providerIds).isEmpty() &&
+            ProviderIdsCodec.engineProjection(old.providerIds).isNotEmpty()
+        ) {
+            old.providerIds
+        } else {
+            answer.providerIds
+        }
 
     /**
      * Works out the revival of the tombstoned [rows] at [nowMs]: each is copied as a version first, ending at the new

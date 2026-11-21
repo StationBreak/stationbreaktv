@@ -8,7 +8,7 @@ to the rule that a leak may only fail upward, toward adult.
 - `SyntheticLibrary.kt`: a deterministic library built from every combination of a set of ratings, tags, genres and
   studios, as movies, episodes of a known series, episodes with a missing series and episodes with no series.
 - `RatingSafetyLeakTest.kt`: the leak checks, and the pinned tier counts of the synthetic library.
-- The rating map and the tier rule also have shared vectors in `docs/rules-format/vectors/kid-hold-6.json`.
+- The rating map and the tier rule also have shared vectors in `docs/rules-format/vectors/kid-hold-6.json` and, for the `kid-hold-7` moves up, `kid-hold-7.json`.
 
 ## Rebuilding a real mock library (by hand, not in CI)
 
