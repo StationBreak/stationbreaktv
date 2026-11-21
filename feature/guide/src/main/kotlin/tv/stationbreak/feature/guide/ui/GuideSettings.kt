@@ -50,6 +50,13 @@ internal enum class SettingsRow(
 
     /** Asks whether to sign out of this TV, over the sheet (#336); the safe answer has the focus. */
     SignOut(RowKind.Action, R.string.guide_settings_sign_out),
+
+    /** Off or On: whether a crash may be reported to the owner's endpoint (#96). Shown only in a build that has one. */
+    CrashReports(RowKind.Choice, R.string.guide_settings_crash_reports),
+    ;
+
+    /** Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint. */
+    fun isShown(values: SettingsValues): Boolean = this != CrashReports || values.crashReportsAvailable
 }
 
 /** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
@@ -61,6 +68,7 @@ internal enum class SettingsGroup(
     Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
+    Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),
 }
 
 /** The values the choice rows show: the viewer's own, as their stores hold them. */
@@ -69,6 +77,8 @@ internal data class SettingsValues(
     val fit: ScreenFit = ScreenFit.Safe,
     val channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
     val levelling: Boolean = true,
+    val crashReports: Boolean = false,
+    val crashReportsAvailable: Boolean = false,
 )
 
 /**
@@ -103,6 +113,8 @@ internal data class SettingsStep(
     val levellingFrom: String? = null,
     val channelChange: ChannelChangeStyle? = null,
     val channelChangeFrom: String? = null,
+    val crashReports: Boolean? = null,
+    val crashReportsFrom: String? = null,
 )
 
 /** The line under Update library: the string [text], with the [time] it updated at for the one that has it. */
@@ -189,8 +201,8 @@ internal fun settingsStep(
     } else {
         when (remoteKeyToAct(key, type, repeatCount)) {
             RemoteKey.Back -> SettingsStep(null)
-            RemoteKey.Up -> SettingsStep(panel.moved(-1))
-            RemoteKey.Down -> SettingsStep(panel.moved(1))
+            RemoteKey.Up -> SettingsStep(panel.moved(-1, values))
+            RemoteKey.Down -> SettingsStep(panel.moved(1, values))
             RemoteKey.Left -> panel.changed(values, Change.Previous)
             RemoteKey.Right -> panel.changed(values, Change.Next)
             RemoteKey.Select -> panel.selected(values)
@@ -209,8 +221,11 @@ private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
 
 private val SettingsPanel.syncStep: SettingsStep get() = SettingsStep(this, syncNow = true)
 
-// Up and Down move between the rows and stop at the ends.
-private fun SettingsPanel.moved(by: Int): SettingsPanel {
-    val rows = SettingsRow.entries
-    return copy(row = rows[(row.ordinal + by).coerceIn(0, rows.lastIndex)])
+// Up and Down move between the rows the sheet shows and stop at the ends.
+private fun SettingsPanel.moved(
+    by: Int,
+    values: SettingsValues,
+): SettingsPanel {
+    val rows = SettingsRow.entries.filter { it.isShown(values) }
+    return copy(row = rows[(rows.indexOf(row) + by).coerceIn(0, rows.lastIndex)])
 }

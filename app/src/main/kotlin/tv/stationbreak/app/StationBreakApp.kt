@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import tv.stationbreak.app.crash.CrashReporting
 import tv.stationbreak.app.di.AppStart
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
@@ -78,6 +79,8 @@ class StationBreakApp :
         // escapes is logged by name and does not crash the process.
         val failed = lineupFailureHandler { Log.w(LINEUP_TAG, it) }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + failed)
+        // Opt-in crash reports (#96): nothing starts unless this build has an endpoint and the viewer has agreed.
+        CrashReporting.start(this, BuildConfig.CRASH_REPORT_URL, scope)
         ProcessLifecycleOwner.get().lifecycle.addObserver(ForegroundTrigger(scope) { stayCurrent().onOpen() })
         // The schedule's days are built ahead from the first time the app is in the foreground, not at process start:
         // a process WorkManager starts for the periodic sync has no screen and needs no day (#434). Coming back from

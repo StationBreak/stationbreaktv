@@ -653,7 +653,8 @@ class GuideScreenshotTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, picked))
         shoot("$SETTINGS_FRAME$suffix.png")
         if (scale != 1f) {
-            for (row in SettingsRow.entries) {
+            // The crash reports row is on the sheet only in a build with an endpoint, and this one has none.
+            for (row in SettingsRow.entries.filter { it.isShown(SettingsValues()) }) {
                 assertBetween(GuideTags.settingsRow(row), titleBottom, hintTop, 0f)
                 press(Key.DirectionDown)
             }

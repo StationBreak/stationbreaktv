@@ -36,17 +36,46 @@ class GuideSettingsKeysTest {
 
         var panel = opened
         val walked = mutableListOf(panel.row)
-        repeat(SettingsRow.entries.size) {
+        // No endpoint in this build (the default): the crash reports row is not on the sheet, so no walk lands on it.
+        val shown = SettingsRow.entries.filter { it.isShown(defaults) }
+        repeat(shown.size) {
             panel = checkNotNull(panel.press(Key.DirectionDown).panel)
             walked += panel.row
         }
-        assertEquals(SettingsRow.entries + SettingsRow.SignOut, walked)
+        assertEquals(shown + SettingsRow.SignOut, walked)
         // Held: every repeat moves (and stops at the end).
         val last = on(SettingsRow.SignOut)
         assertEquals(SettingsStep(last), last.press(Key.DirectionDown, repeat = 3))
         assertEquals(SettingsStep(on(SettingsRow.ScreenFit)), on(SettingsRow.ChannelChange).press(Key.DirectionUp))
         // A release moves nothing.
         assertEquals(SettingsStep(on(SettingsRow.Libraries)), on(SettingsRow.Libraries).release(Key.DirectionUp))
+    }
+
+    @Test
+    fun crashReportsRowIsWalkedToOnlyInABuildWithAnEndpoint() {
+        val last = on(SettingsRow.SignOut)
+        assertEquals(SettingsStep(last), last.press(Key.DirectionDown))
+        val offered = defaults.copy(crashReportsAvailable = true)
+        assertEquals(SettingsStep(on(SettingsRow.CrashReports)), last.press(Key.DirectionDown, offered))
+        assertEquals(SettingsStep(last), on(SettingsRow.CrashReports).press(Key.DirectionUp, offered))
+    }
+
+    @Test
+    fun crashReportsAreOffUntilTheViewerTurnsThemOn_andOnlyThenChosen() {
+        val row = on(SettingsRow.CrashReports)
+        val offered = defaults.copy(crashReportsAvailable = true)
+        assertEquals(false, offered.crashReports)
+        assertEquals(
+            SettingsStep(row, crashReports = true, crashReportsFrom = "settingsRight"),
+            row.press(Key.DirectionRight, offered),
+        )
+        // Already off: Left chooses nothing again.
+        assertEquals(SettingsStep(row), row.press(Key.DirectionLeft, offered))
+        val on = offered.copy(crashReports = true)
+        assertEquals(
+            SettingsStep(row, crashReports = false, crashReportsFrom = "settingsOk"),
+            row.press(Key.DirectionCenter, on),
+        )
     }
 
     @Test

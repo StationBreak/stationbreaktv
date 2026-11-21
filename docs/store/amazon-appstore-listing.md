@@ -57,7 +57,7 @@ What you need:
 - A Fire TV device running Fire OS 6 or later on the same network as your server, or able to reach it.
 
 Private by design:
-StationBreak talks only to your Jellyfin server. It has no ads, no analytics and no account with us. Your sign-in stays on the TV, encrypted.
+StationBreak talks only to your Jellyfin server. It has no ads, no analytics and no account with us. Your sign-in stays on the TV, encrypted. Crash reports are off unless you turn them on in Settings.
 
 Works with your setup:
 Connect by address, with or without https. Servers behind a reverse proxy at a path such as /jellyfin work. Self-signed certificates are supported: the app shows the certificate's fingerprint and asks before trusting it.
@@ -74,7 +74,7 @@ Your own Jellyfin library, played as live TV channels with a program guide
 Pause, go back to the start of the show, and skip ahead
 Build up to 5 channels of your own; kids channels show only titles rated for kids
 Audio, subtitle and version choice, and volume levelling
-No ads, no tracking: the app talks only to your server
+No ads, no tracking: the app talks only to your server (crash reports are off unless you turn them on)
 ```
 
 ### Keywords
@@ -124,12 +124,17 @@ media. The facts it rests on:
 
 ### User data privacy
 
-"Does your app collect user data or transfer user data to third parties?" Recommended: **No. Owner.**
+"Does your app collect user data or transfer user data to third parties?" Recommended for a build with no crash
+report endpoint (`CRASH_REPORT_URL` empty, the default): **No. Owner.** For a build that has one, such as the Amazon Live
+App Testing beta (#96, Q-PRIV-1): **Yes, diagnostics, only if the viewer opts in**, and no one else receives it.
 
-Amazon's questionnaire is about user data the developer, its SDKs or its service providers receive. This app sends
-nothing to the developer or anyone else: no analytics, crash reporting or advertising SDK, and no network call
-except to the server the viewer typed in. Data sent there is the viewer's own action, to their own server (see the
-[privacy page](../guide/privacy.md)).
+Amazon's questionnaire is about user data the developer, its SDKs or its service providers receive. Without an
+endpoint this app sends nothing to the developer or anyone else: no analytics, crash reporting or advertising SDK, and no
+network call except to the server the viewer typed in. Data sent there is the viewer's own action, to their own server
+(see the [privacy page](../guide/privacy.md)). With an endpoint, and only after the viewer turns on Settings, Send crash
+reports, a crash report (the error's stack trace with web addresses, server names and addresses, tokens and keys taken
+out, the app and Android version, and the TV's model and memory) goes to the developer's own server, and nowhere else.
+Answer for the build you submit.
 
 Even with No, give the privacy policy URL so the listing links it. The policy is hosted on stationbreak.tv (owner
 decision, 2026-11-18), from the text in `docs/guide/privacy.md`: `https://stationbreak.tv/privacy/`, live once
