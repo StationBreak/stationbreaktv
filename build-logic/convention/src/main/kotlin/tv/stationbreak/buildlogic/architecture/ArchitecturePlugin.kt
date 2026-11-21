@@ -51,6 +51,17 @@ class ArchitecturePlugin : Plugin<Project> {
                 }
             tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkAtomicFile) }
 
+            val checkFlavorIsolation =
+                tasks.register<FlavorIsolationCheck>("checkFlavorIsolation") {
+                    group = LifecycleBasePlugin.VERIFICATION_GROUP
+                    description = "Fails if store SDK code is outside :app's amazon source sets or Pro has a second SKU."
+                    modulePath.set(projectPath)
+                    moduleDir.set(layout.projectDirectory)
+                    sources.from(fileTree("src") { include("**/*.kt", "**/*.java") })
+                    report.set(layout.buildDirectory.file("reports/architecture/flavor-isolation.txt"))
+                }
+            tasks.named(LifecycleBasePlugin.CHECK_TASK_NAME) { dependsOn(checkFlavorIsolation) }
+
             val checkStagedWrite =
                 tasks.register<StagedWriteCheck>("checkStagedWrite") {
                     group = LifecycleBasePlugin.VERIFICATION_GROUP

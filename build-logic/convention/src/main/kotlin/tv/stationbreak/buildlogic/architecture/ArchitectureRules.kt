@@ -100,6 +100,13 @@ enum class Rule(
         "security-minified-test-hilt (#436) may be named only by app's securityTestClasses configuration: nothing that " +
             "ships depends on it",
     ),
+    STORE_SDK_FLAVOR_ONLY(
+        "store-sdk-flavor-only",
+        "the Amazon Appstore SDK (com.amazon.device:*) may be declared only by app, in an amazon configuration " +
+            "(amazonImplementation, ...): the github flavor and the shared code carry no proprietary SDK (A-REL-1). " +
+            "Google Play Services and Play Billing (com.google.android.gms, com.android.billingclient) are declared " +
+            "nowhere until the play flavor exists (R-PLAT-3)",
+    ),
     NOT_ALLOWLISTED("not-allowlisted", "this edge isn't in MODULES.md's \"Dependency graph (allowed edges)\""),
     UNKNOWN_MODULE("unknown-module", "the module isn't in MODULES.md; add it there and to ArchitectureRules first"),
 }
@@ -238,6 +245,27 @@ object ArchitectureRules {
             .mapNotNull { edge -> check(module, spec, edge)?.let { Violation(module, edge, it) } }
     }
 
+    private val AMAZON_SDK_GROUP = "com.amazon.device"
+    private val PLAY_GROUPS = listOf("com.google.android.gms", "com.android.billingclient", "com.android.vending")
+
+    // An amazon configuration: amazonImplementation, amazonReleaseImplementation, testAmazonDebugImplementation, ...
+    private val AMAZON_CONFIGURATION = Regex("""^(test|androidTest)?[Aa]mazon.*""")
+
+    private fun brokenStoreSdk(
+        module: String,
+        group: String,
+        configuration: String,
+    ): Boolean =
+        when {
+            group == AMAZON_SDK_GROUP || group.startsWith("$AMAZON_SDK_GROUP.") -> {
+                module != APP || !AMAZON_CONFIGURATION.matches(configuration)
+            }
+
+            else -> {
+                PLAY_GROUPS.any { group == it || group.startsWith("$it.") }
+            }
+        }
+
     private fun specOf(path: String): ModuleSpec? = if (isFeature(path)) NARROWER_FEATURES[path] ?: FEATURE else MODULES[path]
 
     private fun isFeature(path: String): Boolean = path.startsWith(FEATURE_PREFIX) && path.count { it == ':' } == 2
@@ -263,6 +291,10 @@ object ArchitectureRules {
 
                     spec.platform == Platform.PURE && android -> {
                         Rule.NO_ANDROID_IN_PURE_MODULES
+                    }
+
+                    brokenStoreSdk(module, dependency.group, edge.configuration) -> {
+                        Rule.STORE_SDK_FLAVOR_ONLY
                     }
 
                     dependency.group == SDK_GROUP && !mayDeclareSdk(module, edge.configuration) -> {

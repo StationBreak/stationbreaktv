@@ -740,6 +740,12 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
 Billing sits behind the `ProEntitlement` port in `core:domain`, with a flavor-specific implementation in
 `app/src/<flavor>/`. The code stays public for every flavor, as the spec requires.
 
+Flavor isolation is checked in the build (A-REL-1, ADR-0023). `checkArchitecture` fails if `com.amazon.device:*` is
+declared anywhere but `app`'s `amazon*` configurations, or if Google Play Services or Play Billing is declared at all
+until the `play` flavor exists. `checkFlavorIsolation` fails if a source file names Amazon's SDK (`com.amazon.`)
+outside `app/src/amazon*` (shared code, `github` and the other variants included), or names Play's. Pro has one SKU:
+`const val PRO_SKU` in a file named `ProSku.kt`, declared once, and its string is written nowhere else.
+
 **Phasing (decided 2026-10-10):** F0.2 creates only the `amazon` and `github` flavors. `play` is added at
 F4.3, along with Play Billing, so CI doesn't build an empty flavor until then. How Play Billing fits the "no
 Google Play Services" rule (R-PLAT-3) is settled at that point.
