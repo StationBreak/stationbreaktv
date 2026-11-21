@@ -240,7 +240,7 @@ class KidAuditTest {
     fun aCatalogThreeLineupPassesTheKidAuditForSevenDays() =
         runBlocking<Unit> {
             seed()
-            assertEquals(5, StarterCatalog.VERSION)
+            assertEquals(6, StarterCatalog.VERSION)
             val catalogTwo =
                 object : StarterCatalogView by StarterCatalog {
                     override val version = 2
@@ -283,7 +283,7 @@ class KidAuditTest {
         !isKidChannel(channel) && (channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers)
 
     private companion object {
-        const val FILMS = 4
+        const val FILMS = 6 // catalog 6: Saturday Morning alone must qualify (#591)
         const val EPISODES = 6
         const val WEEK = 7
         const val HALF_HOUR_MS = 1_800_000L

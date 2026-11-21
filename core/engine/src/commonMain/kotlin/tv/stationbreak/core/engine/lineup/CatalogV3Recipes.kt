@@ -106,7 +106,7 @@ private val kidsBand: List<Recipe> =
             key = "little-farm",
             name = "Little Farm",
             says = "Gentle, slow and sunny, for the very youngest viewers.",
-            sources = tags("preschool", "toddler"),
+            sources = genres("Preschool", "Pre-school") + tags("preschool", "toddler"),
             rating = "TV-Y",
         ),
         recipe(
@@ -125,7 +125,7 @@ private val kidsBand: List<Recipe> =
             key = "once-upon",
             name = "Once Upon",
             says = "Fairy tales, folk tales and happily ever after.",
-            sources = genres("Fantasy") + tags("fairy tale", "fairy-tale", "folk tale"),
+            sources = tags("fairy tale", "fairy-tale", "folk tale"),
             rating = "PG",
             anchors =
                 collections(
@@ -163,7 +163,7 @@ private val kidsBand: List<Recipe> =
             key = "backyard-fort",
             name = "Backyard Fort",
             says = "Big-kid adventure: maps, mysteries and no grown-ups allowed.",
-            sources = genres("Adventure", "Kids", "Action & Adventure") + tags("adventure", "children"),
+            sources = genres("Adventure", "Action & Adventure") + tags("adventure"),
             rating = "TV-Y7",
             anchors =
                 collections(
@@ -190,7 +190,7 @@ private val kidsBand: List<Recipe> =
             key = "robot-factory",
             name = "Robot Factory",
             says = "Robots, rockets and things that go beep.",
-            sources = genres("Science Fiction", "Sci-Fi & Fantasy", "Kids") + tags("robots", "space", "sci-fi"),
+            sources = genres("Science Fiction", "Sci-Fi & Fantasy") + tags("robots", "space", "sci-fi"),
             rating = "TV-Y7",
         ),
         recipe(
@@ -228,7 +228,7 @@ private val kidsBand: List<Recipe> =
             key = "little-spirits",
             name = "Little Spirits",
             says = "Family anime: small heroes, big feelings.",
-            sources = genres("Anime", "Animation") + tags("anime", "family anime"),
+            sources = genres("Anime") + tags("anime", "family anime"),
             rating = "PG",
             anchors = collections(Contains("Studio Ghibli"), Contains("Hayao Miyazaki")),
         ),
@@ -275,7 +275,7 @@ private val kidsBand: List<Recipe> =
             key = "giggle-garage",
             name = "Giggle Garage",
             says = "Silly shows, funny voices and a lot of pratfalls.",
-            sources = genres("Comedy", "Kids") + tags("silly", "slapstick", "children"),
+            sources = genres("Comedy") + tags("silly", "slapstick"),
             rating = "TV-Y7",
             anchors =
                 collections(
@@ -304,7 +304,7 @@ private val kidsBand: List<Recipe> =
             name = "Small Sleuths",
             says = "Gentle mysteries, a case in every episode.",
             sources = genres("Mystery") + tags("detective", "mystery"),
-            rating = "PG",
+            rating = "TV-Y7",
             anchors = collections(Contains("Scooby-Doo")) + titles(Contains("Scooby")),
         ),
         recipe(

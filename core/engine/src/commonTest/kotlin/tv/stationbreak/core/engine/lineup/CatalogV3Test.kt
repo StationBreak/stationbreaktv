@@ -37,7 +37,7 @@ class CatalogV3Test {
         for (r in v3) {
             val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
             for (name in sources + r.filters?.genres.orEmpty()) {
-                assertTrue(name in TMDB_GENRES || name == "Anime", "${r.key} has genre $name")
+                assertTrue(name in TMDB_GENRES || name in SCRAPER_GENRES, "${r.key} has genre $name")
             }
         }
     }
@@ -177,7 +177,7 @@ class CatalogV3Test {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
             assertEquals(old.number, new.number, new.key)
             assertEquals(old.band, new.band, new.key)
-            assertEquals(old.maxRating, new.maxRating, new.key)
+            assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
             assertEquals(old.optIn, new.optIn, new.key)
         }
     }
@@ -218,7 +218,7 @@ class CatalogV3Test {
     fun everyKidRecipeStaysKidSafe() {
         for (new in v3.filter { it.kidSafe }) {
             val old = v2.single { it.key == new.key }
-            assertEquals(old.maxRating, new.maxRating, new.key)
+            assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
             assertTrue(
                 new.theme
                     ?.themeStudios
@@ -226,8 +226,8 @@ class CatalogV3Test {
                     .isEmpty(),
                 "${new.key} has theme studios",
             )
-            // No kid recipe gains a genre source its live recipe did not have.
-            val oldGenres = old.sources.filterIsInstance<Source.Genre>()
+            // No kid recipe gains a genre source its live recipe did not have (but Little Farm at catalog 6, #591).
+            val oldGenres = old.sources.filterIsInstance<Source.Genre>() + GENRES_GAINED_AT_6[new.key].orEmpty()
             for (g in new.sources.filterIsInstance<Source.Genre>()) {
                 assertTrue(g in oldGenres, "${new.key} gains genre ${g.name}")
             }
@@ -322,6 +322,14 @@ class CatalogV3Test {
 
     private companion object {
         const val HEX = 16
+
+        // Catalog 6 (#591): Small Sleuths' ceiling drops from PG to TV-Y7 (still kid-safe), and Little Farm takes the
+        // preschool genres. The guards of catalog 3 against catalog 2 allow exactly these.
+        val CEILINGS_LOWERED_AT_6 = mapOf("small-sleuths" to "TV-Y7")
+        val GENRES_GAINED_AT_6 = mapOf("little-farm" to listOf(Source.Genre("Preschool"), Source.Genre("Pre-school")))
+
+        // Not TMDB genres: anime, and the preschool shelf scrapers file under their own genre (Little Farm, #591).
+        val SCRAPER_GENRES = setOf("Anime", "Preschool", "Pre-school")
         val ANCHOR_PINS: Map<String, String> =
             mapOf(
                 "sing-along-station" to "2 CE CE 5712baf4006b764f",

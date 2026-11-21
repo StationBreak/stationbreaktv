@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 5, curation-1, extras-1)
+LINEUP AUDIT (catalog 6, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -14,13 +14,9 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           1
-  channels per title: 1 channels: 40 titles, 2 channels: 121 titles, 3 channels: 32 titles, 5 channels: 7 titles
+  channels per title: 1 channels: 48 titles, 2 channels: 120 titles, 3 channels: 32 titles
   titles per channel that is on:
     saturday-morning                 8
-    backyard-fort                    7
-    robot-factory                    7
-    little-spirits                   8
-    giggle-garage                    7
     laugh-track                     12
     rabbit-ears                     63
     shag-carpet                     40
@@ -48,17 +44,17 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   saturday-morning               16  on(p)                8  8t 54.40h 0a score  6240           8t 54.40h 0a
-  backyard-fort                  20  on(p)                7  7t 52.87h 0a score  5986           7t 52.87h 0a
+  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  28  on(p)                7  7t 52.87h 0a score  5986           7t 52.87h 0a
+  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              36  off    TooThin       1  1t 1.00h 0a score   200 THIN       -
-  little-spirits                 40  on(p)                8  8t 54.40h 0a score  6240           8t 54.40h 0a
+  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   flipbook                       52  off    TooThin       1  1t 1.00h 0a score   200 THIN       -
   snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  60  on(p)                7  7t 52.87h 0a score  5986           7t 52.87h 0a
+  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -147,16 +143,6 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   rabbit-ears                  silver-screen                38 titles, 73.35h
   laugh-track                  neon-decade                  5 titles, 72.80h
   binge-row                    prestige                     4 titles, 60.08h
-  saturday-morning             little-spirits               8 titles, 54.40h
-  backyard-fort                giggle-garage                7 titles, 52.87h
-  backyard-fort                little-spirits               7 titles, 52.87h
-  backyard-fort                robot-factory                7 titles, 52.87h
-  little-spirits               giggle-garage                7 titles, 52.87h
-  robot-factory                giggle-garage                7 titles, 52.87h
-  robot-factory                little-spirits               7 titles, 52.87h
-  saturday-morning             backyard-fort                7 titles, 52.87h
-  saturday-morning             giggle-garage                7 titles, 52.87h
-  saturday-morning             robot-factory                7 titles, 52.87h
   binge-row                    cold-case-cable              2 titles, 43.00h
   neon-decade                  docs-and-dusters             3 titles, 42.95h
   neon-decade                  cold-case-cable              3 titles, 41.50h
@@ -181,7 +167,17 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   silver-screen                dead-drop                    5 titles, 9.17h
   cold-case-cable              silver-screen                5 titles, 8.77h
   flip-phone                   docs-and-dusters             1 titles, 8.67h
-  ... and 27 more pairs (all in the JSON)
+  binge-row                    starport                     1 titles, 8.17h
+  silver-screen                docs-and-dusters             4 titles, 7.60h
+  silver-screen                big-rumble                   4 titles, 7.47h
+  rabbit-ears                  big-rumble                   4 titles, 7.30h
+  rabbit-ears                  dead-drop                    4 titles, 7.30h
+  rabbit-ears                  dragons-and-doorways         3 titles, 6.25h
+  dead-drop                    big-rumble                   3 titles, 5.95h
+  laugh-track                  flip-phone                   1 titles, 5.63h
+  rabbit-ears                  starport                     3 titles, 5.30h
+  rabbit-ears                  docs-and-dusters             3 titles, 4.65h
+  ... and 17 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Kyzupe Lodarxi [film, 1 items, 1.67h]
@@ -440,8 +436,6 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up rabbit-ears -132.79 = specificity 16.21 decade -150.00 tone 1.00
   000000c6 Dardarlo Torquindar [film, 1 items, 1.53h]
     home saturday-morning 330.10 = specificity 30.10 genre 40.00 kids 200.00 tone 60.00
-    runner-up little-spirits 330.10 = specificity 30.10 genre 40.00 kids 200.00 tone 60.00
-    guest spots: little-spirits
   000000c7 Quintorky Loollo [film, 1 items, 1.55h]
     home shag-carpet -131.68 = specificity 18.32 decade -150.00
   000000c8 Loxipe Oltorren [film, 1 items, 1.87h]
@@ -774,32 +768,18 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
   0000001d Quinquinxi Lobravel [series, 13 items, 2.60h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000001e Lomimi Olquinmi [series, 26 items, 5.63h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   0000001f Fabralo Velmadar [series, 39 items, 9.10h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000020 Zumaren Quinmifa [series, 52 items, 13.00h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000021 Renrenpe Kyzuren [series, 13 items, 3.47h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000022 Kylotor Brabrama [series, 26 items, 7.37h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000023 Olsenquin Darquinxi [series, 39 items, 11.70h]
     home saturday-morning 370.10 = specificity 30.10 genre 80.00 kids 200.00 tone 60.00
-    runner-up backyard-fort 331.55 = specificity 31.55 genre 40.00 kids 200.00 tone 60.00
-    guest spots: backyard-fort, robot-factory, little-spirits, giggle-garage
   00000024 Mavelren Renolvel [series, 13 items, 5.20h]
     home tokyo-after-school 168.33 = specificity 33.33 genre 40.00 tag 35.00 tone 60.00
   00000025 Pepema Xitorsen [series, 26 items, 10.83h]
