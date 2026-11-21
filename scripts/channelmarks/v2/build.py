@@ -10,11 +10,11 @@ transparent, colour and mono, as sl_<NNN>_<key>_<N>dp.png and sl_<NNN>_<key>_mon
 PNG chunks the app's manifest test allows. The shipped renders were made with rsvg-convert 2.58.0; the same
 version reproduces channelmarks.sha256 byte for byte.
 
-The marks themselves are in round1.py to round6.py (the order they were reviewed in); marklib.py has the
-drawing helpers. Fonts: the six new faces are in fonts/ here, the rest come from ../fonts.
+The marks themselves are in round1.py to round8.py (the order they were reviewed in; round7 and round8 are the channel overhaul, and round7 replaces five earlier marks); marklib.py has the
+drawing helpers. Fonts: the seven new faces are in fonts/ here, the rest come from ../fonts.
 """
 import html, pathlib, struct, subprocess, sys
-import round1, round2, round3, round4, round5, round6
+import round1, round2, round3, round4, round5, round6, round7, round8
 from marklib import svg
 
 HERE = pathlib.Path(__file__).parent
@@ -23,9 +23,9 @@ PNG_KEEP = {b"IHDR", b"PLTE", b"tRNS", b"IDAT", b"IEND"}
 
 def all_marks():
     marks = {}
-    for mod in (round1, round2, round3, round4, round5, round6):
+    for mod in (round1, round2, round3, round4, round5, round6, round7, round8):   # later rounds replace earlier marks with the same key
         marks.update(mod.MARKS)
-    return sorted(marks.values(), key=lambda m: m["number"])
+    return sorted((m for m in marks.values() if m["number"]), key=lambda m: m["number"])   # number 0: not in the catalog yet
 
 def strip_png(png):
     """Keep only the chunks the app's manifest test allows."""

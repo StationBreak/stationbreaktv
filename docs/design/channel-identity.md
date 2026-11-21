@@ -3,7 +3,7 @@
 How StationBreak channels get a brand, and the rules their marks follow. The marks are designed in the StationBreak
 brand session under the owner's direction, and this page describes them as they are.
 
-Generator: `scripts/channelmarks/v2/` (see the README there). Contact sheet of all 97 at guide size, in Dark and in
+Generator: `scripts/channelmarks/v2/` (see the README there). Contact sheet of all 112 at guide size, in Dark and in
 Light: `docs/design/channel-marks-sheet.png`. Provenance and the app side: `core/ui/CHANNELMARKS.md`.
 
 ## Goal
@@ -17,7 +17,7 @@ picture and the name work together in one of three ways:
 
 - the name sits **inside an object** (a ticket, a barn, a headstone, a case folder);
 - a **symbol sits beside the name** (a paw print, a flask, a padlock);
-- the idea is **built into the lettering**: a letter is replaced by an object (the O of Lights Out is the moon, the O of
+- the idea is **built into the lettering**: a letter is replaced by an object (the O of Wild Hours is a paw print, the O of
   Starport a ringed planet), as long as the object is obvious.
 
 Each mark is built from the channel's name, tagline and theme.

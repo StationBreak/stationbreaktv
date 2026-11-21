@@ -119,3 +119,10 @@ AdditionRef-StationBreak-AppStore).
   mark uses are removed.
 - **Where things are.** The pipeline, provenance and how to refresh it are in `core/ui/CHANNELMARKS.md`; the rules the
   marks follow are in `docs/design/channel-identity.md`; the file hashes are in `core/ui/channelmarks.sha256`.
+
+## Update 2026-11-21: the channel overhaul adds one typeface
+
+The channel overhaul (retitled and new channels, #1002 and #1004) adds marks to `scripts/channelmarks/v2/` and one more
+typeface for them: Rammetto One (SIL OFL 1.1), used by the Wild Hours mark and kept with its licence text in
+`scripts/channelmarks/v2/fonts/`. As before the lettering is outlined, so no font software ships in the APK. The
+generator now draws 112 marks; the 408 files in the app are the ones whose keys are in the catalog.

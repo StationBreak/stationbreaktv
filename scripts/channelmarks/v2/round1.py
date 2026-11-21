@@ -210,15 +210,6 @@ def _():
     import rabbit
     return rabbit.STACKED()
 
-@mark(72, "tall-tales-club", "Tall Tales Club", "Pirates, explorers and stories that grow in the telling.",
-      "A treasure trail from the club to the X.", "idea")
-def _():
-    coral = "#FF8080"
-    a, _b = text_box("luckiest-guy-400", "TALL TALES", 14, 14, 186, 60)
-    c, _b = text_box("luckiest-guy-400", "CLUB", 14, 72, 66, 96, "l")
-    trail = '<path d="M76 88 C96 70 116 100 138 82 C146 76 152 78 158 82" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 9"/>'
-    return [fill(a, coral), fill(c, WHITE), trail, stroke("M166 74 L184 94 M184 74 L166 94", coral, 6.5)]
-
 @mark(146, "couch-talk", "Couch Talk", "Hosts, guests and chat from a comfortable seat.",
       "Both words sit on the couch: COUCH on the back, talk on the seat.", "plate")
 def _():

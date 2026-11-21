@@ -117,7 +117,7 @@ def _():
     b, _b = text_box("oswald-700", "HOURS", 84, 58, 188, 92, "l", "c", 0.02)
     return [stroke("M27 48 V36 Q27 20 42 20 Q57 20 57 36 V48", mag, 7), fill(body, mag, True), fill(a, WHITE), fill(b, mag)]
 
-@mark(508, "graveyard-shift", "Graveyard Shift", "Late-night oddities for insomniacs and night owls.",
+@mark(0, "graveyard-shift", "Graveyard Shift", "Late-night oddities for insomniacs and night owls.",
       "A headstone under the moon.", "plate")
 def _():
     moss = "#A9CF8E"
@@ -158,7 +158,7 @@ def _():
     plate = cut(rrect(16, 8, 168, 78, 11), rrect(21, 13, 158, 68, 7), rrect(23.6, 15.6, 152.8, 62.8, 5), a, b)
     return [fill(plate, green, True), fill(rrect(46, 86, 7, 14, 1), WHITE), fill(rrect(147, 86, 7, 14, 1), WHITE)]
 
-@mark(532, "directors-chair", "Director's Chair", "Director's cuts, commentary and the making of it all.",
+@mark(0, "directors-chair", "Director's Chair", "Director's cuts, commentary and the making of it all.",
       "The chair.", "symbol")
 def _():
     red = "#FF6B6B"

@@ -143,7 +143,7 @@ def _():
     b, _b = text_box("righteous-400", "PASS", 50, 67, 150, 93)
     return [fill("M92 10 H108 V38 H92 Z", WHITE), fill(cut(rrect(30, 30, 140, 69, 8), rrect(84, 35.5, 32, 5.4, 2.7), a, b), "#B98CFF", True)]
 
-@mark(182, "always-december", "Always December", "Holiday cheer on every day of the year, snow guaranteed.",
+@mark(900, "always-december", "Always December", "Holiday cheer on every day of the year, snow guaranteed.",
       "A calendar that never turns the page, in Christmas red and green.", "plate")
 def _():
     red, green = "#FF6B6B", "#6BDDA0"
