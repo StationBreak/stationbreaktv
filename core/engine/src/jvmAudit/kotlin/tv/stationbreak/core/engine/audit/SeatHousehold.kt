@@ -29,7 +29,7 @@ internal object SeatHousehold {
      * noir-nights: once three picks are hidden its place is a planner pick's (it is among the next in line), so
      * switching it on is no addition. case-files stays on the shelf through the whole timeline.
      */
-    val SWITCHED_ON = listOf("case-files", "corsets-and-candlelight", "paradox", "masala-hour", "graveyard-shift")
+    val SWITCHED_ON = listOf("case-files", "corsets-and-candlelight", "paradox", "masala-hour", "one-season-only")
 
     /** Three of the planner's picks, hidden on the first day and switched on again after the boundary. */
     val HIDDEN_THEN_ON = listOf("punchline", "rabbit-ears", "shag-carpet")

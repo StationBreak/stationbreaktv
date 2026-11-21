@@ -78,8 +78,13 @@ object StarterCatalog : StarterCatalogView {
      * Lights Out and Tall Tales Club stay in [EVER_KID_SAFE_KEYS] so a stored copy keeps its kid hold. The three
      * survivors keep every key, number and recipe (Little Farm already takes the preschool tags and genres, Backyard
      * Fort has no Kids genre since catalog 6). No rules format or hold version changes.
+     *
+     * Version 10 (three cuts, #996): Tiny Chefs, Graveyard Shift and Director's Chair are removed. Their keys and
+     * numbers (80, 508, 532) are retired and never reused. Tiny Chefs stays in [EVER_KID_SAFE_KEYS], so a stored copy
+     * keeps its kid hold. Simmer keeps the cooking lane. Couch Talk already has no `late night` tag (catalog 7), so it
+     * is unchanged. No rules format or hold version changes.
      */
-    const val VERSION = 9
+    const val VERSION = 10
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
@@ -123,10 +128,11 @@ object StarterCatalog : StarterCatalogView {
 
     /**
      * The kid-safe keys of earlier catalogs that this one no longer has as kid-safe recipes. Catalogs 1 and 2 had the
-     * same kid keys as catalog 3; a key is added here when a later catalog retires a kid recipe (catalog 9: two).
+     * same kid keys as catalog 3; a key is added here when a later catalog retires a kid recipe (catalog 9: two,
+     * catalog 10: one).
      * Declared before [EVER_KID_SAFE_KEYS], which reads it.
      */
-    private val retiredKidSafeKeys: Set<String> = setOf("lights-out", "tall-tales-club")
+    private val retiredKidSafeKeys: Set<String> = setOf("lights-out", "tall-tales-club", "tiny-chefs")
 
     /**
      * The keys that were kids-only until catalog 8 and are Family recipes now. They are still held to PG (they are in
@@ -150,9 +156,10 @@ object StarterCatalog : StarterCatalogView {
                 leftovers.filter { it.number in Band.Kids.numbers }.map { it.key }
         ).toSet()
 
-    override val retiredNumbers: Set<Int> = setOf(44, 72, 368)
+    override val retiredNumbers: Set<Int> = setOf(44, 72, 80, 368, 508, 532)
 
-    override val retiredKeys: Set<String> = setOf("lights-out", "tall-tales-club", "haunted-house")
+    override val retiredKeys: Set<String> =
+        setOf("lights-out", "tall-tales-club", "haunted-house", "tiny-chefs", "graveyard-shift", "directors-chair")
 
     /** The recipe with this key, or null. */
     fun recipe(key: String): Recipe? = recipes.firstOrNull { it.key == key }

@@ -18,8 +18,8 @@ was 1 to 99, and `StarterCatalog.kt` promised that a shipped key or number never
    99). General still starts at 100. Ceilings: Kids PG or lower (kid ratings only in practice, ADR-0028 rule 5), Family
    PG, Teen TV-14 (the PG-13 / TV-14 tier). `Band`, `Recipe` and `LeftoversRecipe` check these.
 2. **No new pool policy.** A Family or Teen channel is a grown-up channel (`PoolPolicy.GrownUp`, which drops the kids
-   tier) under its ceiling, so it airs family or teen titles. Only the Kids band and the kids recipe kept outside it
-   (Tiny Chefs, until #996; Lights Out and Tall Tales Club were merged away at catalog 9, #995) are kids-only. The four former kids recipes that moved
+   tier) under its ceiling, so it airs family or teen titles. Only the Kids band is kids-only now. (Lights Out, Tall Tales Club and Tiny Chefs were kids recipes kept outside it
+   until they were merged away or cut at catalogs 9 and 10, #995 and #996.) The four former kids recipes that moved
    to Family stay in `EVER_KID_SAFE_KEYS`, so a stored copy is still held to PG whatever its edits.
 3. **Catalog 8** (frozen manifest V8) moves 17 recipes and the kids leftovers to their new numbers, adds nine recipes
    (Big Screen Toons, Popcorn Matinee, Starship Sunday, Prime Time Pals, Homeroom, Mask & Mantle, Level Up, Popcorn Epic, Nervous

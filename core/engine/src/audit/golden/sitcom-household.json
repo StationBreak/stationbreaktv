@@ -2,7 +2,7 @@
   "format": "lineup-audit",
   "version": 1,
   "scope": "The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.",
-  "catalogVersion": 9,
+  "catalogVersion": 10,
   "curation": "curation-1",
   "extras": "extras-1",
   "termOrder": ["specificity","genre","tag","studio","decade","anchor","kids","format","tone"],
@@ -34,7 +34,6 @@
     {"key":"mask-and-mantle","number":73,"name":"Mask & Mantle","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"level-up","number":76,"name":"Level Up","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"popcorn-epic","number":79,"name":"Popcorn Epic","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
-    {"key":"tiny-chefs","number":80,"name":"Tiny Chefs","state":"off","by":null,"shelfReason":"Empty","kid":true,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"nervous-laughter","number":82,"name":"Nervous Laughter","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"laugh-track","number":102,"name":"Laugh Track","state":"on","by":"planner","shelfReason":null,"kid":false,"optIn":false,"candidates":20,"selection":{"titles":20,"totalCentiHours":43560,"usableCentiHours":43560,"usableMs":1568160000,"anchors":0,"qualifies":true,"score":10000},"onAir":{"titles":20,"totalCentiHours":43560,"usableCentiHours":43560,"usableMs":1568160000,"anchors":0,"qualifies":true,"score":null}},
     {"key":"punchline","number":106,"name":"Punchline","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
@@ -103,13 +102,11 @@
     {"key":"telenovela-tonight","number":436,"name":"Telenovela Tonight","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"cherry-blossom-hour","number":440,"name":"Cherry Blossom Hour","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"after-hours","number":504,"name":"After Hours","state":"off","by":null,"shelfReason":"OptIn","kid":false,"optIn":true,"candidates":0,"selection":null,"onAir":null},
-    {"key":"graveyard-shift","number":508,"name":"Graveyard Shift","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"one-season-only","number":512,"name":"One Season Only","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"cartoons-after-dark","number":516,"name":"Cartoons After Dark","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":2,"selection":{"titles":1,"totalCentiHours":2860,"usableCentiHours":715,"usableMs":25740000,"anchors":0,"qualifies":false,"score":815},"onAir":null},
     {"key":"family-business","number":520,"name":"Family Business","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
     {"key":"anthology-hour","number":524,"name":"Anthology Hour","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null},
-    {"key":"satire-desk","number":528,"name":"Comedy County","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":1,"selection":{"titles":1,"totalCentiHours":1760,"usableCentiHours":440,"usableMs":15840000,"anchors":0,"qualifies":false,"score":540},"onAir":null},
-    {"key":"directors-chair","number":532,"name":"Director's Chair","state":"off","by":null,"shelfReason":"Empty","kid":false,"optIn":false,"candidates":0,"selection":{"titles":0,"totalCentiHours":0,"usableCentiHours":0,"usableMs":0,"anchors":0,"qualifies":false,"score":0},"onAir":null}
+    {"key":"satire-desk","number":528,"name":"Comedy County","state":"off","by":null,"shelfReason":"TooThin","kid":false,"optIn":false,"candidates":1,"selection":{"titles":1,"totalCentiHours":1760,"usableCentiHours":440,"usableMs":15840000,"anchors":0,"qualifies":false,"score":540},"onAir":null}
   ],
   "overlaps": [
     {"a":"laugh-track","b":"flip-phone","titles":13,"centiHours":28600},

@@ -419,16 +419,6 @@ private val teenBand: List<Recipe> =
         ),
         recipe(
             Band.Teen,
-            n = 80,
-            key = "tiny-chefs",
-            name = "Tiny Chefs",
-            says = "Messy kitchens, cooking and baking, small aprons.",
-            sources = tags("cooking", "baking", "kids cooking", "food"),
-            plain = true,
-            rating = "G",
-        ),
-        recipe(
-            Band.Teen,
             n = 82,
             key = "nervous-laughter",
             name = "Nervous Laughter",
@@ -1199,14 +1189,6 @@ private val premiumBand: List<Recipe> =
         ),
         recipe(
             Band.Premium,
-            n = 508,
-            key = "graveyard-shift",
-            name = "Graveyard Shift",
-            says = "Late-night oddities for insomniacs and night owls.",
-            sources = tags("late night", "midnight movie", "insomnia"),
-        ),
-        recipe(
-            Band.Premium,
             n = 512,
             key = "one-season-only",
             name = "One Season Only",
@@ -1268,14 +1250,6 @@ private val premiumBand: List<Recipe> =
                     notGenres = listOf("Animation"),
                 ),
             format = FormatPromise.ShortSeries,
-        ),
-        recipe(
-            Band.Premium,
-            n = 532,
-            key = "directors-chair",
-            name = "Director's Chair",
-            says = "Director's cuts, commentary and the making of it all.",
-            sources = tags("director's cut", "making of", "behind the scenes", "extended cut"),
         ),
     )
 
