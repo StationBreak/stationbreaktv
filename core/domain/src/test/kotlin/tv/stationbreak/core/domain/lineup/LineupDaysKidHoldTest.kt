@@ -119,7 +119,7 @@ class LineupDaysKidHoldTest {
                         TestCatalog.recipes.first { it.key == "after-hours" }.copy(
                             key = "little-farm",
                             band = Band.Kids,
-                            number = 50,
+                            number = 31,
                             sources = listOf(Source.Genre("Animation")),
                             maxRating = "PG",
                         )

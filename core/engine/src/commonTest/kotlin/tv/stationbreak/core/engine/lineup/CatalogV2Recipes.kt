@@ -38,7 +38,8 @@ private fun recipe(
         key = key,
         name = name,
         personality = says,
-        band = band,
+        // Catalog 2's Kids band was 1 to 99; since catalog 8 a number from 34 on is in the Family or Teen band.
+        band = if (band == Band.Kids) checkNotNull(Band.of(n)) else band,
         number = n,
         optIn = optIn,
         sources = sources,
@@ -884,3 +885,10 @@ private val premiumBand: List<Recipe> =
  */
 internal val CATALOG_V2_RECIPES: List<Recipe> =
     kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand
+
+/** Catalog 2's leftovers: the kids one at 99 (the Kids band was 1 to 99 then), the grown-up one at 199. */
+internal val CATALOG_V2_LEFTOVERS: List<LeftoversRecipe> =
+    listOf(
+        LeftoversRecipe("kids-odds-and-ends", "Kids' Odds & Ends", "Synthetic.", 99, "PG"),
+        LeftoversRecipe("odds-and-ends", "Odds & Ends", "Synthetic.", 199, null),
+    )

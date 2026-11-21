@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 7, curation-1, extras-1)
+LINEUP AUDIT (catalog 8, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 679 items, 115 titles (16 series, 99 films)
@@ -26,30 +26,41 @@ TOTALS
     midnight-projector               4
     twist-ending                     6
     leftovers:kids-odds-and-ends     0
+    leftovers:family-odds-and-ends     0
+    leftovers:teen-odds-and-ends     0
     leftovers:odds-and-ends          1
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
-  little-farm                     4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  saturday-morning               16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  rainy-day-matinee              36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-farm                     2  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sing-along-station              4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  saturday-morning                6  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  backyard-fort                   8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  critter-channel                10  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    14  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  pocket-heroes                  16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flipbook                       18  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  snowglobe                      20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  22  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  wheels-and-whistles            24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rainy-day-matinee              39  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  flipbook                       52  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  popcorn-matinee                48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  spooky-sleepover               76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  level-up                       76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   punchline                     106  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rabbit-ears                   110  off    Empty         0  0t 0.00h 0a score     0 THIN       -

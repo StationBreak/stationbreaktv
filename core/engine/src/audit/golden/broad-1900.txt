@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 7, curation-1, extras-1)
+LINEUP AUDIT (catalog 8, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -14,24 +14,25 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 479 titles, 2 channels: 1288 titles, 3 channels: 133 titles
+  channels per title: 1 channels: 432 titles, 2 channels: 1285 titles, 3 channels: 183 titles
   titles per channel that is on:
     saturday-morning                83
-    rainy-day-matinee               13
+    rainy-day-matinee              107
+    level-up                        60
+    popcorn-epic                    50
     laugh-track                    112
-    rabbit-ears                    361
-    shag-carpet                    223
-    neon-decade                    258
-    dial-up                        255
-    flip-phone                     259
-    binge-row                      249
-    fresh-cut                      123
+    rabbit-ears                    353
+    shag-carpet                    219
+    neon-decade                    254
+    dial-up                        251
+    flip-phone                     257
+    binge-row                      246
+    fresh-cut                      121
     glass-house                     30
     couch-talk                      15
     matinee-tears                   12
     date-night                      50
     backstage-pass                  20
-    always-december                 20
     prestige                       449
     cold-case-cable                183
     dead-drop                       30
@@ -46,34 +47,44 @@ TOTALS
     campfire-tales                  18
     haunted-house                   12
     gallows-humor                   25
-    tokyo-after-school              60
     one-season-only                 20
     cartoons-after-dark             29
     leftovers:kids-odds-and-ends     0
+    leftovers:family-odds-and-ends     0
+    leftovers:teen-odds-and-ends     0
     leftovers:odds-and-ends          0
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
-  little-farm                     4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  sing-along-station              8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  once-upon                      12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  saturday-morning               16  on(p)               83  83t 614.85h 0a score 11000         83t 614.85h 0a
-  backyard-fort                  20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  critter-channel                24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  28  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  hey-science                    32  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  rainy-day-matinee              36  on(p)               13  13t 20.53h 0a score  3353          13t 20.53h 0a
-  little-spirits                 40  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-farm                     2  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  sing-along-station              4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  saturday-morning                6  on(p)               83  83t 614.85h 0a score 11000         83t 614.85h 0a
+  backyard-fort                   8  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  critter-channel                10  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  hey-science                    14  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  pocket-heroes                  16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  flipbook                       18  off    TooThin       3  3t 3.49h 0a score   648 THIN       -
+  snowglobe                      20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  22  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  wheels-and-whistles            24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  rainy-day-matinee              39  on(p)              107  107t 168.37h 0a score 11000        107t 168.37h 0a
+  little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   lights-out                     44  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  pocket-heroes                  48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  flipbook                       52  off    TooThin       3  3t 3.49h 0a score   648 THIN       -
-  snowglobe                      56  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  wheels-and-whistles            64  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  small-sleuths                  68  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  popcorn-matinee                48  off    TooThin      80  0t 0.00h 0a score     0 THIN       -
+  big-screen-toons               51  off    TooThin      27  0t 0.00h 0a score     0 THIN       -
+  starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tall-tales-club                72  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  spooky-sleepover               76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  level-up                       76  on(p)               60  60t 904.80h 0a score 11000         60t 904.80h 0a
+  popcorn-epic                   79  on(p)               50  50t 106.50h 0a score 11000         50t 106.50h 0a
   tiny-chefs                     80  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  on(p)              112  112t 1658.58h 0a score 11000       112t 1658.58h 0a
   punchline                     106  off    TooThin      25  0t 0.00h 0a score     0 THIN       -
   rabbit-ears                   110  on(p)              361  361t 796.30h 0a score 11000        361t 796.30h 0a
@@ -94,7 +105,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   simmer                        170  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   fixer-hour                    174  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   backstage-pass                178  on(p)               20  20t 34.55h 0a score  5455          20t 34.55h 0a
-  always-december               182  on(p)               20  20t 28.55h 0a score  4855          20t 28.55h 0a
+  always-december               182  off    TooThin      20  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  on(p)              570  375t 2503.73h 0a score 11000       375t 2503.73h 0a
   cold-case-cable               208  on(p)              183  170t 1619.52h 0a score 11000       171t 1637.12h 0a
@@ -113,7 +124,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   life-stories                  260  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   disaster-zone                 264  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   starport                      304  on(p)              110  110t 1109.68h 0a score 11000       110t 1109.68h 0a
-  dragons-and-doorways          308  on(p)               80  80t 759.00h 0a score 11000         80t 759.00h 0a
+  dragons-and-doorways          308  on(p)               80  30t 652.50h 0a score 11000         30t 652.50h 0a
   rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   midnight-projector            316  on(p)               73  40t 67.83h 0a score  9783          40t 67.83h 0a
   the-cheap-seats               320  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -131,7 +142,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   haunted-house                 368  on(p)               12  12t 21.05h 0a score  3305          12t 21.05h 0a
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  on(p)               25  25t 41.55h 0a score  6655          25t 41.55h 0a
-  tokyo-after-school            404  on(p)               60  60t 904.80h 0a score 11000         60t 904.80h 0a
+  tokyo-after-school            404  off    TooThin      60  0t 0.00h 0a score     0 THIN       -
   giant-robot-hour              408  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   power-level                   412  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tea-time                      416  off    TooThin      30  3t 31.20h 0a score  3420 THIN      -
@@ -191,7 +202,7 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   fresh-cut                    starport                     10 titles, 121.62h
   dial-up                      couch-talk                   6 titles, 119.33h
   shag-carpet                  docs-and-dusters             14 titles, 109.68h
-  ... and 98 more pairs (all in the JSON)
+  ... and 105 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Velmami Pefator [film, 1 items, 1.75h]
@@ -2375,231 +2386,352 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   000002fe Veldarpe Pebraxi [film, 1 items, 1.57h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   000002ff Tortortor Milovel [film, 1 items, 1.58h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000300 Mixidar Famami [film, 1 items, 1.60h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000301 Senolzu Mamiquin [film, 1 items, 1.62h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000302 Darzuma Torrenfa [film, 1 items, 1.63h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000303 Quinquinvel Lobraky [film, 1 items, 1.65h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   00000304 Lomidar Olquinma [film, 1 items, 1.67h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000305 Fabrazu Velmaxi [film, 1 items, 1.68h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000306 Zumaol Quinmitor [film, 1 items, 1.70h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000307 Renrenbra Kyzusen [film, 1 items, 1.57h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000308 Kylosen Brabralo [film, 1 items, 1.58h]
-    home fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    guest spots: fresh-cut
   00000309 Olsenfa Darquinzu [film, 1 items, 1.60h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000030a Mavelol Renolky [film, 1 items, 1.62h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000030b Pepexi Xitorpe [film, 1 items, 1.63h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000030c Xikymi Senzubra [film, 1 items, 1.65h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   0000030d Brazulo Zuxitor [film, 1 items, 1.67h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000030e Velquinky Pedardar [film, 1 items, 1.68h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000030f Tormixi Miollo [film, 1 items, 1.70h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000310 Mibrami Fatorren [film, 1 items, 1.57h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000311 Senmaquin Mafaol [film, 1 items, 1.58h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000312 Darrenren Torxipe [film, 1 items, 1.60h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000313 Quinlope Lodarvel [film, 1 items, 1.62h]
-    home fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    guest spots: fresh-cut
   00000314 Losentor Olkymi [film, 1 items, 1.63h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000315 Favelquin Veltorquin [film, 1 items, 1.65h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000316 Zupezu Quinfafa [film, 1 items, 1.67h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000317 Renkyma Kyperen [film, 1 items, 1.68h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000318 Kyfavel Bradarma [film, 1 items, 1.70h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   00000319 Oldardar Darkyxi [film, 1 items, 1.57h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000031a Matorzu Renveltor [film, 1 items, 1.58h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   0000031b Pexiol Xilosen [film, 1 items, 1.60h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   0000031c Xiolbra Senpequin [film, 1 items, 1.62h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   0000031d Brarensen Zusenzu [film, 1 items, 1.63h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   0000031e Vellofa Perenky [film, 1 items, 1.65h]
-    home fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    guest spots: fresh-cut
   0000031f Torsenol Mivelpe [film, 1 items, 1.67h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000320 Mivelbra Falobra [film, 1 items, 1.68h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000321 Senpemi Mamator [film, 1 items, 1.70h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000322 Darkylo Torsendar [film, 1 items, 1.57h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000323 Quinfaky Lorenlo [film, 1 items, 1.58h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   00000324 Lodarxi Olbraren [film, 1 items, 1.60h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000325 Fatormi Vellool [film, 1 items, 1.62h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000326 Zuxiquin Quinmape [film, 1 items, 1.63h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000327 Renolren Kymivel [film, 1 items, 1.65h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000328 Kyzupe Brarenmi [film, 1 items, 1.67h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000329 Olquintor Darbraquin [film, 1 items, 1.68h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000032a Mamiquin Renquinfa [film, 1 items, 1.70h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000032b Pebraren Xiolren [film, 1 items, 1.57h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000032c Ximama Senmima [film, 1 items, 1.58h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   0000032d Brakyvel Zuzuxi [film, 1 items, 1.60h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   0000032e Velfadar Pexivel [film, 1 items, 1.62h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000032f Tordarzu Miquinsen [film, 1 items, 1.63h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000330 Mitorma Faolquin [film, 1 items, 1.65h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000331 Senxibra Matorzu [film, 1 items, 1.67h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000332 Darolsen Torzuky [film, 1 items, 1.68h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000333 Quinzufa Loxima [film, 1 items, 1.70h]
-    home fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    guest spots: fresh-cut
   00000334 Loquinol Oldarbra [film, 1 items, 1.57h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000335 Famibra Veloltor [film, 1 items, 1.58h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000336 Zubrasen Quintordar [film, 1 items, 1.60h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000337 Renmalo Kyfalo [film, 1 items, 1.62h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000338 Kyrenky Braxizu [film, 1 items, 1.63h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   00000339 Olloxi Dardarol [film, 1 items, 1.65h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000033a Masenmi Renkype [film, 1 items, 1.50h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000033b Pevello Xivelvel [film, 1 items, 1.52h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000033c Xiperen Senfami [film, 1 items, 1.53h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000033d Braolpe Zupedar [film, 1 items, 1.55h]
-    home shag-carpet -137.22 = specificity 12.78 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000033e Velzutor Pesenfa [film, 1 items, 1.57h]
-    home shag-carpet -137.22 = specificity 12.78 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000033f Torquinquin Mikyren [film, 1 items, 1.58h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000340 Mimiren Favelma [film, 1 items, 1.60h]
-    home dial-up -137.54 = specificity 12.46 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000341 Senbrape Maloxi [film, 1 items, 1.62h]
-    home dial-up -137.54 = specificity 12.46 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000342 Darmavel Torpevel [film, 1 items, 1.63h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000343 Quinrendar Losensen [film, 1 items, 1.50h]
-    home binge-row -137.51 = specificity 12.49 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   00000344 Lolozu Olrenquin [film, 1 items, 1.52h]
-    home fresh-cut -135.71 = specificity 14.29 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up fresh-cut -135.71 = specificity 14.29 decade -150.00
   00000345 Fasenma Velvelzu [film, 1 items, 1.53h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000346 Zuvelvel Quinloky [film, 1 items, 1.55h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000347 Renpesen Kymama [film, 1 items, 1.57h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000348 Kykyfa Brasenbra [film, 1 items, 1.58h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000349 Olfaol Darrentor [film, 1 items, 1.60h]
-    home neon-decade -137.60 = specificity 12.40 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   0000034a Madarbra Renbradar [film, 1 items, 1.62h]
-    home neon-decade -137.60 = specificity 12.40 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   0000034b Petorsen Xiquinlo [film, 1 items, 1.63h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000034c Xixilo Senmazu [film, 1 items, 1.50h]
-    home flip-phone -137.59 = specificity 12.41 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up flip-phone -137.59 = specificity 12.41 decade -150.00
   0000034d Bramaky Zumiol [film, 1 items, 1.52h]
-    home flip-phone -137.59 = specificity 12.41 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up flip-phone -137.59 = specificity 12.41 decade -150.00
   0000034e Velrenxi Pezupe [film, 1 items, 1.53h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000034f Torlomi Mibravel [film, 1 items, 1.55h]
-    home fresh-cut -135.71 = specificity 14.29 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up fresh-cut -135.71 = specificity 14.29 decade -150.00
   00000350 Misenlo Faquinmi [film, 1 items, 1.57h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000351 Senvelky Maoldar [film, 1 items, 1.58h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000352 Darpepe Tormifa [film, 1 items, 1.60h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000353 Quinkytor Lozuren [film, 1 items, 1.62h]
-    home shag-carpet -137.22 = specificity 12.78 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   00000354 Lofaquin Olxiol [film, 1 items, 1.63h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000355 Fadarren Velquinxi [film, 1 items, 1.50h]
-    home neon-decade -137.60 = specificity 12.40 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   00000356 Zutorpe Quinolvel [film, 1 items, 1.52h]
-    home dial-up -137.54 = specificity 12.46 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000357 Renxivel Kytorsen [film, 1 items, 1.53h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000358 Kyoldar Brazuquin [film, 1 items, 1.55h]
-    home binge-row -137.51 = specificity 12.49 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   00000359 Olzuzu Darxifa [film, 1 items, 1.57h]
-    home binge-row -137.51 = specificity 12.49 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   0000035a Maquinma Rendarky [film, 1 items, 1.58h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000035b Pemivel Xikyma [film, 1 items, 1.60h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000035c Xibradar Sentorbra [film, 1 items, 1.62h]
-    home rabbit-ears -138.24 = specificity 11.76 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000035d Brapefa Zufator [film, 1 items, 1.63h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000035e Velkyol Pepesen [film, 1 items, 1.50h]
-    home shag-carpet -137.22 = specificity 12.78 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000035f Torfabra Midarlo [film, 1 items, 1.52h]
-    home neon-decade -137.60 = specificity 12.40 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   00000360 Midarsen Fakyzu [film, 1 items, 1.53h]
-    home rainy-day-matinee 405.60 = specificity 25.60 genre 40.00 kids 200.00 format 80.00 tone 60.00
-    runner-up saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
-    guest spots: saturday-morning
+    home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000361 Sentorfa Mavelol [film, 1 items, 1.55h]
-    home dial-up -137.54 = specificity 12.46 decade -150.00
+    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000362 Darxiky Torfape [film, 1 items, 1.87h]
     home dusty-trails 120.38 = specificity 20.38 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
@@ -3181,205 +3313,205 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   000003f3 Quindardar Lokyzu [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   000003f4 Lotorzu Olvelol [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   000003f5 Faxiol Velfape [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   000003f6 Zuolbra Quinpebra [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   000003f7 Renzusen Kysenmi [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   000003f8 Kyquinfa Brakydar [film, 1 items, 2.15h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   000003f9 Olmiol Darvelfa [film, 1 items, 2.17h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   000003fa Mabrabra Renloren [film, 1 items, 2.18h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   000003fb Pemami Ximaol [film, 1 items, 2.20h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: flip-phone, dragons-and-doorways
   000003fc Xirenlo Sensenxi [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   000003fd Brafaky Zurenvel [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
-    guest spots: fresh-cut
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: fresh-cut, dragons-and-doorways
   000003fe Veldarxi Pebrasen [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   000003ff Tortormi Miloquin [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000400 Mixiquin Famafa [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000401 Senolren Mamiky [film, 1 items, 2.15h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   00000402 Darzupe Torrenma [film, 1 items, 2.17h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   00000403 Quinquintor Lobrabra [film, 1 items, 2.18h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   00000404 Lomiquin Olquintor [film, 1 items, 2.20h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   00000405 Fabraren Velmasen [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: flip-phone, dragons-and-doorways
   00000406 Zumama Quinmilo [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: flip-phone, dragons-and-doorways
   00000407 Renrenvel Kyzuzu [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   00000408 Kylodar Brabraol [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
-    guest spots: fresh-cut
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: fresh-cut, dragons-and-doorways
   00000409 Olsenzu Darquinpe [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   0000040a Mavelma Renolbra [film, 1 items, 2.15h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   0000040b Pepebra Xitormi [film, 1 items, 2.17h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   0000040c Xikysen Senzudar [film, 1 items, 2.18h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   0000040d Brazufa Zuxilo [film, 1 items, 2.20h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   0000040e Velquinol Pedarren [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   0000040f Tormibra Miolol [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   00000410 Mibrasen Fatorxi [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: flip-phone, dragons-and-doorways
   00000411 Senmalo Mafavel [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   00000412 Darrenky Torximi [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   00000413 Quinloxi Lodarquin [film, 1 items, 2.15h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
-    guest spots: fresh-cut
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: fresh-cut, dragons-and-doorways
   00000414 Losenmi Olkyfa [film, 1 items, 2.17h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000415 Favello Veltorky [film, 1 items, 2.18h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000416 Zuperen Quinfama [film, 1 items, 2.20h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   00000417 Renkype Kypexi [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   00000418 Kyfator Bradartor [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   00000419 Oldarquin Darkysen [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   0000041a Matorren Renvello [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   0000041b Pexima Xilozu [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: flip-phone, dragons-and-doorways
   0000041c Xiolvel Senpeky [film, 1 items, 2.15h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   0000041d Brarendar Zusenpe [film, 1 items, 2.17h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: binge-row, dragons-and-doorways
   0000041e Vellozu Perenbra [film, 1 items, 2.18h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   0000041f Torsenma Mivelmi [film, 1 items, 2.20h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000420 Mivelvel Falodar [film, 1 items, 2.07h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, dragons-and-doorways
   00000421 Senpesen Mamalo [film, 1 items, 2.08h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   00000422 Darkyfa Torsenren [film, 1 items, 2.10h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: shag-carpet, dragons-and-doorways
   00000423 Quinfaol Lorenol [film, 1 items, 2.12h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: neon-decade, dragons-and-doorways
   00000424 Lodarbra Olbraxi [film, 1 items, 2.13h]
-    home dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home popcorn-epic 157.54 = specificity 17.54 genre 80.00 tone 60.00
+    runner-up dragons-and-doorways 115.73 = specificity 15.73 genre 40.00 tone 60.00
+    guest spots: dial-up, dragons-and-doorways
   00000425 Fatorsen Vellovel [film, 1 items, 1.77h]
     home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
@@ -3621,83 +3753,83 @@ TITLES (scores in points; a term that is zero is left out)
   00000474 Lorenvel Olzupe [film, 1 items, 1.92h]
     home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
   00000475 Falodar Velbravel [film, 1 items, 1.37h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000476 Zusenzu Quinquinmi [film, 1 items, 1.38h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000477 Renvelma Kyoldar [film, 1 items, 1.40h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000478 Kypebra Bramifa [film, 1 items, 1.42h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000479 Olkysen Darzuren [film, 1 items, 1.43h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   0000047a Mafafa Renxiol [film, 1 items, 1.45h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000047b Pedarol Xidarxi [film, 1 items, 1.47h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   0000047c Xitorbra Senolvel [film, 1 items, 1.48h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   0000047d Brabrasen Zutorsen [film, 1 items, 1.50h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   0000047e Velmalo Pefaquin [film, 1 items, 1.37h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   0000047f Torrenky Mixifa [film, 1 items, 1.38h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   00000480 Miloxi Fadarky [film, 1 items, 1.40h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000481 Sensenmi Makyma [film, 1 items, 1.42h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000482 Darvello Tortorbra [film, 1 items, 1.43h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000483 Quinperen Lofator [film, 1 items, 1.45h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000484 Lokype Olpesen [film, 1 items, 1.47h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000485 Fafator Veldarlo [film, 1 items, 1.48h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000486 Zudarquin Quinkyzu [film, 1 items, 1.50h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000487 Rentorren Kyvelol [film, 1 items, 1.37h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000488 Kyxima Brafape [film, 1 items, 1.38h]
-    home always-december 152.42 = specificity 22.42 tag 70.00 tone 60.00
+    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000489 Ololvel Darpebra [film, 1 items, 1.33h]
@@ -5672,125 +5804,125 @@ TITLES (scores in points; a term that is zero is left out)
   00000149 Zupeol Quinfalo [series, 26 items, 7.80h]
     home saturday-morning 355.60 = specificity 15.60 genre 80.00 kids 200.00 tone 60.00
   0000014a Renkybra Kypezu [series, 13 items, 5.20h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000014b Kyfasen Bradarol [series, 26 items, 10.83h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000014c Oldarfa Darkype [series, 39 items, 16.90h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000014d Matorol Renvelvel [series, 52 items, 23.40h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000014e Pexixi Xilomi [series, 13 items, 6.07h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000014f Xiolmi Senpedar [series, 26 items, 12.57h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000150 Brarenlo Zusenfa [series, 39 items, 19.50h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000151 Velloky Perenren [series, 52 items, 26.87h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000152 Torsenxi Mivelma [series, 13 items, 6.93h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000153 Mivelmi Faloxi [series, 26 items, 10.40h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000154 Senpequin Mamavel [series, 39 items, 16.25h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000155 Darkyren Torsensen [series, 52 items, 22.53h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000156 Quinfape Lorenquin [series, 13 items, 5.85h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000157 Lodartor Olbrazu [series, 26 items, 12.13h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000158 Fatorquin Velloky [series, 39 items, 18.85h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000159 Zuxizu Quinmama [series, 52 items, 26.00h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015a Renolma Kymibra [series, 13 items, 6.72h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015b Kyzuvel Brarentor [series, 26 items, 13.87h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015c Olquindar Darbradar [series, 39 items, 15.60h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015d Mamizu Renquinlo [series, 52 items, 21.67h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015e Pebrama Xiolzu [series, 13 items, 5.63h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000015f Ximabra Senmiol [series, 26 items, 11.70h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000160 Brakysen Zuzupe [series, 39 items, 18.20h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000161 Velfafa Pexibra [series, 52 items, 25.13h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000162 Tordarol Miquinmi [series, 13 items, 6.50h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000163 Mitorbra Faoldar [series, 26 items, 13.43h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000164 Senximi Matorfa [series, 39 items, 20.80h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000165 Darollo Torzuren [series, 52 items, 20.80h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000166 Quinzuky Loxiol [series, 13 items, 5.42h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000167 Loquinxi Oldarxi [series, 26 items, 11.27h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000168 Famimi Velolvel [series, 39 items, 17.55h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000169 Zubralo Quintorsen [series, 52 items, 24.27h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016a Renmaren Kyfaquin [series, 13 items, 6.28h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016b Kyrenpe Braxifa [series, 26 items, 13.00h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016c Ollotor Dardarky [series, 39 items, 20.15h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016d Masenquin Renkyma [series, 52 items, 27.73h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016e Pevelren Xivelbra [series, 13 items, 5.20h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000016f Xipema Senfator [series, 26 items, 10.83h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000170 Braolvel Zupesen [series, 39 items, 16.90h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000171 Velzudar Pesenlo [series, 52 items, 23.40h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000172 Torquinzu Mikyzu [series, 13 items, 6.07h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000173 Mimima Favelol [series, 26 items, 12.57h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000174 Senbravel Malope [series, 39 items, 19.50h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000175 Darmasen Torpebra [series, 52 items, 26.87h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000176 Quinrenfa Losenmi [series, 13 items, 6.93h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000177 Lolool Olrendar [series, 26 items, 10.40h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000178 Fasenbra Velvelfa [series, 39 items, 16.25h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000179 Zuvelsen Quinloren [series, 52 items, 22.53h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017a Renpelo Kymaol [series, 13 items, 5.85h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017b Kykyky Brasenxi [series, 26 items, 12.13h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017c Olfaxi Darrenvel [series, 39 items, 18.85h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017d Madarmi Renbrasen [series, 52 items, 26.00h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017e Petorlo Xiquinquin [series, 13 items, 6.72h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   0000017f Xixiren Senmafa [series, 26 items, 13.87h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000180 Bramape Zumiky [series, 39 items, 15.60h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000181 Velrentor Pezuma [series, 52 items, 21.67h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000182 Torloquin Mibrabra [series, 13 items, 5.63h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000183 Misenren Faquintor [series, 26 items, 11.70h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000184 Senvelpe Maolsen [series, 39 items, 18.20h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000185 Darpevel Tormilo [series, 52 items, 25.13h]
-    home tokyo-after-school 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.79 = specificity 16.79 genre 40.00 tag 35.00 tone 60.00
   00000186 Quinkydar Lozuzu [series, 10 items, 8.00h]
     home docs-and-dusters 114.69 = specificity 14.69 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00

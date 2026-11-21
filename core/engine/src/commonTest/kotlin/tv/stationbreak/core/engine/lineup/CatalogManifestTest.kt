@@ -24,7 +24,7 @@ class CatalogManifestTest {
 
     private fun catalog(
         recipes: List<Recipe> = shipped,
-        version: Int = 7,
+        version: Int = 8,
         leftovers: List<LeftoversRecipe> = StarterCatalog.leftovers,
         retiredKeys: Set<String> = emptySet(),
         retiredNumbers: Set<Int> = emptySet(),
@@ -32,7 +32,7 @@ class CatalogManifestTest {
 
     private fun withFirst(change: (Recipe) -> Recipe) = shipped.map { if (it == first) change(it) else it }
 
-    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V7)
+    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V8)
 
     @Test
     fun theShippedCatalogKeepsEveryManifest() {
@@ -42,7 +42,7 @@ class CatalogManifestTest {
         val versions = CATALOG_MANIFESTS.map { it.version }
         assertEquals(versions.sorted().distinct(), versions, "manifests are oldest first, one per version")
         assertEquals(StarterCatalog.VERSION, CATALOG_MANIFESTS.last().version, "the current version is frozen too")
-        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V7.recipes.size)
+        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V8.recipes.size)
         assertEquals(1, CATALOG_MANIFEST_V1.version)
         assertEquals(2, CATALOG_MANIFEST_V2.version)
         assertEquals(3, CATALOG_MANIFEST_V3.version)
@@ -50,6 +50,57 @@ class CatalogManifestTest {
         assertEquals(5, CATALOG_MANIFEST_V5.version)
         assertEquals(6, CATALOG_MANIFEST_V6.version)
         assertEquals(7, CATALOG_MANIFEST_V7.version)
+        assertEquals(8, CATALOG_MANIFEST_V8.version)
+    }
+
+    // Catalog 8 (the young bands, #1002) changes no fingerprint: every recipe of catalog 7 airs what it aired. It moves
+    // the 17 recipes and the leftovers recipe of NUMBERS_WAIVED_AT_8 (the owner's pre-release waiver of the never-reuse
+    // rule), and adds nine recipes and two leftovers recipes; nothing else.
+    @Test
+    fun versionEightMovesOnlyTheWaivedNumbersAndAddsTheNewChannels() {
+        val before = CATALOG_MANIFEST_V7.recipes
+        val after = CATALOG_MANIFEST_V8.recipes
+        assertEquals(before.keys, after.keys - NEW_AT_8)
+        assertEquals(NEW_AT_8, after.keys - before.keys)
+        for ((key, old) in before) {
+            val now = after.getValue(key)
+            // Little Spirits is the one recipe that changes: it is anime-only, as Family is not the Kids band.
+            assertEquals(key != "little-spirits", old.fingerprint == now.fingerprint, key)
+            assertEquals(old.optIn, now.optIn, key)
+            assertEquals(old.maxRating, now.maxRating, key)
+            assertEquals(NUMBERS_WAIVED_AT_8[key] ?: old.number, now.number, key)
+        }
+        // Lights Out keeps its number (44) but is in the Family band by it; it is still a kids-only recipe.
+        val family = setOf("once-upon", "rainy-day-matinee", "little-spirits", "lights-out", "spooky-sleepover")
+        assertEquals(family, movedToFamily())
+        assertEquals(
+            setOf("kids-odds-and-ends", "family-odds-and-ends", "teen-odds-and-ends"),
+            CATALOG_MANIFEST_V8.leftovers.keys - CATALOG_MANIFEST_V7.leftovers.keys + "kids-odds-and-ends",
+        )
+        assertEquals(33, CATALOG_MANIFEST_V8.leftovers.getValue("kids-odds-and-ends").number)
+        assertEquals("PG", CATALOG_MANIFEST_V8.leftovers.getValue("family-odds-and-ends").maxRating)
+        assertEquals("TV-14", CATALOG_MANIFEST_V8.leftovers.getValue("teen-odds-and-ends").maxRating)
+        assertEquals(199, CATALOG_MANIFEST_V8.leftovers.getValue("odds-and-ends").number)
+    }
+
+    private fun movedToFamily() =
+        CATALOG_MANIFEST_V8.recipes
+            .filter { (k, v) -> v.band == Band.Family && CATALOG_MANIFEST_V7.recipes[k]?.band == Band.Kids }
+            .keys
+
+    // The waiver is named, per key. A move of any other key, or to any other number, is still a problem at catalog 8.
+    @Test
+    fun theWaiverCoversOnlyTheNamedKeysAtTheirNewNumbers() {
+        for (manifest in CATALOG_MANIFESTS.filter { it.version < 8 }) {
+            assertEquals(emptyList(), manifestProblems(StarterCatalog, manifest), "v${manifest.version}")
+            val other = shipped.map { if (it.key == "critter-channel") it.copy(number = 11) else it }
+            assertTrue(manifestProblems(catalog(other), manifest).isNotEmpty(), "a number outside the waiver")
+            val grownUp = shipped.map { if (it.key == "prestige") it.copy(number = 205) else it }
+            assertTrue(manifestProblems(catalog(grownUp), manifest).isNotEmpty(), "a key outside the waiver")
+        }
+        assertEquals(NUMBERS_WAIVED_AT_8.size, 18)
+        val old = shipped.map { if (it.key == "critter-channel") it.copy(number = 24) else it }
+        assertTrue(manifestProblems(catalog(old, version = 7), CATALOG_MANIFEST_V7).isNotEmpty(), "needs the version")
     }
 
     // Catalog 7 (the recipe pack: #994, #997 to #999, #1000) keeps every key, number, band, opt-in flag, ceiling and
@@ -220,7 +271,7 @@ class CatalogManifestTest {
     // The bar joins the fingerprint only when it is not the standard one, so every earlier manifest still holds.
     @Test
     fun theQualifyingBarIsInTheFingerprintOnlyWhenItIsNotTheStandardOne() {
-        val grownUp = CATALOG_V2_RECIPES.first { it.band != Band.Kids }
+        val grownUp = CATALOG_V2_RECIPES.first { it.maxRating == null }
         val standard = fingerprintOf(grownUp)
         assertEquals(standard, fingerprintOf(grownUp.copy(qualifyingBar = QualifyingBar.Standard)))
         assertNotEquals(standard, fingerprintOf(grownUp.copy(qualifyingBar = QualifyingBar.Niche)))
@@ -249,7 +300,7 @@ class CatalogManifestTest {
         }
         assertEquals(CATALOG_MANIFEST_V2.leftovers, CATALOG_MANIFEST_V3.leftovers)
         // Catalog 2's recipes as kept in the code are still what manifest V2 froze.
-        val v2 = TestCatalog(CATALOG_V2_RECIPES, version = 2, leftovers = StarterCatalog.leftovers)
+        val v2 = TestCatalog(CATALOG_V2_RECIPES, version = 2, leftovers = CATALOG_V2_LEFTOVERS)
         assertEquals(emptyList(), manifestProblems(v2, CATALOG_MANIFEST_V2))
     }
 
@@ -274,7 +325,7 @@ class CatalogManifestTest {
         // Exactly the spellings the kid hold recognises, so a grown-up channel drops what a kid channel would take.
         val kidsGenres = KidHold.KIDS_GENRES.map { Source.Genre(it) }
         for (recipe in CATALOG_V2_RECIPES) {
-            if (recipe.band == Band.Kids) {
+            if (recipe.maxRating != null) {
                 assertEquals(emptyList(), recipe.exclusions, recipe.key)
             } else {
                 assertEquals(kidsGenres, recipe.exclusions, recipe.key)
@@ -340,14 +391,18 @@ class CatalogManifestTest {
     @Test
     fun everKidSafeKeysHoldEveryKidSafeKeyOfTheCatalogAndEveryManifest() {
         val current =
-            StarterCatalog.recipes.filter { it.maxRating != null }.map { it.key } +
-                StarterCatalog.leftovers.filter { it.maxRating != null }.map { it.key }
+            StarterCatalog.recipes.filter { it.kidSafe }.map { it.key } +
+                StarterCatalog.leftovers.filter { it.number in Band.Kids.numbers }.map { it.key }
         assertTrue(current.isNotEmpty())
         assertTrue(StarterCatalog.EVER_KID_SAFE_KEYS.containsAll(current), "the current catalog")
         for (manifest in CATALOG_MANIFESTS) {
+            // From catalog 8 a ceiling no longer means kid-safe: Family and Teen channels have one too.
+            val keptRecipes =
+                manifest.recipes.filterValues { it.maxRating != null && (manifest.version < 8 || it.band == Band.Kids) }
             val kept =
-                manifest.recipes.filterValues { it.maxRating != null }.keys +
-                    manifest.leftovers.filterValues { it.maxRating != null }.keys
+                keptRecipes.keys +
+                    manifest.leftovers.filterValues { it.maxRating != null && it.number in Band.Kids.numbers }.keys +
+                    manifest.leftovers.filterValues { manifest.version < 8 && it.maxRating != null }.keys
             assertTrue(StarterCatalog.EVER_KID_SAFE_KEYS.containsAll(kept), "manifest ${manifest.version}")
         }
         assertTrue("kids-odds-and-ends" in StarterCatalog.EVER_KID_SAFE_KEYS)
@@ -374,33 +429,46 @@ class CatalogManifestTest {
                 shipped + recipeOf("brand-new", 598),
             )
         for (recipes in changed) {
-            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 7")
-            assertEquals(emptyList(), problems(catalog(recipes, version = 8)), "allowed at version 8")
+            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 8")
+            assertEquals(emptyList(), problems(catalog(recipes, version = 9)), "allowed at version 9")
         }
-        val stricter = StarterCatalog.leftovers.map { if (it.number == 99) it.copy(maxRating = "G") else it }
+        val stricter = StarterCatalog.leftovers.map { if (it.number == 33) it.copy(maxRating = "G") else it }
         assertTrue(problems(catalog(leftovers = stricter)).isNotEmpty())
-        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 8)))
+        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 9)))
     }
 
     @Test
     fun aShippedKeyStaysAtItsNumberOrIsRetiredWithIt() {
         val moved = withFirst { it.copy(number = it.number + 1) }
-        assertTrue(problems(catalog(moved, version = 8)).isNotEmpty(), "a shipped number never changes")
+        assertTrue(problems(catalog(moved, version = 9)).isNotEmpty(), "a shipped number never changes")
 
         val dropped = shipped.drop(1)
-        assertTrue(problems(catalog(dropped, version = 8)).isNotEmpty(), "dropped without retiring")
-        val keyOnly = catalog(dropped, version = 8, retiredKeys = setOf(first.key))
+        assertTrue(problems(catalog(dropped, version = 9)).isNotEmpty(), "dropped without retiring")
+        val keyOnly = catalog(dropped, version = 9, retiredKeys = setOf(first.key))
         assertTrue(problems(keyOnly).isNotEmpty(), "retired without its number")
-        val retired = catalog(dropped, 8, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
+        val retired = catalog(dropped, 9, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
         assertEquals(emptyList(), problems(retired))
 
         val noLeftovers = StarterCatalog.leftovers.filter { it.number != 199 }
-        assertTrue(problems(catalog(leftovers = noLeftovers, version = 8)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = noLeftovers, version = 9)).isNotEmpty())
         val movedLeftovers = StarterCatalog.leftovers.map { if (it.number == 199) it.copy(number = 198) else it }
-        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 8)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 9)).isNotEmpty())
     }
 
     private companion object {
+        val NEW_AT_8 =
+            setOf(
+                "big-screen-toons",
+                "popcorn-matinee",
+                "starship-sunday",
+                "prime-time-pals",
+                "homeroom",
+                "mask-and-mantle",
+                "level-up",
+                "popcorn-epic",
+                "nervous-laughter",
+            )
+
         val PACK_AT_7 =
             setOf(
                 "punchline",

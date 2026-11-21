@@ -75,6 +75,7 @@ private fun recipe(
     format: FormatPromise? = null,
     animeOnly: Boolean = false,
     bar: QualifyingBar = QualifyingBar.Standard,
+    plain: Boolean = false,
 ): Recipe =
     Recipe(
         key = key,
@@ -86,7 +87,7 @@ private fun recipe(
         sources = sources,
         exclusions =
             when {
-                band == Band.Kids -> emptyList()
+                band == Band.Kids || plain -> emptyList()
                 animeOnly || optIn -> KIDS_GENRE_EXCLUSIONS
                 else -> KIDS_GENRE_EXCLUSIONS + ANIME_EXCLUSIONS
             },
@@ -118,7 +119,7 @@ private val kidsBand: List<Recipe> =
     listOf(
         recipe(
             Band.Kids,
-            n = 4,
+            n = 2,
             key = "little-farm",
             name = "Little Farm",
             says = "Gentle, slow and sunny, for the very youngest viewers.",
@@ -127,7 +128,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 8,
+            n = 4,
             key = "sing-along-station",
             name = "Sing-Along Station",
             says = "Every show breaks into song, and so should you.",
@@ -137,26 +138,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 12,
-            key = "once-upon",
-            name = "Once Upon",
-            says = "Fairy tales, folk tales and happily ever after.",
-            sources = tags("fairy tale", "fairy-tale", "folk tale"),
-            rating = "PG",
-            anchors =
-                collections(
-                    Contains("Fairy Tales"),
-                    Contains("Cinderella"),
-                    Contains("Beauty and the Beast"),
-                    Contains("Little Mermaid"),
-                    Contains("Shrek"),
-                    Contains("Peter Pan"),
-                    Contains("Alice in Wonderland"),
-                ),
-        ),
-        recipe(
-            Band.Kids,
-            n = 16,
+            n = 6,
             key = "saturday-morning",
             name = "Saturday Morning",
             says = "Cartoons and shorts, cereal optional.",
@@ -175,7 +157,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 20,
+            n = 8,
             key = "backyard-fort",
             name = "Backyard Fort",
             says = "Big-kid adventure: maps, mysteries and no grown-ups allowed.",
@@ -192,7 +174,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 24,
+            n = 10,
             key = "critter-channel",
             name = "Critter Channel",
             says = "Dogs, dinosaurs, ducklings and everything in between.",
@@ -202,7 +184,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 28,
+            n = 12,
             key = "robot-factory",
             name = "Robot Factory",
             says = "Robots, rockets and things that go beep.",
@@ -211,7 +193,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 32,
+            n = 14,
             key = "hey-science",
             name = "Hey, Science!",
             says = "Why is the sky blue? Let's find out.",
@@ -220,46 +202,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 36,
-            key = "rainy-day-matinee",
-            name = "Rainy Day Matinee",
-            says = "Family films for when the weather wins.",
-            sources = genres("Family") + tags("family", "family film"),
-            rating = "PG",
-            anchors =
-                collections(
-                    Exact("Pixar"),
-                    Contains("Walt Disney Animation"),
-                    Contains("DreamWorks Animation"),
-                    Contains("Toy Story"),
-                    Contains("Ice Age"),
-                    Contains("Despicable Me"),
-                ),
-            filters = filters(kind = FilterKind.Movie),
-            format = FormatPromise.Films,
-        ),
-        recipe(
-            Band.Kids,
-            n = 40,
-            key = "little-spirits",
-            name = "Little Spirits",
-            says = "Family anime: small heroes, big feelings.",
-            sources = genres("Anime") + tags("anime", "family anime"),
-            rating = "PG",
-            anchors = collections(Contains("Studio Ghibli"), Contains("Hayao Miyazaki")),
-        ),
-        recipe(
-            Band.Kids,
-            n = 44,
-            key = "lights-out",
-            name = "Lights Out",
-            says = "Calm, quiet and sleepy. The bedtime channel.",
-            sources = tags("bedtime", "calm", "lullaby", "relaxing"),
-            rating = "TV-Y",
-        ),
-        recipe(
-            Band.Kids,
-            n = 48,
+            n = 16,
             key = "pocket-heroes",
             name = "Pocket Heroes",
             says = "Capes, masks and kind-hearted saves.",
@@ -268,7 +211,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 52,
+            n = 18,
             key = "flipbook",
             name = "Flipbook",
             says = "Golden-oldie family films and classic cartoons.",
@@ -277,7 +220,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 56,
+            n = 20,
             key = "snowglobe",
             name = "Snowglobe",
             says = "Winter holidays for small people, sprinkles included.",
@@ -287,7 +230,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 60,
+            n = 22,
             key = "giggle-garage",
             name = "Giggle Garage",
             says = "Silly shows, funny voices and a lot of pratfalls.",
@@ -306,7 +249,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 64,
+            n = 24,
             key = "wheels-and-whistles",
             name = "Wheels & Whistles",
             says = "Trains, trucks, diggers and anything that rolls.",
@@ -315,7 +258,7 @@ private val kidsBand: List<Recipe> =
         ),
         recipe(
             Band.Kids,
-            n = 68,
+            n = 26,
             key = "small-sleuths",
             name = "Small Sleuths",
             says = "Gentle mysteries, a case in every episode.",
@@ -323,13 +266,146 @@ private val kidsBand: List<Recipe> =
             rating = "TV-Y7",
             anchors = collections(Contains("Scooby-Doo")) + titles(Contains("Scooby")),
         ),
+    )
+
+private val familyBand: List<Recipe> =
+    listOf(
         recipe(
-            Band.Kids,
+            Band.Family,
+            n = 36,
+            key = "once-upon",
+            name = "Once Upon",
+            says = "Fairy tales, folk tales and happily ever after.",
+            sources = tags("fairy tale", "fairy-tale", "folk tale"),
+            plain = true,
+            rating = "PG",
+            anchors =
+                collections(
+                    Contains("Fairy Tales"),
+                    Contains("Cinderella"),
+                    Contains("Beauty and the Beast"),
+                    Contains("Little Mermaid"),
+                    Contains("Shrek"),
+                    Contains("Peter Pan"),
+                    Contains("Alice in Wonderland"),
+                ),
+        ),
+        recipe(
+            Band.Family,
+            n = 39,
+            key = "rainy-day-matinee",
+            name = "Rainy Day Matinee",
+            says = "Family films for when the weather wins.",
+            sources = genres("Family") + tags("family", "family film"),
+            plain = true,
+            rating = "PG",
+            anchors =
+                collections(
+                    Exact("Pixar"),
+                    Contains("Walt Disney Animation"),
+                    Contains("DreamWorks Animation"),
+                    Contains("Toy Story"),
+                    Contains("Ice Age"),
+                    Contains("Despicable Me"),
+                ),
+            filters = filters(kind = FilterKind.Movie),
+            format = FormatPromise.Films,
+        ),
+        recipe(
+            Band.Family,
+            n = 42,
+            key = "little-spirits",
+            name = "Little Spirits",
+            says = "Family anime: small heroes, big feelings.",
+            sources = genres("Anime") + tags("anime", "family anime"),
+            // Anime only (catalog 8): Family is not the Kids band, so a channel that is not anime-only drops anime.
+            animeOnly = true,
+            plain = true,
+            rating = "PG",
+            anchors = collections(Contains("Studio Ghibli"), Contains("Hayao Miyazaki")),
+        ),
+        recipe(
+            Band.Family,
+            n = 44,
+            key = "lights-out",
+            name = "Lights Out",
+            says = "Calm, quiet and sleepy. The bedtime channel.",
+            sources = tags("bedtime", "calm", "lullaby", "relaxing"),
+            plain = true,
+            rating = "TV-Y",
+        ),
+        recipe(
+            Band.Family,
+            n = 45,
+            key = "spooky-sleepover",
+            name = "Spooky Sleepover",
+            says = "Friendly ghosts and gentle frights, flashlight under the blanket.",
+            sources = tags("Halloween", "ghosts", "spooky", "friendly monsters"),
+            plain = true,
+            rating = "PG",
+            anchors = collections(Exact("Halloween")),
+        ),
+        recipe(
+            Band.Family,
+            n = 48,
+            key = "popcorn-matinee",
+            name = "Popcorn Matinee",
+            says = "Live-action family films, popcorn in hand.",
+            sources = genres("Family"),
+            rating = "PG",
+            filters = filters(notGenres = listOf("Animation", "Anime"), kind = FilterKind.Movie),
+        ),
+        recipe(
+            Band.Family,
+            n = 51,
+            key = "big-screen-toons",
+            name = "Big Screen Toons",
+            says = "Animated features for everyone on the couch.",
+            sources = genres("Animation"),
+            rating = "PG",
+            filters = filters(kind = FilterKind.Movie),
+        ),
+        recipe(
+            Band.Family,
+            n = 57,
+            key = "starship-sunday",
+            name = "Starship Sunday",
+            says = "Rockets, aliens and big-screen space adventures, rated for the whole family.",
+            sources = genres("Science Fiction", "Sci-Fi") + tags("space opera", "space", "alien"),
+            rating = "PG",
+            filters = filters(kind = FilterKind.Movie),
+        ),
+        recipe(
+            Band.Family,
+            n = 60,
+            key = "prime-time-pals",
+            name = "Prime Time Pals",
+            says = "Family series, a little something for every age.",
+            sources = genres("Family"),
+            rating = "PG",
+            filters = filters(kind = FilterKind.Episode),
+        ),
+    )
+
+private val teenBand: List<Recipe> =
+    listOf(
+        recipe(
+            Band.Teen,
+            n = 70,
+            key = "homeroom",
+            name = "Homeroom",
+            says = "Lockers, first loves and growing up, one bell at a time.",
+            sources = tags("coming of age", "high school", "teenager"),
+            rating = "TV-14",
+        ),
+        recipe(
+            Band.Teen,
             n = 72,
             key = "tall-tales-club",
             name = "Tall Tales Club",
             says = "Pirates, explorers and stories that grow in the telling.",
             sources = genres("Adventure") + tags("pirates", "explorers", "treasure"),
+            plain = true,
             rating = "PG",
             anchors =
                 collections(
@@ -341,23 +417,52 @@ private val kidsBand: List<Recipe> =
                 ),
         ),
         recipe(
-            Band.Kids,
-            n = 76,
-            key = "spooky-sleepover",
-            name = "Spooky Sleepover",
-            says = "Friendly ghosts and gentle frights, flashlight under the blanket.",
-            sources = tags("Halloween", "ghosts", "spooky", "friendly monsters"),
-            rating = "PG",
-            anchors = collections(Exact("Halloween")),
+            Band.Teen,
+            n = 73,
+            key = "mask-and-mantle",
+            name = "Mask & Mantle",
+            says = "Capes, cowls and comic-book heroes, with a little more bite.",
+            sources = tags("superhero", "based on comic"),
+            rating = "TV-14",
         ),
         recipe(
-            Band.Kids,
+            Band.Teen,
+            n = 76,
+            key = "level-up",
+            name = "Level Up",
+            says = "Anime for the teens, with the volume turned up.",
+            sources = genres("Anime") + tags("anime"),
+            rating = "TV-14",
+            animeOnly = true,
+        ),
+        recipe(
+            Band.Teen,
+            n = 79,
+            key = "popcorn-epic",
+            name = "Popcorn Epic",
+            says = "Big adventures on a big screen, no one gets out of their seat.",
+            sources = genres("Science Fiction", "Fantasy", "Sci-Fi"),
+            rating = "TV-14",
+            filters = filters(genres = listOf("Action", "Adventure"), kind = FilterKind.Movie),
+        ),
+        recipe(
+            Band.Teen,
             n = 80,
             key = "tiny-chefs",
             name = "Tiny Chefs",
             says = "Messy kitchens, cooking and baking, small aprons.",
             sources = tags("cooking", "baking", "kids cooking", "food"),
+            plain = true,
             rating = "G",
+        ),
+        recipe(
+            Band.Teen,
+            n = 82,
+            key = "nervous-laughter",
+            name = "Nervous Laughter",
+            says = "Scares you can watch with a friend, and a hand to grab.",
+            sources = genres("Horror"),
+            rating = "TV-14",
         ),
     )
 
@@ -1215,4 +1320,4 @@ private val premiumBand: List<Recipe> =
  * reads the bands above.
  */
 internal val CATALOG_V3_RECIPES: List<Recipe> =
-    kidsBand + generalBand + dramaBand + genreBand + worldBand + premiumBand
+    kidsBand + familyBand + teenBand + generalBand + dramaBand + genreBand + worldBand + premiumBand

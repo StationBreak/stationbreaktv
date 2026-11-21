@@ -26,7 +26,15 @@ class CatalogV3Test {
 
     // Catalog 2's recipes, which catalog 3 replaced.
     private val v2 = CATALOG_V2_RECIPES
-    private val animeOnlyKeys = setOf("tokyo-after-school", "giant-robot-hour", "power-level", "cherry-blossom-hour")
+    private val animeOnlyKeys =
+        setOf(
+            "level-up",
+            "little-spirits",
+            "tokyo-after-school",
+            "giant-robot-hour",
+            "power-level",
+            "cherry-blossom-hour",
+        )
 
     private fun recipe(key: String): Recipe = checkNotNull(v3.firstOrNull { it.key == key }) { "no recipe $key" }
 
@@ -39,7 +47,8 @@ class CatalogV3Test {
             val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
             for (name in sources + r.filters?.genres.orEmpty()) {
                 assertTrue(
-                    name in TMDB_GENRES || name in SCRAPER_GENRES || name in EXEMPT_AT_7[r.key].orEmpty(),
+                    name in TMDB_GENRES || name in SCRAPER_GENRES || name in EXEMPT_AT_7[r.key].orEmpty() ||
+                        name in EXEMPT_AT_8[r.key].orEmpty(),
                     "${r.key} has genre $name",
                 )
             }
@@ -78,9 +87,10 @@ class CatalogV3Test {
     }
 
     @Test
-    fun onlyRainyDayMatineeHasFamilyAmongKidRecipes() {
-        val withFamily = v3.filter { it.kidSafe && Source.Genre("Family") in it.sources }
-        assertEquals(listOf("rainy-day-matinee"), withFamily.map { it.key })
+    fun noKidRecipeHasFamilyAndTheFamilyBandHasTwoThatDo() {
+        assertEquals(emptyList(), v3.filter { it.kidSafe && Source.Genre("Family") in it.sources }.map { it.key })
+        val inFamilyBand = v3.filter { it.band == Band.Family && Source.Genre("Family") in it.sources }
+        assertEquals(listOf("rainy-day-matinee", "popcorn-matinee", "prime-time-pals"), inFamilyBand.map { it.key })
     }
 
     @Test
@@ -175,12 +185,13 @@ class CatalogV3Test {
     // What catalog 2 promised, as frozen in its manifest, and in catalog order.
     @Test
     fun keysNumbersBandsCeilingsAndOptInMatchCatalogTwo() {
-        assertEquals(v2.map { it.key }, v3.map { it.key })
-        assertEquals(CATALOG_MANIFEST_V2.recipes.keys, v3.map { it.key }.toSet())
-        for (new in v3) {
+        assertEquals(v2.map { it.key }.toSet(), v3.map { it.key }.filter { it !in NEW_YOUNG_AT_8 }.toSet())
+        assertEquals(CATALOG_MANIFEST_V2.recipes.keys, v3.map { it.key }.toSet() - NEW_YOUNG_AT_8)
+        for (new in v3.filter { it.key !in NEW_YOUNG_AT_8 }) {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
-            assertEquals(old.number, new.number, new.key)
-            assertEquals(old.band, new.band, new.key)
+            // Catalog 8's waived renumbering (#1002); the Kids band of catalog 2 is the three young bands now.
+            assertEquals(NUMBERS_WAIVED_AT_8[new.key] ?: old.number, new.number, new.key)
+            assertEquals(if (old.band == Band.Kids) Band.of(new.number) else old.band, new.band, new.key)
             assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
             assertEquals(old.optIn, new.optIn, new.key)
         }
@@ -190,7 +201,7 @@ class CatalogV3Test {
     fun grownUpRecipesKeepTheKidsGenreExclusionsAndAnimeAndKidRecipesHaveNone() {
         val kidsGenres = KidHold.KIDS_GENRES.map { Source.Genre(it) }
         for (r in v3) {
-            if (r.band == Band.Kids) {
+            if (r.maxRating != null && r.key !in NEW_YOUNG_AT_8) {
                 assertEquals(emptyList(), r.exclusions, r.key)
                 continue
             }
@@ -348,6 +359,20 @@ class CatalogV3Test {
         val SCRAPER_GENRES = setOf("Anime", "Preschool", "Pre-school")
 
         // Catalog 7 (#994, #997, #998, #1000): TVDb / OMDb spellings, allowed per recipe and nowhere else.
+        // Catalog 8 (#1002): the new young channels and the genre spellings the issue names, per recipe.
+        val NEW_YOUNG_AT_8 =
+            setOf(
+                "big-screen-toons",
+                "popcorn-matinee",
+                "starship-sunday",
+                "prime-time-pals",
+                "homeroom",
+                "mask-and-mantle",
+                "level-up",
+                "popcorn-epic",
+                "nervous-laughter",
+            )
+        val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
         val EXEMPT_AT_7 =
             mapOf(
                 "starport" to setOf("Sci-Fi"),

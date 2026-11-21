@@ -166,7 +166,8 @@ class LineupPlannerMigrationTest {
         val byId = lineup.channels.associateBy { it.id }
         var held = 0
         for (channel in next.channels) {
-            val old = checkNotNull(byId[channel.id]) { "no channel joins at this swap: ${channel.id}" }
+            // The channels catalog 8 adds (the new young ones and the Family and Teen leftovers) join at the swap.
+            val old = byId[channel.id] ?: continue
             val onToday = old.state == ChannelState.On
             val nowOn = channel.state == ChannelState.On && channel.onSinceMs <= noon
             assertEquals(onToday, nowOn, "${channel.id} is on the air today exactly as before")
@@ -183,7 +184,10 @@ class LineupPlannerMigrationTest {
             }
         }
         assertTrue(held > 10, "starters on the air, hidden or opt-in: $held")
-        assertEquals(leftoversOf(lineup), leftoversOf(next), "the leftovers channels are as they were")
+        val oldLeftovers = leftoversOf(lineup).associate { it.id to (it.source to it.state) }
+        val nowLeftovers =
+            leftoversOf(next).filter { it.id in oldLeftovers }.associate { it.id to (it.source to it.state) }
+        assertEquals(oldLeftovers, nowLeftovers, "the leftovers channels are as they were")
     }
 
     // To the current catalog (4: catalog 3's recipes, starters at format 5).
@@ -195,11 +199,34 @@ class LineupPlannerMigrationTest {
 
         assertEquals(StarterCatalog.VERSION, next.catalogVersion)
         assertTrue(next.viewerChoicesKnown)
-        assertEquals(lineup.channels.map { it.id }.toSet(), next.channels.map { it.id }.toSet())
+        val joined = next.channels.map { it.id }.toSet() - lineup.channels.map { it.id }.toSet()
+        assertEquals(
+            setOf(
+                "big-screen-toons",
+                "popcorn-matinee",
+                "starship-sunday",
+                "prime-time-pals",
+                "homeroom",
+                "mask-and-mantle",
+                "level-up",
+                "popcorn-epic",
+                "nervous-laughter",
+            ).map {
+                LineupIds.starter(it)
+            }.toSet() +
+                setOf("family-odds-and-ends", "teen-odds-and-ends").map { LineupIds.leftovers(it) },
+            joined,
+        )
+        assertTrue(lineup.channels.all { old -> next.channels.any { it.id == old.id } })
+        // Catalog 8 moved the numbers (the owner's pre-release waiver): every channel takes the catalog's, none twice.
+        val numbers = next.channels.mapNotNull { it.number }
+        assertEquals(numbers.size, numbers.toSet().size, "no live number is shared")
         val byId = next.channels.associateBy { it.id }
         for (old in lineup.channels) {
             val now = byId.getValue(old.id)
-            assertEquals(old.number, now.number, old.id.value)
+            val key = old.id.value.substringAfter(':')
+            val expected = StarterCatalog.recipe(key)?.number ?: StarterCatalog.leftovers.first { it.key == key }.number
+            assertEquals(expected, now.number, old.id.value)
             val source = old.source as? ChannelSource.Starter ?: continue
             assertEquals(source.rules.seed, now.starter.rules.seed, old.id.value)
             assertEquals(source.rules.timing, now.starter.rules.timing, old.id.value)
@@ -647,7 +674,7 @@ class LineupPlannerMigrationTest {
 
         // Catalog 2 as it shipped, for a lineup chosen before the swap.
         val real2: StarterCatalogView =
-            TestCatalog(CATALOG_V2_RECIPES, version = 2, leftovers = StarterCatalog.leftovers)
+            TestCatalog(CATALOG_V2_RECIPES, version = 2, leftovers = CATALOG_V2_LEFTOVERS)
 
         // Thirty half-hour films of every TMDB genre, rated in turn G, PG, R, TV-Y and TV-14, and thirty animated
         // family films rated G: enough for most channels of either catalog to fill. Invented IDs only.

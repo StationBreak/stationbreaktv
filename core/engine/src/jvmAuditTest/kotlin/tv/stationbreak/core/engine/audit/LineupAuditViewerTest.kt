@@ -46,7 +46,11 @@ class LineupAuditViewerTest {
         val row = report.titles.single { it.name == "Brabra Xifa" }
         assertNull(row.home)
         assertEquals(Cause.NoSourceMatch, row.cause)
-        assertEquals(listOf("leftovers:odds-and-ends"), row.fallback)
+        // Catalog 8: a PG film also has the Family and Teen leftovers (ceilings PG and TV-14) to fall back on.
+        assertEquals(
+            listOf("leftovers:family-odds-and-ends", "leftovers:teen-odds-and-ends", "leftovers:odds-and-ends"),
+            row.fallback,
+        )
         assertEquals(1, report.totals.noHomeByCause[Cause.NoSourceMatch])
     }
 

@@ -249,7 +249,7 @@ class LineupEditsTest {
     fun setNumberRefusesTheKidsBandForAGrownUpStarter() {
         // "western" is no kid key and sits at 310, outside the Kids band.
         val lineup = lineupOf(starter("western", 310))
-        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(western, 50)))
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(western, 20)))
     }
 
     @Test

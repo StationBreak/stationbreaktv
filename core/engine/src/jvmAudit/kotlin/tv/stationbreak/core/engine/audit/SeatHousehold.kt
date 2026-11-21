@@ -29,7 +29,7 @@ internal object SeatHousehold {
      * noir-nights: once three picks are hidden its place is a planner pick's (it is among the next in line), so
      * switching it on is no addition. case-files stays on the shelf through the whole timeline.
      */
-    val SWITCHED_ON = listOf("case-files", "starport", "paradox", "masala-hour", "graveyard-shift")
+    val SWITCHED_ON = listOf("case-files", "corsets-and-candlelight", "paradox", "masala-hour", "graveyard-shift")
 
     /** Three of the planner's picks, hidden on the first day and switched on again after the boundary. */
     val HIDDEN_THEN_ON = listOf("punchline", "rabbit-ears", "shag-carpet")
@@ -57,13 +57,21 @@ internal object SeatHousehold {
     ) {
         val sourced = recipe.sources.filterIsInstance<Source.Genre>().map { it.name }
         val genres = sourced + recipe.filters?.genres.orEmpty()
-        val kids = recipe.band == Band.Kids
+        val kids = recipe.kidSafe
         // kid-hold-6 (ADR-0028): a TV-Y rating alone is family, so a kid shelf carries a kids tag as its evidence.
         val kidsTag = if (kids) listOf("kids") else emptyList()
         val tags = recipe.sources.filterIsInstance<Source.Tag>().map { it.name } + kidsTag
         val studios = recipe.sources.filterIsInstance<Source.Studio>().map { it.name }
         val years = recipe.sources.filterIsInstance<Source.YearRange>().firstOrNull()
-        val rating = if (kids) "TV-Y" else "TV-14"
+        // A Family channel (catalog 8) airs family titles: PG, no kids evidence; the other grown-up shelves are TV-14.
+        val rating =
+            if (kids) {
+                "TV-Y"
+            } else if (recipe.band == Band.Family) {
+                "PG"
+            } else {
+                "TV-14"
+            }
         val minutes = if (kids) KIDS_MINUTES else SHOW_MINUTES
         val spec = TitleSpec(genres.distinct(), tags, studios, rating, minutes, years?.from ?: SHELF_YEAR)
         repeat(SHELF_TITLES) { b.series(spec, SEASONS, EPISODES) }

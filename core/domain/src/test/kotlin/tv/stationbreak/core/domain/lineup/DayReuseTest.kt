@@ -146,7 +146,7 @@ class DayReuseTest {
         val days = LineupDays(TestCatalog)
         val custom = ChannelSource.Custom(rules("Mine", Source.Genre("Animation")))
         val at600 = held().let { it.copy(channels = it.channels + channel("custom-1", 600, ChannelState.On, custom)) }
-        val at50 = renumbered(at600, 50)
+        val at50 = renumbered(at600, 20)
         val at650 = renumbered(at600, 650)
 
         val inKids = days.inputsOf(at50, null)
@@ -165,7 +165,7 @@ class DayReuseTest {
     @Test
     fun aMoveOutOfTheKidsBandRebuilds() {
         val mine = ChannelSource.Custom(rules("Mine", Source.Genre("Animation")))
-        val kid = channel("custom-1", 50, ChannelState.On, mine)
+        val kid = channel("custom-1", 20, ChannelState.On, mine)
         val tv = process(held().let { it.copy(channels = it.channels + kid) })
         tv.days()
 
@@ -173,7 +173,7 @@ class DayReuseTest {
         tv.edit(LineupEdit.ReplaceCustom(kid.id, mine.rules, 650, kids = false))
         tv.days()
 
-        assertEquals(2, tv.builds.size, "a kid channel moved out of 1-99 is no longer held to made-for-kids content")
+        assertEquals(2, tv.builds.size, "a kid channel moved out of 1-33 is no longer held to made-for-kids content")
     }
 
     @Test
