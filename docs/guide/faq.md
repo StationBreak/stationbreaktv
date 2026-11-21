@@ -20,6 +20,11 @@ channel isn't on, for example that nothing in your libraries fits it.
 The app reads the libraries again by itself. To read them now, choose **Settings → Update library** in the guide. Some
 lineup changes start with the next day's schedule at 6 AM.
 
+**How do I turn Kids Mode on, or off?**
+In the guide, open the menu and choose **Settings → Kids Mode**. The first time it asks you to choose a 4-digit PIN;
+after that it turns on at once, and turning it off needs the PIN. While it is on, Channels, Libraries, Update library and
+Sign out stay shut until you turn it off. See [Mature content and Kids Mode](mature-content.md#turning-it-on-and-off).
+
 **How do I sign out, or change server?**
 In the guide, open the menu and choose **Settings → Sign out**. The app asks first, with **Stay signed in** highlighted, so
 pressing OK by accident keeps you signed in. Choose **Sign out** to sign out of this TV. You'll need to sign in again on

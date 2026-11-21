@@ -167,6 +167,13 @@ initials tile; the channel column is 168 dp wide to hold it. Everything in
 `feature:guide` is internal except `GuideDestination`, its `ChannelsSlot`, `PropertiesSlot`, `LibrariesSlot` and `SignOutSlot` types, the `GuideMeasured` qualifier `app`
 provides, and `GuideTags` for `app`'s tests.
 
+Kids Mode in the guide (#789). `GuideViewModel` takes the `KidsLock` port from `core:domain` (bound by `app`), follows its
+state, and keeps shut what edits the lineup while the lock is on: Select on the channel column (properties), and the menu
+sheet's About and Channels entries. The Settings sheet has a Kids Mode row and, with a PIN set and the lock off, a Change PIN
+row; while the lock is on Libraries, Update library and Sign out are inert (`SettingsRow.isInert`), with the reason under
+each. The PIN pad is the guide's own (`PinEntry`, `GuideKidsPin`), drawn over the sheet and kept by the same model-driven key
+handling: its focus and its digits are a value, and nothing of the PIN is logged, shown or said to a screen reader.
+
 `feature:channels` exists since spec 21 (channel management, F2.4). It holds `ChannelsViewModel` (the lineup as rows in three
 groups, the focus as a value, the panel over the list, and the changes the viewer makes) and its D-pad-only screen. It depends
 on `core:domain`, `core:model` and `core:ui`, and applies the `hilt` convention plugin. It reaches the lineup only through the

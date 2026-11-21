@@ -43,6 +43,28 @@ channel above the limit, or with no number, is hidden and can't be tuned. If the
 playing when Kids Mode comes on, is above the limit, the TV moves to the lowest-numbered channel that is allowed and
 has something on.
 
+### Turning it on and off
+
+Open the guide, press Menu (or press Back while the guide is on the channel that's playing) and choose **Settings**. **Kids Mode**
+has its own section there.
+
+- **First time.** Choose **Kids Mode**. The app asks you to pick a 4-digit PIN and then enter it again to be sure. If
+  the two don't match it says so and you start over. Once the PIN is set, Kids Mode turns on.
+- **Turning it on later.** Choose **Kids Mode**. It turns on at once; no PIN is needed.
+- **Turning it off.** Choose **Kids Mode** while it is on and enter the PIN.
+- **Changing the PIN.** While Kids Mode is off, choose **Change PIN**: enter the current PIN, then the new one twice.
+
+The PIN pad is on screen: move with the arrow keys and press OK on a digit, or type the digits on a remote that has
+number keys. Four dots show how many digits you've entered, never the digits themselves. Back cancels. A wrong PIN
+says how many tries are left; after too many, the pad says how long to wait and takes no digits until then.
+
+While Kids Mode is on, anything that could undo it does nothing and says **Turn off Kids Mode first**: **Channels**
+and **About** this channel in the menu, a channel's properties, and **Libraries**, **Update library** and **Sign out**
+in Settings. Flipping channels, opening the guide and watching all work as usual, and so do the look, screen fit and
+volume settings.
+
+### The PIN and the wait after wrong ones
+
 Kids Mode needs a 4-digit PIN. Turning it on needs no PIN; turning it off, changing its limit while it is on, and
 changing the PIN all need it. After 5 wrong PINs in a row, no PIN is accepted for 30 seconds, and each further 5 wrong
 PINs double that wait, up to an hour. The count and the wait are kept on the TV, so restarting the app doesn't reset
