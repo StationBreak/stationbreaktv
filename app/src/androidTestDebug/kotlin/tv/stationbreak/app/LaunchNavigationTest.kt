@@ -629,8 +629,8 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(GuideTags.SETTINGS_LIBRARIES)
 
-        // Past Screen fit, When changing channel, Even out volume and Kids Mode is the Libraries row; Select shows
-        // the Libraries screen over the guide.
+        // Past Screen fit, When changing channel, Even out volume, Kids Mode and Hours of operation (a debug build
+        // has Pro) is the Libraries row; Select shows the Libraries screen over the guide.
         repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -894,8 +894,8 @@ class LaunchNavigationTest {
         const val TIMEOUT_MS = 10_000L
 
         // Down presses from Appearance to Libraries: Screen fit, When changing channel, Even out volume, Kids Mode,
-        // then it.
-        const val ROWS_TO_LIBRARIES = 5
+        // Hours of operation (there with Pro, which a debug build has), then it.
+        const val ROWS_TO_LIBRARIES = 6
 
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L

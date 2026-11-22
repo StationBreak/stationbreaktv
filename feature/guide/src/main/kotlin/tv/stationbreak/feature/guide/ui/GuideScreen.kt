@@ -246,6 +246,8 @@ internal fun GuideScreen(
             settings?.pin?.let { GuideKidsPin(it) }
             // The reset of a forgotten PIN stands in the pad's place.
             settings?.reset?.let { GuideKidsPinReset(it) }
+            // The hours screen (#789) stands in the sheet's place the same way.
+            settings?.hours?.let { GuideHours(it, settingsValues) }
         }
     }
 }

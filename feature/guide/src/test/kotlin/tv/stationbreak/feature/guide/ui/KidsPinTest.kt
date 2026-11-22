@@ -298,7 +298,8 @@ class KidsPinTest {
 
     @Test
     fun kidsModeOnWalksPastChangePin() {
-        // Kids Mode is the row above Libraries: Change PIN is not a stop while it is on, but is one when it is off.
+        // Kids Mode is the row above Libraries (Hours is there only with Pro): Change PIN is not
+        // a stop while it is on, but is one when it is off.
         assertEquals(SettingsRow.Libraries, SettingsPanel(SettingsRow.KidsMode).press(Key.DirectionDown, on).panel?.row)
         val toChange = SettingsPanel(SettingsRow.KidsMode).press(Key.DirectionDown, offWithPin)
         assertEquals(SettingsRow.ChangePin, toChange.panel?.row)

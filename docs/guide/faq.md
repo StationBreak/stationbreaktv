@@ -30,6 +30,11 @@ On the PIN pad, choose **Forgot PIN?**. The TV shows a code: a server administra
 Jellyfin, and the PIN is cleared and Kids Mode turned off. See
 [If you forget the PIN](mature-content.md#if-you-forget-the-pin).
 
+**Can I set hours for when the TV is kids-only or off the air?**
+That is hours of operation. The **Hours of operation** row in Settings appears with StationBreak Pro. It needs a PIN first, and the PIN always
+overrides the hours. For now the screen keeps your schedule and the TV does not yet follow it. See
+[Hours of operation](mature-content.md#hours-of-operation-pro).
+
 **Can Kids Mode show more than the kids channels?**
 Yes. On the **Kids Mode** row in Settings, press Left or Right to choose how far it reaches: Kids (channels 1 to 33),
 Family (1 to 66) or Teen (1 to 99). While Kids Mode is on, changing it asks for the PIN. See

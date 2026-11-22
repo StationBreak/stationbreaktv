@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
+import tv.stationbreak.core.domain.hours.HoursSchedule
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.RemoteKey
@@ -53,6 +54,13 @@ internal enum class SettingsRow(
     /** Changes the PIN: the old one, a new one, the new one again. Shown only with a PIN set and Kids Mode off. */
     ChangePin(RowKind.Action, R.string.guide_settings_change_pin),
 
+    /**
+     * Hours of operation (#789, Pro): opens its screen over the sheet. Shown only with Pro ([isShown]); with Pro and
+     * no PIN its screen asks for one first, and the Pro notice there is for a Pro that goes while the screen is open;
+     * Kids Mode switches the row off, as it does the rows that could sidestep it.
+     */
+    Hours(RowKind.Link, R.string.guide_settings_hours),
+
     /** Shows Settings, Libraries (spec 26) over the guide. */
     Libraries(RowKind.Link, R.string.guide_settings_libraries),
 
@@ -67,13 +75,16 @@ internal enum class SettingsRow(
     ;
 
     /**
-     * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint, and
-     * Change PIN, which needs a PIN to change and Kids Mode off.
+     * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint,
+     * Change PIN, which needs a PIN to change and Kids Mode off, and Hours of operation, which is there only with Pro.
+     * With Pro the sheet is one row taller than the free one; where that is more than the screen holds, it scrolls, as
+     * the sheet already does at a large font.
      */
     fun isShown(values: SettingsValues): Boolean =
         when (this) {
             CrashReports -> values.crashReportsAvailable
             ChangePin -> values.kidsPinSet && !values.kidsOn
+            Hours -> values.pro
             else -> true
         }
 
@@ -84,7 +95,7 @@ internal enum class SettingsRow(
     fun isInert(values: SettingsValues): Boolean = values.kidsOn && this in KIDS_LOCKED_ROWS
 }
 
-private val KIDS_LOCKED_ROWS = setOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)
+private val KIDS_LOCKED_ROWS = setOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)
 
 /** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
 internal enum class SettingsGroup(
@@ -93,7 +104,10 @@ internal enum class SettingsGroup(
 ) {
     Picture(R.string.guide_settings_group_picture, listOf(SettingsRow.Appearance, SettingsRow.ScreenFit)),
     Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
-    Kids(R.string.guide_settings_group_kids, listOf(SettingsRow.KidsMode, SettingsRow.ChangePin)),
+    Kids(
+        R.string.guide_settings_group_kids,
+        listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours),
+    ),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
     Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),
@@ -115,12 +129,17 @@ internal data class SettingsValues(
     val kidsCap: KidsCap = KidsCap.DEFAULT,
     /** The stored lock has been read; until then [kidsOn] is true (closed) and only the row's words say unknown. */
     val kidsKnown: Boolean = true,
+    /** Pro is unlocked (#789): without it the hours screen is a notice. */
+    val pro: Boolean = false,
+    /** The stored hours schedule, for the hours screen (what Pro would apply, whatever Pro says now). */
+    val hours: HoursSchedule = HoursSchedule.EMPTY,
 )
 
 /**
  * The Settings sheet while it is open: the [row] under the D-pad, and what it shows over the guide, the sheet staying
  * open under it on its row: Settings, Libraries ([librariesShown]), the sign-out question ([signOutShown]) or the Kids
- * Mode PIN pad ([pin]) or the PIN's reset ([reset]), both drawn by the guide itself, which keeps their keys.
+ * Mode PIN pad ([pin]), the PIN's reset ([reset]) or the hours screen ([hours]), all drawn by the guide itself, which
+ * keeps their keys.
  */
 internal data class SettingsPanel(
     val row: SettingsRow = SettingsRow.Appearance,
@@ -128,6 +147,7 @@ internal data class SettingsPanel(
     val signOutShown: Boolean = false,
     val pin: PinEntry? = null,
     val reset: PinReset? = null,
+    val hours: HoursScreen? = null,
 ) {
     /** A screen over the guide has the keys. */
     val covered: Boolean get() = librariesShown || signOutShown
@@ -155,6 +175,8 @@ internal data class SettingsStep(
     val pinSubmit: PinSubmit? = null,
     /** The PIN's reset has opened, or starts again: a new request for an administrator's approval. */
     val resetStart: Boolean = false,
+    /** The hours screen asks for this schedule to be saved (`HoursOfOperation.edit`). */
+    val hoursSave: HoursSchedule? = null,
     val fit: ScreenFit? = null,
     val levelling: Boolean? = null,
     val levellingFrom: String? = null,
@@ -236,7 +258,7 @@ internal enum class Change(
  * nothing until the lock has been read; with Kids Mode on, OK on Libraries,
  * Update library and Sign out does nothing. Back closes the sheet, as the guide's own Back does. While a screen shows
  * over it, every key is kept and does nothing: that screen has the keys; so do the PIN pad ([pinKey]) and the PIN's
- * reset ([resetKey]).
+ * reset ([resetKey]) and the hours screen ([hoursKey]).
  * A step that leaves a value as it was does not choose it again.
  */
 internal fun settingsStep(
@@ -255,6 +277,10 @@ internal fun settingsStep(
 
         panel.reset != null -> {
             panel.resetKey(panel.reset, key, type, repeatCount)
+        }
+
+        panel.hours != null -> {
+            panel.hoursKey(panel.hours, values, key, type, repeatCount)
         }
 
         remoteKeyOf(key) == null -> {
@@ -288,6 +314,8 @@ private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
         row == SettingsRow.KidsMode -> kidsModeStep(values)
 
         row == SettingsRow.ChangePin -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Change)))
+
+        row == SettingsRow.Hours -> SettingsStep(copy(hours = HoursScreen()))
 
         else -> selectedRow(values)
     }
