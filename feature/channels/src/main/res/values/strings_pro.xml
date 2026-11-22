@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore -->
-<!-- A free viewer who chooses something that is part of Pro gets one note that says so, with one way to the purchase
-     screen (#99). It is shown only where the viewer reaches for the action, never on its own. Draft copy for the owner's
-     approval. The builder's own custom-channel limit line (pro_custom_limit_note) is the one it shows at a save. -->
+<!-- A free viewer who chooses something that is part of Pro gets one note that says so (#99). Where the store is
+     available it has one way to the purchase screen; where it is not, only OK (#1071). It is shown only where the
+     viewer reaches for the action, never on its own. Draft copy for the owner's approval. The builder's own lines
+     (pro_custom_limit_note, builder_pro_needs) are the ones it shows at a save. -->
 <resources>
-    <string name="pro_custom_limit_note">Free includes 5 custom channels. Delete some of yours to make room.</string>
+    <string name="pro_custom_limit_note">Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro.</string>
     <string name="channels_pro_needs_reshape">Switching channels on and off, and changing their numbers, is part of Pro.</string>
     <string name="channels_pro_needs_reset">Resetting your channels is part of Pro.</string>
-    <string name="channels_pro_needs_custom">Free includes 5 custom channels. Delete some of yours to make room, or get more with Pro.</string>
+    <string name="channels_pro_needs_adult_copy">Adult content. Copying it is part of Pro.</string>
     <string name="channels_action_see_pro">See Pro</string>
-    <string name="builder_adult_copy_refused">Adult content. Can\'t be copied.</string>
+    <string name="builder_pro_needs">This is part of StationBreak Pro.</string>
 </resources>

@@ -26,9 +26,11 @@ Channel numbers and switched-off channels are kept per TV.
 ### Custom channels
 
 You can make up to 5 channels of your own (a copy of a built-in channel counts as one). To make another, delete one
-first. The built-in lineup is chosen for your library. Switching built-in channels on or off, renumbering them and
-resetting your channels are part of Pro: once the store is connected, you can choose them, and the app tells you so and offers the Pro screen. Back
-returns you to where you were. Your own channels can be switched on and off and renumbered freely, and can swap
+first. The built-in lineup is chosen for your library. Switching built-in channels on or off, renumbering them,
+resetting your channels, making a sixth channel and copying After Hours are part of Pro. Choose one on the free app
+and a note says it is part of Pro. Where the store is connected the note has **See Pro**, which opens the Pro screen
+(Back returns you to where you were) and **OK**; where it isn't, the note only has **OK**. Nothing is refused without
+saying why. Your own channels can be switched on and off and renumbered freely, and can swap
 numbers with each other. A number a built-in channel holds is taken.
 
 **Use my collections** can be switched on or off at any time.

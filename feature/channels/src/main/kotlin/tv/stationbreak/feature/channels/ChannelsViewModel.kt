@@ -510,18 +510,9 @@ internal class ChannelsViewModel
             ui: ChannelsUi,
         ): ChannelId? {
             val need = proNeedOf(choice, ui.rows.firstOrNull { it.id == id }, ui.isPro, ui.canAddCustom)
-            // With the store available a free viewer gets the Pro note; without it, only the cap's plain line.
-            val note = limitOf(choice, ui.canAddCustom).takeIf { !ui.proOffered }
             return when {
-                need != null && ui.proOffered -> {
+                need != null -> {
                     synchronized(lock) { apply { it.copy(panel = ChannelsPanel.NeedsPro(need, id), holder = null) } }
-                    null
-                }
-
-                note != null -> {
-                    synchronized(lock) {
-                        apply { it.copy(panel = null, holder = null, about = null, properties = null, message = note) }
-                    }
                     null
                 }
 
@@ -573,11 +564,10 @@ internal class ChannelsViewModel
             val focus = m.focus
             return when {
                 focus == null -> firstFocus(m, ids)
-                focus == ChannelsFocus.Reset && canReset(m.isPro, m.proOffered) -> focus
+                focus == ChannelsFocus.Reset -> focus
                 focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
                 focus.id in ids -> focus
-                ids.isEmpty() -> resetStop(m) ?: ChannelsFocus.New
-                focus == ChannelsFocus.Reset -> ChannelsFocus.Row(ids.last())
+                ids.isEmpty() -> ChannelsFocus.Reset
                 else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
             }
         }
@@ -627,16 +617,13 @@ internal class ChannelsViewModel
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
 
-        // Reset is the last stop, for a viewer who can reset: a free viewer has no Reset line unless Pro is on offer.
-        private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { canReset(m.isPro, m.proOffered) }
-
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
             synchronized(lock) {
                 if (model.builder != null) return
                 val ids = model.rows.map { it.id }
                 val rows = ids.map { ChannelsFocus.Row(it) }
-                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + listOfNotNull(resetStop(model))
+                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + ChannelsFocus.Reset
                 val at = stops.indexOf(model.focus)
                 val step = if (up) at - 1 else at + 1
                 val to = if (at < 0) stops.indexOf(ChannelsFocus.New) else step.coerceIn(0, stops.lastIndex)
@@ -714,13 +701,8 @@ internal class ChannelsViewModel
             return true
         }
 
-        // A new channel was refused for the free cap: the Pro note where the store is available, else the plain line.
-        private fun capReached(m: Model): Model =
-            if (m.proOffered) {
-                m.copy(panel = ChannelsPanel.NeedsPro(ProNeed.CustomLimit))
-            } else {
-                m.copy(panel = null, message = ChannelsMessage.CustomLimit)
-            }
+        // A new channel was refused for the free cap: the Pro note says so (#1071).
+        private fun capReached(m: Model): Model = m.copy(panel = ChannelsPanel.NeedsPro(ProNeed.CustomLimit))
 
         // A wait that is still on after ACCESS_WAIT is dropped and says so; one that resolved (or was cancelled by a
         // key) is left alone, and a newer wait is not cut short by an older timer.
@@ -780,7 +762,9 @@ internal class ChannelsViewModel
         /** See Pro on a note: the purchase screen shows over the list, the note staying under it. */
         fun seePro() {
             synchronized(lock) {
-                if (model.builder == null && model.panel is ChannelsPanel.NeedsPro) apply { it.copy(seeingPro = true) }
+                val open = model.builder == null && model.panel is ChannelsPanel.NeedsPro
+                // Nothing to buy from without a store: the note has no See Pro then (#1071).
+                if (open && model.proOffered) apply { it.copy(seeingPro = true) }
             }
         }
 
@@ -963,7 +947,6 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 when {
                     notEditable() -> Unit
-                    !canReset(model.isPro, model.proOffered) -> Unit
                     !model.isPro -> apply { it.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset)) }
                     else -> apply { it.copy(confirmingReset = true, panel = null) }
                 }

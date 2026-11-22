@@ -961,8 +961,9 @@ class ChannelsScreenTest {
         const val MAX_CHOICES = 12
     }
 
-    // #811: the free tier on a real screen, with the entitlement closed, then opened while the screen is open. A free
-    // viewer is never shown a Pro choice, a Pro mark or a "coming soon" note: the choices are not listed.
+    // #811, #1071: the free tier on a real screen, with the entitlement closed, then opened while the screen is open.
+    // Every Pro choice is listed and answers with the Pro note (no store here, so no See Pro): never a silent no-op, a
+    // Pro mark on the list or a "coming soon" note.
 
     // The word Pro on its own, not a longer word that starts with it.
     private val hasBareWordPro =
@@ -975,23 +976,28 @@ class ChannelsScreenTest {
             nodes(hasBareWordPro).isEmpty() &&
             nodes(hasText("coming soon", substring = true)).isEmpty()
 
+    private fun panelSays(text: String) =
+        until { nodes(hasTestTag(ChannelsTags.PANEL_TEXT)).any { node -> titleOf(node)?.contains(text) == true } }
+
     private fun messageIs(text: String) =
         until { nodes(hasTestTag(ChannelsTags.MESSAGE)).any { node -> titleOf(node)?.contains(text) == true } }
 
     @Test
-    fun free_aStartersActionsListNoSwitchOffAndNoNumberChange_andNoProWords() {
+    fun free_aStartersSwitchOffAnswersWithTheProNote_thatOnlyCloses() {
         pro.set(false)
         show(ALPHA)
         press(Pad.Select)
         until { exists(ChannelsTags.ACTION_COPY) }
-        listOf(
-            ChannelsTags.ACTION_SWITCH_OFF,
-            ChannelsTags.ACTION_SWITCH_ON,
-            ChannelsTags.ACTION_CHANGE_NUMBER,
-            ChannelsTags.ACTION_DEFAULT_NUMBER,
-        ).forEach { assertTrue("$it is listed", !exists(it)) }
-        assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
+        assertTrue("a Pro word is shown before a gate is chosen", compose.runOnUiThread { noProWords() })
+        toChoice(ChannelsTags.ACTION_SWITCH_OFF)
+
+        press(Pad.Select)
+        panelSays("part of Pro")
+        assertTrue("no purchase without a store", !exists(ChannelsTags.ACTION_SEE_PRO))
+        compose.onNodeWithTag(ChannelsTags.ACTION_CANCEL).assertIsSelected()
         assertTrue("nothing is sent", lineup.changes.isEmpty())
+        press(Pad.Select)
+        until { !exists(ChannelsTags.PANEL) }
         assertEquals(
             ChannelStatus.On,
             lineup.list.value
@@ -1001,17 +1007,20 @@ class ChannelsScreenTest {
     }
 
     @Test
-    fun free_aShelvedStartersPanelHasNoSwitchOn() {
+    fun free_aShelvedStartersSwitchOnAnswersWithTheProNote() {
         pro.set(false)
         show(CHARLIE)
         press(Pad.Select)
         until { exists(ChannelsTags.ACTION_COPY) }
-        assertTrue("Switch on is listed", !exists(ChannelsTags.ACTION_SWITCH_ON))
-        assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
+        toChoice(ChannelsTags.ACTION_SWITCH_ON)
+
+        press(Pad.Select)
+        panelSays("part of Pro")
+        assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
     @Test
-    fun free_aStartersSheetListsNoSwitchOffEither() {
+    fun free_aStartersSheetListsSwitchOffAndAnswersWithTheProNote() {
         pro.set(false)
         show(ALPHA)
         press(Pad.Select)
@@ -1019,8 +1028,11 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_ABOUT)
         press(Pad.Select)
         until { exists(ChannelsTags.ABOUT_PLAYS) }
-        assertTrue("Switch off is listed", !exists(ChannelsTags.ACTION_SWITCH_OFF))
-        assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
+        toChoice(ChannelsTags.ACTION_SWITCH_OFF)
+
+        press(Pad.Select)
+        panelSays("part of Pro")
+        assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
     @Test
@@ -1045,7 +1057,6 @@ class ChannelsScreenTest {
         press(Pad.Right, Pad.Right, Pad.Up, Pad.Select)
         messageIs("That number is taken.")
         assertTrue("no swap is offered", !exists(ChannelsTags.ACTION_CONFIRM))
-        assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
         // Only the picker's first try, refused as taken; no swap is sent.
         assertEquals(listOf<ChannelChange>(ChannelChange.SetNumber(ECHO, 6)), lineup.changes.toList())
         val numbers = lineup.list.value.associate { it.id to it.number }
@@ -1062,7 +1073,8 @@ class ChannelsScreenTest {
         assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
 
         press(Pad.Select)
-        messageIs("Free includes 5 custom channels. Delete some of yours to make room.")
+        panelSays("Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro.")
+        assertTrue("no purchase without a store", !exists(ChannelsTags.ACTION_SEE_PRO))
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
     }
@@ -1078,12 +1090,16 @@ class ChannelsScreenTest {
     }
 
     @Test
-    fun free_resetIsNotListed() {
+    fun free_resetIsListed_andAnswersWithTheProNote() {
         pro.set(false)
         show(ALPHA)
         until { exists(ChannelsTags.reason(BRAVO)) }
-        assertTrue("Reset is listed", !exists(ChannelsTags.RESET))
         assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
+        repeat(MAX_CHOICES * 2) {
+            if (nodes(hasTestTag(ChannelsTags.RESET) and isSelected()).isEmpty()) press(Pad.Down)
+        }
+        press(Pad.Select)
+        panelSays("part of Pro")
         assertEquals(0, lineup.resets.get())
     }
 
@@ -1104,15 +1120,17 @@ class ChannelsScreenTest {
     }
 
     // #876 / #805: a starter whose recipe left the catalog is listed as Custom but is still the planner's, so a free
-    // viewer is not offered to switch or number it.
+    // viewer who switches it gets the Pro note.
     @Test
-    fun free_aRetiredStarterIsTreatedAsThePlannersAndNotOffered() {
+    fun free_aRetiredStarterIsTreatedAsThePlannersAndAnswersWithTheProNote() {
         pro.set(false)
         show(ECHO, extra = listOf(summary(ECHO, 5, "Echo", kind = ChannelKind.Custom, viewerMade = false)))
         press(Pad.Select)
         until { exists(ChannelsTags.ACTION_EDIT) }
-        assertTrue("Switch off is listed", !exists(ChannelsTags.ACTION_SWITCH_OFF))
-        assertTrue("Change number is listed", !exists(ChannelsTags.ACTION_CHANGE_NUMBER))
+        toChoice(ChannelsTags.ACTION_SWITCH_OFF)
+
+        press(Pad.Select)
+        panelSays("part of Pro")
         assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
@@ -1127,22 +1145,21 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_COPY)
 
         press(Pad.Select)
-        messageIs("Free includes 5 custom channels. Delete some of yours to make room.")
+        panelSays("Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro.")
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
     }
 
     @Test
-    fun unlockingWhileTheScreenIsOpen_listsTheChoices_andTheSameActionWorks() {
+    fun unlockingWhileTheScreenIsOpen_theSameActionWorks() {
         pro.set(false)
         show(ALPHA)
         press(Pad.Select)
-        until { exists(ChannelsTags.ACTION_COPY) }
-        assertTrue("Switch off is listed", !exists(ChannelsTags.ACTION_SWITCH_OFF))
+        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
 
         // Whatever billing reports, flipping the entitlement takes effect on the open screen.
         compose.runOnUiThread { pro.set(true) }
-        until { exists(ChannelsTags.ACTION_SWITCH_OFF) }
+        compose.waitForIdle()
 
         toChoice(ChannelsTags.ACTION_SWITCH_OFF)
         press(Pad.Select)

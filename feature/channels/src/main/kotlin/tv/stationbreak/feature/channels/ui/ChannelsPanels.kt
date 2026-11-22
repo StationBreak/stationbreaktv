@@ -200,8 +200,9 @@ internal fun labelOf(
                 R.string.channels_action_about
             }
 
+            // The Pro note is told, not asked: it closes with OK.
             Choice.Cancel -> {
-                R.string.channels_action_cancel
+                if (panel is ChannelsPanel.NeedsPro) R.string.channels_action_ok else R.string.channels_action_cancel
             }
 
             Choice.SeePro -> {
@@ -238,5 +239,6 @@ internal fun proNeedText(need: ProNeed): Int =
     when (need) {
         ProNeed.Reshape -> R.string.channels_pro_needs_reshape
         ProNeed.Reset -> R.string.channels_pro_needs_reset
-        ProNeed.CustomLimit -> R.string.channels_pro_needs_custom
+        ProNeed.CustomLimit -> R.string.pro_custom_limit_note
+        ProNeed.AdultCopy -> R.string.channels_pro_needs_adult_copy
     }
