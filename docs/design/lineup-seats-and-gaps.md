@@ -310,7 +310,8 @@ new golden.
   channel. The day build lets a custom channel and a non-curated starter claim from the leftovers and withholds a hidden
   channel's pool; the gate does not model that yet. A planner lineup with the viewer's switch-ons has none of them. A
   fixture that has them (the household snapshot, if the viewer there has customised) needs that written into
-  `HouseholdViews` first. Also out: the late-on pools and the trim window.
+  `HouseholdViews` first. Also out: the late-on pools and the curation's keeps (the
+  trim window of `EpochPool.dayPool`); the epoch cut itself is applied.
 
 ### The seat rule (#785)
 

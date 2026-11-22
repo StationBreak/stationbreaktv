@@ -64,7 +64,10 @@ internal object GateInvariants {
         }
         for (channel in view.channels) {
             out += bandPromise(pass, channel)
-            for (item in channel.items) out += itemRules(pass, channel, ctx, item.id)
+            // What airs on the day, and the whole pool behind it: a leak in the part the epoch cut leaves out counts.
+            for (item in (channel.items + channel.pool).distinctBy { it.id }) {
+                out += itemRules(pass, channel, ctx, item.id)
+            }
         }
         out += explicitHomes(pass, view, ctx)
         if (case.kidsHomes && !hasKidsHomes(view)) out += Violation(Rule.KidsBandEmpty, pass, "kids", null)

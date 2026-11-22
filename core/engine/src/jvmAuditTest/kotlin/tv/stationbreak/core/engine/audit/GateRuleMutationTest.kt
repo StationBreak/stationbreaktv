@@ -84,6 +84,21 @@ class GateRuleMutationTest {
         assertTrue(Rule.AdultOnYoungBand in rules && Rule.NoMetadataInLeftovers in rules, "$rules")
     }
 
+    // The aired items are the day's epoch cut; a leak in the part of the pool the cut leaves out must still fail.
+    @Test
+    fun aLeakOutsideTheDaysCutStillFails() {
+        val item = leaks.slice("Synthetic Seventies Sexploitation Comedy")
+        val key = "level-up"
+        assertTrue(
+            leaks.view.channels
+                .first { it.key == key }
+                .items
+                .none { it.id == item.id },
+        )
+        val changed = view.channels.map { if (it.key == key) it.copy(pool = it.pool + item) else it }
+        assertTrue(Rule.ExplicitOffAfterHours in leaks.broken(leaks.withChannels(changed)))
+    }
+
     @Test
     fun aCustomChannelWithAPg13CeilingAirsNoTvMaTitle() {
         val tvMa = leaks.episodeOf { it.officialRating == "TV-MA" }

@@ -48,10 +48,12 @@ internal data class GateChannel(
     val leftovers: Boolean,
     val ceiling: String?,
     val policy: PoolPolicy,
-    /** What airs: a starter's curated pool (homes and guests), a leftovers channel's pool. No late-on pool. */
+    /** What airs on the day: the pool cut by the epoch ([EpochCut]). Hours and the golden read this. */
     val items: List<ScheduleItem>,
     /** The titles (series or film IDs) the curation gives this channel as their home; empty for leftovers. */
     val homed: Set<CanonicalId>,
+    /** The whole pool before the epoch cut (a starter's curated pool, a leftovers pool): the invariants read it too. */
+    val pool: List<ScheduleItem> = items,
 )
 
 /** The household view of one lineup on one day. [homes] is the curation's, null when no starter is on. */
@@ -66,8 +68,9 @@ internal class HouseholdView(
  * (`core:domain` `LineupDays`): its rules for the day with the household flag applied, under its scheduled ceiling
  * and its own policy; the curated starters through [Curation.curate]; then the leftovers channels in claim order
  * (ceilinged first, then by number), each over what the channels before it claimed, with the opt-in starters' pools
- * withheld. Left out, as in #784: the late-on pools and the epoch trim window. The ceiling is `ChannelCeilings.of`, the
- * one function `core:domain` schedules under too.
+ * withheld. Each channel airs its pool as the epoch cuts it (`EpochCut`), and the invariants read the whole pool too.
+ * Left out, as in #784: the late-on pools and the curation's keeps (the trim window of `EpochPool.dayPool`). The
+ * ceiling is `ChannelCeilings.of`, the one function `core:domain` schedules under too.
  */
 internal object HouseholdViews {
     /**
@@ -106,7 +109,8 @@ internal object HouseholdViews {
             val homed = pool.items.map { it.groupId }.filterTo(HashSet()) { curated.homes.homeOf(it) == c.id }
             val items = epoch.cut(c.settings, pool.items, day.startMs)
             val policy = policyOf(source)
-            channels += GateChannel(c.recipe.key, c.id, c.number, false, c.rules.maxRating, policy, items, homed)
+            val max = c.rules.maxRating
+            channels += GateChannel(c.recipe.key, c.id, c.number, false, max, policy, items, homed, pool.items)
         }
         claimed += withheld(planned, household)
         val ceilinged = { c: LineupChannel -> ChannelCeilings.of(c, planned.catalog) == null }
@@ -123,7 +127,8 @@ internal object HouseholdViews {
             items.mapTo(claimed) { it.id }
             if (channel.state == ChannelState.On) {
                 val key = "leftovers:${source.recipeKey}"
-                channels += GateChannel(key, channel.id, channel.number, true, ceiling, policy, items, emptySet())
+                val id = channel.id
+                channels += GateChannel(key, id, channel.number, true, ceiling, policy, items, emptySet(), pool.items)
             }
         }
         return HouseholdView(snapshot, channels, curated)
