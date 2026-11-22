@@ -12,8 +12,10 @@ import tv.stationbreak.core.rules.RatingLadder
  * `kid-hold-8` (#1078) maps `X`, `AO` and `Adults Only` to level 7 and adds [isExplicit], the ratings of the Explicit
  * tier. Input noise (#1088) is tidied (`NoiseTidy`) in [clean], so for every rating: a doubled space or a dash
  * variant (en or em dash, minus sign, non-breaking hyphen) reads as the plain spelling does, and a rating with a space
- * inside (`R 18+`, `NC 17`) also matches with its spaces taken out. A tab or a no-break space in a rating stays as
- * frozen vectors have it (present, off the ladder). The holds tidy genre and tag names fully (`kid-hold-8-noise.json`).
+ * inside (`R 18+`, `NC 17`) also matches with its spaces taken out (only a key with a letter: `0 7` stays unknown). A
+ * tab or a no-break space in a rating stays present and off the ladder for [levelOf] (frozen vectors), but [isExplicit]
+ * reads past them (fail up). The holds tidy genre and tag names fully. `kid-hold-9` (#1088) has all of this
+ * (`kid-hold-9.json`).
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
  * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
@@ -90,11 +92,13 @@ object RatingMap {
 
     /**
      * Whether [raw] is a rating of the Explicit tier (`kid-hold-8`, #1078): level 7, or in [EXPLICIT] once cleaned as
-     * [levelOf] cleans it, as it is or with a two-letter country prefix (`GB-`, `AU:`) taken off. A combined rating
-     * (split on `/`, as [levelOf] splits a list) is Explicit when any part is: `R/NC-17`, `GB-R18/AU-X18+`.
+     * [levelOf] cleans it, as it is or with a two-letter country prefix (`GB-`, `AU:`) taken off. Since `kid-hold-9`
+     * (#1088) a tab, no-break space or other white space counts as a space here, so `"\tNC-17"` is Explicit (fail up).
+     * A combined rating (split on `/`, as [levelOf] splits a list) is Explicit when any part is: `R/NC-17`,
+     * `GB-R18/AU-X18+`.
      */
     fun isExplicit(raw: String?): Boolean {
-        val key = raw?.let(::clean) ?: return false
+        val key = raw?.let { clean(it, anySpace = true) } ?: return false
         return explicitPart(key) || ('/' in key && key.split('/').any { explicitPart(it.trim(' ')) })
     }
 
@@ -113,7 +117,7 @@ object RatingMap {
 
             else -> {
                 usLevel(key) ?: countryLevel(key) ?: (if ('/' in key) listLevel(key) else ageLevel(key))
-                    ?: if (' ' in key) levelOfClean(key.replace(" ", "")) else null
+                    ?: if (' ' in key && key.any { it in 'A'..'Z' }) levelOfClean(key.replace(" ", "")) else null
             }
         }
 
@@ -123,12 +127,15 @@ object RatingMap {
         return if (coded && (key[2] == '-' || key[2] == ':')) key.substring(COUNTRY_PREFIX).trim(' ') else key
     }
 
-    private fun clean(raw: String): String {
+    private fun clean(
+        raw: String,
+        anySpace: Boolean = false,
+    ): String {
         val upper =
             buildString(raw.length) {
                 for (c in raw) append(if (c in 'a'..'z') c - ASCII_CASE_OFFSET else c)
             }
-        val tidy = NoiseTidy.tidy(upper, anySpace = false)
+        val tidy = NoiseTidy.tidy(upper, anySpace)
         return if (tidy.startsWith(RATED)) tidy.substring(RATED.length).trim(' ') else tidy
     }
 

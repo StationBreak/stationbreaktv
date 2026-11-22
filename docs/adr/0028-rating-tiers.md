@@ -6,7 +6,7 @@
   and teen PG-13 / TV-14, 2026-11-20; a StationBreak-owned rating map, 2026-11-19) and Rincewind (the mechanism, the
   lists, the US-first scope after the licence check)
 - **Amended by:** [ADR-0029](0029-tier-moves-up.md) (`kid-hold-7`: moves up only, lists); the addendum of 2026-11-22
-  (`kid-hold-8`: the Explicit tier, tiers on the young bands, #1078)
+  (`kid-hold-8`: the Explicit tier, tiers on the young bands, #1078; `kid-hold-9`: input-noise tidy, #1088)
 - **Amends:** [ADR-0019](0019-kid-hold.md) (the kid hold: `kid-hold-6`), [ADR-0020](0020-grown-up-hold.md) (the grown-up
   hold: `grown-up-hold-5`)
 - **Builds on:** [ADR-0002](0002-determinism-scope.md) §2 as amended by ADR-0019 §8 (app-version limits only narrow)
@@ -198,3 +198,27 @@ Every held day is remade once under the new hold names, and a lineup moves to ca
 Vectors: `kid-hold-8.json`; `kid-hold-6.json` and `kid-hold-7.json` are unchanged, and a `kid-hold-8` port reads
 their `adult` as adult or explicit and their `X` row at level 7. Tests: `ExplicitTierTest`, `ExplicitPoolTest` and the
 SYNTHETIC adult slice (`SyntheticAdultSlice`) in `ratingsafety`.
+
+## Addendum 2026-11-22 (2): input-noise tidy, `kid-hold-9` / `grown-up-hold-8` (#1088)
+
+A rating, genre or tag with a no-break space, a tab, a doubled space or a dash variant (en or em dash, minus sign,
+non-breaking hyphen) hid a tier signal. `NoiseTidy` removes that noise in one place:
+
+- Ratings (`RatingMap.levelOf`, the clean step): runs of spaces and dash variants only. A tab or no-break space stays
+  present and off the ladder, as the frozen `kid-hold-5` vectors pin it. A still-unknown key with a space and a letter in
+  it is read once more with its spaces taken out (`PG - 13`); `0 7` and `1 0` stay unknown.
+- `RatingMap.isExplicit` reads every white space as a space too, so `"\tNC-17"` and `"R18 "` (tab or NBSP) are Explicit.
+  Fail up; it supersedes the `"\tX"` row of `kid-hold-8.json`.
+- Genres and tags are tidied of every white space and dash variant before the tier lists match them (`RatingTier`).
+  Only the tier lists: the kid hold's own genre matching and user sources are unchanged.
+- `GrownUpHold.hasNoMetadata` counts a blank rating, genre or tag (empty or white space only) as none.
+
+Inconsistency kept on purpose: `GrownUpHold.blank` reads a tab- or NBSP-only rating as absent, while
+`EpisodeRating.isAbsent` and `RatingMap.levelOf` read it as present. The direction is safe (a leftovers pool only drops
+more). A later change to make them consistent must not let a blank series rating open the episode-inherits-series path
+of `kid-hold-5`: there only a U+0020-only series rating is absent and defers to the episode's own rating.
+
+Also recorded: an edited retired starter keeps its `starter:` ID and so is a built-in for the band cap (`ChannelCeilings`);
+the cap follows the ID, not the source type.
+
+Vectors: `kid-hold-9.json` (a delta; the older files are unedited). Every held day is remade once under the new hold names.

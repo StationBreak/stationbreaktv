@@ -15,10 +15,12 @@ import tv.stationbreak.core.model.RuleSeries
  * `grown-up-hold-7` moves with `kid-hold-8` (#1078, ADR-0028 addendum 2026-11-22): it also drops the Explicit tier,
  * which airs on After Hours alone; under a young ceiling it admits only that band's tiers ([tierLimit]); and a
  * grown-up leftovers pool drops a title with no metadata ([hasNoMetadata]).
+ * `grown-up-hold-8` moves with `kid-hold-9` (#1088): the tidy of [NoiseTidy], and a blank rating, genre or tag (empty
+ * or only white space, a tab or no-break space included) is none in [hasNoMetadata].
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-7"
+    const val VERSION_NAME = "grown-up-hold-8"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take
@@ -76,5 +78,7 @@ object GrownUpHold {
         tags: List<String>,
     ): Boolean = blank(rating) && genres.all(::blank) && tags.all(::blank)
 
+    // Unlike `EpisodeRating.isAbsent` (U+0020 only) this reads a tab or no-break space as blank: the safe direction,
+    // since a leftovers pool then only drops more. Do not make the two one function (ADR-0028 addendum 2).
     private fun blank(text: String?): Boolean = text == null || NoiseTidy.tidy(text).isEmpty()
 }

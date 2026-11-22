@@ -10,11 +10,29 @@ package tv.stationbreak.core.engine
  * the same.
  */
 internal object NoiseTidy {
+    // The white space of genres and tags, each range a character as a Kotlin escape.
     private val SPACES: List<CharRange> =
-        listOf('\t'..'\t', '\n'..'\n', '\r'..'\r', ' '..' ', ' '..' ', ' '..' ') +
-            listOf(' '..' ', ' '..' ', '　'..'　')
+        listOf(
+            '\t'..'\t',
+            '\n'..'\n',
+            '\r'..'\r',
+            ' '..' ', // no-break space
+            ' '..' ', // Ogham space mark
+            ' '..' ', // en quad to hair space
+            ' '..' ', // narrow no-break space
+            ' '..' ', // medium mathematical space
+            '　'..'　', // ideographic space
+        )
+
+    // The dash variants, each range a character as a Kotlin escape.
     private val DASHES: List<CharRange> =
-        listOf('‐'..'―', '−'..'−', '﹘'..'﹘', '﹣'..'﹣', '－'..'－')
+        listOf(
+            '‐'..'―', // hyphen, non-breaking hyphen, figure dash, en dash, em dash, horizontal bar
+            '−'..'−', // minus sign
+            '﹘'..'﹘', // small em dash
+            '﹣'..'﹣', // small hyphen-minus
+            '－'..'－', // fullwidth hyphen-minus
+        )
 
     fun tidy(
         text: String,

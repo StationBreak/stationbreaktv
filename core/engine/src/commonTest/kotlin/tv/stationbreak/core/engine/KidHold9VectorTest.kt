@@ -3,11 +3,11 @@ package tv.stationbreak.core.engine
 
 import kotlin.test.Test
 
-/** The cases of `docs/rules-format/vectors/kid-hold-8-noise.json` (#1088), from [KidHold8NoiseVectorFile]. */
-class KidHold8NoiseVectorTest {
+/** The cases of `docs/rules-format/vectors/kid-hold-9.json` (#1088), from [KidHold9VectorFile]. */
+class KidHold9VectorTest {
     @Test
     fun theSharedNoiseVectorCasesHold() {
-        val json = KidHold8NoiseVectorFile.json
+        val json = KidHold9VectorFile.json
         KidHold6VectorCheck.run(json, minRows = 1, explicitIsAdult = false)
     }
 }

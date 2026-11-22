@@ -238,8 +238,18 @@ class ExplicitTierTest {
             assertTrue(RatingMap.isExplicit(rating), rating)
             assertExplicitEverywhere("rating [$rating]", rating = rating)
         }
-        // A tab or a no-break space in a rating stays as the frozen kid-hold-5 vectors have it: off the ladder.
-        assertFalse(RatingMap.isExplicit("\tNC-17"))
+        // A tab or a no-break space in a rating stays off the ladder for levelOf (frozen kid-hold-5 vectors), but
+        // isExplicit reads past it (fail up, kid-hold-9).
+        for (rating in listOf("\tNC-17", "NC-17\u00A0", "R18\u00A0", "\tX", "R\u00A018+", "\u3000XXX\u3000")) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertExplicitEverywhere("rating [$rating]", rating = rating)
+        }
+        assertEquals(null, RatingMap.levelOf("\tPG"))
+        for (rating in listOf("0 7", "1 0", "1 8")) {
+            assertEquals(null, RatingMap.levelOf(rating), rating)
+            assertFalse(RatingMap.isExplicit(rating), rating)
+        }
+        assertEquals(3, RatingMap.levelOf("PG - 13"))
         assertEquals(3, RatingMap.levelOf("PG\u201113"))
         assertEquals(RatingMap.levelOf("TV-MA"), RatingMap.levelOf("TV\u2011MA"))
         assertFalse(RatingMap.isExplicit("R  15+"))

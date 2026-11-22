@@ -6,12 +6,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** The published `kid-hold-8-noise.json` holds the code to every row, and the commonTest copy equals it. */
-class KidHold8NoiseVectorInSyncTest {
+/** The published `kid-hold-9.json` holds the code to every row, and the commonTest copy equals it. */
+class KidHold9VectorInSyncTest {
     private val file: File =
         File(
             File(requireNotNull(System.getProperty("rulesFormat.dir")) { "rulesFormat.dir is not set" }),
-            "vectors/kid-hold-8-noise.json",
+            "vectors/kid-hold-9.json",
         )
 
     @Test
@@ -22,6 +22,6 @@ class KidHold8NoiseVectorInSyncTest {
 
     @Test
     fun theCopyEqualsTheFile() {
-        assertEquals(file.readText().trimEnd('\n'), KidHold8NoiseVectorFile.json)
+        assertEquals(file.readText().trimEnd('\n'), KidHold9VectorFile.json)
     }
 }
