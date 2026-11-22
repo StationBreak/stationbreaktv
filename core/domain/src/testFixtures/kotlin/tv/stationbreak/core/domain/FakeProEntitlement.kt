@@ -10,9 +10,20 @@ class FakeProEntitlement(
 ) : ProEntitlement {
     private val state = MutableStateFlow(initial)
 
+    private val gone = MutableStateFlow(false)
+
     override val pro: StateFlow<Boolean> = state
 
+    override val revoked: StateFlow<Boolean> = gone
+
+    /** A verified refund: Pro is off and [revoked] is on. A purchase (`set(true)`) clears it. */
+    fun refund() {
+        gone.value = true
+        state.value = false
+    }
+
     fun set(value: Boolean) {
+        if (value) gone.value = false
         state.value = value
     }
 }

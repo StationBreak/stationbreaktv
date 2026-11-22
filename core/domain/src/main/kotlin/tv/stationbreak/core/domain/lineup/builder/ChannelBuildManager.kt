@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.Unsaved
 import tv.stationbreak.core.domain.lineup.displayName
+import tv.stationbreak.core.domain.lineup.lockedCustomIds
 import tv.stationbreak.core.domain.lineup.mapped
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.EditRefusal
@@ -98,6 +99,7 @@ class ChannelBuildManager(
                 lineup == null || channel == null -> OpenResult.NotFound
                 rules == null -> OpenResult.NotCustomisable
                 copy && channel.isAdultBuiltIn() && !pro.pro.value -> OpenResult.NeedsPro
+                !pro.pro.value && id in lineup.channels.lockedCustomIds() -> OpenResult.NeedsPro
                 copy -> openedCopy(account, lineup, channel, rules)
                 else -> OpenResult.Opened(editDraft(account, rules, channel), null)
             }
@@ -204,6 +206,10 @@ class ChannelBuildManager(
                     refused(BuildRefusal.NotCustom)
                 }
 
+                !pro.pro.value && id in lineup.channels.lockedCustomIds() -> {
+                    refused(BuildRefusal.NeedsPro)
+                }
+
                 else -> {
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.Edit(stored))
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
@@ -219,13 +225,30 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id)
+            if (isLocked(account, id)) {
+                refused(BuildRefusal.NeedsPro)
+            } else {
+                edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id)
+            }
         }
 
     override suspend fun delete(
         account: LibraryAccount,
         id: ChannelId,
-    ): BuildResult = guarded(BuildResult.Failed) { edited(account, LineupEdit.RemoveCustom(id), false, id) }
+    ): BuildResult =
+        guarded(BuildResult.Failed) {
+            if (isLocked(account, id)) {
+                refused(BuildRefusal.NeedsPro)
+            } else {
+                edited(account, LineupEdit.RemoveCustom(id), false, id)
+            }
+        }
+
+    // A custom channel locked after a refund (ADR-0023, #99) is kept, not changed or deleted until Pro is back.
+    private suspend fun isLocked(
+        account: LibraryAccount,
+        id: ChannelId,
+    ): Boolean = !pro.pro.value && lineupOf(account)?.let { id in it.channels.lockedCustomIds() } == true
 
     override fun canAddCustom(account: LibraryAccount): Flow<Boolean> =
         flow {

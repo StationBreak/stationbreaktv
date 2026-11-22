@@ -56,6 +56,10 @@ import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
+import tv.stationbreak.core.domain.lineup.ProLockedChannelRepository
+import tv.stationbreak.core.domain.lineup.ProLockedIds
+import tv.stationbreak.core.domain.lineup.ProLockedScheduleSource
+import tv.stationbreak.core.domain.lineup.ProRevocation
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.ScheduleWarmer
 import tv.stationbreak.core.domain.lineup.SharedSnapshots
@@ -185,7 +189,25 @@ internal object LineupModule {
     fun channelRepository(
         service: LineupService,
         lock: KidsLock,
-    ): ChannelRepository = KidsLockedChannelRepository(service, lock)
+        pro: ProEntitlement,
+    ): ChannelRepository = KidsLockedChannelRepository(ProLockedChannelRepository(service, pro), lock)
+
+    /** The customs a refund locked, read from the whole lineup (#99): what the schedule leaves out while Pro is off. */
+    @Provides
+    @Singleton
+    fun proLockedIds(
+        pro: ProEntitlement,
+        library: LibraryRepository,
+        service: LineupService,
+    ): ProLockedIds = ProLockedIds(pro, library, service)
+
+    /** What a refund does to the starters (#99, ADR-0023); started by [ProRevocationWatch] at app start. */
+    @Provides
+    @Singleton
+    fun proRevocation(
+        service: LineupService,
+        settings: ServerSettings,
+    ): ProRevocation = ProRevocation(service) { settings.loadPlayableLibraries() }
 
     /** The "Use my collections" flag, read by the Channels screen. */
     @Provides
@@ -390,7 +412,8 @@ internal object LineupModule {
     fun scheduleSource(
         source: BuiltInScheduleSource,
         lock: KidsLock,
-    ): ScheduleSource = KidsLockedScheduleSource(source, lock)
+        locked: ProLockedIds,
+    ): ScheduleSource = ProLockedScheduleSource(KidsLockedScheduleSource(source, lock), locked)
 
     /**
      * Builds the schedule's days ahead of the tune that needs them (#392). The builds are the source's own, at the

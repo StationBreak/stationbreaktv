@@ -84,7 +84,8 @@ class ChannelManager(
             ChangeResult.Failed
         }
 
-    // True when the change touches a channel that is not the viewer's own readable custom one, or swaps with one. An
+    // True when the change touches a channel that is not the viewer's own readable custom one (or is one locked after a
+    // refund, [lockedCustoms]), or swaps with one. An
     // unknown ID is left to the engine to refuse as unknown. "Use my collections" touches no channel.
     private suspend fun touchesBuiltIn(
         account: LibraryAccount,
@@ -101,9 +102,20 @@ class ChannelManager(
         // Fail closed: with no lineup to look at, a free viewer's change is gated.
         val channels = service.loaded(account)?.lineup?.channels
         return when {
-            touched.isEmpty() -> false
-            channels == null -> true
-            else -> touched.any { id -> channels.firstOrNull { it.id == id }?.let { !it.isViewerCustom() } == true }
+            touched.isEmpty() -> {
+                false
+            }
+
+            channels == null -> {
+                true
+            }
+
+            else -> {
+                val locked = channels.lockedCustomIds()
+                touched.any { id ->
+                    channels.firstOrNull { it.id == id }?.let { !it.isViewerCustom() || id in locked } == true
+                }
+            }
         }
     }
 
