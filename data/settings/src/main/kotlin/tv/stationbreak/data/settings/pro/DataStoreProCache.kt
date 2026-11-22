@@ -2,6 +2,7 @@
 package tv.stationbreak.data.settings.pro
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -9,6 +10,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,15 +21,18 @@ import java.io.File
 import java.io.IOException
 
 /**
- * The [ProCache] in a Jetpack DataStore file of its own, [FILE_NAME] in `noBackupFilesDir`: never backed up or carried
- * to another TV, and cleared with the app's data. Two booleans, the store's last verified answer and whether a verified
- * refund stands, and the opaque lineup-owner keys of the accounts already reset for that refund; no receipt, name or
- * token is ever kept. A file that cannot be read gives false and none (the store's next answer decides), a corrupt
- * one is replaced by an empty one so the next write works (#1063), and a write that fails is dropped: the next
- * verified answer writes again.
+ * The [ProCache] in two Jetpack DataStore files of its own in `noBackupFilesDir`: never backed up or carried to another
+ * TV, and cleared with the app's data. [FILE_NAME] holds the store's last verified answer; [REFUND_FILE_NAME] holds
+ * whether a verified refund stands and the opaque lineup-owner keys of the accounts already reset for it. No receipt,
+ * name or token is ever kept. A file that cannot be read gives false and none (the store's next answer decides), and a
+ * write that fails is dropped: the next verified answer writes again. A corrupt file is replaced so the next write
+ * works (#1063), and each fails closed on its own (#1067): a corrupt cache grants nothing and leaves the refund alone,
+ * and a corrupt refund file is a refund owed with no account handled, so the resets run again until a verified
+ * purchase ends it. The refund moved out of [FILE_NAME] in #1067; an install that kept it there moves it on first read.
  */
 class DataStoreProCache internal constructor(
     private val data: DataStore<Preferences>,
+    private val refunds: DataStore<Preferences>,
 ) : ProCache {
     override suspend fun read(): Boolean =
         try {
@@ -46,14 +51,14 @@ class DataStoreProCache internal constructor(
 
     override suspend fun readRefundPending(): Boolean =
         try {
-            data.data.first()[REFUND_PENDING] == true
+            refunds.data.first()[REFUND_PENDING] == true
         } catch (_: IOException) {
             false
         }
 
     override suspend fun writeRefundPending(pending: Boolean) {
         try {
-            data.edit {
+            refunds.edit {
                 it[REFUND_PENDING] = pending
                 if (!pending) it.remove(REFUND_HANDLED)
             }
@@ -64,14 +69,14 @@ class DataStoreProCache internal constructor(
 
     override suspend fun readRefundHandled(): Set<String> =
         try {
-            data.data.first()[REFUND_HANDLED].orEmpty()
+            refunds.data.first()[REFUND_HANDLED].orEmpty()
         } catch (_: IOException) {
             emptySet()
         }
 
     override suspend fun addRefundHandled(owner: String) {
         try {
-            data.edit { it[REFUND_HANDLED] = it[REFUND_HANDLED].orEmpty() + owner }
+            refunds.edit { it[REFUND_HANDLED] = it[REFUND_HANDLED].orEmpty() + owner }
         } catch (_: IOException) {
             // Dropped: that account is asked again at its next sign-in; a second reset finds nothing to reset.
         }
@@ -79,6 +84,7 @@ class DataStoreProCache internal constructor(
 
     companion object {
         const val FILE_NAME: String = "pro-cache.preferences_pb"
+        const val REFUND_FILE_NAME: String = "pro-refund.preferences_pb"
         private val OWNED = booleanPreferencesKey("owned")
         private val REFUND_PENDING = booleanPreferencesKey("refund_pending")
         private val REFUND_HANDLED = stringSetPreferencesKey("refund_handled")
@@ -87,8 +93,24 @@ class DataStoreProCache internal constructor(
         /** The one cache of the app's process over `noBackupFilesDir`: DataStore allows one instance per file. */
         @Synchronized
         fun create(context: Context): DataStoreProCache {
-            val file = File(context.applicationContext.noBackupFilesDir, FILE_NAME)
-            return made.getOrPut(file.path) { DataStoreProCache(dataStore(defaultScope()) { file }) }
+            val dir = context.applicationContext.noBackupFilesDir
+            return made.getOrPut(dir.path) { inDir(defaultScope(), dir) }
+        }
+
+        internal fun inDir(
+            scope: CoroutineScope,
+            dir: File,
+        ): DataStoreProCache {
+            val data = dataStore(scope) { File(dir, FILE_NAME) }
+            val refunds =
+                PreferenceDataStoreFactory.create(
+                    // Fail closed: a refund owed, no account handled. A verified purchase still clears it.
+                    corruptionHandler = ReplaceFileCorruptionHandler { preferencesOf(REFUND_PENDING to true) },
+                    migrations = listOf(MoveRefund(data)),
+                    scope = scope,
+                    produceFile = { File(dir, REFUND_FILE_NAME) },
+                )
+            return DataStoreProCache(data, refunds)
         }
 
         internal fun dataStore(
@@ -96,11 +118,34 @@ class DataStoreProCache internal constructor(
             file: () -> File,
         ): DataStore<Preferences> =
             PreferenceDataStoreFactory.create(
-                // A corrupt file reads as empty: never Pro, nothing owed. Without it every start would fail to read.
+                // A corrupt file reads as empty: never Pro. Without it every start would fail to read.
                 corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
                 scope = scope,
                 produceFile = file,
             )
+
+        /** The #1063 layout kept the refund in [FILE_NAME]: copy it here once, then drop it there. */
+        private class MoveRefund(
+            private val old: DataStore<Preferences>,
+        ) : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+                old.data.first().let { REFUND_PENDING in it || REFUND_HANDLED in it }
+
+            override suspend fun migrate(currentData: Preferences): Preferences {
+                val kept = old.data.first()
+                return currentData.toMutablePreferences().apply {
+                    kept[REFUND_PENDING]?.let { this[REFUND_PENDING] = it }
+                    kept[REFUND_HANDLED]?.let { this[REFUND_HANDLED] = it }
+                }
+            }
+
+            override suspend fun cleanUp() {
+                old.edit {
+                    it.remove(REFUND_PENDING)
+                    it.remove(REFUND_HANDLED)
+                }
+            }
+        }
 
         @Suppress("InjectDispatcher") // A process-wide root, as the other stores': nothing to inject into.
         private fun defaultScope() = CoroutineScope(Dispatchers.IO + SupervisorJob())

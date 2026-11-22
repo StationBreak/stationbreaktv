@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.pro
 
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,8 +29,10 @@ class DataStoreProCacheTest {
     private fun open(): DataStoreProCache {
         close()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
-        return DataStoreProCache(DataStoreProCache.dataStore(scope) { File(folder.root, DataStoreProCache.FILE_NAME) })
+        return DataStoreProCache.inDir(scope, folder.root)
     }
+
+    private fun corrupt(name: String) = File(folder.root, name).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
 
     @After
     fun close() =
@@ -76,7 +81,7 @@ class DataStoreProCacheTest {
     @Test
     fun aCorruptFileGrantsNothing_andTheNextWriteWorks() =
         runBlocking {
-            File(folder.root, DataStoreProCache.FILE_NAME).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
+            corrupt(DataStoreProCache.FILE_NAME)
 
             val cache = open()
             assertFalse("a corrupt cache never grants Pro", cache.read())
@@ -84,5 +89,52 @@ class DataStoreProCacheTest {
 
             cache.write(true)
             assertTrue(open().read())
+        }
+
+    @Test
+    fun aCorruptCacheFileKeepsTheOwedRefund() =
+        runBlocking {
+            open().writeRefundPending(true)
+            open().addRefundHandled("a")
+            corrupt(DataStoreProCache.FILE_NAME)
+
+            val cache = open()
+            assertFalse(cache.read())
+            assertTrue("the refund is in a file of its own", cache.readRefundPending())
+            assertEquals(setOf("a"), cache.readRefundHandled())
+        }
+
+    @Test
+    fun aCorruptRefundFileReadsAsOwedWithNoAccountHandled_untilAVerifiedPurchase() =
+        runBlocking {
+            open().addRefundHandled("a")
+            corrupt(DataStoreProCache.REFUND_FILE_NAME)
+
+            val cache = open()
+            assertTrue("fail closed: the reset runs again", cache.readRefundPending())
+            assertEquals(emptySet<String>(), cache.readRefundHandled())
+
+            cache.writeRefundPending(false)
+            assertFalse(open().readRefundPending())
+        }
+
+    @Test
+    fun anOwedRefundInTheOldFileMovesToTheRefundFile() =
+        runBlocking {
+            // The #1063 layout: the refund and its handled accounts beside the owned answer in the one cache file.
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
+            DataStoreProCache.dataStore(scope) { File(folder.root, DataStoreProCache.FILE_NAME) }.edit {
+                it[booleanPreferencesKey("owned")] = false
+                it[booleanPreferencesKey("refund_pending")] = true
+                it[stringSetPreferencesKey("refund_handled")] = setOf("a")
+            }
+
+            val cache = open()
+            assertTrue(cache.readRefundPending())
+            assertEquals(setOf("a"), cache.readRefundHandled())
+
+            corrupt(DataStoreProCache.FILE_NAME)
+            assertTrue("moved, not only read through", open().readRefundPending())
+            assertEquals(setOf("a"), open().readRefundHandled())
         }
 }
