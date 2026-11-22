@@ -59,6 +59,7 @@ import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ProLockedChannelRepository
 import tv.stationbreak.core.domain.lineup.ProLockedHoldings
 import tv.stationbreak.core.domain.lineup.ProLockedIds
+import tv.stationbreak.core.domain.lineup.ProLockedProperties
 import tv.stationbreak.core.domain.lineup.ProLockedScheduleSource
 import tv.stationbreak.core.domain.lineup.ProRevocation
 import tv.stationbreak.core.domain.lineup.ScheduleSource
@@ -321,7 +322,10 @@ internal object LineupModule {
     }
 
     @Provides
-    fun channelProperties(properties: BuiltInChannelProperties): ChannelPropertiesReader = properties
+    fun channelProperties(
+        properties: BuiltInChannelProperties,
+        locked: ProLockedIds,
+    ): ChannelPropertiesReader = ProLockedProperties(properties, locked)
 
     /**
      * Who each channel is (#777), for the guide's channel box the moment focus reaches it: the properties reader's own

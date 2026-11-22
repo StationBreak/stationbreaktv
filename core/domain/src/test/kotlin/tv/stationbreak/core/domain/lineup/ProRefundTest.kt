@@ -275,6 +275,31 @@ class ProRefundTest {
             assertEquals(held, reader.read(id(1), NOON))
         }
 
+    @Test
+    fun theSheetOfALockedCustomShowsNothing_whileFree() =
+        runBlocking<Unit> {
+            seed()
+            library.useAccount(ACCOUNT)
+            val summaries = service.channels(ACCOUNT).first().associateBy { it.id }
+
+            fun sheetOf(c: ChannelId) = ChannelProperties(summaries.getValue(c), null, null, listOf(), null, null, null)
+            val all =
+                object : ChannelPropertiesReader {
+                    override suspend fun read(
+                        id: ChannelId,
+                        at: Instant,
+                    ): ChannelProperties = sheetOf(id)
+                }
+            val reader = ProLockedProperties(all, ProLockedIds(pro, library, service))
+            val six = id(FreeTier.CUSTOM_CHANNELS + 1)
+            assertEquals(sheetOf(six), reader.read(six, NOON))
+
+            pro.set(false)
+
+            assertEquals(null, reader.read(six, NOON))
+            assertEquals(sheetOf(id(1)), reader.read(id(1), NOON))
+        }
+
     private class AiringsOnly(
         private val all: List<ChannelAiring>,
     ) : ScheduleSource {
