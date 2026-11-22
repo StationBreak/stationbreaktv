@@ -10,28 +10,28 @@ package tv.stationbreak.core.engine
  * the same.
  */
 internal object NoiseTidy {
-    // The white space of genres and tags, each range a character as a Kotlin escape.
+    // The white space of genres and tags, each range written as Kotlin \u escapes.
     private val SPACES: List<CharRange> =
         listOf(
             '\t'..'\t',
             '\n'..'\n',
             '\r'..'\r',
-            ' '..' ', // no-break space
-            ' '..' ', // Ogham space mark
-            ' '..' ', // en quad to hair space
-            ' '..' ', // narrow no-break space
-            ' '..' ', // medium mathematical space
-            '　'..'　', // ideographic space
+            '\u00A0'..'\u00A0', // no-break space
+            '\u1680'..'\u1680', // Ogham space mark
+            '\u2000'..'\u200A', // en quad to hair space
+            '\u202F'..'\u202F', // narrow no-break space
+            '\u205F'..'\u205F', // medium mathematical space
+            '\u3000'..'\u3000', // ideographic space
         )
 
-    // The dash variants, each range a character as a Kotlin escape.
+    // The dash variants, each range written as Kotlin \u escapes.
     private val DASHES: List<CharRange> =
         listOf(
-            '‐'..'―', // hyphen, non-breaking hyphen, figure dash, en dash, em dash, horizontal bar
-            '−'..'−', // minus sign
-            '﹘'..'﹘', // small em dash
-            '﹣'..'﹣', // small hyphen-minus
-            '－'..'－', // fullwidth hyphen-minus
+            '\u2010'..'\u2015', // hyphen, non-breaking hyphen, figure dash, en dash, em dash, horizontal bar
+            '\u2212'..'\u2212', // minus sign
+            '\uFE58'..'\uFE58', // small em dash
+            '\uFE63'..'\uFE63', // small hyphen-minus
+            '\uFF0D'..'\uFF0D', // fullwidth hyphen-minus
         )
 
     fun tidy(
