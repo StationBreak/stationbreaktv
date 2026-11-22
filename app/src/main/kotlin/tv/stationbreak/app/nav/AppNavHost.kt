@@ -252,8 +252,9 @@ private fun AppNavHostContent(
                 showStep = entry.toRoute<LibrariesRoute>().firstRun,
                 // Back is "Signed in as": it never signs out silently.
                 onBack = { navController.navigate(SignedInRoute) { launchSingleTop = true } },
-                // The first sync starts here (spec 06, owner answer 3). Nothing is left beneath its screen: Back exits,
-                // the sync carries on in the background, and onboarding is never re-entered.
+                // The first sync starts here (spec 06, owner answer 3). Nothing is left beneath its screen, and
+                // onboarding is never re-entered. Back is held there while the sync runs (#1083); Home leaves it
+                // running in the background.
                 onDone = { navController.replaceAll(FirstSyncRoute) },
                 onSessionLost = { navController.replaceAll(LaunchRoute) },
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
@@ -277,6 +278,11 @@ private fun AppNavHostContent(
         ) {
             // The entry's own: dropped with it, unless the cheer hands it to the still.
             val cheerFrame = rememberFirstSyncCheerFrame()
+            // Back is held while the sync runs, as on the Fire TV (#1083): nothing is beneath the screen, and a stray
+            // Back must not leave the app. Home still leaves the sync running in the background. It is not held after a
+            // failure or once a sync has succeeded (the cheer handles its own Back).
+            val backStays by rememberBackStaysOnFirstSync()
+            BackHandler(enabled = backStays) {}
             FirstSyncDestination(
                 // No button: when the first sync ends with nothing to cheer, the app moves on to the live channel.
                 onFinished = { navController.replaceAll(LiveRoute()) },

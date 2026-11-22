@@ -280,6 +280,15 @@ class FirstSyncNavigationTest {
         assertTrue("Back should leave the app", activity.isFinishing)
     }
 
+    private fun assertBackIsHeld() {
+        compose.awaitWindowFocus()
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        // Give a leaving Back time to finish the activity before saying it did not.
+        Thread.sleep(BACK_SETTLE_MS)
+        compose.waitForIdle()
+        assertFalse("Back is held while the first sync runs (#1083)", compose.activity.isFinishing)
+    }
+
     @Test
     fun anUnfinishedFirstSyncOpensTheProgressScreenAndStartsTheSync() {
         Syncing.firstSync.current = running(400, 1_000)
@@ -356,17 +365,28 @@ class FirstSyncNavigationTest {
     }
 
     @Test
-    fun backOnTheProgressScreenLeavesTheAppAndTheSyncAlone() {
+    fun backOnTheProgressScreenWhileTheSyncRunsIsHeldAndLeavesTheSyncAlone() {
         Syncing.firstSync.current = running(10, 100)
         launchApp()
         awaitExists(FirstSyncTags.HEADLINE)
 
-        assertBackLeavesTheApp()
+        assertBackIsHeld()
+        assertEquals(1, count(FirstSyncTags.HEADLINE))
 
         assertEquals(0, Syncing.firstSync.retryCalls)
         // The chosen library was never read: the start asked once, and the screen once more.
         assertEquals("the start asked once", 1, askedAtStart)
         assertEquals("the screen asked once", 1, Syncing.firstSync.ensureCalls - askedAtStart)
+    }
+
+    @Test
+    fun backOnTheFailureScreenLeavesTheApp() {
+        Syncing.firstSync.current = LibraryStatus(SyncState.LastSyncFailed(SyncFailure.Network), null)
+        launchApp()
+        awaitFocused(FirstSyncTags.RETRY)
+
+        assertBackLeavesTheApp()
+        assertEquals(0, Syncing.firstSync.retryCalls)
     }
 
     @Test
@@ -418,5 +438,6 @@ class FirstSyncNavigationTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val POLL_MS = 50L
+        const val BACK_SETTLE_MS = 1_000L
     }
 }
