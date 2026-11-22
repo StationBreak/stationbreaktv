@@ -18,7 +18,9 @@ interface StoreEntitlement {
     /**
      * Whether the store can be bought from at all: true only with a real store adapter behind it. While false, nothing
      * Pro-facing is shown to a viewer who does not have Pro (no Pro row, no Pro notes, no purchase screen), so a build
-     * with no working store, such as the Amazon release before its adapter lands, stays the plain free app.
+     * with no working store, such as the Amazon release before its adapter lands, stays the plain free app. A real
+     * adapter reports true whenever its SDK is bound, offline too, so a viewer without Pro keeps the purchase screen;
+     * an owner's Settings row shows whatever this says.
      */
     val available: StateFlow<Boolean>
 

@@ -19,6 +19,8 @@ class FreeTierCopyTest {
             }.associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
 
     // The strings a free viewer reads on reaching for a Pro action: the notes, and the button to the purchase screen.
+    // They are the only exemption: reachable only with the store available, so the free release never shows them, and
+    // resources cannot be split per availability. Exact keys, all in strings_pro.xml, so any other Pro mention fails.
     private val proPrompt =
         setOf(
             "channels_pro_needs_reshape",
@@ -37,6 +39,18 @@ class FreeTierCopyTest {
     }
 
     @Test
+    fun theExemptKeysAreExactlyTheProNamingStringsOfStringsProXml() {
+        val file = File("src/main/res/values/strings_pro.xml").readText()
+        val named =
+            Regex("""<string name="([^"]+)"[^>]*>([^<]*)</string>""")
+                .findAll(file)
+                .filter { Regex("""\bPro\b""").containsMatchIn(it.groupValues[2]) }
+                .map { it.groupValues[1] }
+                .toSet()
+        assertEquals(proPrompt, named)
+    }
+
+    @Test
     fun theProPromptNamesProAndOffersTheWay() {
         proPrompt.forEach { assertTrue(it, strings.getValue(it).contains("Pro")) }
         assertFalse(strings.values.any { it.contains("coming soon", ignoreCase = true) })
@@ -51,6 +65,7 @@ class FreeTierCopyTest {
 
     @Test
     fun theCustomLimitNoteIsTheFreeSentenceOnly() {
-        assertEquals("Free includes 5 custom channels. Delete one to make another.", strings["pro_custom_limit_note"])
+        val note = "Free includes 5 custom channels. Delete some of yours to make room."
+        assertEquals(note, strings["pro_custom_limit_note"])
     }
 }

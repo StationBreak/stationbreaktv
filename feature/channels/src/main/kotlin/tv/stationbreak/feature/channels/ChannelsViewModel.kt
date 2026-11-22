@@ -560,7 +560,8 @@ internal class ChannelsViewModel
             when (panel) {
                 is ChannelsPanel.ConfirmOptIn -> confirmOptIn()
                 is ChannelsPanel.Swap -> swap()
-                else -> reset()
+                null -> reset()
+                else -> Unit
             }
         }
 

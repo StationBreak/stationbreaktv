@@ -114,6 +114,41 @@ class ChannelsProOfferedTest {
         }
 
     @Test
+    fun aRefund_closesTheGatesAgain_soSwitchOffAndChangeNumberOnAStarterShowTheNote() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            rig.pro.set(true)
+            runCurrent()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            runCurrent()
+            assertEquals(listOf<ChannelChange>(ChannelChange.SwitchOff(A)), rig.editor.changes.map { it.second })
+
+            rig.pro.set(false)
+            runCurrent()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+            rig.pick(Choice.Cancel)
+            openRow(rig, A)
+            rig.pick(Choice.ChangeNumber)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+            assertEquals("nothing more was changed", 1, rig.editor.changes.size)
+        }
+
+    @Test
+    fun aProNotePanelNeverResets_whateverIsChosenOnIt() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            rig.open(this)
+            repeat(10) { rig.vm.move(up = false) }
+            rig.vm.select()
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reset), rig.ui.panel)
+            rig.pick(Choice.Cancel)
+            assertTrue(rig.editor.resets.isEmpty())
+        }
+
+    @Test
     fun resetIsAStopWhenOffered_andAsksWithTheNote_butIsNotAStopWhenUnavailable() =
         channelsTest(lineup) { rig ->
             rig.freeAndOffered()

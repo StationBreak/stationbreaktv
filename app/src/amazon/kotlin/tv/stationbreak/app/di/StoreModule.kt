@@ -29,6 +29,10 @@ import javax.inject.Singleton
  *   such a false. Ask it at start and at each resume, and by [restore];
  * - leave it null, never false, for anything else: an empty delta from `reset = false`, an error, a partial or
  *   unfinished page, offline. Then the cache stands;
+ * - keep [StoreEntitlement.verified] moving on its own: the purchase screen's call is cancelled when the viewer tunes
+ *   away, so a purchase that settles later (Pending, or a hold) must reach `verified` from the purchase updates;
+ * - report [StoreEntitlement.available] true whenever the SDK is bound and a store is behind it, offline too: only then
+ *   does a viewer without Pro keep the purchase screen (an owner's Pro row shows either way);
  * - never log a receipt, user ID, marketplace ID or token;
  * - take the one SKU from [PRO_SKU], the only place the SKU is named.
  */

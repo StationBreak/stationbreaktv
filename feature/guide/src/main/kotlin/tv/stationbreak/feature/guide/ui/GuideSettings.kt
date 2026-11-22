@@ -87,7 +87,7 @@ internal enum class SettingsRow(
     /**
      * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint,
      * Change PIN, which needs a PIN to change and Kids Mode off, Hours of operation, which is there only with Pro, and
-     * the Pro row, which needs a store to buy from or a Support page.
+     * the Pro row, which needs a store to buy from, a Support page, or Pro owned.
      * With Pro the sheet is one row taller than the free one; where that is more than the screen holds, it scrolls, as
      * the sheet already does at a large font.
      */
@@ -96,7 +96,7 @@ internal enum class SettingsRow(
             CrashReports -> values.crashReportsAvailable
             ChangePin -> values.kidsPinSet && !values.kidsOn
             Hours -> values.pro
-            Pro -> values.offer is ProOffer.Support || values.storeAvailable
+            Pro -> values.offer is ProOffer.Support || values.storeAvailable || values.pro
             else -> true
         }
 
