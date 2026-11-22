@@ -27,15 +27,22 @@ kotlin {
         // variant: no other module can depend on them, and `commonMain` gains nothing from them.
         val main = this.compilations.getByName("main")
         val audit = this.compilations.create("audit") { associateWith(main) }
+        // The gate's tests share the synthetic adult slice of the rating-safety tests (commonTest, `internal`), so they
+        // are associated with `test` too (#1035).
+        val test = this.compilations.getByName("test")
         val auditTest =
             this.compilations.create("auditTest") {
                 associateWith(main)
                 associateWith(audit)
+                associateWith(test)
             }
         // Its own serialization dependency: the snapshot file is JSON. (core:rules already exposes the library to
         // `commonMain` through its api; the audit names it for itself, so it does not rely on that.)
         audit.defaultSourceSet.dependencies { implementation(libs.kotlinx.serialization.json) }
         auditTest.defaultSourceSet.dependencies { implementation(kotlin("test-junit")) }
+        // The gate (#1035) runs from here: it cuts each channel's pool by the epoch with the scheduler's own function, as
+        // the day build does. A test-only edge (docs/MODULES.md): the audit's main code stays free of core:scheduler.
+        auditTest.defaultSourceSet.dependencies { implementation(project(":core:scheduler")) }
     }
 }
 
@@ -51,6 +58,10 @@ tasks.withType<Test>().configureEach {
 // The audit's own tests (jvmAuditTest): the golden outputs of the profile libraries, the snapshot codec and the
 // per-term scores. `check` runs them. The goldens are inputs, so a changed golden reruns them.
 val auditGoldenDir = layout.projectDirectory.dir("src/audit/golden")
+// The household-view gate (#1035; docs/design/lineup-seats-and-gaps.md): frozen fixtures and their pinned reports.
+val gateDir = layout.projectDirectory.dir("src/audit/gate")
+val gateFixtureDir = gateDir.dir("fixtures")
+val gateGoldenDir = gateDir.dir("golden")
 val auditExportFixtures = rootProject.layout.projectDirectory.dir("tools/audit-export/fixtures")
 val auditTestCompilation = kotlin.jvm().compilations.getByName("auditTest")
 val jvmAuditTest =
@@ -61,6 +72,9 @@ val jvmAuditTest =
         classpath = files(auditTestCompilation.output.allOutputs, auditTestCompilation.runtimeDependencyFiles)
         systemProperty("audit.golden.dir", auditGoldenDir.asFile.absolutePath)
         systemProperty("audit.export.fixtures", auditExportFixtures.asFile.absolutePath)
+        systemProperty("gate.fixtures.dir", gateFixtureDir.asFile.absolutePath)
+        systemProperty("gate.golden.dir", gateGoldenDir.asFile.absolutePath)
+        inputs.files(fileTree(gateDir)).withPropertyName("gateFiles").withPathSensitivity(PathSensitivity.RELATIVE)
         inputs.files(auditExportFixtures.asFileTree).withPropertyName("auditExportFixtures").withPathSensitivity(PathSensitivity.RELATIVE)
         inputs.files(fileTree(auditGoldenDir)).withPropertyName("auditGoldens").withPathSensitivity(PathSensitivity.RELATIVE)
     }
@@ -109,4 +123,30 @@ tasks.register<JavaExec>("lineupAuditGoldens") {
     classpath = auditClasspath
     mainClass.set("tv.stationbreak.core.engine.audit.AuditMain")
     args("--update-goldens", auditGoldenDir.asFile.absolutePath)
+}
+
+// The household-view lineup gate (#1035, docs/design/lineup-seats-and-gaps.md): the real planner on the frozen fixtures with the ceilings
+// and the leftovers on, hard-fail invariants and report-only warnings. `check` runs the same through jvmAuditTest.
+//
+//   ./gradlew :core:engine:lineupGate            (prints the failures and warnings; writes build/reports/lineup-gate)
+//   ./gradlew :core:engine:lineupGateGoldens     (writes the generated fixtures and the pinned reports again)
+tasks.register<JavaExec>("lineupGate") {
+    group = "lineup audit"
+    description = "Runs the household-view lineup gate on the frozen fixtures."
+    classpath = files(auditTestCompilation.output.allOutputs, auditTestCompilation.runtimeDependencyFiles)
+    mainClass.set("tv.stationbreak.core.engine.audit.GateMain")
+    // A verification: it runs every time it is asked for, whatever the warnings file says.
+    outputs.upToDateWhen { false }
+    inputs.files(fileTree(gateDir)).withPropertyName("gateFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+    val warnings = layout.buildDirectory.file("reports/lineup-gate/warnings.txt")
+    args("--fixtures", gateFixtureDir.asFile.absolutePath, "--golden", gateGoldenDir.asFile.absolutePath)
+    args("--warnings", warnings.get().asFile.absolutePath)
+}
+
+tasks.register<JavaExec>("lineupGateGoldens") {
+    group = "lineup audit"
+    description = "Writes the gate's generated fixtures and pinned reports again (src/audit/gate)."
+    classpath = files(auditTestCompilation.output.allOutputs, auditTestCompilation.runtimeDependencyFiles)
+    mainClass.set("tv.stationbreak.core.engine.audit.GateGoldensMain")
+    args(gateFixtureDir.asFile.absolutePath, gateGoldenDir.asFile.absolutePath)
 }

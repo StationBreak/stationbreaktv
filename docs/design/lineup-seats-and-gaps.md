@@ -270,6 +270,49 @@ goldens are the authority; the plan stays as the record of the decision. Work: #
   `data:jellyfin` test holds the exporter's first stage to the app's real decoder and mappers.
 - Hours in the JSON output are integer hundredths of an hour, so a report has no floating-point formatting.
 
+### The household-view gate (#1035)
+
+The audit's scope is the planner's view. The gate is its second mode: the same planner on a frozen fixture, seen the way a
+built day airs it, with each channel's rating ceiling and policy, the curation over the channels that are on, and the
+leftovers channels claiming in order over what is left (late-on pools stay out, as in the audit). Each fixture runs twice:
+the planner's default picks, then every non-opt-in channel switched on. After Hours is on in both only when the case opts it
+in. It lives beside the audit (`HouseholdView.kt`, `GateInvariants.kt`, `LineupGate.kt`, `GateMain.kt` in `jvmAudit`) and
+changes nothing in the engine.
+
+```bash
+./gradlew :core:engine:lineupGate           # failures, warnings; the warnings file is build/reports/lineup-gate/warnings.txt
+./gradlew :core:engine:lineupGateGoldens    # after reading the diff: the generated fixtures and the pinned reports again
+```
+
+`check` runs the same through `jvmAuditTest` (`LineupGateTest`, `GateFixturesTest`, `GateMutationTest`): no change to a
+workflow. The frozen fixtures are `core/engine/src/audit/gate/fixtures` (`audit-snapshot` files; invented titles, and the
+synthetic adult slice of the rating-safety tests, shared and not copied) and the pinned reports are in `.../golden`, one per
+case, byte for byte. To add a fixture, drop its snapshot file in `fixtures`: it runs with the defaults, and a case in
+`GateMain.CASES` sets After Hours, the leftover-hours cap and the kids check. Then run `lineupGateGoldens` and review the
+new golden.
+
+- **Hard failures** (a failed run, a failed test): no title above its channel's ceiling; no horror title above the Kids tier
+  on a Kids or Family channel (a kid-rated title with made-for-kids evidence is Kids whatever its genres, ADR-0029); no
+  unrated or off-ladder title on a young band (the exception list is empty until #754); a rejection only moves a title up a
+  tier; After Hours is not a planner pick and is on only when opted in; an Explicit title airs on After Hours alone, and
+  with it on every Explicit title is homed there; no Adult-tier title on a Kids, Family or Teen channel or on Odds & Ends 33,
+  66 or 99; a channel numbered in a young band keeps that band's policy and ceiling; no title with no metadata in any
+  leftovers channel; the kids fixture has a kids-band channel with homes; the report is the golden.
+- **Warnings** (report only, never a failure): a channel over 300 or under 12 hours, a leftovers total over the case's
+  pinned cap, two channels sharing 12 hours or more and over three quarters of the smaller, a channel with no homes.
+- **Ceiling:** the gate and the day build share one function, `ChannelCeilings.of` in `core:engine`. The ceiling rule is
+  checked twice: by the pool rules (`passesCeiling`, the kid ceiling) and, apart from them, by the ladder rank of every
+  rating the item and its series carry against the ceiling's rank.
+- **Epoch cut:** each channel's aired and claimed items are its pool cut by `EpochPool.build`, as the day build does. The
+  gate runs from the test compilation for that reason: `core:engine`'s tests may use `core:scheduler` (MODULES.md), its
+  main and audit code may not.
+- **Known gaps (the gate refuses them, with a message):** a lineup with a custom channel, an edited starter or a hidden
+  channel. The day build lets a custom channel and a non-curated starter claim from the leftovers and withholds a hidden
+  channel's pool; the gate does not model that yet. A planner lineup with the viewer's switch-ons has none of them. A
+  fixture that has them (the household snapshot, if the viewer there has customised) needs that written into
+  `HouseholdViews` first. Also out: the late-on pools and the curation's keeps (the
+  trim window of `EpochPool.dayPool`); the epoch cut itself is applied.
+
 ### The seat rule (#785)
 
 - Built as specified in §3, including `KEEPER_COPIES` = 60 and `MAX_CATALOG_STARTERS` = 110 (the per-copy budget stays

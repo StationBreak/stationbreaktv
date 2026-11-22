@@ -632,6 +632,8 @@ Also allowed (not drawn above):
 - `core:testing` → `core:model` and `core:rules`, to build fixtures and golden vectors.
 - `data:library`'s tests → `core:scheduler`, **test source sets only**, so the edit-cutoff property test can build real days from
   the library's as-of read (spec 09). Its main code reaches the scheduler only through `core:domain`.
+- `core:engine`'s tests → `core:scheduler`, **test source sets only**: the lineup gate (#1035, `jvmAuditTest`) cuts each
+  channel's pool by the epoch with the scheduler's `EpochPool.build`, as the day build does. The engine's own code never does.
 - Any module → `core:testing`, **test source sets only** (`commonTest`, `jvmTest`, `test`, `androidTest`).
 - Any module's tests → `core:domain`'s `testFixtures`, for the port fakes.
 

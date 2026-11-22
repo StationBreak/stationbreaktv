@@ -51,7 +51,7 @@ internal object LineupAudit {
     }
 
     // The names of the collections, as a day build and the planner read them (`collectionNamesOf` in core:domain).
-    private fun collectionNamesOf(snapshot: RuleSnapshot): CollectionNames {
+    internal fun collectionNamesOf(snapshot: RuleSnapshot): CollectionNames {
         val names = HashMap<CanonicalId, String>()
         for ((id, collection) in snapshot.collections) collection.name?.let { names[id] = it }
         return CollectionNames(names)

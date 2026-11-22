@@ -75,21 +75,25 @@ internal class LibraryBuilder(
         return title
     }
 
-    /** Adds a series of [seasons] seasons of [episodes] episodes each, and returns its name. */
+    /**
+     * Adds a series of [seasons] seasons of [episodes] episodes each, and [specials] episodes in Season 0 (extras,
+     * which the audit's extras filter takes out), and returns its name.
+     */
     fun series(
         spec: TitleSpec,
         seasons: Int,
         episodes: Int,
         name: String? = null,
+        specials: Int = 0,
     ): String {
         val title = nameOf(name)
         val seriesId = id(NS_SERIES, nextSeries++)
         val row = RuleSeries(seriesId, spec.rating, spec.genres, spec.tags, spec.studios, title)
         row.primeFolds(folds)
         series[seriesId] = row
-        for (season in 1..seasons) {
+        for (season in (if (specials > 0) 0 else 1)..seasons) {
             val seasonId = id(NS_SEASON, nextSeason++)
-            for (episode in 1..episodes) {
+            for (episode in 1..(if (season == 0) specials else episodes)) {
                 val itemId = id(NS_ITEM, nextItem++)
                 val item = scheduleItem(itemId, ScheduleItemKind.Episode, spec, seriesId, season, episode)
                 val episodeTitle = episodeName(episode)
