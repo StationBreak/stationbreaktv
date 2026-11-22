@@ -34,7 +34,7 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Kids and hours", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Kids Mode", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
@@ -43,6 +43,12 @@ class GuideSettingsRowsTest {
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
+    }
+
+    @Test
+    fun hoursOfOperationIsOnTheSheetOnlyWithPro() {
+        assertEquals(false, SettingsRow.Hours.isShown(SettingsValues()))
+        assertEquals(true, SettingsRow.Hours.isShown(SettingsValues(pro = true)))
     }
 
     @Test

@@ -121,8 +121,8 @@ TV keeps its own schedule. An empty schedule means no hours: the TV behaves as i
 
 **Note:** for now this screen only keeps your schedule. The TV does not yet change what it shows by it.
 
-Open the guide's menu, choose **Settings**, then **Hours of operation**. Without Pro the screen says it is a Pro
-feature, and changes nothing. With Pro it needs a PIN first (set one with **Kids Mode**, as above), so a grown-up can
+Open the guide's menu, choose **Settings**, then **Hours of operation**. The row appears with StationBreak Pro; without
+Pro it is not there. It needs a PIN first (set one with **Kids Mode**, as above), so a grown-up can
 always override the hours. While Kids Mode is on, the row does nothing and says **Turn off Kids Mode first**.
 
 - **Adding or changing a period.** Choose **Add a period**, or a period in the list. Move down the rows and press Left

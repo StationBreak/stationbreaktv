@@ -55,8 +55,9 @@ internal enum class SettingsRow(
     ChangePin(RowKind.Action, R.string.guide_settings_change_pin),
 
     /**
-     * Hours of operation (#789, Pro): opens its screen over the sheet. Without Pro the screen is a notice, and with
-     * Pro and no PIN it asks for one first; Kids Mode switches the row off, as it does the rows that could sidestep it.
+     * Hours of operation (#789, Pro): opens its screen over the sheet. Shown only with Pro ([isShown]); with Pro and
+     * no PIN its screen asks for one first, and the Pro notice there is for a Pro that goes while the screen is open;
+     * Kids Mode switches the row off, as it does the rows that could sidestep it.
      */
     Hours(RowKind.Link, R.string.guide_settings_hours),
 
@@ -74,13 +75,16 @@ internal enum class SettingsRow(
     ;
 
     /**
-     * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint, and
-     * Change PIN, which needs a PIN to change and Kids Mode off.
+     * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint,
+     * Change PIN, which needs a PIN to change and Kids Mode off, and Hours of operation, which is there only with Pro.
+     * With Pro the sheet is one row taller than the free one; where that is more than the screen holds, it scrolls, as
+     * the sheet already does at a large font.
      */
     fun isShown(values: SettingsValues): Boolean =
         when (this) {
             CrashReports -> values.crashReportsAvailable
             ChangePin -> values.kidsPinSet && !values.kidsOn
+            Hours -> values.pro
             else -> true
         }
 

@@ -31,7 +31,7 @@ Jellyfin, and the PIN is cleared and Kids Mode turned off. See
 [If you forget the PIN](mature-content.md#if-you-forget-the-pin).
 
 **Can I set hours for when the TV is kids-only or off the air?**
-That is hours of operation, part of Pro, in **Settings → Hours of operation**. It needs a PIN first, and the PIN always
+That is hours of operation. The **Hours of operation** row in Settings appears with StationBreak Pro. It needs a PIN first, and the PIN always
 overrides the hours. For now the screen keeps your schedule and the TV does not yet follow it. See
 [Hours of operation](mature-content.md#hours-of-operation-pro).
 
