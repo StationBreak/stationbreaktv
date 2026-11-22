@@ -16,6 +16,12 @@ interface ProEntitlement {
      * Never true for a build that unlocks Pro, nor for a TV that never held Pro. A refund is acted on only through it.
      */
     val revoked: StateFlow<Boolean> get() = NOT_REVOKED
+
+    /**
+     * The reset a refund owes has run for the active account (or it had nothing to reset): it is not owed again at the
+     * next start. [revoked] stands for the rest of this session, so another account signed in now is reset too.
+     */
+    suspend fun refundHandled() {}
 }
 
 private val NOT_REVOKED: StateFlow<Boolean> = MutableStateFlow(false)

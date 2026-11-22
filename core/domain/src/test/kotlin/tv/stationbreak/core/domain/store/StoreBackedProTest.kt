@@ -157,6 +157,54 @@ class StoreBackedProTest {
             assertTrue(pro.revoked.value)
         }
 
+    // A new provider over the same cache, with a store that has not answered: the app after a kill, started offline.
+    private fun TestScope.restarted(offline: FakeStoreEntitlement = FakeStoreEntitlement()) =
+        StoreBackedPro(false, offline, cache, backgroundScope + UnconfinedTestDispatcher(testScheduler))
+
+    @Test
+    fun aRefundSeenBeforeAKillIsStillOwedItsResetAtTheNextStart() =
+        runTest {
+            pro()
+            store.purchase()
+            store.revoke()
+            assertTrue(cache.readRefundPending(), "kept before anything else")
+
+            val next = restarted()
+
+            assertTrue(next.revoked.value)
+            assertFalse(next.pro.value)
+        }
+
+    @Test
+    fun aPurchaseAfterTheRefundClearsTheOwedReset() =
+        runTest {
+            pro()
+            store.purchase()
+            store.revoke()
+            val offline = FakeStoreEntitlement()
+            val next = restarted(offline)
+
+            offline.purchase()
+
+            assertFalse(next.revoked.value)
+            assertFalse(cache.readRefundPending())
+            assertFalse(restarted().revoked.value)
+        }
+
+    @Test
+    fun aHandledRefundIsNotOwedAtTheNextStart_butStandsForThisSession() =
+        runTest {
+            val pro = pro()
+            store.purchase()
+            store.revoke()
+
+            pro.refundHandled()
+
+            assertTrue(pro.revoked.value, "another account signed in this session is still reset")
+            assertFalse(cache.readRefundPending())
+            assertFalse(restarted().revoked.value)
+        }
+
     @Test
     fun aBuildThatUnlocksProIsNeverRevoked() =
         runTest {

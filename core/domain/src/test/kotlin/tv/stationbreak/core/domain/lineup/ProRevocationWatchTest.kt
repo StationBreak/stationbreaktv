@@ -122,6 +122,36 @@ class ProRevocationWatchTest {
             assertTrue(marked(), "the reset was cancelled: Pro is back")
         }
 
+    @Test
+    fun aRefundOwedFromBeforeAKillIsResetAtStart_andThenNoLongerOwed() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            // What the app left on disk: the refund was verified, the reset never ran. The store has not answered yet.
+            val cache = InMemoryProCache(held = false, refundPending = true)
+            val restarted = StoreBackedPro(false, FakeStoreEntitlement(), cache, scope)
+            ProRevocation(service) { LIBRARIES }.watch(scope, restarted, library)
+
+            untilReset()
+
+            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending()) delay(POLL_MS) }
+        }
+
+    @Test
+    fun aResetThatCannotRunYetStaysOwed() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            val cache = InMemoryProCache(held = false, refundPending = true)
+            val restarted = StoreBackedPro(false, FakeStoreEntitlement(), cache, scope)
+            ProRevocation(service) { null }.watch(scope, restarted, library)
+
+            delay(SETTLE_MS)
+
+            assertTrue(marked())
+            assertTrue(cache.readRefundPending(), "no libraries known: asked again at the next start")
+        }
+
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val POLL_MS = 20L

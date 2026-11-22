@@ -47,4 +47,29 @@ class DataStoreProCacheTest {
             open().write(false)
             assertFalse(open().read())
         }
+
+    @Test
+    fun anOwedRefundResetSurvivesARelaunch_untilItIsCleared() =
+        runBlocking {
+            assertFalse(open().readRefundPending())
+
+            open().writeRefundPending(true)
+            assertTrue(open().readRefundPending())
+
+            open().writeRefundPending(false)
+            assertFalse(open().readRefundPending())
+        }
+
+    @Test
+    fun aCorruptFileGrantsNothing_andTheNextWriteWorks() =
+        runBlocking {
+            File(folder.root, DataStoreProCache.FILE_NAME).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
+
+            val cache = open()
+            assertFalse("a corrupt cache never grants Pro", cache.read())
+            assertFalse(cache.readRefundPending())
+
+            cache.write(true)
+            assertTrue(open().read())
+        }
 }

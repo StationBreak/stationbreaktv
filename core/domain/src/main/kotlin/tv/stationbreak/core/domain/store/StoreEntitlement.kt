@@ -40,9 +40,17 @@ enum class PurchaseOutcome {
     Pending,
 }
 
-/** The last verified answer, kept on this TV so an offline start keeps Pro. A revoke writes false over it. */
+/**
+ * The last verified answer, kept on this TV so an offline start keeps Pro. A revoke writes false over it. Beside it,
+ * whether a verified refund still owes this TV its reset ([readRefundPending]), so a kill between the two does not
+ * skip the reset.
+ */
 interface ProCache {
     suspend fun read(): Boolean
 
     suspend fun write(owned: Boolean)
+
+    suspend fun readRefundPending(): Boolean
+
+    suspend fun writeRefundPending(pending: Boolean)
 }

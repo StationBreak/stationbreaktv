@@ -14,6 +14,8 @@ import tv.stationbreak.core.domain.ProEntitlement
  * purchase: the last verified answer is kept in [cache], so a TV that starts offline keeps Pro, and a verified revoke
  * clears it. Until the store has answered, the cache stands; a store that answers false always beats the cache.
  * [revoked] is set only by that change from owned to a verified false, so a TV that never held Pro is never refunded.
+ * That refund is kept in [cache] too, before the owned answer is cleared, until its reset ran ([refundHandled]) or a
+ * purchase cancels it: a kill between the refund and the reset still resets at the next start (#1063).
  */
 class StoreBackedPro(
     buildUnlocked: Boolean,
@@ -32,12 +34,15 @@ class StoreBackedPro(
     init {
         if (!buildUnlocked) {
             scope.launch {
+                if (cache.readRefundPending()) refunded.value = true
                 if (cache.read() && store.verified.value == null) state.value = true
                 store.verified.filterNotNull().collect {
                     // A refund is a change from owned (verified, or kept from before) to a verified "not owned".
                     if (it) {
+                        if (refunded.value) cache.writeRefundPending(false)
                         refunded.value = false
                     } else if (state.value) {
+                        cache.writeRefundPending(true)
                         refunded.value = true
                     }
                     state.value = it
@@ -46,4 +51,6 @@ class StoreBackedPro(
             }
         }
     }
+
+    override suspend fun refundHandled() = cache.writeRefundPending(false)
 }

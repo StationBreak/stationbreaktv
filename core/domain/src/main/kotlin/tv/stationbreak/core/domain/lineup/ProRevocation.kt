@@ -10,7 +10,6 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
-import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ItemId
 
 /**
@@ -26,19 +25,19 @@ class ProRevocation(
     private val service: LineupService,
     private val libraries: suspend () -> Set<ItemId>?,
 ) {
-    /** True when the starters were reset. */
+    /**
+     * True when the starters were reset. [stillRevoked] is asked in the lineup's lock just before the save (#1063): a
+     * purchase that lands while the reset waits or plans means no reset is saved.
+     */
     @Suppress("TooGenericExceptionCaught") // Any failure of the plan or the save: reported, and tried again later.
-    suspend fun onRevoked(account: LibraryAccount): Boolean {
-        val channels =
-            service
-                .loaded(account)
-                ?.lineup
-                ?.channels
-                .orEmpty()
-        if (channels.none { !it.isViewerCustom() && it.chosenByViewer }) return false
+    suspend fun onRevoked(
+        account: LibraryAccount,
+        stillRevoked: () -> Boolean,
+    ): Boolean {
+        if (!marked(account)) return false
         return try {
             val chosen = libraries()?.takeIf { it.isNotEmpty() }
-            chosen != null && service.reset(account, chosen) is Saved.Ok
+            chosen != null && service.reset(account, chosen, stillRevoked) is Saved.Ok
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -47,9 +46,21 @@ class ProRevocation(
         }
     }
 
+    // Whether a channel a reset replaces (any but those it keeps, [isTheViewers]) still holds a viewer's mark.
+    private suspend fun marked(account: LibraryAccount): Boolean =
+        service
+            .loaded(account)
+            ?.lineup
+            ?.channels
+            .orEmpty()
+            .any { !it.isTheViewers() && it.chosenByViewer }
+
     /**
      * Resets the active account's starters while a refund stands ([ProEntitlement.revoked]) and Pro is off. A purchase
-     * that lands mid-reset, or a switch of account, cancels the one under way before it saves.
+     * that lands mid-reset, or a switch of account, cancels the one under way before it saves; a purchase that lands
+     * while it waits for the lineup's lock is caught there. Once no starter holds a mark, the reset is no longer owed
+     * at the next start ([ProEntitlement.refundHandled]); one that could not run (no libraries known, a failed save)
+     * stays owed.
      */
     fun watch(
         scope: CoroutineScope,
@@ -59,6 +70,11 @@ class ProRevocation(
         scope.launch {
             combine(pro.revoked, pro.pro, library.activeAccount()) { revoked, isPro, account ->
                 account.takeIf { revoked && !isPro }
-            }.collectLatest { account -> if (account != null) onRevoked(account) }
+            }.collectLatest { account ->
+                if (account != null) {
+                    onRevoked(account) { pro.revoked.value && !pro.pro.value }
+                    if (!marked(account)) pro.refundHandled()
+                }
+            }
         }
 }

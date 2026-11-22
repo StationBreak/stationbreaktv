@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeProEntitlement
@@ -141,7 +143,7 @@ class ProRefundTest {
             seed(edited.copy(viewerChoice = ViewerChoice.Touched))
             val revocation = ProRevocation(service) { LIBRARIES }
 
-            assertTrue(revocation.onRevoked(ACCOUNT))
+            assertTrue(revocation.onRevoked(ACCOUNT) { true })
 
             val lineup = decoded()
             assertTrue(lineup.channels.none { it.chosenByViewer && it.source is ChannelSource.Starter })
@@ -154,7 +156,7 @@ class ProRefundTest {
             seed()
             val before = store.inner.peek(ACCOUNT)
 
-            assertFalse(ProRevocation(service) { LIBRARIES }.onRevoked(ACCOUNT))
+            assertFalse(ProRevocation(service) { LIBRARIES }.onRevoked(ACCOUNT) { true })
             assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
@@ -165,7 +167,7 @@ class ProRefundTest {
             seed(touched.copy(viewerChoice = ViewerChoice.Touched))
             val before = store.inner.peek(ACCOUNT)
 
-            assertFalse(ProRevocation(service) { null }.onRevoked(ACCOUNT))
+            assertFalse(ProRevocation(service) { null }.onRevoked(ACCOUNT) { true })
             assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
@@ -182,6 +184,89 @@ class ProRefundTest {
             pro.set(false)
             assertEquals((1..FreeTier.CUSTOM_CHANNELS).map(::id), source.airings(NOON).map { it.id })
             assertEquals(null, source.onAir(id(6), NOON, 1))
+        }
+
+    @Test
+    fun aRefundThatLandsWhileAnEditWaitsForTheLockStillRefusesIt() =
+        runBlocking<Unit> {
+            seed()
+            service.loaded(ACCOUNT)
+            val before = store.inner.peek(ACCOUNT)
+            val lock = checkNotNull(service.lockOf(ACCOUNT))
+            lock.lock()
+            // Pro is on when the change is asked for, so any check made before the lock passes.
+            val change =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    manager.change(ACCOUNT, ChannelChange.SwitchOff(id(FreeTier.CUSTOM_CHANNELS + 1)))
+                }
+
+            pro.set(false)
+            lock.unlock()
+
+            assertEquals(ChangeResult.Refused(ChangeRefusal.NeedsPro), change.await())
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun aPurchaseThatLandsWhileTheRefundResetWaitsForTheLockStopsIt() =
+        runBlocking<Unit> {
+            val edited = starter("whodunit", 210, ChannelState.Shelf, rules("Whodunit", Source.Genre("Crime")))
+            seed(edited.copy(viewerChoice = ViewerChoice.Touched))
+            service.loaded(ACCOUNT)
+            val before = store.inner.peek(ACCOUNT)
+            pro.refund()
+            val lock = checkNotNull(service.lockOf(ACCOUNT))
+            lock.lock()
+            val reset =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    ProRevocation(service) { LIBRARIES }.onRevoked(ACCOUNT) { pro.revoked.value && !pro.pro.value }
+                }
+
+            pro.set(true)
+            lock.unlock()
+
+            assertFalse(reset.await(), "Pro is back: the reset is not saved")
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun anUnreadableCustomCountsTowardTheFreeFive_andIsNeverDeleted() =
+        runBlocking<Unit> {
+            // custom:c0 ranks first by ID and cannot be read: it still holds one of the five places.
+            val unreadable = channel("custom:c0", 650, ChannelState.On, ChannelSource.Unusable("not json"))
+            seed(unreadable)
+            library.useAccount(ACCOUNT)
+
+            pro.set(false)
+
+            assertEquals((1 until FreeTier.CUSTOM_CHANNELS).map(::id), shown())
+            val lockedNow = ProLockedIds(pro, library, service).now()
+            assertEquals((FreeTier.CUSTOM_CHANNELS..total).map(::id).toSet(), lockedNow)
+            assertEquals(lockedNow, decoded().channels.lockedCustomIds(), "the editors rank the same set")
+            assertTrue(decoded().channels.any { it.id == ChannelId("custom:c0") })
+        }
+
+    @Test
+    fun whatALockedCustomHoldsIsNotRead_whileFree() =
+        runBlocking<Unit> {
+            seed()
+            library.useAccount(ACCOUNT)
+            val held = ChannelHoldings(0, 0, HomeShows.Known(0, emptyList()), emptyList(), Long.MAX_VALUE)
+            val all =
+                object : ChannelHoldingsReader {
+                    override suspend fun read(
+                        id: ChannelId,
+                        at: Instant,
+                    ): ChannelHoldings = held
+                }
+            val reader = ProLockedHoldings(all, ProLockedIds(pro, library, service))
+            val six = id(FreeTier.CUSTOM_CHANNELS + 1)
+            assertEquals(held, reader.read(six, NOON))
+
+            pro.set(false)
+
+            assertEquals(null, reader.read(six, NOON))
+            assertEquals(held, reader.read(id(1), NOON))
         }
 
     private class AiringsOnly(

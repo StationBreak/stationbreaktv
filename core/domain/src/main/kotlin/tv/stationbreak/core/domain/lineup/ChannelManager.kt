@@ -72,10 +72,15 @@ class ChannelManager(
         change: ChannelChange,
     ): ChangeResult =
         try {
-            if (!pro.pro.value && touchesBuiltIn(account, change)) {
+            if (!pro.pro.value && touchesBuiltIn(service.loaded(account)?.lineup?.channels, change)) {
                 ChangeResult.Refused(ChangeRefusal.NeedsPro)
             } else {
-                resultOf(service.edit(account, change.toEdit(), librariesFor(change)))
+                // Asked again in the lock (#1063): a refund that lands while the edit waits for it is not missed.
+                val edited =
+                    service.edit(account, change.toEdit(), librariesFor(change)) {
+                        pro.pro.value || !touchesBuiltIn(it.channels, change)
+                    }
+                resultOf(edited)
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -84,11 +89,11 @@ class ChannelManager(
             ChangeResult.Failed
         }
 
-    // True when the change touches a channel that is not the viewer's own readable custom one (or is one locked after a
-    // refund, [lockedCustoms]), or swaps with one. An
-    // unknown ID is left to the engine to refuse as unknown. "Use my collections" touches no channel.
-    private suspend fun touchesBuiltIn(
-        account: LibraryAccount,
+    // True when the change touches a channel of [channels] that is not the viewer's own readable custom one (or is one
+    // locked after a refund, [lockedCustoms]), or swaps with one. An unknown ID is left to the engine to refuse as
+    // unknown. "Use my collections" touches no channel.
+    private fun touchesBuiltIn(
+        channels: List<LineupChannel>?,
         change: ChannelChange,
     ): Boolean {
         val touched =
@@ -100,7 +105,6 @@ class ChannelManager(
                 is ChannelChange.UseMyCollections -> emptyList()
             }
         // Fail closed: with no lineup to look at, a free viewer's change is gated.
-        val channels = service.loaded(account)?.lineup?.channels
         return when {
             touched.isEmpty() -> {
                 false
@@ -159,6 +163,7 @@ class ChannelManager(
                 Unsaved.NotEditable -> ChangeResult.NotEditable
                 Unsaved.SaveFailed -> ChangeResult.SaveFailed
                 Unsaved.Invalid -> ChangeResult.Refused(ChangeRefusal.Invalid)
+                Unsaved.Denied -> ChangeResult.Refused(ChangeRefusal.NeedsPro)
             }
         }
 
@@ -192,7 +197,7 @@ class ChannelManager(
     ): ResetResult {
         val saved =
             try {
-                service.reset(account, chosen)
+                service.reset(account, chosen) { pro.pro.value }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -203,6 +208,7 @@ class ChannelManager(
             null -> ResetResult.NotEditable
             Saved.Failed, Saved.Invalid -> ResetResult.SaveFailed
             Saved.Unavailable -> ResetResult.LibrariesUnavailable
+            Saved.Denied -> ResetResult.NeedsPro
             is Saved.Ok -> if (saved.value.hasOn()) ResetResult.Chosen else ResetResult.NotChosenYet
         }
     }
@@ -245,8 +251,8 @@ private fun ChannelChange.toEdit(): LineupEdit =
         is ChannelChange.UseMyCollections -> LineupEdit.UseMyCollections(on)
     }
 
-/** Why an edit through the service was not applied and not refused either. */
-internal enum class Unsaved { NotEditable, SaveFailed, Invalid }
+/** Why an edit through the service was not applied and not refused by the engine either. */
+internal enum class Unsaved { NotEditable, SaveFailed, Invalid, Denied }
 
 /**
  * What came of an edit through [LineupService.edit], in the caller's own words: [done] when it was applied (or changed
@@ -269,6 +275,10 @@ internal inline fun <R> Saved<EditOutcome>?.mapped(
 
         Saved.Invalid -> {
             other(Unsaved.Invalid)
+        }
+
+        Saved.Denied -> {
+            other(Unsaved.Denied)
         }
 
         is Saved.Ok -> {
