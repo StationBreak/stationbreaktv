@@ -16,6 +16,13 @@ interface StoreEntitlement {
     val verified: StateFlow<Boolean?>
 
     /**
+     * Whether the store can be bought from at all: true only with a real store adapter behind it. While false, nothing
+     * Pro-facing is shown to a viewer who does not have Pro (no Pro row, no Pro notes, no purchase screen), so a build
+     * with no working store, such as the Amazon release before its adapter lands, stays the plain free app.
+     */
+    val available: StateFlow<Boolean>
+
+    /**
      * The price of Pro as the store words it, in the store's currency and format (never built here, and never kept in
      * the app), or null until the store has given one, or when it cannot.
      */

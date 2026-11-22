@@ -40,6 +40,9 @@ private object NoStore : StoreEntitlement {
 
     override suspend fun purchase(): PurchaseOutcome = PurchaseOutcome.Failed
 
+    // The stand-in has no store behind it, so nothing Pro-facing shows until a real adapter reports true.
+    override val available: StateFlow<Boolean> = MutableStateFlow(false)
+
     override val price: StateFlow<String?> = MutableStateFlow(null)
 
     override suspend fun restore(): RestoreOutcome = RestoreOutcome.Failed

@@ -55,7 +55,7 @@ class GuideSettingsKeysTest {
     @Test
     fun okOnTheProRowShowsTheProScreen_andBackFromItReturnsToTheSheetOnTheRow() {
         val pro = on(SettingsRow.Pro)
-        val shown = pro.press(Key.DirectionCenter)
+        val shown = pro.press(Key.DirectionCenter, defaults.copy(storeAvailable = true))
         assertEquals(SettingsStep(SettingsPanel(SettingsRow.Pro, proShown = true)), shown)
         assertTrue(checkNotNull(shown.panel).covered)
         // While it shows, the sheet keeps every key and does nothing: the screen has them.
@@ -67,7 +67,7 @@ class GuideSettingsKeysTest {
 
     @Test
     fun okOnTheProRowDoesNothingWhileKidsModeIsOn() {
-        val locked = defaults.copy(kidsOn = true, kidsPinSet = true)
+        val locked = defaults.copy(kidsOn = true, kidsPinSet = true, storeAvailable = true)
         assertEquals(SettingsStep(on(SettingsRow.Pro)), on(SettingsRow.Pro).press(Key.DirectionCenter, locked))
     }
 

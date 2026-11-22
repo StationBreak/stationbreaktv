@@ -30,7 +30,7 @@ class ChannelsAboutTest {
     fun everyChannelCanBeAskedAboutWhateverItsKindOrTheAccess() {
         for (kind in ChannelKind.entries) {
             for (access in LineupAccess.entries) {
-                val choices = actionsOf(row(ChannelGroup.On, kind), access, reasonsRead = true)
+                val choices = actionsOf(row(ChannelGroup.On, kind), access, reasonsRead = true, isPro = true)
                 assertEquals("$kind $access", Choice.About, choices.last())
             }
         }

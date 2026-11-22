@@ -71,7 +71,8 @@ internal enum class SettingsRow(
     /**
      * StationBreak Pro (#99): opens its screen over the sheet, which is the purchase screen in a build that sells Pro
      * and the Support StationBreak page in one that does not ([SettingsValues.offer]; the row's words follow it).
-     * Always shown, and the only mention of Pro on the sheet; Kids Mode switches it off like the rows that could spend
+     * Shown only with something to open ([isShown]: a Support page, or a store that is available), and the only
+     * mention of Pro on the sheet; Kids Mode switches it off like the rows that could spend
      * or sidestep.
      */
     Pro(RowKind.Link, R.string.guide_settings_pro),
@@ -85,7 +86,8 @@ internal enum class SettingsRow(
 
     /**
      * Whether the sheet shows this row for [values]: all but crash reports, which need a build with an endpoint,
-     * Change PIN, which needs a PIN to change and Kids Mode off, and Hours of operation, which is there only with Pro.
+     * Change PIN, which needs a PIN to change and Kids Mode off, Hours of operation, which is there only with Pro, and
+     * the Pro row, which needs a store to buy from or a Support page.
      * With Pro the sheet is one row taller than the free one; where that is more than the screen holds, it scrolls, as
      * the sheet already does at a large font.
      */
@@ -94,6 +96,7 @@ internal enum class SettingsRow(
             CrashReports -> values.crashReportsAvailable
             ChangePin -> values.kidsPinSet && !values.kidsOn
             Hours -> values.pro
+            Pro -> values.offer is ProOffer.Support || values.storeAvailable
             else -> true
         }
 
@@ -150,6 +153,8 @@ internal data class SettingsValues(
     val hours: HoursSchedule = HoursSchedule.EMPTY,
     /** What this build offers for Pro (#99): a purchase screen, or a Support link. Fixed for the build. */
     val offer: ProOffer = ProOffer.Store,
+    /** The store can be bought from (#99): without it a Store offer has no Pro row at all. */
+    val storeAvailable: Boolean = false,
 )
 
 /**

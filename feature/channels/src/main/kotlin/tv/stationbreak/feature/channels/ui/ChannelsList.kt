@@ -42,6 +42,7 @@ import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
+import tv.stationbreak.feature.channels.canReset
 
 /**
  * One line of the list: the "Use my collections" switch, the New channel row, a group's heading, a channel, or the
@@ -64,7 +65,10 @@ private sealed interface Line {
     data object Reset : Line
 }
 
-private fun linesOf(rows: List<ChannelRow>): List<Line> =
+private fun linesOf(
+    rows: List<ChannelRow>,
+    showsReset: Boolean,
+): List<Line> =
     buildList {
         add(Line.Household)
         add(Line.New)
@@ -74,7 +78,7 @@ private fun linesOf(rows: List<ChannelRow>): List<Line> =
             add(Line.Heading(group, inGroup.size))
             inGroup.forEach { add(Line.Channel(it)) }
         }
-        add(Line.Reset)
+        if (showsReset) add(Line.Reset)
     }
 
 @Composable
@@ -82,7 +86,7 @@ internal fun ChannelList(
     ui: ChannelsUi,
     modifier: Modifier = Modifier,
 ) {
-    val lines = remember(ui.rows) { linesOf(ui.rows) }
+    val lines = remember(ui.rows, ui.isPro, ui.proOffered) { linesOf(ui.rows, canReset(ui.isPro, ui.proOffered)) }
     val state = rememberLazyListState()
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }

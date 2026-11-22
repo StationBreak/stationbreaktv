@@ -176,4 +176,5 @@ private fun messageRes(message: ChannelsMessage): Int =
         ChannelsMessage.LibrariesUnavailable -> R.string.channels_libraries_unavailable
         ChannelsMessage.NumberTaken -> R.string.builder_number_taken_pick
         ChannelsMessage.DefaultNumberTaken -> R.string.channels_refused_number_taken
+        ChannelsMessage.CustomLimit -> R.string.pro_custom_limit_note
     }

@@ -97,6 +97,9 @@ internal enum class ChannelsMessage {
 
     /** The same for Default number: there is no number to pick again, so the note does not ask for one. */
     DefaultNumberTaken,
+
+    /** Free holds a few custom channels, and they are all made (#793). A line only where Pro is not on offer. */
+    CustomLimit,
 }
 
 /** Where the focus is, by identity, so it follows a row that moves group. */
@@ -155,6 +158,8 @@ internal data class ChannelsUi(
     val holder: ChannelId? = null,
     /** The purchase screen shows over the list (#99); the keys are the slot's, and Back from it comes back here. */
     val seeingPro: Boolean = false,
+    /** The store is available (#99): a free viewer is shown the Pro choices and the way to buy; off, hidden. */
+    val proOffered: Boolean = false,
 ) {
     companion object {
         val Empty =

@@ -314,6 +314,7 @@ internal fun GuideRoot(
     val kids by viewModel.kidsState.collectAsStateWithLifecycle()
     val hours by viewModel.hoursState.collectAsStateWithLifecycle()
     val isPro by viewModel.proState.collectAsStateWithLifecycle()
+    val storeAvailable by viewModel.storeAvailable.collectAsStateWithLifecycle()
     val settingsValues =
         SettingsValues(
             themeChoice,
@@ -330,6 +331,7 @@ internal fun GuideRoot(
             pro = isPro,
             hours = hours,
             offer = viewModel.offer,
+            storeAvailable = storeAvailable,
         )
     val shownValues by rememberUpdatedState(settingsValues)
     // Kids Mode, like the stores' values, as it stands at the key.
@@ -344,6 +346,7 @@ internal fun GuideRoot(
             pro = viewModel.proState.value,
             hours = viewModel.hoursState.value,
             offer = viewModel.offer,
+            storeAvailable = viewModel.storeAvailable.value,
         )
     }
     val scope = rememberCoroutineScope()

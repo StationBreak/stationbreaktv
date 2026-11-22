@@ -16,6 +16,9 @@ open class FakeStoreEntitlement(
 
     override val verified: StateFlow<Boolean?> = state
 
+    /** Whether the store can be bought from: a fake is available unless a test says otherwise. */
+    override val available = MutableStateFlow(true)
+
     /** What the store says Pro costs; null is a store that has not given a price. */
     override val price = MutableStateFlow<String?>("$19.99")
 

@@ -22,6 +22,7 @@ class StoreOfferTest {
         runTest {
             val store = StoreModule.storeEntitlement()
             assertEquals(false, store.verified.value)
+            assertEquals("no Pro is shown while the store is unavailable", false, store.available.value)
             assertNull(store.price.value)
             assertEquals(PurchaseOutcome.Failed, store.purchase())
             assertEquals(RestoreOutcome.Failed, store.restore())

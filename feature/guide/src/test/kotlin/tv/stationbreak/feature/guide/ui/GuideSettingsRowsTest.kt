@@ -53,10 +53,15 @@ class GuideSettingsRowsTest {
     }
 
     @Test
-    fun theProRowIsAlwaysOnTheSheet_andSaysSupportInABuildWithNoStore() {
-        assertEquals(true, SettingsRow.Pro.isShown(SettingsValues()))
-        assertEquals("StationBreak Pro", text(SettingsRow.Pro.labelFor(SettingsValues())))
+    fun theProRowIsOnTheSheetOnlyWithAStoreOrASupportPage_andSaysSupportInABuildWithNoStore() {
+        // The Amazon release before its adapter: the store is not available, so there is no Pro row at all.
+        assertEquals(false, SettingsRow.Pro.isShown(SettingsValues()))
+        assertEquals(false, SettingsRow.Pro.isShown(SettingsValues(pro = true)))
+        val store = SettingsValues(storeAvailable = true)
+        assertEquals(true, SettingsRow.Pro.isShown(store))
+        assertEquals("StationBreak Pro", text(SettingsRow.Pro.labelFor(store)))
         val github = SettingsValues(offer = ProOffer.Support("https://example.test/support"))
+        assertEquals(true, SettingsRow.Pro.isShown(github))
         assertEquals("Support StationBreak", text(SettingsRow.Pro.labelFor(github)))
         assertEquals("Sign out", text(SettingsRow.SignOut.labelFor(github)))
     }

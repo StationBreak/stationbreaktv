@@ -141,6 +141,9 @@ internal class ChannelsRig(
         object : Clock {
             override fun now(): Instant = Instant.fromEpochMilliseconds(T0)
         }
+
+    /** Whether the store is available (#99): off by default, as in the Amazon release before its adapter. */
+    val offered = MutableStateFlow(false)
     val vm =
         ChannelsViewModel(
             library,
@@ -154,6 +157,7 @@ internal class ChannelsRig(
             readiness,
             clock,
             StandardTestDispatcher(scope.testScheduler),
+            offered,
         )
     val ui get() = vm.ui.value
 
