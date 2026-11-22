@@ -56,7 +56,8 @@ class GuideSettingsRowsTest {
     fun theProRowIsOnTheSheetOnlyWithAStoreOrASupportPage_andSaysSupportInABuildWithNoStore() {
         // The Amazon release before its adapter: the store is not available, so there is no Pro row at all.
         assertEquals(false, SettingsRow.Pro.isShown(SettingsValues()))
-        assertEquals(false, SettingsRow.Pro.isShown(SettingsValues(pro = true)))
+        // An owner whose adapter is offline still sees "You have StationBreak Pro".
+        assertEquals(true, SettingsRow.Pro.isShown(SettingsValues(pro = true)))
         val store = SettingsValues(storeAvailable = true)
         assertEquals(true, SettingsRow.Pro.isShown(store))
         assertEquals("StationBreak Pro", text(SettingsRow.Pro.labelFor(store)))

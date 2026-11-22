@@ -1062,7 +1062,7 @@ class ChannelsScreenTest {
         assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
 
         press(Pad.Select)
-        messageIs("Free includes 5 custom channels. Delete one to make another.")
+        messageIs("Free includes 5 custom channels. Delete some of yours to make room.")
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
     }
@@ -1127,7 +1127,7 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_COPY)
 
         press(Pad.Select)
-        messageIs("Free includes 5 custom channels. Delete one to make another.")
+        messageIs("Free includes 5 custom channels. Delete some of yours to make room.")
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
     }

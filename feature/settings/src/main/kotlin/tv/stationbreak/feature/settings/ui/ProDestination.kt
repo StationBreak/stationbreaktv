@@ -226,6 +226,7 @@ private fun resultText(result: ProResult): Int =
         ProResult.AlreadyOwned -> R.string.settings_pro_already_owned
         ProResult.Cancelled -> R.string.settings_pro_cancelled
         ProResult.Pending -> R.string.settings_pro_pending
+        ProResult.Confirming -> R.string.settings_pro_confirming
         ProResult.Failed -> R.string.settings_pro_failed
         ProResult.Restored -> R.string.settings_pro_restored
         ProResult.NothingToRestore -> R.string.settings_pro_nothing_to_restore

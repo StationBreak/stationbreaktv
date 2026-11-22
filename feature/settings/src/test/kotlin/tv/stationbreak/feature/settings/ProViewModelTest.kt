@@ -96,14 +96,13 @@ class ProViewModelTest {
         }
 
     @Test
-    fun cancelledFailedAndPending_leaveProOff_andEachIsSaid() =
+    fun cancelledAndFailed_leaveProOff_andBuyStays_andEachIsSaid() =
         runTest {
             val rig = rig()
             val said =
                 listOf(
                     PurchaseOutcome.Cancelled to ProResult.Cancelled,
                     PurchaseOutcome.Failed to ProResult.Failed,
-                    PurchaseOutcome.Pending to ProResult.Pending,
                 ).map { (outcome, result) ->
                     store.next = outcome
                     press(rig)
@@ -152,20 +151,14 @@ class ProViewModelTest {
     fun aSecondPressWhileTheStoreIsAsked_startsNothingMore() =
         runTest {
             val held = CompletableDeferred<Unit>()
-            val slow =
-                object : FakeStoreEntitlement(initial = false) {
-                    override suspend fun purchase(): PurchaseOutcome {
-                        held.await()
-                        return super.purchase()
-                    }
-                }
-            val rig = rig(gate = slow)
+            store.purchaseHold = held
+            val rig = rig()
             press(rig)
             assertTrue(rig.now.busy)
             press(rig)
             held.complete(Unit)
             runCurrent()
-            assertEquals(1, slow.purchases)
+            assertEquals(1, store.purchases)
             assertFalse(rig.now.busy)
             assertEquals(ProResult.Bought, rig.now.result)
         }
@@ -173,14 +166,79 @@ class ProViewModelTest {
     @Test
     fun aThrowFromTheStoreIsOneFailure_withNoMessageKept() =
         runTest {
-            val throwing =
-                object : FakeStoreEntitlement(initial = false) {
-                    override suspend fun purchase(): PurchaseOutcome = error("receipt 123 for user 9")
-                }
-            val rig = rig(gate = throwing)
+            store.purchaseThrows = true
+            val rig = rig()
             press(rig)
             assertEquals(ProResult.Failed, rig.now.result)
             assertFalse(rig.now.busy)
+        }
+
+    @Test
+    fun aSuccessIsSaidAsConfirming_untilProIsOwned() {
+        assertEquals(ProResult.Confirming, said(ProResult.Bought, owned = false))
+        assertEquals(ProResult.Confirming, said(ProResult.Restored, owned = false))
+        assertEquals(ProResult.AlreadyOwned, said(ProResult.AlreadyOwned, owned = true))
+        assertNull("a Pending never shows under the owned layout", said(ProResult.Pending, owned = true))
+    }
+
+    @Test
+    fun pendingThenTheStoreSettles_clearsThePendingLine_underTheOwnedLayout() =
+        runTest {
+            store.next = PurchaseOutcome.Pending
+            val rig = rig()
+            press(rig)
+            assertEquals(ProResult.Pending, rig.now.result)
+            store.settle(true)
+            runCurrent()
+            assertTrue(rig.now.owned)
+            assertNull(rig.now.result)
+        }
+
+    @Test
+    fun boughtThenARefund_bringsBackBuy_withNoThankYou() =
+        runTest {
+            val rig = rig()
+            press(rig)
+            assertEquals(ProResult.Bought, rig.now.result)
+            store.revoke()
+            runCurrent()
+            assertFalse(rig.pro.pro.value)
+            assertFalse(rig.now.owned)
+            assertTrue("Buy is back", rig.now.actionable)
+            assertNull(rig.now.result)
+        }
+
+    @Test
+    fun pendingKeepsBuyOff_untilTheStoresAnswerChanges() =
+        runTest {
+            store.next = PurchaseOutcome.Pending
+            val rig = rig()
+            press(rig)
+            assertEquals(ProResult.Pending, rig.now.result)
+            assertTrue(rig.now.held)
+            assertFalse(rig.now.actionable)
+            press(rig)
+            assertEquals("a second purchase was not started", 1, store.purchases)
+
+            store.settle(false)
+            runCurrent()
+            assertTrue("a lapse with no change of answer is still held", rig.now.held)
+            store.settle(true)
+            runCurrent()
+            assertFalse(rig.now.held)
+        }
+
+    @Test
+    fun pendingIsForgottenWhenTheViewerLeavesAndComesBack() =
+        runTest {
+            store.next = PurchaseOutcome.Pending
+            val rig = rig()
+            press(rig)
+            assertFalse(rig.now.actionable)
+            rig.vm.open()
+            runCurrent()
+            assertTrue(rig.now.actionable)
+            assertNull(rig.now.result)
         }
 
     @Test

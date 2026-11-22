@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.store
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * A [StoreEntitlement] for tests: [purchase] ends as [next], and the store's state follows what a real one would
- * report ([PurchaseOutcome.Purchased] and [PurchaseOutcome.AlreadyOwned] verify Pro, the rest change nothing). [revoke] is a refund seen in the
- * purchase updates, and [owned] is what the account owns, read by [restore].
+ * report ([PurchaseOutcome.Purchased] and [PurchaseOutcome.AlreadyOwned] verify Pro, the rest change nothing).
+ * [revoke] is a refund seen in the purchase updates, and [owned] is what the account owns, read by [restore].
+ * Open only because a test wraps [verified] to see when it is collected.
  */
 open class FakeStoreEntitlement(
     initial: Boolean? = null,
@@ -25,6 +27,12 @@ open class FakeStoreEntitlement(
     /** The next [restore] fails (the store could not be asked). */
     var restoreFails: Boolean = false
 
+    /** [purchase] throws (the store call itself broke). */
+    var purchaseThrows: Boolean = false
+
+    /** When set, [purchase] waits for it to complete before it answers: a store call still out. */
+    var purchaseHold: CompletableDeferred<Unit>? = null
+
     /** What the next [purchase] ends as. */
     var next: PurchaseOutcome = PurchaseOutcome.Purchased
 
@@ -40,6 +48,8 @@ open class FakeStoreEntitlement(
 
     override suspend fun purchase(): PurchaseOutcome {
         purchases++
+        purchaseHold?.await()
+        check(!purchaseThrows) { "store broke" }
         if (next == PurchaseOutcome.Purchased || next == PurchaseOutcome.AlreadyOwned) {
             owned = true
             state.value = true
@@ -52,6 +62,12 @@ open class FakeStoreEntitlement(
         if (restoreFails) return RestoreOutcome.Failed
         state.value = owned
         return if (owned) RestoreOutcome.Found else RestoreOutcome.None
+    }
+
+    /** A held purchase settles later: the store now reports Pro as [verified] (true lands it, false lapses it). */
+    fun settle(verified: Boolean) {
+        owned = verified
+        state.value = verified
     }
 
     /** The store reports the purchase refunded. */
