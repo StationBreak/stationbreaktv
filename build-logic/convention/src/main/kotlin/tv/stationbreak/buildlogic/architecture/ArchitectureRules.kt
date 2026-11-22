@@ -192,7 +192,8 @@ object ArchitectureRules {
 
     // Edges that only a module's tests may have, beyond its allowlist: data:library's edit-cutoff property test builds
     // days with the real scheduler (spec 09 task 2.11). Its main code reaches the scheduler only through core:domain.
-    private val TEST_ONLY_EDGES = mapOf(":data:library" to setOf(":core:scheduler"))
+    // core:engine's audit tests (the lineup gate, #1035) cut pools by the epoch with the scheduler's own function.
+    private val TEST_ONLY_EDGES = mapOf(":data:library" to setOf(":core:scheduler"), ":core:engine" to setOf(":core:scheduler"))
 
     // Every feature:* module (all Android), matched by prefix.
     private val FEATURE =

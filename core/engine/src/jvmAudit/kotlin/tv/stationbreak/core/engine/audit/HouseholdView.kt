@@ -11,6 +11,7 @@ import tv.stationbreak.core.engine.lineup.HouseholdSources
 import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.RecipeResolver
 import tv.stationbreak.core.engine.lineup.curatedOn
 import tv.stationbreak.core.engine.lineup.curation.Curated
 import tv.stationbreak.core.engine.lineup.curation.Curation
@@ -23,6 +24,20 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.SchedulerSettings
+
+/**
+ * The epoch pool the day build makes of a channel's [items] for the day that starts at `dayStartMs`
+ * (`EpochPool.build` at `Epochs.epochNumber`): given by the caller, because `core:engine` may not depend on
+ * `core:scheduler` outside its tests.
+ */
+internal fun interface EpochCut {
+    fun cut(
+        settings: SchedulerSettings,
+        items: List<ScheduleItem>,
+        dayStartMs: Long,
+    ): List<ScheduleItem>
+}
 
 /** One channel of the household view: what it airs on the day, under the ceiling and policy a day build gives it. */
 @Suppress("LongParameterList") // A plain carrier: one parameter for each fact the invariants and the report read.
@@ -55,14 +70,32 @@ internal class HouseholdView(
  * one function `core:domain` schedules under too.
  */
 internal object HouseholdViews {
-    fun of(planned: PlannedLineup): HouseholdView {
+    /**
+     * The view of [planned]. [policyOverride], for the gate's own tests only, weakens a channel's policy (null keeps
+     * the real `KidStatus` one), so a test can prove the invariants catch a view built through a laxer path.
+     *
+     * Not modelled, so refused with a message (a planner lineup with the viewer's switch-ons has none of them): custom
+     * channels, edited starters and hidden channels. The day build also lets a custom channel and a non-curated starter
+     * claim from the leftovers, and withholds a hidden channel's pool; a fixture that holds them needs that first.
+     */
+    fun of(
+        planned: PlannedLineup,
+        epoch: EpochCut,
+        policyOverride: ((LineupChannel) -> PoolPolicy?)? = null,
+    ): HouseholdView {
         val lineup = planned.lineup
+        val unmodelled = lineup.channels.filter { isUnmodelled(it) }
+        check(unmodelled.isEmpty()) {
+            "The gate does not model custom channels, edited starters or hidden channels " +
+                "(${unmodelled.size} in this lineup): see docs/design/lineup-seats-and-gaps.md"
+        }
         val day = planned.day
         val snapshot = planned.snapshot
         val household = lineup.householdFor(day.startMs)
+        val policyOf = { c: LineupChannel -> policyOverride?.invoke(c) ?: KidStatus.basePolicyOf(c) }
         val onSet = lineup.curatedOn(day, planned.planning.recipeKeys)
         val curationChannels =
-            lineup.channels.filter { it.id in onSet }.mapNotNull { curationChannelOf(it, planned, household) }
+            lineup.channels.filter { it.id in onSet }.mapNotNull { curationChannelOf(it, planned, household, policyOf) }
         val curated = if (curationChannels.isEmpty()) null else Curation.curate(snapshot, curationChannels)
         val claimed = HashSet<CanonicalId>()
         val channels = ArrayList<GateChannel>()
@@ -71,8 +104,9 @@ internal object HouseholdViews {
             for (item in pool.claimed) claimed += item.id
             val source = lineup.channels.first { it.id == c.id }
             val homed = pool.items.map { it.groupId }.filterTo(HashSet()) { curated.homes.homeOf(it) == c.id }
+            val items = epoch.cut(c.settings, pool.items, day.startMs)
             val policy = policyOf(source)
-            channels += GateChannel(c.recipe.key, c.id, c.number, false, c.rules.maxRating, policy, pool.items, homed)
+            channels += GateChannel(c.recipe.key, c.id, c.number, false, c.rules.maxRating, policy, items, homed)
         }
         claimed += withheld(planned, household)
         val ceilinged = { c: LineupChannel -> ChannelCeilings.of(c, planned.catalog) == null }
@@ -82,28 +116,47 @@ internal object HouseholdViews {
             if (channel.startsAfter(day)) continue
             val source = channel.source as ChannelSource.Leftovers
             val ceiling = ChannelCeilings.of(channel, planned.catalog)
-            val policy = KidStatus.policyOf(channel, lineup, day)
+            val policy = policyOverride?.invoke(channel) ?: KidStatus.policyOf(channel, lineup, day)
             val pool = Leftovers.pool(snapshot, claimed, ceiling, policy)
-            pool.items.mapTo(claimed) { it.id }
+            // As the day build does: what a leftovers channel claims, and airs, is its pool as the epoch cuts it.
+            val items = epoch.cut(leftoversSettings(source, planned), pool.items, day.startMs)
+            items.mapTo(claimed) { it.id }
             if (channel.state == ChannelState.On) {
                 val key = "leftovers:${source.recipeKey}"
-                channels += GateChannel(key, channel.id, channel.number, true, ceiling, policy, pool.items, emptySet())
+                channels += GateChannel(key, channel.id, channel.number, true, ceiling, policy, items, emptySet())
             }
         }
         return HouseholdView(snapshot, channels, curated)
     }
 
-    private fun policyOf(channel: LineupChannel): PoolPolicy = KidStatus.basePolicyOf(channel)
+    private fun isUnmodelled(channel: LineupChannel): Boolean {
+        val source = channel.source
+        val edited = source is ChannelSource.Starter && source.edited
+        return source is ChannelSource.Custom || source is ChannelSource.Unusable || edited ||
+            channel.state == ChannelState.UserHidden
+    }
 
-    // The curation's view of a curated starter on the day: its rules (household applied) under its ceiling and policy.
+    // The catalog's recipe while the key is in it, as `LineupDays.leftoversSettings` has it.
+    private fun leftoversSettings(
+        source: ChannelSource.Leftovers,
+        planned: PlannedLineup,
+    ): SchedulerSettings {
+        val recipe = planned.catalog.leftovers.first { it.key == source.recipeKey }
+        return RecipeResolver.leftoversSettings(recipe, planned.lineup.serverId, planned.lineup.utcOffsetMinutes)
+    }
+
+    // The curation's view of a curated starter on the day: its rules (as `rulesAt` has them) under its ceiling and
+    // policy.
     private fun curationChannelOf(
         channel: LineupChannel,
         planned: PlannedLineup,
         household: Boolean,
+        policyOf: (LineupChannel) -> PoolPolicy,
     ): CurationChannel? {
-        val recipe = planned.planning.recipe((channel.source as ChannelSource.Starter).recipeKey)
-        val own = (channel.source as ChannelSource.Starter).rulesFor(planned.day.startMs)
-        val rules = if (household) own else HouseholdSources.without(own, planned.snapshot)
+        val source = channel.source as ChannelSource.Starter
+        val recipe = planned.planning.recipe(source.recipeKey)
+        val own = source.rulesFor(planned.day.startMs)
+        val rules = if (source.edited || household) own else HouseholdSources.without(own, planned.snapshot)
         val ruled = rules?.copy(maxRating = ChannelCeilings.of(channel, planned.catalog))
         val settings = ruled?.let { runCatching { it.toSchedulerSettings() }.getOrNull() }
         if (recipe == null || ruled == null || settings == null) return null

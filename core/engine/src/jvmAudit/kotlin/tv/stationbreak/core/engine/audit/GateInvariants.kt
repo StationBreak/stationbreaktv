@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.rules.AdultMark
+import tv.stationbreak.core.rules.RatingLadder
 
 /** The hard-fail rules of the gate (#1035). Each names what it holds, for a failure's text. */
 internal enum class Rule(
@@ -86,7 +87,7 @@ internal object GateInvariants {
         val limit = limitOf(channel)
         val broken =
             listOfNotNull(
-                Rule.Ceiling.takeIf { !withinCeiling(channel, entry, series) },
+                Rule.Ceiling.takeIf { !CeilingOracle.within(channel, entry, series) },
                 Rule.HorrorVeto.takeIf { limit != null && horrorAboveKids(limit, tier, entry, series) },
                 Rule.UnratedOnYoungBand.takeIf { limit != null && unrated(id, entry, series) },
                 Rule.ExplicitOffAfterHours.takeIf { tier == RatingTier.Explicit && !channel.isAfterHours },
@@ -123,17 +124,6 @@ internal object GateInvariants {
             else -> null
         }
     }
-
-    // As the pool evaluation applies it: the kid ceiling on a kids channel, rule 4 with Approved unrated elsewhere.
-    private fun withinCeiling(
-        channel: GateChannel,
-        entry: RuleItem,
-        series: RuleSeries?,
-    ): Boolean =
-        when (channel.policy) {
-            PoolPolicy.KidsOnly -> KidHold.passesKidCeiling(entry, series, channel.ceiling)
-            else -> passesCeiling(entry, series, channel.ceiling, approvedIsUnrated = channel.policy != PoolPolicy.Open)
-        }
 
     private fun isHorror(
         entry: RuleItem,
@@ -217,4 +207,40 @@ private class Context(
     fun entry(id: CanonicalId): RuleItem = checkNotNull(items[id]) { "An aired item is not in the snapshot" }
 
     fun series(entry: RuleItem): RuleSeries? = entry.item.seriesId?.let { snapshot.series[it] }
+}
+
+/**
+ * The ceiling rule, checked twice. By the pool rules as the evaluation applies them (the kid ceiling on a kids channel,
+ * rule 4 with Approved unrated elsewhere). And, apart from the pool code, by the ladder alone: every rating the item
+ * and its series carry is on the ladder and at most the ceiling's rank, and an item with no rating fails any ceiling
+ * (a rating we cannot read fails up).
+ */
+internal object CeilingOracle {
+    fun within(
+        channel: GateChannel,
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean = byPoolRules(channel, entry, series) && byLadderRank(channel, entry, series)
+
+    private fun byPoolRules(
+        channel: GateChannel,
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean =
+        when (channel.policy) {
+            PoolPolicy.KidsOnly -> KidHold.passesKidCeiling(entry, series, channel.ceiling)
+            else -> passesCeiling(entry, series, channel.ceiling, approvedIsUnrated = channel.policy != PoolPolicy.Open)
+        }
+
+    private fun byLadderRank(
+        channel: GateChannel,
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean {
+        val limit = channel.ceiling?.let { RatingLadder.rankOf(it) }
+        val rated = listOf(entry.officialRating, series?.officialRating).filter { !it.isNullOrBlank() }
+        val ranks = rated.map { RatingLadder.rankOf(it) }
+        val allUnder = limit != null && ranks.isNotEmpty() && ranks.all { it != null && it <= limit }
+        return channel.ceiling == null || allUnder
+    }
 }

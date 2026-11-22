@@ -40,6 +40,9 @@ kotlin {
         // `commonMain` through its api; the audit names it for itself, so it does not rely on that.)
         audit.defaultSourceSet.dependencies { implementation(libs.kotlinx.serialization.json) }
         auditTest.defaultSourceSet.dependencies { implementation(kotlin("test-junit")) }
+        // The gate (#1035) runs from here: it cuts each channel's pool by the epoch with the scheduler's own function, as
+        // the day build does. A test-only edge (docs/MODULES.md): the audit's main code stays free of core:scheduler.
+        auditTest.defaultSourceSet.dependencies { implementation(project(":core:scheduler")) }
     }
 }
 
@@ -130,8 +133,10 @@ tasks.register<JavaExec>("lineupAuditGoldens") {
 tasks.register<JavaExec>("lineupGate") {
     group = "lineup audit"
     description = "Runs the household-view lineup gate on the frozen fixtures."
-    classpath = auditClasspath
+    classpath = files(auditTestCompilation.output.allOutputs, auditTestCompilation.runtimeDependencyFiles)
     mainClass.set("tv.stationbreak.core.engine.audit.GateMain")
+    // A verification: it runs every time it is asked for, whatever the warnings file says.
+    outputs.upToDateWhen { false }
     inputs.files(fileTree(gateDir)).withPropertyName("gateFiles").withPathSensitivity(PathSensitivity.RELATIVE)
     val warnings = layout.buildDirectory.file("reports/lineup-gate/warnings.txt")
     args("--fixtures", gateFixtureDir.asFile.absolutePath, "--golden", gateGoldenDir.asFile.absolutePath)

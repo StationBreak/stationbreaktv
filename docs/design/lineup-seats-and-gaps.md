@@ -300,8 +300,17 @@ new golden.
   leftovers channel; the kids fixture has a kids-band channel with homes; the report is the golden.
 - **Warnings** (report only, never a failure): a channel over 300 or under 12 hours, a leftovers total over the case's
   pinned cap, two channels sharing 12 hours or more and over three quarters of the smaller, a channel with no homes.
-- **Ceiling:** the gate and the day build share one function, `ChannelCeilings.of` in `core:engine`; the band-promise
-  invariant still holds the result.
+- **Ceiling:** the gate and the day build share one function, `ChannelCeilings.of` in `core:engine`. The ceiling rule is
+  checked twice: by the pool rules (`passesCeiling`, the kid ceiling) and, apart from them, by the ladder rank of every
+  rating the item and its series carry against the ceiling's rank.
+- **Epoch cut:** each channel's aired and claimed items are its pool cut by `EpochPool.build`, as the day build does. The
+  gate runs from the test compilation for that reason: `core:engine`'s tests may use `core:scheduler` (MODULES.md), its
+  main and audit code may not.
+- **Known gaps (the gate refuses them, with a message):** a lineup with a custom channel, an edited starter or a hidden
+  channel. The day build lets a custom channel and a non-curated starter claim from the leftovers and withholds a hidden
+  channel's pool; the gate does not model that yet. A planner lineup with the viewer's switch-ons has none of them. A
+  fixture that has them (the household snapshot, if the viewer there has customised) needs that written into
+  `HouseholdViews` first. Also out: the late-on pools and the trim window.
 
 ### The seat rule (#785)
 

@@ -2,8 +2,10 @@
 package tv.stationbreak.core.engine.audit
 
 import tv.stationbreak.core.engine.ExtrasFilter
+import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.ratingsafety.SyntheticAdultSlice
 import tv.stationbreak.core.model.RuleSeries
@@ -21,10 +23,13 @@ internal object GateTestSupport {
 
     fun case(key: String): GateCase = cases.single { it.key == key }
 
-    fun run(case: GateCase): GateResult = LineupGate.run(case, GateMain.inputOf(fixtures, case))
+    fun run(case: GateCase): GateResult {
+        val input = GateMain.inputOf(fixtures, case)
+        return LineupGate.run(case, input, GateMain.SCHEDULER_EPOCH)
+    }
 
-    /** The everything-on pass of [case] as a view, for a test that breaks it on purpose. */
-    fun everythingOn(case: GateCase): HouseholdView {
+    /** The everything-on pass of [case], as the planner and the viewer's switch-ons make it. */
+    fun everythingOnPlan(case: GateCase): PlannedLineup {
         val snapshot = ExtrasFilter.filter(GateMain.inputOf(fixtures, case).snapshot).snapshot
         val names = LineupAudit.collectionNamesOf(snapshot)
         val base = PlannedLineup.of(snapshot, names, null)
@@ -34,8 +39,14 @@ internal object GateTestSupport {
                 .mapNotNull { (it.source as? ChannelSource.Starter)?.recipeKey }
         val keys = StarterCatalog.recipes.filter { !it.optIn && it.key !in on }.map { it.key }
         val optIn = if (case.afterHours) listOf(AdultMark.AFTER_HOURS_KEY) else emptyList()
-        return HouseholdViews.of(PlannedLineup.of(snapshot, names, Viewer(keys + optIn, emptyList())))
+        return PlannedLineup.of(snapshot, names, Viewer(keys + optIn, emptyList()))
     }
+
+    /** The everything-on pass of [case] as a view, for a test that breaks it on purpose. */
+    fun everythingOn(
+        case: GateCase,
+        policyOverride: ((LineupChannel) -> PoolPolicy?)? = null,
+    ): HouseholdView = HouseholdViews.of(everythingOnPlan(case), GateMain.SCHEDULER_EPOCH, policyOverride)
 }
 
 /** The leaks a mutation test makes: the everything-on view of the edge cases, a title put where it must not air. */

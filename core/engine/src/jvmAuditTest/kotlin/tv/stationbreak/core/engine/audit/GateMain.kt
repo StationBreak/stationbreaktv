@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.audit
 
+import tv.stationbreak.core.scheduler.EpochPool
+import tv.stationbreak.core.scheduler.Epochs
 import java.io.File
 import kotlin.system.exitProcess
 
@@ -15,6 +17,12 @@ import kotlin.system.exitProcess
  * runs with the defaults: the place to drop in another snapshot.
  */
 internal object GateMain {
+    /** The day build's epoch cut, by the scheduler's own `EpochPool.build`. */
+    val SCHEDULER_EPOCH =
+        EpochCut { settings, items, dayStartMs ->
+            EpochPool.build(settings, items, Epochs.epochNumber(settings, dayStartMs))
+        }
+
     /** The cases of the frozen fixtures the repository holds. A fixture file may serve more than one case. */
     val CASES: List<GateCase> =
         listOf(
@@ -65,7 +73,7 @@ internal object GateMain {
         var failed = false
         val warnings = ArrayList<String>()
         for (case in casesIn(fixtures)) {
-            val result = LineupGate.run(case, inputOf(fixtures, case))
+            val result = LineupGate.run(case, inputOf(fixtures, case), SCHEDULER_EPOCH)
             warnings += result.warnings
             failed = report(result, golden, update) || failed
         }

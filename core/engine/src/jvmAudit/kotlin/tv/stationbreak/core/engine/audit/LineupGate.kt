@@ -49,6 +49,7 @@ internal object LineupGate {
     fun run(
         case: GateCase,
         input: AuditInput,
+        epoch: EpochCut,
     ): GateResult {
         val snapshot = ExtrasFilter.filter(input.snapshot).snapshot
         val names = LineupAudit.collectionNamesOf(snapshot)
@@ -69,7 +70,7 @@ internal object LineupGate {
         val violations = ArrayList(FailUpward.check(snapshot))
         val warnings = ArrayList<String>()
         for ((name, planned) in listOf("default" to standard, "everything" to everything)) {
-            val view = HouseholdViews.of(planned)
+            val view = HouseholdViews.of(planned, epoch)
             violations += GateInvariants.check(name, view, case, picks)
             val pass = GatePass(name, planned, view, case)
             warnings += pass.warnings()

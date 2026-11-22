@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.audit
 
+import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.engine.lineup.ChannelCeilings
+import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.model.ChannelId
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -54,11 +59,52 @@ class GateRuleMutationTest {
         assertTrue(Rule.KidsBandEmpty in leaks.broken(leaks.withChannels(none)))
     }
 
+    // The mutation tests above leak a title into a finished view. These build the view through a weakened path (the
+    // real planner and day view, with a channel's policy forced open), so a laxer `HouseholdViews` cannot stay green.
     @Test
-    fun aChangedLeftoverCountIsAGoldenDiff() {
-        val result = GateTestSupport.run(GateTestSupport.case("edge-cases"))
-        val moved = result.report.replaceFirst("\"key\":\"leftovers:", "\"key\":\"leftovers-x:")
-        assertTrue(moved != result.report)
-        assertTrue(GateTestSupport.golden.resolve("edge-cases.json").readText() != moved)
+    fun aViewBuiltWithAnOpenPolicyOnTheFamilyChannelsFails() {
+        val plan = GateTestSupport.everythingOnPlan(leaks.case)
+        val real = HouseholdViews.of(plan, GateMain.SCHEDULER_EPOCH)
+        assertTrue(leaks.broken(real).isEmpty(), "the real view keeps every rule")
+        val weak =
+            GateTestSupport.everythingOn(leaks.case) {
+                if (ChannelCeilings.of(it, plan.catalog) == "PG") PoolPolicy.Open else null
+            }
+        val rules = leaks.broken(weak)
+        assertTrue(Rule.AdultOnYoungBand in rules || Rule.HorrorVeto in rules, "$rules")
+    }
+
+    @Test
+    fun aViewBuiltWithAnOpenPolicyOnTheLeftoversFails() {
+        val weak =
+            GateTestSupport.everythingOn(leaks.case) {
+                if (it.source is ChannelSource.Leftovers) PoolPolicy.Open else null
+            }
+        val rules = leaks.broken(weak)
+        assertTrue(Rule.AdultOnYoungBand in rules && Rule.NoMetadataInLeftovers in rules, "$rules")
+    }
+
+    @Test
+    fun aCustomChannelWithAPg13CeilingAirsNoTvMaTitle() {
+        val tvMa = leaks.episodeOf { it.officialRating == "TV-MA" }
+        val id = ChannelId("custom:1")
+        val custom = GateChannel("custom", id, 600, false, "PG-13", PoolPolicy.Custom, listOf(tvMa), emptySet())
+        assertTrue(Rule.Ceiling in leaks.broken(leaks.withChannels(leaks.view.channels + custom)))
+    }
+
+    @Test
+    fun aLineupWithAChannelTheGateDoesNotModelIsRefused() {
+        val plan = GateTestSupport.everythingOnPlan(leaks.case)
+        val hidden = plan.lineup.channels.map { it.copy(state = ChannelState.UserHidden) }
+        val lineup = plan.lineup.copy(channels = hidden)
+        val changed = PlannedLineup(plan.snapshot, plan.names, lineup, plan.planning, plan.day, emptyList(), true)
+        val refused = runCatching { HouseholdViews.of(changed, GateMain.SCHEDULER_EPOCH) }
+        assertTrue(
+            refused
+                .exceptionOrNull()
+                ?.message
+                .orEmpty()
+                .contains("does not model"),
+        )
     }
 }
