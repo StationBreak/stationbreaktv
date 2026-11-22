@@ -101,6 +101,14 @@ object GuideTags {
     const val KIDS_PIN_NOTICE = "guide:kidsPin:notice"
     const val KIDS_PIN_HINT = "guide:kidsPin:hint"
 
+    /** The reset of a forgotten PIN: its sheet, title, steps, code, status line and hint row. */
+    const val KIDS_RESET = "guide:kidsReset"
+    const val KIDS_RESET_TITLE = "guide:kidsReset:title"
+    const val KIDS_RESET_STEPS = "guide:kidsReset:steps"
+    const val KIDS_RESET_CODE = "guide:kidsReset:code"
+    const val KIDS_RESET_STATUS = "guide:kidsReset:status"
+    const val KIDS_RESET_HINT = "guide:kidsReset:hint"
+
     /** The Libraries row of the Settings sheet: OK shows Settings, Libraries (spec 26). */
     const val SETTINGS_LIBRARIES = "guide:settings:libraries"
 

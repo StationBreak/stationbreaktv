@@ -186,7 +186,7 @@ private fun noticeText(notice: PinNotice): String {
     }
 }
 
-// The pad: two rows of five digits, then Delete across the foot.
+// The pad: two rows of five digits, then Delete, and Forgot PIN? while the PIN as it is is asked for, across the foot.
 @Composable
 private fun Pad(entry: PinEntry) {
     Column(
@@ -194,7 +194,7 @@ private fun Pad(entry: PinEntry) {
         verticalArrangement = Arrangement.spacedBy(KeyGap),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        for (row in PadRows) {
+        for (row in padRows(entry.forgettable)) {
             Row(horizontalArrangement = Arrangement.spacedBy(KeyGap)) {
                 for (key in row) PadKeyCell(key, focused = key == entry.focus)
             }
@@ -209,7 +209,7 @@ private fun PadKeyCell(
     focused: Boolean,
 ) {
     val label = pinKeyName(key)
-    val width = if (key == PadKey.Delete) KeyWidth * PAD_DELETE_SPAN + KeyGap * (PAD_DELETE_SPAN - 1) else KeyWidth
+    val width = if (key.digit == null) KeyWidth * PAD_DELETE_SPAN + KeyGap * (PAD_DELETE_SPAN - 1) else KeyWidth
     Box(
         Modifier
             .width(width)
@@ -232,11 +232,13 @@ private fun PadKeyCell(
     }
 }
 
-// Delete spans the pad's five columns.
+// Delete and Forgot PIN? span the pad's five columns.
 private const val PAD_DELETE_SPAN = 5
 
 @Composable
-private fun pinKeyName(key: PadKey): String = key.digit?.toString() ?: stringResource(R.string.guide_pin_delete)
+private fun pinKeyName(key: PadKey): String =
+    key.digit?.toString()
+        ?: stringResource(if (key == PadKey.Forgot) R.string.guide_pin_forgot else R.string.guide_pin_delete)
 
 @StringRes
 private fun pinTitle(purpose: PinPurpose): Int =

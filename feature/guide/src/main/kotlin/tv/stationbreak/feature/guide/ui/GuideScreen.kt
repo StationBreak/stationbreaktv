@@ -244,6 +244,8 @@ internal fun GuideScreen(
             settings?.let { GuideSettingsSheet(settingsValues, it.row, syncNow) }
             // The Kids Mode PIN pad stands over the sheet, as the sign-out question does.
             settings?.pin?.let { GuideKidsPin(it) }
+            // The reset of a forgotten PIN stands in the pad's place.
+            settings?.reset?.let { GuideKidsPinReset(it) }
         }
     }
 }

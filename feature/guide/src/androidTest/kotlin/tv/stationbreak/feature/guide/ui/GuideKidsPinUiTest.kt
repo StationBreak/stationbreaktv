@@ -16,13 +16,15 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.domain.kids.PinRecovery
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.ProvideGuideColors
 
 /**
- * Kids Mode's two screens (#789) on their own, without the guide behind them: the PIN pad (dots, never digits; the
- * key under the D-pad as the selected one; the notice) and the Settings sheet with the lock on (rows that could undo
- * it are inert, with the reason under them). Compiled in CI's emulator job; the key paths are the unit tests'.
+ * Kids Mode's screens (#789) on their own, without the guide behind them: the reset of a forgotten PIN (its code and
+ * its status line), the PIN pad (dots, never digits; the key under the D-pad as the selected one; the notice) and the
+ * Settings sheet with the lock on (rows that could undo it are inert, with the reason under them). Compiled in CI's
+ * emulator job; the key paths are the unit tests'.
  */
 @RunWith(AndroidJUnit4::class)
 class GuideKidsPinUiTest {
@@ -78,6 +80,48 @@ class GuideKidsPinUiTest {
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
         compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Family")
         compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Kids Mode, On, up to Family")
+    }
+
+    @Test
+    fun forgotIsOnThePadThatAsksForThePin_andNotOnTheOneThatSetsIt() {
+        show { GuideKidsPin(PinEntry.start(PinPurpose.TurnOff).copy(focus = PadKey.Forgot)) }
+        compose
+            .onNodeWithTag(kidsPinKeyTag(PadKey.Forgot))
+            .assertIsSelected()
+            .assertContentDescriptionEquals("Forgot PIN?")
+    }
+
+    @Test
+    fun theSetPadHasNoForgotKey() {
+        show { GuideKidsPin(PinEntry.start(PinPurpose.Set)) }
+        compose.onNodeWithTag(kidsPinKeyTag(PadKey.Forgot)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theResetShowsTheCodeLarge_andSaysItDigitByDigit() {
+        show { GuideKidsPinReset(PinReset(PinRecovery.Code("123456"))) }
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_TITLE).assertTextEquals("Reset the PIN")
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_STEPS).assertExists()
+        // The drawn code has its semantics cleared so it is not read twice: the status line speaks it.
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_CODE, useUnmergedTree = true).assertExists()
+        compose
+            .onNodeWithTag(GuideTags.KIDS_RESET_STATUS)
+            .assertContentDescriptionEquals("Code 1 2 3 4 5 6. Waiting for an administrator to approve.")
+    }
+
+    @Test
+    fun theResetSaysHowItEnded() {
+        show { GuideKidsPinReset(PinReset(PinRecovery.Expired)) }
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_CODE, useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(GuideTags.KIDS_RESET_STATUS).assertTextEquals("The code ran out. Press OK for a new one.")
+    }
+
+    @Test
+    fun theResetSaysTheLockIsOpenOnceDone() {
+        show { GuideKidsPinReset(PinReset(PinRecovery.Done)) }
+        compose
+            .onNodeWithTag(GuideTags.KIDS_RESET_STATUS)
+            .assertTextEquals("Done. The PIN is cleared and Kids Mode is off.")
     }
 
     @Test

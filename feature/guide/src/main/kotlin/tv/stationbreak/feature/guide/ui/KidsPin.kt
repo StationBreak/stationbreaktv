@@ -4,7 +4,6 @@ package tv.stationbreak.feature.guide.ui
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import tv.stationbreak.core.domain.kids.KidsCap
-import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.remoteKeyOf
 import tv.stationbreak.core.ui.remoteKeyToAct
@@ -25,7 +24,7 @@ internal enum class PinPurpose { Set, TurnOff, Change, Cap }
 /** What the pad asks for now: the PIN as it is ([Current]), a new one ([New]), or the new one again ([Confirm]). */
 internal enum class PinStage { Current, New, Confirm }
 
-/** A key of the pad: a digit, or Delete. */
+/** A key of the pad: a digit, Delete, or Forgot PIN? (only while the pad asks for the PIN as it is). */
 internal enum class PadKey {
     D1,
     D2,
@@ -38,49 +37,58 @@ internal enum class PadKey {
     D9,
     D0,
     Delete,
+    Forgot,
     ;
 
-    /** The digit this key types, or null for Delete. */
-    val digit: Int? get() = if (this == Delete) null else (ordinal + 1) % DIGITS
+    /** The digit this key types, or null for Delete and Forgot. */
+    val digit: Int? get() = if (this == Delete || this == Forgot) null else (ordinal + 1) % DIGITS
 }
 
 // Ten digits, 1 to 9 then 0.
 private const val DIGITS = 10
 
-// The pad's rows: two of five digits, then Delete across the foot.
+// The pad's rows: two of five digits, then Delete across the foot, then Forgot PIN? where the pad has it.
 private val PAD_ROWS =
     listOf(
         listOf(PadKey.D1, PadKey.D2, PadKey.D3, PadKey.D4, PadKey.D5),
         listOf(PadKey.D6, PadKey.D7, PadKey.D8, PadKey.D9, PadKey.D0),
         listOf(PadKey.Delete),
+        listOf(PadKey.Forgot),
     )
 
-/** The pad's rows, top to bottom, for drawing. */
-internal val PadRows: List<List<PadKey>> = PAD_ROWS
+/** The pad's rows, top to bottom, for drawing: with the Forgot PIN? row when [withForgot]. */
+internal fun padRows(withForgot: Boolean): List<List<PadKey>> = if (withForgot) PAD_ROWS else PAD_ROWS.dropLast(1)
 
-// The column Up from Delete goes to: the middle of the row above.
-private const val FROM_DELETE_COLUMN = 2
+// The column Up from a one-key row goes to: the middle of the row above.
+private const val FROM_FOOT_COLUMN = 2
 
-/** Where the D-pad's [direction] takes the focus from this key: the neighbour, or this key at an edge. */
-internal fun PadKey.moved(direction: RemoteKey): PadKey {
-    val row = PAD_ROWS.indexOfFirst { this in it }
-    val column = PAD_ROWS[row].indexOf(this)
+/**
+ * Where the D-pad's [direction] takes the focus from this key: the neighbour, or this key at an edge. The pad has the
+ * Forgot PIN? row below Delete only when [withForgot].
+ */
+internal fun PadKey.moved(
+    direction: RemoteKey,
+    withForgot: Boolean = true,
+): PadKey {
+    val rows = padRows(withForgot)
+    val row = rows.indexOfFirst { this in it }
+    val column = rows[row].indexOf(this)
     return when (direction) {
         RemoteKey.Left -> {
-            PAD_ROWS[row].getOrElse(column - 1) { this }
+            rows[row].getOrElse(column - 1) { this }
         }
 
         RemoteKey.Right -> {
-            PAD_ROWS[row].getOrElse(column + 1) { this }
+            rows[row].getOrElse(column + 1) { this }
         }
 
         RemoteKey.Up -> {
-            val above = if (this == PadKey.Delete) FROM_DELETE_COLUMN else column
-            PAD_ROWS.getOrNull(row - 1)?.get(above) ?: this
+            val above = if (rows[row].size == 1) FROM_FOOT_COLUMN else column
+            rows.getOrNull(row - 1)?.get(above.coerceAtMost(rows[row - 1].lastIndex)) ?: this
         }
 
         RemoteKey.Down -> {
-            PAD_ROWS.getOrNull(row + 1)?.let { it[column.coerceAtMost(it.lastIndex)] } ?: this
+            rows.getOrNull(row + 1)?.let { it[column.coerceAtMost(it.lastIndex)] } ?: this
         }
 
         else -> {
@@ -126,6 +134,9 @@ internal data class PinEntry(
 ) {
     /** Whether the lock refuses PINs for now. */
     val locked: Boolean get() = notice is PinNotice.LockedOut
+
+    /** Whether the pad offers Forgot PIN?: while it asks for the PIN as it is. */
+    val forgettable: Boolean get() = stage == PinStage.Current
 
     // What the PIN as it is, once typed, is asked for: to turn off, to change the cap, or to check before a new PIN.
     fun currentAsk(digits: String): PinSubmit =
@@ -206,17 +217,26 @@ private fun SettingsPanel.pinRemoteKey(
         }
 
         RemoteKey.Select -> {
-            pin.focus.digit?.let { press(pin, it) } ?: deleted(pin)
+            when (val key = pin.focus) {
+                PadKey.Delete -> deleted(pin)
+                PadKey.Forgot -> forgotten(pin)
+                else -> press(pin, checkNotNull(key.digit))
+            }
         }
 
         RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right -> {
-            SettingsStep(copy(pin = pin.copy(focus = pin.focus.moved(act))))
+            SettingsStep(copy(pin = pin.copy(focus = pin.focus.moved(act, pin.forgettable))))
         }
 
         null -> {
             SettingsStep(this)
         }
     }
+
+// Forgot PIN? opens the reset in the pad's place, and asks for it to start. Open while the lock refuses PINs too: that
+// is when it is wanted. Not while an answer is awaited.
+private fun SettingsPanel.forgotten(pin: PinEntry): SettingsStep =
+    if (pin.busy) SettingsStep(this) else SettingsStep(copy(pin = null, reset = PinReset()), resetStart = true)
 
 private fun SettingsPanel.deleted(pin: PinEntry): SettingsStep =
     if (pin.busy || pin.locked) {
@@ -261,49 +281,4 @@ private fun SettingsPanel.finished(pin: PinEntry): SettingsStep {
             }
         }
     }
-}
-
-/**
- * The answer to what the pad asked for: done (the pad closes, and the lock's own state shows the rest), on to the new
- * PIN after the old one was right, or the pad again with what went wrong said. Ignored when no answer is awaited.
- */
-internal fun SettingsPanel.pinAnswered(result: PinResult): SettingsPanel {
-    val pin = pin?.takeIf { it.busy } ?: return this
-    return when {
-        result != PinResult.Ok -> {
-            copy(pin = pin.retried(noticeOf(result)))
-        }
-
-        pin.purpose == PinPurpose.Change && pin.stage == PinStage.Current -> {
-            copy(pin = pin.copy(stage = PinStage.New, old = pin.digits, digits = "", busy = false))
-        }
-
-        else -> {
-            copy(pin = null)
-        }
-    }
-}
-
-private fun noticeOf(result: PinResult): PinNotice =
-    when (result) {
-        is PinResult.Wrong -> PinNotice.Wrong(result.triesLeft)
-        is PinResult.LockedOut -> PinNotice.LockedOut(result.remainingMillis)
-        else -> PinNotice.Failed
-    }
-
-// The same job again after an answer that was not an Ok: the digits are cleared, and a new PIN starts over.
-private fun PinEntry.retried(notice: PinNotice): PinEntry {
-    val back =
-        when {
-            stage != PinStage.Confirm -> stage
-            purpose == PinPurpose.Change -> PinStage.Current
-            else -> PinStage.New
-        }
-    return copy(stage = back, digits = "", notice = notice, busy = false, old = "", candidate = "")
-}
-
-/** The lockout has passed: the pad takes PINs again. */
-internal fun SettingsPanel.pinUnlocked(): SettingsPanel {
-    val locked = pin?.takeIf { it.locked } ?: return this
-    return copy(pin = locked.copy(notice = null))
 }
