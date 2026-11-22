@@ -122,12 +122,15 @@ class PoolEvaluatorGrownUpHoldTest {
         assertEquals(0, pool.counts.madeForKidsOut)
     }
 
+    // grown-up-hold-7 (#1078): a missing series may hide an Explicit one, so a grown-up pool with no ceiling drops the
+    // episode (fail up); it is not a kids-tier drop.
     @Test
-    fun anEpisodeWhoseSeriesIsMissingFromTheSnapshotIsKept() {
+    fun anEpisodeWhoseSeriesIsMissingFromTheSnapshotIsDroppedWithNoCeiling() {
         val snap = snapshot(items = listOf(episode(idOf(1), show, rating = "TV-Y")))
         val pool = PoolEvaluator.evaluate(libraryRules(), snap, PoolPolicy.GrownUp)
-        assertEquals(listOf(idOf(1)), idsOf(pool))
+        assertEquals(emptyList(), idsOf(pool))
         assertEquals(0, pool.counts.madeForKidsOut)
+        assertEquals(1, pool.counts.blockedByCeiling)
     }
 
     @Test

@@ -5,7 +5,8 @@
 - **Decided by:** the owner (four exclusive tiers, fail upward, unrated is adult, 2026-11-19; family ceiling PG / TV-PG
   and teen PG-13 / TV-14, 2026-11-20; a StationBreak-owned rating map, 2026-11-19) and Rincewind (the mechanism, the
   lists, the US-first scope after the licence check)
-- **Amended by:** [ADR-0029](0029-tier-moves-up.md) (`kid-hold-7`: moves up only, lists)
+- **Amended by:** [ADR-0029](0029-tier-moves-up.md) (`kid-hold-7`: moves up only, lists); the addendum of 2026-11-22
+  (`kid-hold-8`: the Explicit tier, tiers on the young bands, #1078)
 - **Amends:** [ADR-0019](0019-kid-hold.md) (the kid hold: `kid-hold-6`), [ADR-0020](0020-grown-up-hold.md) (the grown-up
   hold: `grown-up-hold-5`)
 - **Builds on:** [ADR-0002](0002-determinism-scope.md) §2 as amended by ADR-0019 §8 (app-version limits only narrow)
@@ -134,3 +135,66 @@ channels and the shared `rating.json` and pool vectors for every port. The tiers
 hold.
 
 **Count TV-Y alone as kid evidence.** Not approved by the owner (#576).
+
+## Addendum 2026-11-22: the Explicit tier, and tiers on the young bands (#1078)
+
+Explicit titles reached regular channels: no pool outside the Kids band read the tier, a grown-up channel with no
+ceiling took everything but the kids tier, and Odds & Ends 199 took any explicit title no other channel claimed. The
+Teen and Family bands checked only the ladder, so a TV-14 series tagged ecchi and nudity aired on a Teen channel. And
+After Hours aired nothing: its sources had no hentai signal, and the curation's anime rule dropped every anime title
+from it. The owner's direction: fail up. A gate that is too rigid beats one that is too loose.
+
+`kid-hold-8` / `grown-up-hold-7` and catalog 14:
+
+1. **A fifth tier, Explicit, above Adult** (Kids < Family < Teen < Adult < Explicit). A title is Explicit when its own
+   rating or its known series' rating is an Explicit rating, or a genre or tag of it or its series is an Explicit one,
+   folded and matched exactly, anime or not:
+   - ratings: level 7 (now also `X`, `AO`, `Adults Only`), `NC-17` / `NC17` (which keeps level 6 on the ladder), and
+     GB and NZ `R18`, JP `R18+` / `R-18`, AU `X18+` / `R18+`, KR KMRB Restricted Screening and AniDB's `18 Restricted`,
+     with or without a two-letter country prefix (`RatingMap.EXPLICIT`). AU `R18+` and NZ `R18` also cover mainstream
+     films; under fail-up they count. #987 is still the wider ladder.
+   - genres: hentai, adult, erotica, erotic, porn, pornography, sexploitation (`RatingTier.EXPLICIT_TIER_GENRES`).
+   - tags: the TMDb keywords of explicit material, verified on themoviedb.org on 2026-11-22, and the spellings other
+     scrapers use (`RatingTier.EXPLICIT_TIER_TAGS`). The plot keywords `porn industry` and `porn star` are not triggers.
+2. **Adult gains three tags**: `sex comedy`, `teen sex comedy` and `erotic thriller`. `ecchi`, `nudity`, `harem`, `sex`,
+   the `erotic` tag, `erotic thriller`, TV-MA, R and unrated stay Adult, not Explicit.
+3. **The grown-up hold drops Explicit as well as the kids tier**, on every grown-up starter and every leftovers pool,
+   Odds & Ends 199 included, also while no kids leftovers channel is on. Custom channels keep no hidden filters.
+4. **A grown-up leftovers pool drops a title with no metadata** (no rating, genre or tag on it or its series). It is
+   Adult, not Explicit, and stays eligible wherever a source matches it.
+5. **Young bands follow tiers, not only ceilings**, as #576 specified: a grown-up pool under a ceiling up to PG (the
+   Family band, Odds & Ends 66) admits the family tier only; up to TV-14 (the Teen band, Odds & Ends 99) family and
+   teen. The tier limit is read from the ceiling, so a starter edited to a young ceiling follows it too. Kids is
+   unchanged.
+6. **After Hours is `PoolPolicy.ExplicitOnly`**: every Explicit title the account can see, as if a source matched it,
+   plus what its own sources match. It is exempt from the curation's anime rule (the curation and a late switch-on), so
+   an Explicit title airs there and nowhere else, and with After Hours off it airs nowhere. A copy of After Hours is a
+   custom channel with the adult mark (#984) and keeps its sources only.
+7. **Catalog 14** gives After Hours the genres Hentai, Porn, Pornography and Sexploitation and the tags hentai,
+   pornography, porn, softcore, sexploitation and erotic movie, so a copy keeps most of the reach.
+
+Owner calls, resolved 2026-11-22: NC-17 is Explicit; the `hentai` tag alone counts, on any title; the `erotic` tag,
+`sex`, `ecchi`, nudity and harem stay Adult; no-metadata titles leave Odds & Ends 199 and are not Explicit; which
+libraries an account sees is the user's responsibility (the engine reads no library names); and the triggers cover
+real adult films and older sexploitation, not only anime signals.
+
+Accepted costs and limits: a mainstream film with an Explicit keyword or an NC-17 rating leaves the regular channels
+for After Hours. A file with no metadata at all is Adult, not Explicit: it stays off the kids, family and teen channels
+and out of Odds & Ends 199, but a grown-up channel whose sources match it (a library or collection anchor) can still air
+it. The engine can't tell it from a test clip; the account's library access on the server is the real lock. An
+episode's own Explicit rating fails up past its series' rating, unlike the kid hold's decisive rating.
+
+Fix round 1 (security review, 2026-11-22):
+- The young-band limit also follows the number: a built-in channel (starter or leftovers) numbered 34 to 66 is
+  scheduled under at most PG, and 67 to 99 at most TV-14 (`Ceilings`, alongside the existing Kids-band PG cap), so
+  the tier limit of rule 5 holds wherever a built-in is moved. Custom channels keep their own ceiling. After Hours
+  can't be numbered below 100 (`LineupEdits`, by a number or a swap, refused as `OutOfRange`), and a stored one below
+  100 is evaluated as grown-up, not `ExplicitOnly`.
+- A combined rating (split on `/`) is Explicit when any part is (`R/NC-17`, `GB-R18/AU-X18+`).
+- An episode whose series ID is set but whose series the snapshot lacks is dropped from every grown-up leftovers pool
+  and from grown-up pools with no ceiling (its series could be Explicit); under a ceiling rule 4 already blocks it.
+
+Every held day is remade once under the new hold names, and a lineup moves to catalog 14 as any catalog bump does.
+Vectors: `kid-hold-8.json`; `kid-hold-6.json` and `kid-hold-7.json` are unchanged, and a `kid-hold-8` port reads
+their `adult` as adult or explicit and their `X` row at level 7. Tests: `ExplicitTierTest`, `ExplicitPoolTest` and the
+SYNTHETIC adult slice (`SyntheticAdultSlice`) in `ratingsafety`.

@@ -170,6 +170,22 @@ internal object TestCatalog : StarterCatalogView {
     )
 }
 
+/**
+ * One series row for each series the episodes of [items] name, rated and tagged like its first episode, in ID order. A
+ * real library holds them; since grown-up-hold-7 (#1078) an episode whose series is missing leaves grown-up pools with
+ * no ceiling and the grown-up leftovers.
+ */
+internal fun seriesOf(items: List<RuleItem>): Map<CanonicalId, RuleSeries> =
+    items
+        .filter { it.item.kind == ScheduleItemKind.Episode && it.item.seriesId != null }
+        .groupBy { checkNotNull(it.item.seriesId) }
+        .toList()
+        .sortedBy { it.first.value }
+        .associate { (id, eps) ->
+            val first = eps.first()
+            id to RuleSeries(id, first.officialRating, first.genres, first.tags)
+        }
+
 /** Seven two-hour movies per grown-up genre (14 h each, so every recipe fills), the kids' ones rated G. */
 internal fun fillingLibrary(): List<RuleItem> {
     val genres = listOf("Comedy", "Crime", "Western", "Horror", "Science Fiction")

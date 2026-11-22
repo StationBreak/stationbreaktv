@@ -4,6 +4,7 @@ package tv.stationbreak.core.engine.audit
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
+import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.PlannerSelection
 import tv.stationbreak.core.engine.lineup.curation.CHANNEL_ORDER
@@ -69,5 +70,5 @@ internal class AuditLanes(
     }
 
     /** The policy name of a lane, for a report. */
-    fun policyOf(lane: Lane): PoolPolicy = if (lane.kid) PoolPolicy.KidsOnly else PoolPolicy.GrownUp
+    fun policyOf(lane: Lane): PoolPolicy = KidStatus.basePolicyOf(channelOf(lane))
 }

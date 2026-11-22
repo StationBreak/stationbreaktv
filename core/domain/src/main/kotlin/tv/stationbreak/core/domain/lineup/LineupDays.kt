@@ -1052,10 +1052,11 @@ internal class LineupDays(
 
     /**
      * How many of the items [airingNowhere] would count that a grown-up pool drops ([GrownUpHold.dropsFromGrownUp]):
-     * made for kids, takeable by a kid channel, and aired nowhere. Under `grown-up-hold-4` (ADR-0020, option C) a
-     * grown-up pool drops only what a kid channel could take, and the grown-up leftovers keeps everything while no kid
-     * leftovers is on, so this is normally zero; it remains as a guard (it is not zero when, say, the grown-up
-     * leftovers is off and no kid channel takes the title). A separate count, not part of [airingNowhere].
+     * made for kids and takeable by a kid channel, or Explicit (#1078, After Hours alone airs it), and aired nowhere.
+     * Under `grown-up-hold-4` (ADR-0020, option C) a grown-up pool drops only what a kid channel could take, and the
+     * grown-up leftovers keeps everything while no kid leftovers is on, so the kids part is normally zero; it remains
+     * as a guard (it is not zero when, say, the grown-up leftovers is off and no kid channel takes the title). A
+     * separate count, not part of [airingNowhere].
      */
     fun turnedAwayByBothHolds(
         lineup: Lineup,
@@ -1722,6 +1723,7 @@ private fun nameOf(policy: PoolPolicy): String =
         PoolPolicy.Custom -> "custom"
         PoolPolicy.KidsOnly -> "kidsOnly"
         PoolPolicy.GrownUp -> "grownUp"
+        PoolPolicy.ExplicitOnly -> "explicitOnly"
     }
 
 // [source] without the name its rules may carry: a name never reaches a pool.

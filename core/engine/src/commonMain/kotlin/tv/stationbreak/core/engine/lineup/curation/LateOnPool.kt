@@ -24,7 +24,7 @@ class LateOnPool internal constructor(
  *   for kids would guest on a grown-up channel. (A kid channel airs every title of its pool, as a curated one does:
  *   its pool is already held to kid content.)
  * The anime rule holds for every title, as in the curation (an anime-only channel keeps only anime, any other grown-up
- * channel drops it).
+ * channel but After Hours drops it).
  *
  * The tone test and the guest cap of a curated guest are not applied: both are measured against a channel's home
  * hours, and this channel has none, so the curated rules would leave it empty. At the boundary the curation runs over

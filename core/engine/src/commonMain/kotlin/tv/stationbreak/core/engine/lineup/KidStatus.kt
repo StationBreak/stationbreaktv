@@ -2,32 +2,59 @@
 package tv.stationbreak.core.engine.lineup
 
 import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.rules.AdultMark
 
 /**
  * Which recipes and channels are kid ones, and so held to made-for-kids content (spec 18, ADR-0019). Here, in the
  * engine, so the planner ranks a recipe under the same hold the schedule applies to it.
  */
 object KidStatus {
-    /** A kid recipe is kids-only; any other (starter) recipe is grown-up (ADR-0020). */
-    fun policyOf(recipe: Recipe): PoolPolicy = if (isKidRecipe(recipe)) PoolPolicy.KidsOnly else PoolPolicy.GrownUp
+    /**
+     * A kid recipe is kids-only; After Hours is [PoolPolicy.ExplicitOnly] (#1078); any other (starter) recipe is
+     * grown-up (ADR-0020).
+     */
+    fun policyOf(recipe: Recipe): PoolPolicy =
+        when {
+            isKidRecipe(recipe) -> PoolPolicy.KidsOnly
+            recipe.key == AdultMark.AFTER_HOURS_KEY -> PoolPolicy.ExplicitOnly
+            else -> PoolPolicy.GrownUp
+        }
 
     /**
      * The policy of [channel] on its own (ADR-0019, ADR-0020): a kid channel (the kids leftovers included) is
-     * kids-only; any other starter, edited or not, and the grown-up leftovers channel are grown-up; a custom channel
+     * kids-only; the After Hours starter, edited or not, is [PoolPolicy.ExplicitOnly] (#1078); any other starter,
+     * edited or not, and the grown-up leftovers channel are grown-up; a custom channel (a copy of After Hours included)
      * is [PoolPolicy.Custom] (open, with `Approved` unrated under a ceiling; ADR-0028). It ignores the grown-up
      * leftovers fallback, so it is wrong for a leftovers channel: every pool and every inputs key must use [policyOf]
      * with the lineup. Safe on its own only for a starter or custom channel.
      */
-    fun basePolicyOf(channel: LineupChannel): PoolPolicy =
-        when {
-            isKidChannel(channel) -> PoolPolicy.KidsOnly
-            channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
-            else -> PoolPolicy.Custom
+    fun basePolicyOf(channel: LineupChannel): PoolPolicy {
+        val source = channel.source
+        return when {
+            isKidChannel(channel) -> {
+                PoolPolicy.KidsOnly
+            }
+
+            // A stored After Hours below the floor (#1078: no edit puts it there) is held as grown-up.
+            isAfterHoursStarter(channel) && (channel.number ?: AFTER_HOURS_FLOOR) >= AFTER_HOURS_FLOOR -> {
+                PoolPolicy.ExplicitOnly
+            }
+
+            source is ChannelSource.Starter || source is ChannelSource.Leftovers -> {
+                PoolPolicy.GrownUp
+            }
+
+            else -> {
+                PoolPolicy.Custom
+            }
         }
+    }
 
     /**
      * The policy [channel]'s pool is evaluated under in [lineup]: [policyOf] (the channel), except that the grown-up
-     * leftovers is [PoolPolicy.Custom] (no hold, `Approved` still unrated under a ceiling; ADR-0028), not grown-up,
+     * leftovers is [PoolPolicy.Custom] (no kids-tier hold, `Approved` still unrated under a ceiling; ADR-0028; the
+     * leftovers pool still drops Explicit and no-metadata titles and keeps a young ceiling's tiers, #1078), not
+     * grown-up,
      * while no kid leftovers channel is switched on in [lineup] (ADR-0020). Nothing
      * then takes the made-for-kids items the kid starters do not match, so the grown-up leftovers keeps them (under its
      * own ceiling) and the holds leave nothing airing nowhere. Grown-up starters keep the hold either way.
@@ -51,6 +78,9 @@ object KidStatus {
         lineup: Lineup,
         day: LineupDay,
     ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup, day))
+
+    /** The lowest number After Hours may take (#1078): the young bands below it promise their audience by number. */
+    const val AFTER_HOURS_FLOOR = 100
 
     private fun policyOf(
         channel: LineupChannel,
@@ -116,4 +146,10 @@ object KidStatus {
             }
         return inKidsBand || key?.let(::isKidKey) == true
     }
+}
+
+/** Whether [channel] is the After Hours starter, edited or not (not a custom copy). */
+internal fun isAfterHoursStarter(channel: LineupChannel): Boolean {
+    val source = channel.source as? ChannelSource.Starter
+    return source?.recipeKey == AdultMark.AFTER_HOURS_KEY
 }

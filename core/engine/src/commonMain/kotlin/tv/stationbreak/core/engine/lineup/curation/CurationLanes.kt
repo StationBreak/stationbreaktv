@@ -12,6 +12,7 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.foldNameAscii
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.rules.AdultMark
 import tv.stationbreak.core.rules.Source
 
 /** The number of tones: made for kids or not, adult animation or not, times the three formats. */
@@ -275,13 +276,15 @@ private fun foldTitle(title: Title): FoldedTitle {
     return FoldedTitle(title, genres, tags, studios, kid + adult + title.format.ordinal)
 }
 
-// The anime rule: an anime-only channel keeps only anime; a grown-up channel that is not anime-only drops it.
+// The anime rule: an anime-only channel keeps only anime; a grown-up channel that is not anime-only drops it. After
+// Hours is exempt (#1078): an Explicit title, anime or not, airs there or nowhere.
 internal fun admits(
     channel: CurationChannel,
     title: Title,
 ): Boolean {
     val anime = title.format == TitleFormat.Anime
     return when {
+        channel.recipe.key == AdultMark.AFTER_HOURS_KEY -> true
         channel.recipe.theme?.animeOnly == true -> anime
         !channel.kid -> !anime
         else -> true

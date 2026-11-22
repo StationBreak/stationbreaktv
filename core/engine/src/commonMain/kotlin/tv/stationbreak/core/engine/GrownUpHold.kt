@@ -6,24 +6,71 @@ import tv.stationbreak.core.model.RuleSeries
 
 /**
  * The grown-up hold (ADR-0020): the name of the version of its gate, and the gate itself. A grown-up pool drops an item
- * only when a kid channel could take it ([dropsFromGrownUp]), so nothing airs nowhere because of the holds. The gate
+ * a kid channel could take ([dropsFromGrownUp]), so nothing airs nowhere because of the holds. The gate
  * is built from [KidHold.isMadeForKids] and [KidHold.passesKidCeiling], so it changes whenever either of them does:
  * `grown-up-hold-3` moves with `kid-hold-4` (the kid studio list matched by studio fold 2, ADR-0026), and
  * `grown-up-hold-4` moves with `kid-hold-5` (an episode of a rated series follows the series rating; ADR-0019 addendum
  * 2026-11-13). `grown-up-hold-5` moves with `kid-hold-6` (ADR-0028): it drops exactly the kids tier ([RatingTier]).
  * `grown-up-hold-6` moves with `kid-hold-7` (ADR-0029): the same gate, on a kids tier that the bump list narrows.
+ * `grown-up-hold-7` moves with `kid-hold-8` (#1078, ADR-0028 addendum 2026-11-22): it also drops the Explicit tier,
+ * which airs on After Hours alone; under a young ceiling it admits only that band's tiers ([tierLimit]); and a
+ * grown-up leftovers pool drops a title with no metadata ([hasNoMetadata]).
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-6"
+    const val VERSION_NAME = "grown-up-hold-7"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take
-     * it. Everything else (family, teen and adult titles, made for kids or not) is kept, and the usual rating ceiling
-     * of the grown-up channel applies to it. Pure: it reads the entry and its [series] only.
+     * it, or in the Explicit tier, which only After Hours airs. Everything else (family, teen and adult titles, made
+     * for kids or not) is kept, and the rating ceiling of the grown-up channel applies to it. Pure: it reads the entry
+     * and its [series] only.
      */
     fun dropsFromGrownUp(
         entry: RuleItem,
         series: RuleSeries?,
-    ): Boolean = KidHold.admits(entry, series)
+    ): Boolean = drops(RatingTier.of(entry, series))
+
+    /** [dropsFromGrownUp] for a title whose tier is [tier]. */
+    fun drops(tier: RatingTier): Boolean = tier == RatingTier.Kids || tier == RatingTier.Explicit
+
+    /**
+     * The highest tier a grown-up pool under the ceiling [maxRating] admits (#1078, as #576 specified for the young
+     * bands): [RatingTier.Family] under a ceiling up to PG (the Family band and its Odds & Ends), [RatingTier.Teen]
+     * up to TV-14 (the Teen band and its Odds & Ends), and [RatingTier.Adult] above that or with no ceiling.
+     */
+    fun tierLimit(maxRating: String?): RatingTier {
+        val level = maxRating?.let(RatingMap::levelOf) ?: return RatingTier.Adult
+        return when {
+            level <= RatingTier.FAMILY_LEVEL -> RatingTier.Family
+            level <= RatingTier.TEEN_LEVEL -> RatingTier.Teen
+            else -> RatingTier.Adult
+        }
+    }
+
+    /**
+     * Whether [entry] is an episode whose series ID is set but whose series the snapshot lacks (#1078, fail up): the
+     * series' explicit signals can't be read, so a grown-up pool with no ceiling and every grown-up leftovers pool drop
+     * it. (Under a ceiling rule 4 already blocks it.)
+     */
+    fun seriesMissing(
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean = entry.item.seriesId != null && series == null
+
+    /**
+     * Whether [entry] has no metadata at all (#1078): no rating (absent: null or only spaces), no genre and no tag, on
+     * itself or its known [series]. A grown-up leftovers pool drops it; it can still air where a source matches it.
+     */
+    fun hasNoMetadata(
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean =
+        EpisodeRating.isAbsent(entry.officialRating) &&
+            entry.genres.isEmpty() &&
+            entry.tags.isEmpty() &&
+            (
+                series == null ||
+                    (EpisodeRating.isAbsent(series.officialRating) && series.genres.isEmpty() && series.tags.isEmpty())
+            )
 }

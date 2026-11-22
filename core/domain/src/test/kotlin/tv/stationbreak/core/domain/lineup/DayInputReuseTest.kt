@@ -54,7 +54,7 @@ class DayInputReuseTest {
         mapOf(boxId to RuleCollection(boxId, boxFilms.map { it.item.id }.toSet(), none, none, none, "Box"))
 
     private fun snapshot(cutoff: Long): RuleSnapshot =
-        RuleSnapshot(cutoff, setOf(LIBRARY_ID), items, emptyMap(), collections, collectionsSynced = true)
+        RuleSnapshot(cutoff, setOf(LIBRARY_ID), items, seriesOf(items), collections, collectionsSynced = true)
 
     private val v3 = programmedCatalog(3)
 
@@ -539,9 +539,20 @@ class DayInputReuseTest {
         // another; the household flag of a leftovers day by its curation (which holds the flag in force); starting by
         // the key (a later onSince is in it); curation by the key of the curated members (a
         // curated starter's key holds the curation, a leftovers channel reads it through its claimed channels' keys);
-        // a claimed channel's scheduled day by its key and rules.
+        // a claimed channel's scheduled day by its key and rules. Since #1078 a claimed channel's key is pinned alone:
+        // a built-in renumbered into 34 to 99 (the corpus moves channels to 50 and 98) takes its band's ceiling, which
+        // its key holds and its rules do not.
         val PINNED_ALONE =
-            setOf("key", "cut", "recipes", "claims", "claims.channels", "claims.claimOrder", "claims.optIn")
+            setOf(
+                "key",
+                "cut",
+                "recipes",
+                "claims",
+                "claims.channels",
+                "claims.claimOrder",
+                "claims.optIn",
+                "claims.channel.key",
+            )
         val IMPLIED =
             setOf(
                 "server",
@@ -551,7 +562,6 @@ class DayInputReuseTest {
                 "starting",
                 "curation",
                 "claims.household",
-                "claims.channel.key",
                 "claims.channel.rules",
                 "claims.channel.settings",
                 "claims.channel.n",

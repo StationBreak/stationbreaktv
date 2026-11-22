@@ -50,7 +50,8 @@ class TrimmedItemsStayClaimedTest {
 
     private fun snapshots(scheduled: List<Scheduled>) =
         scheduled.map { it.cutoffMs }.distinct().associateWith {
-            RuleSnapshot(it, setOf(LIBRARY_ID), episodes + others, emptyMap(), emptyMap(), collectionsSynced = true)
+            val items = episodes + others
+            RuleSnapshot(it, setOf(LIBRARY_ID), items, seriesOf(items), emptyMap(), collectionsSynced = true)
         }
 
     private fun ids(items: List<ScheduleItem>): Set<CanonicalId> = items.mapTo(HashSet()) { it.id }

@@ -2338,7 +2338,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-7`), `grownUpHold` (`grown-up-hold-6`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-8`), `grownUpHold` (`grown-up-hold-7`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2485,7 +2485,11 @@ Everything below is in this repository, under `docs/`:
   `kid-hold-6` still passes `kid-hold-5.json`. `kid-hold-7.json` (the moves up of `kid-hold-7` / `grown-up-hold-6`,
   [ADR-0029](adr/0029-tier-moves-up.md): a violence-heavy tag or the Horror genre sends a family title to teen, TV Tokyo
   is not a kid studio, and a hand-kept list of series ids sends a kids title to family) is a delta of 'tier' rows on
-  `kid-hold-6.json`, written by hand from ADR-0029; `kid-hold-7` still passes `kid-hold-6.json`.
+  `kid-hold-6.json`, written by hand from ADR-0029; `kid-hold-7` still passes `kid-hold-6.json`. `kid-hold-8.json` (the
+  Explicit tier of `kid-hold-8` / `grown-up-hold-7`, the ADR-0028 addendum of 2026-11-22: the explicit ratings, genres
+  and tags, the three new adult tags, the tier limit of a young ceiling and the no-metadata drop of a grown-up leftovers
+  pool) is a delta written by hand from #1078; `kid-hold-8` passes `kid-hold-6.json` and `kid-hold-7.json` with their
+  `adult` read as adult or explicit and their `X` rating at level 7.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

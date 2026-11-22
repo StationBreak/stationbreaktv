@@ -36,6 +36,7 @@ import tv.stationbreak.core.domain.lineup.programmed
 import tv.stationbreak.core.domain.lineup.rules
 import tv.stationbreak.core.domain.lineup.savedSelectionOf
 import tv.stationbreak.core.domain.lineup.selectionOf
+import tv.stationbreak.core.domain.lineup.seriesOf
 import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.domain.lineup.timing
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -191,6 +192,8 @@ internal open class RepairTestBase {
                 if (restart == null) store.inner.save(ACCOUNT, LineupCodec.encode(lineup, RefreshMeta(), repairs))
             }
             if (items.isNotEmpty()) library.seed(items)
+            val series = seriesOf(items).values
+            if (series.isNotEmpty()) library.seedSeries(*series.toTypedArray())
             // Every item has a current row (named), so it is live until a test tombstones it.
             for (item in items) {
                 val row = MediaItem(ItemId(item.item.id.value), "Synthetic", ItemKind.Movie, null, null)

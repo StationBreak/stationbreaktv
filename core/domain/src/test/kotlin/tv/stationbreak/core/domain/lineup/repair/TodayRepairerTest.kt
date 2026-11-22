@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.lineup.lineupOf
 import tv.stationbreak.core.domain.lineup.movie
 import tv.stationbreak.core.domain.lineup.programmed
 import tv.stationbreak.core.domain.lineup.rules
+import tv.stationbreak.core.domain.lineup.seriesOf
 import tv.stationbreak.core.domain.lineup.starter
 import tv.stationbreak.core.domain.lineup.timing
 import tv.stationbreak.core.engine.PoolEvaluator
@@ -175,7 +176,9 @@ internal class TodayRepairerTest : RepairTestBase() {
         val cutoff = Epochs.cutoff(settings, Epochs.epochNumber(settings, atMs))
         val snapshot =
             runBlocking {
-                val lib = CountingLibrary().also { it.seed(items) }
+                val lib = CountingLibrary()
+                lib.seed(items)
+                lib.seedSeries(*seriesOf(items).values.toTypedArray())
                 lib.delegate.ruleSnapshot(ACCOUNT, setOf(libA, libB), Instant.fromEpochMilliseconds(cutoff))
             }
         val homes =

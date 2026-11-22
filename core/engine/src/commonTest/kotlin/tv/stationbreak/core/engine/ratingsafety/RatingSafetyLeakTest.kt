@@ -40,7 +40,7 @@ class RatingSafetyLeakTest {
     fun noNeverInKidsFixtureNorItsStrippedCopyReachesKidsOrFamily() {
         for (fixture in NeverInKids.ALL) {
             val tier = RatingTier.of(fixture.entry, fixture.series)
-            assertTrue(tier == RatingTier.Teen || tier == RatingTier.Adult, "${fixture.title}: $tier")
+            assertTrue(tier >= RatingTier.Teen, "${fixture.title}: $tier")
             assertTrue(!KidHold.admits(fixture.entry, fixture.series), fixture.title)
         }
         // The stripped copies share the seed's IDs, so each set is its own snapshot.
@@ -53,10 +53,17 @@ class RatingSafetyLeakTest {
         }
     }
 
+    // kid-hold-8 (#1078): the X-rated film and the hentai-tagged one go on up to Explicit; their stripped copies stay
+    // Adult (a title with no metadata is never Explicit).
     @Test
-    fun theSeedListLandsAdultAndSleepersIsNeverKids() {
+    fun theSeedListLandsAdultOrExplicitAndSleepersIsNeverKids() {
+        val explicit = NeverInKids.SEED.filter { it.entry.officialRating == "X" || "hentai" in it.entry.tags }
+        assertEquals(2, explicit.size)
         for (fixture in NeverInKids.SEED) {
-            assertEquals(RatingTier.Adult, RatingTier.of(fixture.entry, fixture.series), fixture.title)
+            val expected = if (fixture in explicit) RatingTier.Explicit else RatingTier.Adult
+            assertEquals(expected, RatingTier.of(fixture.entry, fixture.series), fixture.title)
+            val bare = fixture.stripped()
+            assertEquals(RatingTier.Adult, RatingTier.of(bare.entry, bare.series), bare.title)
         }
         val sleepers = NeverInKids.SEED.single { it.title == "Sleepers" }
         assertTrue("kids" in sleepers.entry.tags, "the fixture carries the TMDb kids keyword")
@@ -74,7 +81,7 @@ class RatingSafetyLeakTest {
             if (names(entry, { it.tags }, { it.tags }).none { it in flagged }) continue
             checked++
             val tier = tierOf(entry)
-            assertTrue(tier == RatingTier.Teen || tier == RatingTier.Adult, "$entry: $tier")
+            assertTrue(tier >= RatingTier.Teen, "$entry: $tier")
         }
         assertTrue(checked > 1_000, "flagged titles checked: $checked")
     }
@@ -83,7 +90,7 @@ class RatingSafetyLeakTest {
     fun anUnratedOrUnknownTitleIsAdultAndOnNoKidChannelUnderAnyCeiling() {
         val unrated = library.items.filter { RatingTier.decisiveLevel(it, seriesOf(it)) == null }
         assertTrue(unrated.size > 5_000, "unrated titles: ${unrated.size}")
-        for (entry in unrated) assertEquals(RatingTier.Adult, tierOf(entry), "$entry")
+        for (entry in unrated) assertTrue(tierOf(entry) >= RatingTier.Adult, "$entry")
         val ids = unrated.mapTo(HashSet()) { it.item.id }
         for (ceiling in listOf(null) + RatingLadder.names) {
             val kids = PoolEvaluator.evaluate(all.copy(maxRating = ceiling), library, PoolPolicy.KidsOnly)
@@ -108,7 +115,7 @@ class RatingSafetyLeakTest {
         val unrated = setOf("Approved", "Passed")
         val titles = library.items.filter { it.officialRating in unrated && it.item.seriesId == null }
         assertTrue(titles.size > 100, "Approved and Passed titles: ${titles.size}")
-        for (entry in titles) assertEquals(RatingTier.Adult, tierOf(entry), "$entry")
+        for (entry in titles) assertTrue(tierOf(entry) >= RatingTier.Adult, "$entry")
         val ids = titles.mapTo(HashSet()) { it.item.id }
         for (ceiling in RatingLadder.names) {
             for (policy in listOf(PoolPolicy.KidsOnly, PoolPolicy.Custom, PoolPolicy.GrownUp)) {
@@ -130,21 +137,25 @@ class RatingSafetyLeakTest {
         val kidsPool = PoolEvaluator.evaluate(all, library, PoolPolicy.KidsOnly).items.mapTo(HashSet()) { it.id }
         val grownUp = PoolEvaluator.evaluate(all, library, PoolPolicy.GrownUp).items.mapTo(HashSet()) { it.id }
         for (entry in library.items) {
-            val kids = tierOf(entry) == RatingTier.Kids
+            val tier = tierOf(entry)
+            val kids = tier == RatingTier.Kids
+            val dropped = kids || tier == RatingTier.Explicit
+            val seriesMissing = entry.item.seriesId != null && seriesOf(entry) == null
             assertEquals(kids, entry.item.id in kidsPool, "kid channel: $entry")
-            assertEquals(!kids, entry.item.id in grownUp, "grown-up channel: $entry")
-            assertEquals(kids, GrownUpHold.dropsFromGrownUp(entry, seriesOf(entry)), "$entry")
+            assertEquals(!dropped && !seriesMissing, entry.item.id in grownUp, "grown-up channel: $entry")
+            assertEquals(dropped, GrownUpHold.dropsFromGrownUp(entry, seriesOf(entry)), "$entry")
         }
     }
 
-    // Fail upward: an explicit tag sends anything to adult, a gore tag never moves a title down, and losing the rating
-    // makes it adult.
+    // Fail upward: an explicit tag sends anything to adult or higher, an Explicit-tier tag to Explicit, a gore tag
+    // never moves a title down, and losing the rating makes it adult or higher.
     @Test
     fun aRejectionOnlyEverMovesATitleUp() {
         for (entry in library.items) {
             val series = seriesOf(entry)
             val tier = RatingTier.of(entry, series)
-            assertEquals(RatingTier.Adult, RatingTier.of(entry.copy(tags = entry.tags + "nudity"), series), "$entry")
+            assertTrue(RatingTier.of(entry.copy(tags = entry.tags + "nudity"), series) >= RatingTier.Adult, "$entry")
+            assertEquals(RatingTier.Explicit, RatingTier.of(entry.copy(tags = entry.tags + "porn"), series), "$entry")
             assertTrue(RatingTier.of(entry.copy(tags = entry.tags + "gore"), series) >= tier, "$entry")
             for (tag in RatingTier.FAMILY_VETO_TAGS) {
                 assertTrue(RatingTier.of(entry.copy(tags = entry.tags + tag), series) >= tier, "$tag: $entry")
@@ -155,7 +166,7 @@ class RatingSafetyLeakTest {
                 assertTrue(RatingTier.of(entry, listed) >= tier, "$entry")
             }
             if (entry.item.seriesId == null) {
-                assertEquals(RatingTier.Adult, RatingTier.of(entry.copy(officialRating = null), null), "$entry")
+                assertTrue(RatingTier.of(entry.copy(officialRating = null), null) >= RatingTier.Adult, "$entry")
             }
         }
     }
@@ -209,7 +220,9 @@ class RatingSafetyLeakTest {
     // deliberate rule change updates them, with the reason in the commit. The library grew with kid-hold-7 (more tag,
     // genre and studio sets, and a listed series every 50th): under kid-hold-6 it had 3090 kids, 3913 family, 5603 teen
     // and 45122 adult. kid-hold-7 moves 2010 titles: 1987 family to teen (violence tags or Horror), 13 kids to family
-    // and 10 kids to teen (the bump list, the latter also Horror).
+    // and 10 kids to teen (the bump list, the latter also Horror). kid-hold-8 (#1078) moves 17712 titles, every one up
+    // to Explicit and none anywhere else: 16272 adult (XXX, TV-X, NC-17, the hentai tag, the Adult genre), and 270
+    // kids, 258 family and 912 teen (episodes whose own rating is Explicit, which fails up past the series' rating).
     @Test
     fun theSyntheticLibraryTierCounts() {
         val counts = library.items.groupingBy { tierOf(it) }.eachCount()
@@ -219,10 +232,11 @@ class RatingSafetyLeakTest {
     private companion object {
         val EXPECTED_COUNTS =
             mapOf(
-                RatingTier.Kids to 3067,
-                RatingTier.Family to 1939,
-                RatingTier.Teen to 7600,
-                RatingTier.Adult to 45122,
+                RatingTier.Kids to 2797,
+                RatingTier.Family to 1681,
+                RatingTier.Teen to 6688,
+                RatingTier.Adult to 28850,
+                RatingTier.Explicit to 17712,
             )
     }
 }

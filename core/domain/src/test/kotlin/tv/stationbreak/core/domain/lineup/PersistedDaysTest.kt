@@ -104,7 +104,7 @@ class PersistedDaysTest {
     ): List<ChannelDay> {
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
-                RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
+                RuleSnapshot(it, setOf(LIBRARY_ID), items, seriesOf(items), emptyMap(), collectionsSynced = true)
             }
         return days.days(lineup, scheduled, snapshots)
     }
@@ -265,11 +265,12 @@ class PersistedDaysTest {
     // ADR-0026 moved the holds to studio fold 2 (kid-hold-4, grown-up-hold-3); the ADR-0019 addendum of 2026-11-13
     // made a rated series decide for its episodes (kid-hold-5, grown-up-hold-4); ADR-0028 brought the four tiers
     // (kid-hold-6, grown-up-hold-5); ADR-0029 the moves up and the bump list (kid-hold-7,
-    // grown-up-hold-6). Each rename rebuilds every held day once.
+    // grown-up-hold-6); #1078 the Explicit tier (kid-hold-8, grown-up-hold-7). Each rename rebuilds every held day
+    // once.
     @Test
-    fun theHoldNamesAreKidHoldSevenAndGrownUpHoldSix() {
-        assertTrue("kid-hold-7" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
-        assertTrue("grown-up-hold-6" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+    fun theHoldNamesAreKidHoldEightAndGrownUpHoldSeven() {
+        assertTrue("kid-hold-8" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+        assertTrue("grown-up-hold-7" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
     }
 
     @Test
