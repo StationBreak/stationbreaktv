@@ -7,7 +7,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** The app never says Pro or "coming soon" to a viewer: no string of the module names either. */
+/**
+ * "Coming soon" is never said, and Pro is named only where a free viewer reaches for something that is part of it
+ * (#99): the one note and the one button of the Pro prompt. Nothing else in the module names Pro.
+ */
 class FreeTierCopyTest {
     private val strings: Map<String, String> =
         checkNotNull(File("src/main/res/values").listFiles { f -> f.extension == "xml" })
@@ -15,16 +18,28 @@ class FreeTierCopyTest {
                 Regex("""<string name="([^"]+)"[^>]*>([^<]*)</string>""").findAll(file.readText()).toList()
             }.associate { it.groupValues[1] to it.groupValues[2].replace("\\'", "'") }
 
-    // Strings that may name Pro because only a Pro viewer reads them. None do: Pro's choices are simply not shown.
-    private val proOnly = emptySet<String>()
+    // The strings a free viewer reads on reaching for a Pro action: the notes, and the button to the purchase screen.
+    private val proPrompt =
+        setOf(
+            "channels_pro_needs_reshape",
+            "channels_pro_needs_reset",
+            "channels_pro_needs_custom",
+            "channels_action_see_pro",
+        )
 
     @Test
-    fun noStringNamesProOrComingSoon() {
+    fun noStringButThePromptNamesProOrComingSoon() {
         assertTrue("the strings were not found", strings.size > 50)
-        (strings - proOnly).forEach { (name, text) ->
+        (strings - proPrompt).forEach { (name, text) ->
             assertFalse("$name: $text", Regex("""\bPro\b""", RegexOption.IGNORE_CASE).containsMatchIn(text))
             assertFalse("$name: $text", text.contains("coming soon", ignoreCase = true))
         }
+    }
+
+    @Test
+    fun theProPromptNamesProAndOffersTheWay() {
+        proPrompt.forEach { assertTrue(it, strings.getValue(it).contains("Pro")) }
+        assertFalse(strings.values.any { it.contains("coming soon", ignoreCase = true) })
     }
 
     @Test

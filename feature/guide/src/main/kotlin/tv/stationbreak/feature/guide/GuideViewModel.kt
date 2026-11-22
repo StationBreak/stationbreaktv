@@ -52,6 +52,7 @@ import tv.stationbreak.core.domain.lineup.ScheduleWindow
 import tv.stationbreak.core.domain.lineup.onGuide
 import tv.stationbreak.core.domain.selection.ChoiceView
 import tv.stationbreak.core.domain.selection.LibrarySelectionView
+import tv.stationbreak.core.domain.store.ProOffer
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemDetails
@@ -115,6 +116,8 @@ internal class GuideViewModel
         private val pro: StateFlow<Boolean> = MutableStateFlow(false),
         /** Saves the hours schedule ([HoursOfOperation.edit]), which says why when it cannot. */
         private val editHours: suspend (HoursSchedule) -> HoursEdit = { HoursEdit.ProRequired },
+        /** What this build offers for Pro (#99): the Settings row's words and screen follow it. */
+        val offer: ProOffer = ProOffer.Store,
     ) : ViewModel() {
         @Inject
         constructor(
@@ -132,6 +135,7 @@ internal class GuideViewModel
             recovery: KidsPinRecovery,
             hours: HoursOfOperation,
             entitlement: ProEntitlement,
+            offer: ProOffer,
         ) : this(
             schedule,
             details,
@@ -150,6 +154,7 @@ internal class GuideViewModel
             hours.stored,
             entitlement.pro,
             hours::edit,
+            offer,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)

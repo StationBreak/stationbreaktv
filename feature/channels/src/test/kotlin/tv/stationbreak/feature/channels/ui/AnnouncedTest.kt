@@ -13,6 +13,7 @@ import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.Choice
 import tv.stationbreak.feature.channels.PickerState
+import tv.stationbreak.feature.channels.ProNeed
 import tv.stationbreak.feature.channels.builder.BuilderMode
 import tv.stationbreak.feature.channels.choicesOf
 
@@ -68,7 +69,7 @@ class AnnouncedTest {
     }
 
     @Test
-    fun aFreePanelAnnouncesOnlyTheChoicesItLists() {
+    fun aFreePanelAnnouncesEveryChoiceItLists() {
         val panel =
             base.copy(
                 panel = ChannelsPanel.Actions(id),
@@ -78,7 +79,20 @@ class AnnouncedTest {
             )
         val said = choicesOf(panel).indices.map { (announcedOf(panel.copy(choice = it)) as Announced.Pick).choice }
 
-        assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), said)
+        assertEquals(
+            listOf(Choice.Watch, Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About),
+            said,
+        )
+    }
+
+    @Test
+    fun theProNoteIsHeardWithItsFirstChoice() {
+        val note = base.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset))
+
+        val said = announcedOf(note) as Announced.Pick
+
+        assertEquals(Asking.Pro, said.asking)
+        assertEquals(Choice.SeePro, said.choice)
     }
 
     @Test

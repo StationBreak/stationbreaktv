@@ -46,6 +46,26 @@ object SettingsTags {
     const val SIGN_OUT_STAY = "settings:signOut:stay"
     const val SIGN_OUT_CONFIRM = "settings:signOut:confirm"
 
+    /** The Pro screen (#99): the whole of it, its title and its hint row. */
+    const val PRO = "settings:pro"
+    const val PRO_TITLE = "settings:pro:title"
+    const val PRO_HINT = "settings:pro:hint"
+
+    /** What Pro adds, the store's price (or that it has none), and "you have Pro" once it is owned. */
+    const val PRO_ADDS = "settings:pro:adds"
+    const val PRO_PRICE = "settings:pro:price"
+    const val PRO_OWNED = "settings:pro:owned"
+
+    /** The line saying what happened after Buy or Restore: the one live region. */
+    const val PRO_STATUS = "settings:pro:status"
+    const val PRO_BUY = "settings:pro:buy"
+    const val PRO_RESTORE = "settings:pro:restore"
+
+    /** The GitHub build's Support StationBreak page: its words, the address as text and the note under it. */
+    const val SUPPORT_BODY = "settings:support:body"
+    const val SUPPORT_URL = "settings:support:url"
+    const val SUPPORT_NOTE = "settings:support:note"
+
     fun row(id: ItemId) = "settings:libraries:row:${id.value}"
 
     /** The "Adding…" line under a row being added. */

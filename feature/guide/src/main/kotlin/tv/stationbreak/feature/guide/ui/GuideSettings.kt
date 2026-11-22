@@ -8,6 +8,7 @@ import tv.stationbreak.core.domain.SyncFailure
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.hours.HoursSchedule
 import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.domain.store.ProOffer
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.ScreenFit
@@ -67,6 +68,14 @@ internal enum class SettingsRow(
     /** Updates the library now (spec 26, Part 5); the line under it says how that stands. */
     SyncNow(RowKind.Action, R.string.guide_settings_sync_now),
 
+    /**
+     * StationBreak Pro (#99): opens its screen over the sheet, which is the purchase screen in a build that sells Pro
+     * and the Support StationBreak page in one that does not ([SettingsValues.offer]; the row's words follow it).
+     * Always shown, and the only mention of Pro on the sheet; Kids Mode switches it off like the rows that could spend
+     * or sidestep.
+     */
+    Pro(RowKind.Link, R.string.guide_settings_pro),
+
     /** Asks whether to sign out of this TV, over the sheet (#336); the safe answer has the focus. */
     SignOut(RowKind.Action, R.string.guide_settings_sign_out),
 
@@ -93,9 +102,15 @@ internal enum class SettingsRow(
      * Update library, Sign out) do nothing while it is on. The look, the fit and the volume stay the viewer's.
      */
     fun isInert(values: SettingsValues): Boolean = values.kidsOn && this in KIDS_LOCKED_ROWS
+
+    /** The row's words for [values]: the Pro row says Support StationBreak in a build with no store to buy from. */
+    @StringRes
+    fun labelFor(values: SettingsValues): Int =
+        if (this == Pro && values.offer is ProOffer.Support) R.string.guide_settings_support else label
 }
 
-private val KIDS_LOCKED_ROWS = setOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)
+private val KIDS_LOCKED_ROWS =
+    setOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.Pro, SettingsRow.SignOut)
 
 /** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
 internal enum class SettingsGroup(
@@ -109,7 +124,7 @@ internal enum class SettingsGroup(
         listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours),
     ),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
-    Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
+    Account(R.string.guide_settings_group_account, listOf(SettingsRow.Pro, SettingsRow.SignOut)),
     Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),
 }
 
@@ -133,6 +148,8 @@ internal data class SettingsValues(
     val pro: Boolean = false,
     /** The stored hours schedule, for the hours screen (what Pro would apply, whatever Pro says now). */
     val hours: HoursSchedule = HoursSchedule.EMPTY,
+    /** What this build offers for Pro (#99): a purchase screen, or a Support link. Fixed for the build. */
+    val offer: ProOffer = ProOffer.Store,
 )
 
 /**
@@ -148,15 +165,20 @@ internal data class SettingsPanel(
     val pin: PinEntry? = null,
     val reset: PinReset? = null,
     val hours: HoursScreen? = null,
+    /** The Pro screen (purchase, or Support) shows over the sheet (#99). */
+    val proShown: Boolean = false,
 ) {
     /** A screen over the guide has the keys. */
-    val covered: Boolean get() = librariesShown || signOutShown
+    val covered: Boolean get() = librariesShown || signOutShown || proShown
 
     /** The Libraries screen has finished: back to the sheet, on Libraries. */
     fun librariesDone(): SettingsPanel = copy(librariesShown = false)
 
     /** The viewer stayed signed in: back to the sheet, on Sign out. */
     fun signOutDone(): SettingsPanel = copy(signOutShown = false)
+
+    /** The Pro screen has finished (Back): back to the sheet, on its row. */
+    fun proDone(): SettingsPanel = copy(proShown = false)
 }
 
 /**
@@ -316,6 +338,8 @@ private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
         row == SettingsRow.ChangePin -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Change)))
 
         row == SettingsRow.Hours -> SettingsStep(copy(hours = HoursScreen()))
+
+        row == SettingsRow.Pro -> SettingsStep(copy(proShown = true))
 
         else -> selectedRow(values)
     }

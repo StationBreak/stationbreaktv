@@ -68,18 +68,30 @@ import tv.stationbreak.feature.channels.dialogOpen
  * are the builder's. It ends with a Back (the list shows again, on the row or New it left from), or a save: Save and
  * watch finishes this screen with the new channel to tune, Save returns to the list on that channel's row.
  */
+@Suppress("LongParameterList") // The showing, the hole, the finish and the Pro slot.
 @Composable
 fun ChannelsDestination(
     current: ChannelId?,
     openedAtNanos: Long,
     pictureHole: DpRect,
     onDone: (tune: ChannelId?) -> Unit,
+    pro: ProSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ChannelsViewModel = hiltViewModel()
     val builderViewModel: BuilderViewModel = hiltViewModel()
-    ChannelsRoot(viewModel, builderViewModel, current, openedAtNanos, pictureHole, onDone, modifier)
+    ChannelsRoot(viewModel, builderViewModel, current, openedAtNanos, pictureHole, onDone, modifier, pro = pro)
 }
+
+/**
+ * The Pro purchase screen as this screen draws it over itself (#99), from the note a free viewer gets for a choice that
+ * is part of Pro. [onDone] is called once, when the viewer leaves it (Back); this screen stops drawing the slot and is
+ * where it was. A slot because a feature never depends on another: `app` fills it.
+ */
+typealias ProSlot = @Composable (onDone: () -> Unit) -> Unit
+
+/** A Pro slot with nothing to show: it finishes at once, so a screen given none is never left covered. */
+internal val NoPro: ProSlot = { onDone -> LaunchedEffect(Unit) { onDone() } }
 
 /** [ChannelsDestination] without Hilt, so a test can bring its own ViewModel. */
 @Suppress("LongParameterList") // The destination's own five, and the ViewModels a test brings.
@@ -93,6 +105,7 @@ internal fun ChannelsRoot(
     onDone: (tune: ChannelId?) -> Unit,
     modifier: Modifier = Modifier,
     about: ChannelId? = null,
+    pro: ProSlot = NoPro,
 ) {
     // One session per showing, and per opening: the host can close and reopen the screen between two frames.
     DisposableEffect(viewModel, openedAtNanos) {
@@ -146,6 +159,13 @@ internal fun ChannelsRoot(
         )
         if (building && opened == ui.builder) {
             BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+        }
+        // The purchase screen has the keys while it shows; Back from it comes back here, to the note.
+        if (ui.seeingPro) {
+            pro {
+                runCatching { keys.requestFocus() }
+                viewModel.proDone()
+            }
         }
     }
 }
@@ -240,7 +260,7 @@ internal class ChannelsActions(
         if (finished) return
         val ui = vm.ui.value
         // The builder has the keys while it shows.
-        if (ui.builder != null || waitingForTheSheet(ui, pad)) return
+        if (ui.builder != null || ui.seeingPro || waitingForTheSheet(ui, pad)) return
         val inPanel = ui.dialogOpen
         when {
             pad == Pad.Back -> back(ui)

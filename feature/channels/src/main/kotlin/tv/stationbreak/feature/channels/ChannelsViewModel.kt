@@ -159,6 +159,8 @@ internal class ChannelsViewModel
             /** The channel whose properties sheet is open, and what was read for it (null while being read). */
             val about: ChannelId? = null,
             val properties: ChannelProperties? = null,
+            /** The purchase screen shows over the list (#99). */
+            val seeingPro: Boolean = false,
         ) {
             /** Whether [want] can be decided: the access is known and, for a new channel, so is the cap (#805). */
             fun settledFor(want: BuilderMode): Boolean =
@@ -407,7 +409,7 @@ internal class ChannelsViewModel
             return when (m.access) {
                 LineupAccess.Editable -> {
                     if (want !is BuilderMode.Edit && m.canAddCustom != true) {
-                        m.copy(wantBuilder = null, message = ChannelsMessage.CustomLimit)
+                        m.copy(wantBuilder = null, panel = ChannelsPanel.NeedsPro(ProNeed.CustomLimit))
                     } else {
                         m.copy(builder = want, wantBuilder = null)
                     }
@@ -460,13 +462,18 @@ internal class ChannelsViewModel
             val picker = ui.picker
             val choice = choicesOf(ui).getOrNull(ui.choice)
             return when {
-                picker != null && panel != null -> {
+                picker != null && panel is ChannelsPanel.Number -> {
                     if (picker.value > 0) setNumber(panel.id, picker.value)
                     null
                 }
 
                 choice == Choice.Cancel -> {
                     dismiss()
+                    null
+                }
+
+                choice == Choice.SeePro -> {
+                    seePro()
                     null
                 }
 
@@ -485,19 +492,17 @@ internal class ChannelsViewModel
             }
         }
 
-        // The choice of an actions panel; the channel to tune for Watch, else null. A choice held to the cap does
-        // nothing more than its note (#793); a choice that is not offered is not in the list, so it never gets here.
+        // The choice of an actions panel; the channel to tune for Watch, else null. A choice that is part of Pro, or
+        // held to the free cap, does nothing more than its note, which offers the purchase screen (#793, #99).
         private fun choose(
             choice: Choice,
             id: ChannelId,
             ui: ChannelsUi,
         ): ChannelId? {
-            val note = limitOf(choice, ui.canAddCustom)
+            val need = proNeedOf(choice, ui.rows.firstOrNull { it.id == id }, ui.isPro, ui.canAddCustom)
             return when {
-                note != null -> {
-                    synchronized(lock) {
-                        apply { it.copy(panel = null, holder = null, about = null, properties = null, message = note) }
-                    }
+                need != null -> {
+                    synchronized(lock) { apply { it.copy(panel = ChannelsPanel.NeedsPro(need, id), holder = null) } }
                     null
                 }
 
@@ -529,7 +534,7 @@ internal class ChannelsViewModel
 
             Choice.About -> openAbout(id)
 
-            Choice.Confirm, Choice.Cancel -> Unit
+            Choice.Confirm, Choice.Cancel, Choice.SeePro -> Unit
         }
 
         private fun confirm(panel: ChannelsPanel?) {
@@ -548,11 +553,9 @@ internal class ChannelsViewModel
             val focus = m.focus
             return when {
                 focus == null -> firstFocus(m, ids)
-                focus == ChannelsFocus.Reset && canReset(m.isPro) -> focus
-                focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
+                focus == ChannelsFocus.Reset || focus == ChannelsFocus.New || focus == ChannelsFocus.Household -> focus
                 focus.id in ids -> focus
-                ids.isEmpty() -> resetStop(m) ?: ChannelsFocus.New
-                focus == ChannelsFocus.Reset -> ChannelsFocus.Row(ids.last())
+                ids.isEmpty() -> ChannelsFocus.Reset
                 else -> ChannelsFocus.Row(ids[oldIds.indexOf(focus.id).coerceIn(0, ids.lastIndex)])
             }
         }
@@ -596,12 +599,10 @@ internal class ChannelsViewModel
                 about = m.about,
                 properties = m.properties,
                 listed = m.listed,
+                seeingPro = m.seeingPro,
             )
 
         private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
-
-        // Reset is the last stop, for a viewer who can reset: a free viewer has no Reset line.
-        private fun resetStop(m: Model): ChannelsFocus? = ChannelsFocus.Reset.takeIf { canReset(m.isPro) }
 
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
@@ -609,7 +610,7 @@ internal class ChannelsViewModel
                 if (model.builder != null) return
                 val ids = model.rows.map { it.id }
                 val rows = ids.map { ChannelsFocus.Row(it) }
-                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + listOfNotNull(resetStop(model))
+                val stops = listOf(ChannelsFocus.Household, ChannelsFocus.New) + rows + listOf(ChannelsFocus.Reset)
                 val at = stops.indexOf(model.focus)
                 val step = if (up) at - 1 else at + 1
                 val to = if (at < 0) stops.indexOf(ChannelsFocus.New) else step.coerceIn(0, stops.lastIndex)
@@ -683,7 +684,7 @@ internal class ChannelsViewModel
         // (#793). The domain's create is the binding check. Under [lock].
         private fun atCustomCap(mode: BuilderMode): Boolean {
             if (mode is BuilderMode.Edit || model.canAddCustom != false) return false
-            apply { it.copy(panel = null, holder = null, message = ChannelsMessage.CustomLimit) }
+            apply { it.copy(panel = ChannelsPanel.NeedsPro(ProNeed.CustomLimit), holder = null) }
             return true
         }
 
@@ -739,6 +740,23 @@ internal class ChannelsViewModel
                         else -> it.copy(message = null)
                     }
                 }
+            }
+        }
+
+        /** See Pro on a note: the purchase screen shows over the list, the note staying under it. */
+        fun seePro() {
+            synchronized(lock) {
+                if (model.builder == null && model.panel is ChannelsPanel.NeedsPro) apply { it.copy(seeingPro = true) }
+            }
+        }
+
+        /**
+         * The purchase screen has finished (Back): the viewer is where they were, on the note, which closes when Pro
+         * was bought meanwhile (it has nothing left to say).
+         */
+        fun proDone() {
+            synchronized(lock) {
+                apply { m -> if (m.isPro) m.copy(seeingPro = false, panel = null) else m.copy(seeingPro = false) }
             }
         }
 
@@ -911,7 +929,7 @@ internal class ChannelsViewModel
             synchronized(lock) {
                 when {
                     notEditable() -> Unit
-                    !canReset(model.isPro) -> Unit
+                    !model.isPro -> apply { it.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset)) }
                     else -> apply { it.copy(confirmingReset = true, panel = null) }
                 }
             }

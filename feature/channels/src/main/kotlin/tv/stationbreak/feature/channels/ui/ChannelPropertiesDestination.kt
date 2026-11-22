@@ -28,9 +28,20 @@ fun ChannelPropertiesDestination(
     openedAtNanos: Long,
     pictureHole: DpRect,
     onDone: (tune: ChannelId?) -> Unit,
+    pro: ProSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ChannelsViewModel = hiltViewModel()
     val builderViewModel: BuilderViewModel = hiltViewModel()
-    ChannelsRoot(viewModel, builderViewModel, current, openedAtNanos, pictureHole, onDone, modifier, about = channel)
+    ChannelsRoot(
+        viewModel,
+        builderViewModel,
+        current,
+        openedAtNanos,
+        pictureHole,
+        onDone,
+        modifier,
+        about = channel,
+        pro = pro,
+    )
 }

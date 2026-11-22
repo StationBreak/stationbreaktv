@@ -9,12 +9,18 @@ import kotlinx.coroutines.flow.StateFlow
  * report ([PurchaseOutcome.Purchased] and [PurchaseOutcome.AlreadyOwned] verify Pro, the rest change nothing). [revoke] is a refund seen in the
  * purchase updates, and [owned] is what the account owns, read by [restore].
  */
-class FakeStoreEntitlement(
+open class FakeStoreEntitlement(
     initial: Boolean? = null,
 ) : StoreEntitlement {
     private val state = MutableStateFlow(initial)
 
     override val verified: StateFlow<Boolean?> = state
+
+    /** What the store says Pro costs; null is a store that has not given a price. */
+    override val price = MutableStateFlow<String?>("$19.99")
+
+    /** The next [restore] fails (the store could not be asked). */
+    var restoreFails: Boolean = false
 
     /** What the next [purchase] ends as. */
     var next: PurchaseOutcome = PurchaseOutcome.Purchased
@@ -25,7 +31,12 @@ class FakeStoreEntitlement(
     var restores: Int = 0
         private set
 
+    /** How many times [purchase] was asked. */
+    var purchases: Int = 0
+        private set
+
     override suspend fun purchase(): PurchaseOutcome {
+        purchases++
         if (next == PurchaseOutcome.Purchased || next == PurchaseOutcome.AlreadyOwned) {
             owned = true
             state.value = true
@@ -33,9 +44,11 @@ class FakeStoreEntitlement(
         return next
     }
 
-    override suspend fun restore() {
+    override suspend fun restore(): RestoreOutcome {
         restores++
+        if (restoreFails) return RestoreOutcome.Failed
         state.value = owned
+        return if (owned) RestoreOutcome.Found else RestoreOutcome.None
     }
 
     /** The store reports the purchase refunded. */

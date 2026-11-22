@@ -102,6 +102,10 @@
     <string name="guide_sync_reason_server">The server had a problem.</string>
     <string name="guide_sync_reason_suspect">The server sent something StationBreak couldn\'t read.</string>
     <string name="guide_sync_reason_libraries_gone">This TV\'s libraries are gone from the server. Choose them in Libraries.</string>
+    <!-- The Settings sheet's Pro row (#99), the only mention of Pro on the sheet: the purchase screen, or in a build with
+         no store the Support StationBreak page. Draft copy for the owner's approval. -->
+    <string name="guide_settings_pro">StationBreak Pro</string>
+    <string name="guide_settings_support">Support StationBreak</string>
     <!-- The Settings sheet's last row (#336): OK asks whether to sign out of this TV. -->
     <string name="guide_settings_sign_out">Sign out</string>
     <!-- The Settings sheet's hint row (its keys and Close are core:ui's): Left and Right change a choice, OK moves it

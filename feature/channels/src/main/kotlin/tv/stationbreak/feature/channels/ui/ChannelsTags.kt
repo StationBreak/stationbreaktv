@@ -48,6 +48,7 @@ object ChannelsTags {
     const val ACTION_DEFAULT_NUMBER = "channels:action:defaultNumber"
     const val ACTION_ABOUT = "channels:action:about"
     const val ACTION_CANCEL = "channels:action:cancel"
+    const val ACTION_SEE_PRO = "channels:action:seePro"
     const val ACTION_CONFIRM = "channels:action:confirm"
 
     /** The properties sheet, and its parts. */

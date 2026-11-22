@@ -31,6 +31,7 @@ import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsPanel
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.Choice
+import tv.stationbreak.feature.channels.ProNeed
 import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.choicesOf
 
@@ -64,6 +65,10 @@ internal fun ChannelsPanelView(
 
                 is ChannelsPanel.Swap -> {
                     stringResource(R.string.channels_number_taken, panel.number, panel.holderName)
+                }
+
+                is ChannelsPanel.NeedsPro -> {
+                    stringResource(proNeedText(panel.need))
                 }
 
                 null -> {
@@ -155,6 +160,7 @@ private fun ChoiceRow(
 }
 
 /** The choice's words. */
+@Suppress("CyclomaticComplexMethod") // One branch for each choice.
 @Composable
 internal fun labelOf(
     choice: Choice,
@@ -198,6 +204,10 @@ internal fun labelOf(
                 R.string.channels_action_cancel
             }
 
+            Choice.SeePro -> {
+                R.string.channels_action_see_pro
+            }
+
             Choice.Confirm -> {
                 when (panel) {
                     is ChannelsPanel.ConfirmOptIn -> R.string.channels_action_switch_on
@@ -220,4 +230,13 @@ internal fun tagOf(choice: Choice): String =
         Choice.About -> ChannelsTags.ACTION_ABOUT
         Choice.Confirm -> ChannelsTags.ACTION_CONFIRM
         Choice.Cancel -> ChannelsTags.ACTION_CANCEL
+        Choice.SeePro -> ChannelsTags.ACTION_SEE_PRO
+    }
+
+/** What the note says about [need], for the panel and for a screen reader. */
+internal fun proNeedText(need: ProNeed): Int =
+    when (need) {
+        ProNeed.Reshape -> R.string.channels_pro_needs_reshape
+        ProNeed.Reset -> R.string.channels_pro_needs_reset
+        ProNeed.CustomLimit -> R.string.channels_pro_needs_custom
     }

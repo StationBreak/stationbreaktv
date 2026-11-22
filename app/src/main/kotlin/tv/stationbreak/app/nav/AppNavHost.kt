@@ -40,6 +40,7 @@ import tv.stationbreak.feature.onboarding.libraries.SignedInDestination
 import tv.stationbreak.feature.onboarding.server.ServerDestination
 import tv.stationbreak.feature.onboarding.signin.SignInDestination
 import tv.stationbreak.feature.onboarding.welcome.WelcomeDestination
+import tv.stationbreak.feature.settings.ui.ProDestination
 import tv.stationbreak.feature.settings.ui.SignOutDestination
 import tv.stationbreak.feature.settings.ui.LibrariesDestination as SettingsLibrariesDestination
 
@@ -315,8 +316,9 @@ private fun AppNavHostContent(
 }
 
 /**
- * The guide, with channel management (spec 21), a channel's properties sheet (#631), Settings, Libraries (spec 26) and
- * the sign-out question (#336) as its slots, filled here because a feature never depends on another.
+ * The guide, with channel management (spec 21), a channel's properties sheet (#631), Settings, Libraries (spec 26),
+ * the sign-out question (#336) and the Pro screen (#99) as its slots, filled here because a feature never depends on
+ * another.
  */
 @Composable
 private fun GuideWithChannels(
@@ -329,12 +331,22 @@ private fun GuideWithChannels(
         opening,
         pictureHole,
         onTune,
-        channels = { channel, opened, hole, onDone -> ChannelsDestination(channel, opened, hole, onDone) },
+        channels = { channel, opened, hole, onDone ->
+            ChannelsDestination(channel, opened, hole, onDone, pro = { onBack -> ProDestination(onBack) })
+        },
         properties = { channel, current, opened, hole, onDone ->
-            ChannelPropertiesDestination(channel, current, opened, hole, onDone)
+            ChannelPropertiesDestination(
+                channel,
+                current,
+                opened,
+                hole,
+                onDone,
+                pro = { onBack -> ProDestination(onBack) },
+            )
         },
         libraries = { hole, onDone -> SettingsLibrariesDestination(hole, onDone) },
         signOut = { onDone -> SignOutDestination(onDone, onSignedOut) },
+        pro = { onDone -> ProDestination(onDone) },
     )
 }
 

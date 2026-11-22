@@ -48,4 +48,31 @@
     <string name="settings_sign_out_failed">Something went wrong. Try again.</string>
     <!-- The question's hint row: a key name and Choose are core:ui's; once the server could not be told, OK goes on. -->
     <string name="settings_hint_go_on">Go on</string>
+    <!-- The Pro purchase screen (#99). Draft copy for the owner's approval. -->
+    <string name="settings_pro_title">StationBreak Pro</string>
+    <string name="settings_pro_intro">One purchase, yours to keep. Pro adds:</string>
+    <string name="settings_pro_adds_channels">Switching built-in channels on and off, hiding and renumbering them</string>
+    <string name="settings_pro_adds_reset">Resetting your lineup to the one StationBreak builds</string>
+    <string name="settings_pro_adds_custom">More than 5 channels of your own, and copying After Hours</string>
+    <string name="settings_pro_adds_hours">Hours of operation for parents</string>
+    <!-- The store's own words for the price, never built here: %1$s is whatever the store says. -->
+    <string name="settings_pro_price">%1$s, one time</string>
+    <string name="settings_pro_price_unknown">The store hasn\'t given a price yet.</string>
+    <string name="settings_pro_buy">Buy Pro</string>
+    <string name="settings_pro_restore">Restore purchases</string>
+    <string name="settings_pro_owned">You have StationBreak Pro. Everything it adds is on.</string>
+    <string name="settings_pro_working">Asking the store…</string>
+    <string name="settings_pro_kids">Kids Mode is on.</string>
+    <string name="settings_pro_bought">Thank you. Pro is on.</string>
+    <string name="settings_pro_already_owned">You already own Pro. It is on now.</string>
+    <string name="settings_pro_cancelled">Nothing was bought.</string>
+    <string name="settings_pro_pending">The store hasn\'t finished your purchase. Pro turns on when it does.</string>
+    <string name="settings_pro_failed">Couldn\'t reach the store. Nothing was charged.</string>
+    <string name="settings_pro_restored">Your purchase is back. Pro is on.</string>
+    <string name="settings_pro_nothing_to_restore">No Pro purchase was found on this account.</string>
+    <string name="settings_pro_restore_failed">Couldn\'t reach the store. Try again.</string>
+    <!-- The GitHub build (Pro always on, no store): a Support StationBreak page showing the project's address. -->
+    <string name="settings_support_title">Support StationBreak</string>
+    <string name="settings_support_body">StationBreak is free and open source, and this version has everything on. If you\'d like to help the project, you can do it here:</string>
+    <string name="settings_support_note">There is no browser on this TV. Open this address on a phone or computer.</string>
 </resources>

@@ -35,9 +35,21 @@ internal data class ChannelRow(
     val viewerMade: Boolean = kind == ChannelKind.Custom,
 )
 
-/** The small dialog open over the list, about one channel. */
+/** What a free viewer reached for that is part of Pro (#99): the note says it and offers the purchase screen. */
+internal enum class ProNeed {
+    /** Switching a built-in channel on or off, numbering it, or putting its number back. */
+    Reshape,
+
+    /** Resetting the planner's lineup. */
+    Reset,
+
+    /** Another custom channel, with the free allowance used up. */
+    CustomLimit,
+}
+
+/** The small dialog open over the list, about one channel (a [ChannelsPanel.NeedsPro] one may be about none). */
 internal sealed interface ChannelsPanel {
-    val id: ChannelId
+    val id: ChannelId?
 
     data class Actions(
         override val id: ChannelId,
@@ -57,6 +69,12 @@ internal sealed interface ChannelsPanel {
         val number: Int,
         val holderName: String,
         val toDefault: Boolean,
+    ) : ChannelsPanel
+
+    /** The viewer is not Pro and chose something that is: See Pro opens the purchase screen, Cancel closes this. */
+    data class NeedsPro(
+        val need: ProNeed,
+        override val id: ChannelId? = null,
     ) : ChannelsPanel
 }
 
@@ -79,9 +97,6 @@ internal enum class ChannelsMessage {
 
     /** The same for Default number: there is no number to pick again, so the note does not ask for one. */
     DefaultNumberTaken,
-
-    /** Free holds a few custom channels, and they are all made (#793). */
-    CustomLimit,
 }
 
 /** Where the focus is, by identity, so it follows a row that moves group. */
@@ -138,6 +153,8 @@ internal data class ChannelsUi(
     val canAddCustom: Boolean = true,
     /** The channel holding the number an open Swap panel offers to take (#804). */
     val holder: ChannelId? = null,
+    /** The purchase screen shows over the list (#99); the keys are the slot's, and Back from it comes back here. */
+    val seeingPro: Boolean = false,
 ) {
     companion object {
         val Empty =

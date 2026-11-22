@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.domain.store.ProOffer
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
 import tv.stationbreak.feature.guide.R
@@ -41,7 +42,7 @@ class GuideSettingsRowsTest {
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
         assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours), SettingsGroup.Kids.rows)
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
-        assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
+        assertEquals(listOf(SettingsRow.Pro, SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
     }
 
@@ -49,6 +50,15 @@ class GuideSettingsRowsTest {
     fun hoursOfOperationIsOnTheSheetOnlyWithPro() {
         assertEquals(false, SettingsRow.Hours.isShown(SettingsValues()))
         assertEquals(true, SettingsRow.Hours.isShown(SettingsValues(pro = true)))
+    }
+
+    @Test
+    fun theProRowIsAlwaysOnTheSheet_andSaysSupportInABuildWithNoStore() {
+        assertEquals(true, SettingsRow.Pro.isShown(SettingsValues()))
+        assertEquals("StationBreak Pro", text(SettingsRow.Pro.labelFor(SettingsValues())))
+        val github = SettingsValues(offer = ProOffer.Support("https://example.test/support"))
+        assertEquals("Support StationBreak", text(SettingsRow.Pro.labelFor(github)))
+        assertEquals("Sign out", text(SettingsRow.SignOut.labelFor(github)))
     }
 
     @Test
@@ -64,6 +74,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.Hours to (RowKind.Link to "Hours of operation"),
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
                 SettingsRow.SyncNow to (RowKind.Action to "Update library"),
+                SettingsRow.Pro to (RowKind.Link to "StationBreak Pro"),
                 SettingsRow.SignOut to (RowKind.Action to "Sign out"),
                 SettingsRow.CrashReports to (RowKind.Choice to "Send crash reports"),
             )
@@ -184,7 +195,10 @@ class GuideSettingsRowsTest {
     fun kidsModeSwitchesOffExactlyTheRowsThatCouldUndoIt_andTheirHintHasOnlyBack() {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         val inert = SettingsRow.entries.filter { it.isInert(on) }
-        assertEquals(listOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut), inert)
+        assertEquals(
+            listOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.Pro, SettingsRow.SignOut),
+            inert,
+        )
         val pinOnly = SettingsValues(kidsPinSet = true)
         assertEquals(emptyList<SettingsRow>(), SettingsRow.entries.filter { it.isInert(pinOnly) })
         for (row in inert) {

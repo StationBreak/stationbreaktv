@@ -222,7 +222,7 @@ internal fun SignedInLine(
 ) = Line(stringResource(R.string.settings_signed_in_to, serverName), tag, SheetMeasures.CaptionSize)
 
 @Composable
-private fun Line(
+internal fun Line(
     text: String,
     tag: String,
     size: TextUnit,
@@ -262,7 +262,7 @@ private fun Answers(
 
 // One answer: a row with the guide family's drawn ring while it has the focus, spoken as a button.
 @Composable
-private fun Answer(
+internal fun Answer(
     label: String,
     tag: String,
     focused: Boolean,

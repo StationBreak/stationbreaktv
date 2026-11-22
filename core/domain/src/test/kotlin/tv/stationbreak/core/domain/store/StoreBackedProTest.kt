@@ -82,6 +82,24 @@ class StoreBackedProTest {
         }
 
     @Test
+    fun restoreSaysWhatItFound_andOnlyFoundUnlocks() =
+        runTest {
+            val pro = pro()
+            store.owned = false
+            assertEquals(RestoreOutcome.None, store.restore())
+            assertFalse(pro.pro.value)
+
+            store.restoreFails = true
+            assertEquals(RestoreOutcome.Failed, store.restore())
+            assertFalse(pro.pro.value)
+
+            store.restoreFails = false
+            store.owned = true
+            assertEquals(RestoreOutcome.Found, store.restore())
+            assertTrue(pro.pro.value)
+        }
+
+    @Test
     fun aRefundRelocksAndClearsTheCache_andABuyUnlocksAgain() =
         runTest {
             val pro = pro()

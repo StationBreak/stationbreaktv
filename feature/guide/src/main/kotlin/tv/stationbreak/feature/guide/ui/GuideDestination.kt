@@ -78,7 +78,9 @@ import tv.stationbreak.feature.guide.GuideViewModel
  * shows [properties] (the channel's properties sheet, #631) over the guide, which stands down the same way. Select on
  * Libraries in the Settings sheet shows [libraries] the same way; Back from it returns to the sheet, and Back from the
  * sheet closes it. Select on Update library in the sheet starts an update, and the sheet says how it goes. Select on
- * Sign out shows [signOut] (the question whether to sign out) over the sheet; staying returns to the sheet. Kids Mode
+ * Sign out shows [signOut] (the question whether to sign out) over the sheet; staying returns to the sheet. Select on
+ * the Pro row shows [pro] (the purchase screen, or Support StationBreak) the same way; Back returns to the sheet.
+ * Kids Mode
  * (#789) is the sheet's too: its PIN pad is drawn by the guide over the sheet, and while the lock is on the rows and
  * keys that edit the lineup, the libraries or the account (Channels, a channel's properties, Libraries, Update library,
  * Sign out) do nothing.
@@ -93,6 +95,7 @@ fun GuideDestination(
     properties: PropertiesSlot,
     libraries: LibrariesSlot,
     signOut: SignOutSlot,
+    pro: ProSlot,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: GuideViewModel = hiltViewModel()
@@ -126,6 +129,7 @@ fun GuideDestination(
                 properties,
                 libraries,
                 signOut,
+                pro,
                 levelling = levelling,
                 onLevelling = { enabled, from -> levellings.choose(enabled, from) },
                 channelChange = channelChange,
@@ -194,6 +198,13 @@ typealias LibrariesSlot = @Composable (pictureHole: DpRect, onDone: () -> Unit) 
 typealias SignOutSlot = @Composable (onDone: () -> Unit) -> Unit
 
 /**
+ * StationBreak Pro (#99) as the guide draws it over its Settings sheet: the purchase screen in a build that sells Pro,
+ * Support StationBreak in one that does not. [onDone] is called once, when the viewer leaves (Back); the guide stops
+ * drawing the slot then and shows the sheet again, on the Pro row. A slot for the same reason as [ChannelsSlot].
+ */
+typealias ProSlot = @Composable (onDone: () -> Unit) -> Unit
+
+/**
  * [GuideDestination] without Hilt, so a test can bring its own ViewModel.
  *
  * [openedAtNanos] has no default on purpose: it keys the session, and a default expression such as
@@ -216,6 +227,7 @@ internal fun GuideRoot(
     properties: PropertiesSlot = NoProperties,
     libraries: LibrariesSlot = NO_LIBRARIES_SLOT,
     signOut: SignOutSlot = NoSignOut,
+    pro: ProSlot = NoPro,
     levelling: Boolean = true,
     onLevelling: (Boolean, String) -> Unit = { _, _ -> },
     channelChange: ChannelChangeStyle = ChannelChangeStyle.Stan,
@@ -278,7 +290,8 @@ internal fun GuideRoot(
     var settings by remember(viewModel, openedAtNanos) { mutableStateOf<SettingsPanel?>(null) }
     val librariesShown = settings?.librariesShown == true
     val signOutShown = settings?.signOutShown == true
-    val cover = GuideCover(managing, propertiesOf != null, librariesShown, signOutShown)
+    val proShown = settings?.proShown == true
+    val cover = GuideCover(managing, propertiesOf != null, librariesShown, signOutShown || proShown)
     // The Libraries screen hides the guide as channel management does, so the clock and the lineup reloads stop
     // under it (a reload no one can see is wasted work on a slow TV) and start again when it closes.
     DisposableEffect(viewModel, librariesShown) {
@@ -300,7 +313,7 @@ internal fun GuideRoot(
     // ([valuesNow]), or from these where there are no stores (a test's host).
     val kids by viewModel.kidsState.collectAsStateWithLifecycle()
     val hours by viewModel.hoursState.collectAsStateWithLifecycle()
-    val pro by viewModel.proState.collectAsStateWithLifecycle()
+    val isPro by viewModel.proState.collectAsStateWithLifecycle()
     val settingsValues =
         SettingsValues(
             themeChoice,
@@ -314,8 +327,9 @@ internal fun GuideRoot(
             kidsPinSet = kids?.pinSet == true,
             kidsKnown = kids != null,
             kidsCap = kids?.cap ?: KidsCap.DEFAULT,
-            pro = pro,
+            pro = isPro,
             hours = hours,
+            offer = viewModel.offer,
         )
     val shownValues by rememberUpdatedState(settingsValues)
     // Kids Mode, like the stores' values, as it stands at the key.
@@ -329,6 +343,7 @@ internal fun GuideRoot(
             kidsCap = lock?.cap ?: KidsCap.DEFAULT,
             pro = viewModel.proState.value,
             hours = viewModel.hoursState.value,
+            offer = viewModel.offer,
         )
     }
     val scope = rememberCoroutineScope()
@@ -362,7 +377,7 @@ internal fun GuideRoot(
                             managingSince != NOT_MANAGING,
                             propertiesOf != null,
                             open?.librariesShown == true,
-                            open?.signOutShown == true,
+                            open?.signOutShown == true || open?.proShown == true,
                         )
                     if (!now.covered) {
                         viewModel.channelsOpened()
@@ -489,6 +504,12 @@ internal fun GuideRoot(
                 settings = settings?.signOutDone()
             }
         }
+        if (proShown) {
+            pro {
+                runCatching { keys.requestFocus() }
+                settings = settings?.proDone()
+            }
+        }
     }
 }
 
@@ -529,6 +550,9 @@ private val NO_LIBRARIES_SLOT: LibrariesSlot = { _, onDone -> LaunchedEffect(Uni
 
 /** A sign-out slot with nothing to ask: it finishes at once, so a guide given none is never left covered. */
 private val NoSignOut: SignOutSlot = { onDone -> LaunchedEffect(Unit) { onDone() } }
+
+/** A Pro slot with nothing to show: it finishes at once, so a guide given none is never left covered. */
+private val NoPro: ProSlot = { onDone -> LaunchedEffect(Unit) { onDone() } }
 
 /** What a one-off guide event asks the screen to do. Exit takes the way Back takes from the guide. */
 @Suppress("LongParameterList") // One callback for each thing an event asks.

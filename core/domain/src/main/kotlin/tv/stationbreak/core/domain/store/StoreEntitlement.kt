@@ -15,11 +15,45 @@ interface StoreEntitlement {
      */
     val verified: StateFlow<Boolean?>
 
+    /**
+     * The price of Pro as the store words it, in the store's currency and format (never built here, and never kept in
+     * the app), or null until the store has given one, or when it cannot.
+     */
+    val price: StateFlow<String?>
+
     /** Starts the store's purchase of Pro. The answer reaches [verified] as well as the outcome. */
     suspend fun purchase(): PurchaseOutcome
 
-    /** Asks the store again what the account owns (after a reinstall, on a second TV, on start and resume). */
-    suspend fun restore()
+    /**
+     * Asks the store again what the account owns (after a reinstall, on a second TV, on start and resume), and says
+     * what it found. The answer reaches [verified] as well as the outcome.
+     */
+    suspend fun restore(): RestoreOutcome
+}
+
+/** What a [StoreEntitlement.restore] found. Only [Found] unlocks Pro. */
+enum class RestoreOutcome {
+    /** The account owns Pro: it is unlocked on this TV. */
+    Found,
+
+    /** The store answered, and the account owns no Pro. */
+    None,
+
+    /** The store or the network failed, so nothing is known. Nothing changed. */
+    Failed,
+}
+
+/**
+ * What a build offers a viewer who reaches for Pro (#99): a [Store] that sells it (the Amazon release), or a
+ * [Support] link (the GitHub build, which is always unlocked and carries no billing code). Bound per flavor in `app`.
+ */
+sealed interface ProOffer {
+    data object Store : ProOffer
+
+    /** The project's support page; shown as text, since a TV has no browser to open it in. */
+    data class Support(
+        val url: String,
+    ) : ProOffer
 }
 
 /** How a [StoreEntitlement.purchase] ended. Only [Purchased] and [AlreadyOwned] unlock Pro. */

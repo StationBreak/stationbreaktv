@@ -8,7 +8,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,7 +19,7 @@ import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.feature.channels.builder.BuilderMode
 
-/** The free tier on the channel screen (#793): the Pro choices are not offered at all; the cap shows its note. */
+/** The free tier on the channel screen (#793, #99): Pro choices answer with a note and the way to buy; the cap too. */
 class ChannelsFreeTierTest {
     private val lineup = listOf(summary(A, 5), summary(B, 7, kind = ChannelKind.Custom))
 
@@ -47,13 +46,71 @@ class ChannelsFreeTierTest {
     }
 
     @Test
-    fun aStarterIsOfferedNoSwitchingOrNumberingWhenFree() =
+    fun aStarterIsListedSwitchingAndNumberingWhenFree_andChoosingOneAnswersWithTheProNote() =
+        channelsTest(lineup) { rig ->
+            rig.free()
+            openRow(rig, A)
+            assertTrue(Choice.SwitchOff in choicesOf(rig.ui))
+            assertTrue(Choice.ChangeNumber in choicesOf(rig.ui))
+
+            rig.pick(Choice.SwitchOff)
+            runCurrent()
+
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+            assertEquals(listOf(Choice.SeePro, Choice.Cancel), choicesOf(rig.ui))
+            assertTrue("nothing was changed", rig.editor.changes.isEmpty())
+            assertFalse(rig.ui.seeingPro)
+        }
+
+    @Test
+    fun seeProOpensThePurchaseScreen_backComesBackToTheNote_andCancelClosesIt() =
+        channelsTest(lineup) { rig ->
+            rig.free()
+            openRow(rig, A)
+            rig.pick(Choice.ChangeNumber)
+
+            rig.pick(Choice.SeePro)
+            assertTrue(rig.ui.seeingPro)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+
+            rig.vm.proDone()
+            assertFalse(rig.ui.seeingPro)
+            assertEquals("back where they were: on the note", ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+
+            rig.pick(Choice.Cancel)
+            assertNull(rig.ui.panel)
+            assertTrue(rig.editor.changes.isEmpty())
+        }
+
+    @Test
+    fun theNoteClosesWhenProWasBoughtOnThePurchaseScreen_andTheChoiceThenActs() =
+        channelsTest(lineup) { rig ->
+            rig.free()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            rig.pick(Choice.SeePro)
+
+            rig.pro.set(true)
+            runCurrent()
+            rig.vm.proDone()
+
+            assertNull(rig.ui.panel)
+            assertFalse(rig.ui.seeingPro)
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            runCurrent()
+            assertEquals(listOf<ChannelChange>(ChannelChange.SwitchOff(A)), rig.editor.changes.map { it.second })
+        }
+
+    @Test
+    fun seeProIsRefusedWithNoNoteOpen() =
         channelsTest(lineup) { rig ->
             rig.free()
             openRow(rig, A)
 
-            val choices = choicesOf(rig.ui)
-            assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), choices)
+            rig.vm.seePro()
+
+            assertFalse(rig.ui.seeingPro)
         }
 
     @Test
@@ -95,22 +152,23 @@ class ChannelsFreeTierTest {
         }
 
     @Test
-    fun resetIsNotAStopWhenFreeAndAsksNothing() =
+    fun resetIsAStopWhenFree_andAsksWithTheProNoteInsteadOfTheQuestion() =
         channelsTest(lineup) { rig ->
             rig.free()
             rig.open(this)
             repeat(10) { rig.vm.move(up = false) }
-            assertNotEquals(ChannelsFocus.Reset, rig.ui.focus)
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
 
-            rig.vm.askReset()
+            rig.vm.select()
 
-            assertNull(rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reset), rig.ui.panel)
             assertFalse(rig.ui.confirmingReset)
             assertTrue(rig.editor.resets.isEmpty())
+            assertEquals(listOf(Choice.SeePro, Choice.Cancel), choicesOf(rig.ui))
         }
 
     @Test
-    fun theFocusLeavesResetWhenTheEntitlementEnds() =
+    fun theFocusStaysOnResetWhenTheEntitlementEnds() =
         channelsTest(lineup) { rig ->
             rig.open(this)
             repeat(10) { rig.vm.move(up = false) }
@@ -119,14 +177,7 @@ class ChannelsFreeTierTest {
             rig.free()
             runCurrent()
 
-            assertEquals(
-                ChannelsFocus.Row(
-                    rig.ui.rows
-                        .last()
-                        .id,
-                ),
-                rig.ui.focus,
-            )
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
         }
 
     @Test
@@ -157,7 +208,7 @@ class ChannelsFreeTierTest {
 
             rig.vm.select()
 
-            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.CustomLimit), rig.ui.panel)
             assertNull(rig.ui.builder)
         }
 
@@ -174,13 +225,13 @@ class ChannelsFreeTierTest {
 
             // No builder, and no note, on a cap that is not known yet.
             assertNull(rig.ui.builder)
-            assertNull(rig.ui.message)
+            assertNull(rig.ui.panel)
 
             rig.builder.capKnown.value = true
             runCurrent()
 
             assertNull(rig.ui.builder)
-            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.CustomLimit), rig.ui.panel)
         }
 
     @Test
@@ -204,7 +255,7 @@ class ChannelsFreeTierTest {
             rig.pick(Choice.CopyToCustomise)
             runCurrent()
 
-            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.CustomLimit, A), rig.ui.panel)
             assertNull(rig.ui.builder)
         }
 
@@ -257,7 +308,7 @@ class ChannelsFreeTierTest {
             rig.editor.setAccess(LineupAccess.Editable)
             runCurrent()
 
-            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.CustomLimit), rig.ui.panel)
             assertNull(rig.ui.builder)
             assertFalse(rig.ui.gettingReady)
         }
