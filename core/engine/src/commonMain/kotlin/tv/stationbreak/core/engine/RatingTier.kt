@@ -6,9 +6,10 @@ import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
 
 /**
- * The four exclusive audience tiers of `kid-hold-6` (ADR-0028, #576), with the moves up of `kid-hold-7` (ADR-0029).
- * Every title is in exactly one; a rejection only moves it up, toward [Adult]. Unrated and unknown ratings are
- * [Adult]. Frozen, with its lists, under `KidHold.VERSION_NAME`.
+ * The exclusive audience tiers of `kid-hold-6` (ADR-0028, #576), with the moves up of `kid-hold-7` (ADR-0029) and the
+ * [Explicit] tier of `kid-hold-8` (ADR-0028 addendum 2026-11-22, #1078). Every title is in exactly one; a rejection
+ * only moves it up, toward [Explicit]. Unrated and unknown ratings are [Adult]. In declaration order, lowest first.
+ * Frozen, with its lists, under `KidHold.VERSION_NAME`.
  */
 enum class RatingTier {
     /** A kid rating (level ALL or 7) plus made-for-kids evidence (`KidHold.isMadeForKids`), and no veto. */
@@ -25,10 +26,20 @@ enum class RatingTier {
 
     /** Everything else: R and up, unrated, unknown, a missing series, and what a veto sent up. */
     Adult,
+
+    /**
+     * `kid-hold-8` (#1078): an Explicit rating ([RatingMap.isExplicit]), genre ([EXPLICIT_TIER_GENRES]) or tag
+     * ([EXPLICIT_TIER_TAGS]) on the title or its known series, anime or not. It airs on After Hours alone.
+     */
+    Explicit,
     ;
 
     companion object {
-        /** Tags that send a title to [Adult] whatever its rating (folded, exact): explicit and sexual content. */
+        /**
+         * Tags that send a title to [Adult] whatever its rating (folded, exact): explicit and sexual content. Those
+         * that are also in [EXPLICIT_TIER_TAGS] send it further, to [Explicit]. `kid-hold-8` adds `sex comedy`,
+         * `teen sex comedy` and `erotic thriller`.
+         */
         val EXPLICIT_TAGS: List<String> =
             listOf(
                 "hentai",
@@ -55,7 +66,45 @@ enum class RatingTier {
                 "porn",
                 "softcore",
                 "sexploitation",
+                "sex comedy",
+                "teen sex comedy",
+                "erotic thriller",
             )
+
+        /**
+         * Tags that send a title to [Explicit] (`kid-hold-8`, #1078; folded, exact): the TMDb keywords of explicit
+         * material (verified on 2026-11-22), and the spellings of other scrapers (AniDB, AniList, NFO). The plot
+         * keywords `porn industry` and `porn star` are not here on purpose, nor `ecchi`, `nudity`, `harem`, `sex`,
+         * `sex comedy`, `erotic` or `erotic thriller`, which stay [Adult].
+         */
+        val EXPLICIT_TIER_TAGS: List<String> =
+            listOf(
+                "hentai",
+                "pornography",
+                "porn",
+                "pornographic video",
+                "pornographic animation",
+                "porn films",
+                "porn classic",
+                "softcore",
+                "sexploitation",
+                "sexsploitation",
+                "erotic movie",
+                "erotic film",
+                "erotica",
+                "vintage erotica",
+                "x rated",
+                "explicite sex",
+                "adult video",
+                "x-rated",
+                "explicit sex",
+                "adult film",
+                "18 restricted",
+            )
+
+        /** Genres that send a title to [Explicit] (`kid-hold-8`, #1078; folded, exact). `ecchi` stays [Adult]. */
+        val EXPLICIT_TIER_GENRES: List<String> =
+            listOf("hentai", "adult", "erotica", "erotic", "porn", "pornography", "sexploitation")
 
         /** Genres that send a title to [Adult] whatever its rating (folded, exact). */
         val ADULT_GENRES: List<String> =
@@ -91,9 +140,13 @@ enum class RatingTier {
         val FAMILY_VETO_GENRES: List<String> = listOf("horror")
 
         private const val KID_LEVEL = 1
-        private const val FAMILY_LEVEL = 2
-        private const val TEEN_LEVEL = 4
 
+        /** The highest level of [Family] (PG, TV-PG) and of [Teen] (TV-14), on [RatingMap]. */
+        internal const val FAMILY_LEVEL = 2
+        internal const val TEEN_LEVEL = 4
+
+        private val explicitTierTags = EXPLICIT_TIER_TAGS.toSet()
+        private val explicitTierGenres = EXPLICIT_TIER_GENRES.toSet()
         private val explicitTags = EXPLICIT_TAGS.toSet()
         private val adultGenres = ADULT_GENRES.toSet()
         private val goreTags = GORE_TAGS.toSet()
@@ -110,6 +163,7 @@ enum class RatingTier {
         ): RatingTier {
             val level = decisiveLevel(entry, series)
             return when {
+                explicitTier(entry, series) -> Explicit
                 level == null || explicit(entry, series) -> Adult
                 level <= FAMILY_LEVEL && !gory(entry, series) -> kidsOrFamily(level, entry, series)
                 level <= TEEN_LEVEL -> Teen
@@ -152,6 +206,23 @@ enum class RatingTier {
             entry: RuleItem,
             series: RuleSeries?,
         ): Boolean = (decisiveLevel(entry, series) ?: Int.MAX_VALUE) <= KID_LEVEL
+
+        // Fail up: the entry's own rating counts as well as its series', whichever decides the level.
+        private fun explicitTier(
+            entry: RuleItem,
+            series: RuleSeries?,
+        ): Boolean =
+            RatingMap.isExplicit(entry.officialRating) ||
+                anyIn(explicitTierTags, entry.foldedTags) ||
+                anyIn(explicitTierGenres, entry.foldedGenres) ||
+                (
+                    series != null &&
+                        (
+                            RatingMap.isExplicit(series.officialRating) ||
+                                anyIn(explicitTierTags, series.foldedTags) ||
+                                anyIn(explicitTierGenres, series.foldedGenres)
+                        )
+                )
 
         private fun explicit(
             entry: RuleItem,

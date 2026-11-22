@@ -1206,7 +1206,22 @@ private val premiumBand: List<Recipe> =
             key = "after-hours",
             name = "After Hours",
             says = "Adults only, and only if you ask for it.",
-            sources = genres("Adult", "Erotic", "Erotica") + tags("adult", "erotic", "18+", "erotica"),
+            // Catalog 14 (#1078): the pool is every Explicit title (`PoolPolicy.ExplicitOnly`); these sources are what
+            // a custom copy, which has no such policy, keeps.
+            sources =
+                genres("Adult", "Erotic", "Erotica", "Hentai", "Porn", "Pornography", "Sexploitation") +
+                    tags(
+                        "adult",
+                        "erotic",
+                        "18+",
+                        "erotica",
+                        "hentai",
+                        "pornography",
+                        "porn",
+                        "softcore",
+                        "sexploitation",
+                        "erotic movie",
+                    ),
             optIn = true,
         ),
         recipe(

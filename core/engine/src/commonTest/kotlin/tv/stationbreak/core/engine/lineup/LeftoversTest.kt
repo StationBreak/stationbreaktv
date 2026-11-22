@@ -130,7 +130,7 @@ class LeftoversTest {
                     listOf(
                         movie(idOf(1), rating = "TV-Y", genres = listOf("Kids")),
                         movie(idOf(2), rating = "PG"),
-                        movie(idOf(3), rating = null),
+                        movie(idOf(3), rating = null, genres = listOf("Drama")),
                     ),
             )
         val pool = Leftovers.pool(snap, emptySet(), null, policy = PoolPolicy.GrownUp)

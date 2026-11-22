@@ -1,14 +1,20 @@
-# Rating-safety fixtures (#576, #987, #992)
+# Rating-safety fixtures (#576, #987, #992, #1078)
 
-These tests hold the four audience tiers (kids, family, teen, adult; [ADR-0028](../../../../../../../../../../docs/adr/0028-rating-tiers.md))
-to the rule that a leak may only fail upward, toward adult.
+These tests hold the five audience tiers (kids, family, teen, adult, explicit; [ADR-0028](../../../../../../../../../../docs/adr/0028-rating-tiers.md))
+to the rule that a leak may only fail upward, toward explicit.
 
 - `NeverInKids.kt`: the #992 seed list. Titles with a rating, tags, genres and studios, and no media. Each has a
   metadata-stripped copy. Do not add other real titles. Use the synthetic library.
 - `SyntheticLibrary.kt`: a deterministic library built from every combination of a set of ratings, tags, genres and
   studios, as movies, episodes of a known series, episodes with a missing series and episodes with no series.
 - `RatingSafetyLeakTest.kt`: the leak checks, and the pinned tier counts of the synthetic library.
-- The rating map and the tier rule also have shared vectors in `docs/rules-format/vectors/kid-hold-6.json` and, for the `kid-hold-7` moves up, `kid-hold-7.json`.
+- `SyntheticAdultSlice.kt`: the SYNTHETIC adult slice (#1078): invented titles with plugin-style metadata for every
+  title the Explicit tier must catch and every control it must leave alone, and one file with no metadata. Invented
+  titles only, never real ones.
+- `ExplicitTierTest.kt` and `ExplicitPoolTest.kt`: every Explicit trigger alone, the Adult controls, and where the slice
+  may air (After Hours alone for Explicit, no young pool for Adult, no Odds & Ends 199 for no metadata).
+- The rating map and the tier rule also have shared vectors in `docs/rules-format/vectors/kid-hold-6.json`, for the
+  `kid-hold-7` moves up `kid-hold-7.json`, and for the `kid-hold-8` Explicit tier `kid-hold-8.json`.
 
 ## Rebuilding a real mock library (by hand, not in CI)
 

@@ -31,9 +31,12 @@ import tv.stationbreak.core.rules.Source
  * **Policies.** Under [PoolPolicy.KidsOnly] (a kid channel, spec 18), an item that survives the exclusions must also be
  * in the kids tier ([KidHold.admits], ADR-0028) and within the kid ceiling ([KidHold.passesKidCeiling]) in place of the
  * ladder (ADR-0019). Under [PoolPolicy.GrownUp] it must not be something a kid channel could take
- * ([GrownUpHold.dropsFromGrownUp]: the kids tier); the ladder applies as usual (ADR-0020). This is the app's
- * narrowing, not rules-format behaviour: rules format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the
- * evaluation above.
+ * ([GrownUpHold.dropsFromGrownUp]: the kids tier, counted in `madeForKidsOut`, or the Explicit tier, counted in
+ * `blockedByCeiling`); the ladder applies as usual (ADR-0020), and under a young ceiling so does its tier limit
+ * ([GrownUpHold.tierLimit], #1078; a title above it is `blockedByCeiling`). Under [PoolPolicy.ExplicitOnly] (After
+ * Hours, #1078) every Explicit title counts as matched by a source (it is not in `matchedBySource`), and then the
+ * kids tier is dropped as under [PoolPolicy.GrownUp]. This is the app's narrowing, not rules-format behaviour: rules
+ * format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the evaluation above.
  *
  * **Filters.** The `genres`, `years` and `kind` parts of `rules.filters` apply to what remains after the exclusions and
  * the policy hold, before the ceiling ([ItemFilters]). The `runtime` part is the scheduler's (`EpochPool`).
@@ -110,6 +113,7 @@ object PoolEvaluator {
         val unresolvedExclusions = unresolvedCollections(rules.effectiveExclusions, snapshot)
         private val excludeAll = unresolvedExclusions.isNotEmpty()
         private val maxRating = rules.maxRating
+        private val tierLimit = GrownUpHold.tierLimit(maxRating)
         private val filters = ItemFilters(rules.filters, snapshot, fold2)
 
         // The IDs seen so far, built only once the items stop being in strictly ascending ID order: a snapshot is
@@ -132,7 +136,11 @@ object PoolEvaluator {
             requireNew(item.id.value)
             val seriesId = item.seriesId
             val series = if (seriesId == null) null else snapshot.series[seriesId]
-            if (!sourceMatcher.tally(entry, series, matched)) return
+            val sourced = sourceMatcher.tally(entry, series, matched)
+            // After Hours takes every Explicit title as if a source matched it.
+            val explicitOnAfterHours =
+                policy == PoolPolicy.ExplicitOnly && RatingTier.of(entry, series) == RatingTier.Explicit
+            if (!sourced && !explicitOnAfterHours) return
             if (excludeAll || exclusionMatcher.matches(entry, series)) {
                 excluded++
             } else {
@@ -155,16 +163,29 @@ object PoolEvaluator {
                 }
 
                 PoolPolicy.GrownUp -> {
-                    if (GrownUpHold.dropsFromGrownUp(entry, series)) madeForKidsOut++ else admit(entry, series)
+                    val tier = RatingTier.of(entry, series)
+                    when {
+                        !GrownUpHold.drops(tier) -> admit(entry, series, tier)
+
+                        tier == RatingTier.Kids -> madeForKidsOut++
+
+                        // Explicit: above every grown-up channel's limit (After Hours alone airs it).
+                        else -> blocked++
+                    }
+                }
+
+                PoolPolicy.ExplicitOnly -> {
+                    if (KidHold.admits(entry, series)) madeForKidsOut++ else admit(entry, series)
                 }
             }
         }
 
         // What matched, was not excluded and is not held out: dropped by the filters, or counted, then kept or blocked
-        // by the ceiling.
+        // by the ceiling (and, for a grown-up channel, whose [tier] is given, by the ceiling's tier limit).
         private fun admit(
             entry: RuleItem,
             series: RuleSeries?,
+            tier: RatingTier? = null,
         ) {
             if (!filters.passes(entry, series)) {
                 filteredOut++
@@ -182,11 +203,11 @@ object PoolEvaluator {
                         passesCeiling(entry, series, maxRating)
                     }
 
-                    PoolPolicy.Custom, PoolPolicy.GrownUp -> {
+                    PoolPolicy.Custom, PoolPolicy.GrownUp, PoolPolicy.ExplicitOnly -> {
                         passesCeiling(entry, series, maxRating, approvedIsUnrated = true)
                     }
                 }
-            if (passes) kept.add(item) else blocked++
+            if (passes && (tier == null || tier <= tierLimit)) kept.add(item) else blocked++
         }
 
         private fun requireNew(id: String) {

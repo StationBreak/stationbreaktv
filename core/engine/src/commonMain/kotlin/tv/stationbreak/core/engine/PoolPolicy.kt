@@ -19,8 +19,17 @@ sealed interface PoolPolicy {
     data object KidsOnly : PoolPolicy
 
     /**
-     * A grown-up channel: nothing a kid channel could take ([GrownUpHold.dropsFromGrownUp]: the kids tier); the ladder
-     * applies, with `Approved` unrated as under [Custom]. Made-for-kids items no kid channel can take stay eligible.
+     * A grown-up channel: nothing a kid channel could take and nothing Explicit ([GrownUpHold.dropsFromGrownUp]: the
+     * kids and Explicit tiers); the ladder applies, with `Approved` unrated as under [Custom], and under a young
+     * ceiling only that band's tiers ([GrownUpHold.tierLimit], #1078). Made-for-kids items no kid channel can take stay
+     * eligible.
      */
     data object GrownUp : PoolPolicy
+
+    /**
+     * After Hours (#1078): every Explicit title the account can see, as if a source matched it, plus what its own
+     * sources match; the kids tier is dropped and the ladder applies as under [GrownUp], with no tier limit. Its copies
+     * are custom channels ([Custom], with the adult mark), not this.
+     */
+    data object ExplicitOnly : PoolPolicy
 }

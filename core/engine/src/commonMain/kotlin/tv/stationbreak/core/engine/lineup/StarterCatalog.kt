@@ -103,8 +103,14 @@ object StarterCatalog : StarterCatalogView {
      * (528) is retired and never reused: a named per-key waiver of the rule, owner-approved and pre-release as at
      * versions 8 and 12 (`NUMBERS_WAIVED_AT_13`, ADR-0030). One Season Only already has its Mini-Series genre and no
      * in-order promise (catalog 7), so it is unchanged. No rules format or hold version changes.
+     *
+     * Version 14 (#1078, with `kid-hold-8` / `grown-up-hold-7`): After Hours (key `after-hours`) gains the genres
+     * Hentai, Porn, Pornography and Sexploitation and the tags hentai, pornography, porn, softcore, sexploitation and
+     * erotic movie, so a custom copy of it keeps most of its reach; the starter itself airs every Explicit title
+     * (`PoolPolicy.ExplicitOnly`). Its fingerprint changes; its key, number, band and opt-in flag are kept, and every
+     * other entry is as it was at 13. No rules format change.
      */
-    const val VERSION = 13
+    const val VERSION = 14
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -28,15 +28,20 @@ data class Pool(
  *   `items.size + excluded + heldOut + madeForKidsOut + filteredOut + blockedByCeiling`. Summing
  *   [matchedBySource] over-counts when sources overlap, because an item is counted for each source it matched.
  * - Under a ceiling every unknown-series episode is blocked, so `blockedByCeiling - episodesWithUnknownSeries` is the
- *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is kids-only: a kids-only
- *   pool applies the kid rating table even with no ceiling.)
+ *   number blocked by rating alone. (With no ceiling nothing is blocked, unless the pool is kids-only, which applies
+ *   the kid rating table even with no ceiling, or grown-up, which blocks the Explicit tier and, for leftovers, titles
+ *   with no metadata; #1078.)
+ * - Under [PoolPolicy.ExplicitOnly] an Explicit title counts as matched though no source matched it, so the distinct
+ *   items above can outnumber those [matchedBySource] counts.
  * - [collectionsSynced] is a pass-through of the snapshot's flag.
  *
  * @property matchedBySource for each entry of `rules.sources`, in order, how many items of the snapshot matched it
  *   (before the exclusions and the ceiling). An item that matched several sources is counted for each.
  * @property excluded items that matched a source and were then removed by an exclusion. When [unresolvedExclusions] is
  *   not empty, that is every item that matched a source.
- * @property blockedByCeiling items that matched a source, survived the exclusions and then failed the rating ceiling.
+ * @property blockedByCeiling items that matched a source, survived the exclusions and then failed the rating ceiling;
+ *   on a grown-up channel (#1078) also an Explicit title, a title above the tier limit of a young ceiling
+ *   ([GrownUpHold.tierLimit]), and in a grown-up leftovers pool a title with no metadata.
  * @property episodesWithUnknownSeries episodes that matched a source, survived the exclusions and passed the hold
  *   (before the ceiling) whose series ID is set but has no entry in the snapshot. Under a ceiling these are blocked.
  * @property unresolvedSources 0-based indices into `rules.sources`, ascending, of `collection` sources whose ID is not
@@ -48,13 +53,13 @@ data class Pool(
  * @property collectionsSynced the snapshot's own flag, passed through: false means a collection missing from the
  *   snapshot may only not have been listed yet.
  * @property heldOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and were not
- *   in the kids tier ([KidHold.admits]: not made for kids, not kid-rated, or vetoed), on a kids-only channel. Always 0
- *   under any other policy.
+ *   in the kids tier ([KidHold.admits]: not made for kids, not kid-rated, or vetoed), on a kids-only channel; and for a
+ *   leftovers pool under [PoolPolicy.ExplicitOnly], items not in the Explicit tier. Always 0 under any other policy.
  * @property filteredOut items that matched a source, survived the exclusions and the hold, and were dropped by the
  *   rules' `filters` (genres, years, kind), before the ceiling. Always 0 for rules with no filters.
  * @property madeForKidsOut items that matched a source (for leftovers, were unclaimed), survived the exclusions and
- *   were dropped by [GrownUpHold.dropsFromGrownUp] (the kids tier, so a kid channel could take them), on a grown-up
- *   channel (ADR-0020). Always 0 under any other policy.
+ *   were in the kids tier (so a kid channel could take them), on a grown-up channel (ADR-0020) or After Hours
+ *   ([PoolPolicy.ExplicitOnly]). Always 0 under any other policy.
  */
 data class PoolCounts(
     val matchedBySource: List<Int>,

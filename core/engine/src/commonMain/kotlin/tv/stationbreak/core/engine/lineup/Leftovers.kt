@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolCounts
 import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.engine.RatingTier
 import tv.stationbreak.core.engine.passesCeiling
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.RuleItem
@@ -21,9 +22,15 @@ import tv.stationbreak.core.rules.RatingLadder
  * matched by source, `blockedByCeiling` and `episodesWithUnknownSeries` as `PoolEvaluator` counts them,
  * `collectionsSynced` from the snapshot, no unresolved entries. Under `PoolPolicy.KidsOnly`, an unclaimed item that
  * is not in the kids tier (`KidHold.admits`) is dropped and counted in `heldOut`, and the kid ceiling replaces the
- * ladder; under `PoolPolicy.GrownUp` an unclaimed item that `GrownUpHold.dropsFromGrownUp` accepts (the kids tier) is
- * dropped and counted in `madeForKidsOut`; both
- * as `PoolEvaluator` does.
+ * ladder; under `PoolPolicy.GrownUp` an unclaimed item in the kids tier is dropped and counted in `madeForKidsOut`;
+ * both as `PoolEvaluator` does.
+ *
+ * Under `PoolPolicy.GrownUp`, and under `PoolPolicy.Custom` (here only the grown-up leftovers while no kids leftovers
+ * channel is on: the kids-tier hold is lifted, the rest is not), a leftovers pool also drops (#1078, counted in
+ * `blockedByCeiling`) every Explicit title, which only After Hours airs, and every title with no metadata
+ * (`GrownUpHold.hasNoMetadata`), which only a source that matches it can air; and under a young ceiling it keeps only
+ * that band's tiers (`GrownUpHold.tierLimit`: Odds & Ends 66 the family tier, 99 family and teen). Under
+ * `PoolPolicy.ExplicitOnly` it is a leftovers pool over the Explicit tier: anything else is `heldOut`.
  */
 object Leftovers {
     private const val NOT_ON_LADDER = "The rating ceiling is not on the ladder"
@@ -69,6 +76,7 @@ object Leftovers {
         private val policy: PoolPolicy,
         private val maxRating: String?,
     ) {
+        private val tierLimit = GrownUpHold.tierLimit(maxRating)
         val kept = ArrayList<ScheduleItem>()
         var blocked = 0
         var unknownSeries = 0
@@ -80,7 +88,7 @@ object Leftovers {
             series: RuleSeries?,
         ) {
             when (policy) {
-                PoolPolicy.Open, PoolPolicy.Custom -> {
+                PoolPolicy.Open -> {
                     admit(entry, series)
                 }
 
@@ -88,15 +96,26 @@ object Leftovers {
                     if (KidHold.admits(entry, series)) admit(entry, series) else heldOut++
                 }
 
-                PoolPolicy.GrownUp -> {
-                    if (GrownUpHold.dropsFromGrownUp(entry, series)) madeForKidsOut++ else admit(entry, series)
+                PoolPolicy.Custom, PoolPolicy.GrownUp -> {
+                    val tier = RatingTier.of(entry, series)
+                    when {
+                        tier == RatingTier.Kids && policy == PoolPolicy.GrownUp -> madeForKidsOut++
+                        tier == RatingTier.Explicit || GrownUpHold.hasNoMetadata(entry, series) -> blocked++
+                        else -> admit(entry, series, tier)
+                    }
+                }
+
+                PoolPolicy.ExplicitOnly -> {
+                    if (RatingTier.of(entry, series) == RatingTier.Explicit) admit(entry, series) else heldOut++
                 }
             }
         }
 
+        // The ceiling, and for a grown-up leftovers pool, whose [tier] is given, the ceiling's tier limit.
         private fun admit(
             entry: RuleItem,
             series: RuleSeries?,
+            tier: RatingTier? = null,
         ) {
             val item = entry.item
             if (item.kind == ScheduleItemKind.Episode && item.seriesId != null && series == null) unknownSeries++
@@ -110,11 +129,11 @@ object Leftovers {
                         passesCeiling(entry, series, maxRating)
                     }
 
-                    PoolPolicy.Custom, PoolPolicy.GrownUp -> {
+                    PoolPolicy.Custom, PoolPolicy.GrownUp, PoolPolicy.ExplicitOnly -> {
                         passesCeiling(entry, series, maxRating, approvedIsUnrated = true)
                     }
                 }
-            if (passes) kept.add(item) else blocked++
+            if (passes && (tier == null || tier <= tierLimit)) kept.add(item) else blocked++
         }
     }
 }

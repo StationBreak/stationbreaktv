@@ -20,10 +20,13 @@ import tv.stationbreak.core.model.studioKey2
  * `kid-hold-7` (ADR-0029) moves titles only up: a family title with a violence-heavy tag or the Horror genre is teen
  * ([RatingTier.FAMILY_VETO_TAGS], [RatingTier.FAMILY_VETO_GENRES]), and a series on the hand-kept bump list
  * ([KidBumpList]) is family, not kids. The kid-studio list is unchanged (TV Tokyo was never on it).
+ * `kid-hold-8` (#1078, ADR-0028 addendum 2026-11-22) adds the [RatingTier.Explicit] tier above adult (explicit ratings,
+ * genres and tags, [RatingMap.isExplicit]), three adult tags, and X, AO and Adults Only at level 7. What a kid channel
+ * admits is unchanged: the kids tier only.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-7"
+    const val VERSION_NAME = "kid-hold-8"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
