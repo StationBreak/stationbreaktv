@@ -313,14 +313,26 @@ class GuideMenuTest : GuideRig() {
         }
 
     @Test
-    fun backWhileTheGuideLoadsIsNotTheGuides() =
+    fun backWhileTheGuideLoadsIsTakenAndDoesNotLeave() =
         guideTest { vm ->
-            schedule.cachedGate = CompletableDeferred()
+            val gate = CompletableDeferred<Unit>()
+            schedule.cachedGate = gate
             vm.open(CH5)
             after(1_000)
             assertEquals(GuideState.Loading, vm.snapshot.value.state)
-            assertFalse(vm.back())
+            // Not false: false would dispatch onBackPressed() and exit the app (#1081). Nothing moves.
+            assertTrue(vm.back())
+            assertTrue(vm.back())
+            assertEquals(GuideState.Loading, vm.snapshot.value.state)
             assertNull(vm.menu())
+
+            // Once the grid is there, Back takes the Ready steps: the menu, then leaving.
+            gate.complete(Unit)
+            runCurrent()
+            assertTrue(vm.snapshot.value.state is GuideState.Ready)
+            assertTrue(vm.back())
+            assertEquals(GuideMenuEntry.Channels, vm.menu())
+            assertFalse(vm.back())
         }
 
     @Test

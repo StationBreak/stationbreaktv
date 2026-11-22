@@ -642,10 +642,13 @@ internal class GuideViewModel
          * Back, one step outwards: from a cell that is not the playing channel's cell on
          * air now to that cell, with the grid back at now and that row at the top, as when the guide opened; from that
          * cell (or when there is none to go to) opens the menu sheet, on Channels; Back in the sheet closes it, the
-         * focus where it was. True when it moved. False while the guide loads, when there is no grid or sheet to go
-         * to, and in the sheet when there are no libraries (it is all there is): Back then leaves live TV. Nothing is
-         * added for a screen reader: the jump changes the focused cell or entry, so the details panel's polite live
-         * region reads the playing program as it does after any move.
+         * focus where it was. True when it moved, and while the guide loads (libraries chosen): Back is taken and
+         * nothing moves, as there is no grid yet to step out of, and leaving then would exit the app before the guide
+         * could be seen (#1081); the first Back after the grid appears takes the steps above. False when the guide is
+         * closed, so there is no grid or sheet to go to, and in the sheet when there are no libraries (it is all
+         * there is): Back then leaves live TV. Nothing is added for a screen reader: the jump changes the focused
+         * cell or entry, so the details panel's polite live region reads the playing program as it does after any
+         * move.
          */
         fun back(): Boolean =
             synchronized(lock) {
@@ -675,8 +678,10 @@ internal class GuideViewModel
                         true
                     }
 
+                    // No grid yet: while Loading the key is taken (nothing to step out of, and leaving would exit the
+                    // app mid-load, #1081); with the guide closed it is not the guide's.
                     !showsMenu -> {
-                        false
+                        current.state == GuideState.Loading
                     }
 
                     // From the channel column back to the row's cell, as Right does.
