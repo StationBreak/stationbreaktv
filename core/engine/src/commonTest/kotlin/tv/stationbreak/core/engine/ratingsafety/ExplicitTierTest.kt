@@ -229,4 +229,63 @@ class ExplicitTierTest {
             assertFalse(RatingMap.isExplicit(rating), rating)
         }
     }
+
+    // Noise around a value does not hide it (#1088): odd spaces and dash variants, in ratings, genres and tags.
+    @Test
+    fun noiseInARatingGenreOrTagDoesNotHideAnExplicitSignal() {
+        val ratings = listOf("NC\u201117", "NC\u201317", "NC\u201417", "NC\u221217", "NC 17", "R  18+", "R 18+")
+        for (rating in ratings + listOf("GB\u2011R18", "Adults  Only", "R/NC\u201117", "R\u201118")) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertExplicitEverywhere("rating [$rating]", rating = rating)
+        }
+        // A tab or a no-break space in a rating stays as the frozen kid-hold-5 vectors have it: off the ladder.
+        assertFalse(RatingMap.isExplicit("\tNC-17"))
+        assertEquals(3, RatingMap.levelOf("PG\u201113"))
+        assertEquals(RatingMap.levelOf("TV-MA"), RatingMap.levelOf("TV\u2011MA"))
+        assertFalse(RatingMap.isExplicit("R  15+"))
+        for (tag in listOf("x\u2011rated", "adult  film", "erotic\u00A0movie", "softcore\t", " Porn Films ")) {
+            assertExplicitEverywhere("tag [$tag]", tags = listOf(tag))
+        }
+        for (genre in listOf("Hentai\u00A0", "\tPorn", "Sexploitation ")) {
+            assertExplicitEverywhere("genre [$genre]", genres = listOf(genre))
+        }
+        assertEquals(RatingTier.Teen, tierOf(movie(idOf(1), rating = "TV-14", tags = listOf("porn  industry"))))
+    }
+
+    // An explicit value among several, on the title or its series, is found whatever else the lists hold (#1088).
+    @Test
+    fun anExplicitGenreOrTagAmongOthersAndNextToCombinedRatingsMakesATitleExplicit() {
+        val mixed = listOf("Drama", "Anime", "Comedy")
+        for (genre in explicitGenres) {
+            assertExplicitEverywhere("genre $genre among others", genres = mixed + genre)
+            assertExplicitEverywhere("genre $genre first", genres = listOf(genre) + mixed)
+        }
+        for (tag in explicitTags) {
+            assertExplicitEverywhere("tag $tag among others", tags = listOf("test", "anime", tag, "nudity"))
+        }
+        // A combined value in one string is one name, not a list: exact matching stays exact.
+        assertEquals(RatingTier.Teen, tierOf(movie(idOf(1), rating = "TV-14", genres = listOf("Drama/Hentai"))))
+        assertEquals(RatingTier.Teen, tierOf(movie(idOf(1), rating = "TV-14", tags = listOf("softcore, comedy"))))
+        // A combined rating next to explicit genres and tags.
+        val combined = movie(idOf(1), rating = "R/TV-MA", genres = listOf("Drama", "Hentai"), tags = listOf("softcore"))
+        assertEquals(RatingTier.Explicit, tierOf(combined))
+        assertEquals(RatingTier.Adult, tierOf(movie(idOf(1), rating = "R/TV-MA", genres = listOf("Drama"))))
+    }
+
+    // Blank and white-space-only values are missing, like null and empty ones (#1088).
+    @Test
+    fun blankRatingsGenresAndTagsCountAsNoMetadata() {
+        val blanks = listOf("", " ", "  ", "\t", "\u00A0", "\u3000", " \u00A0\t ")
+        for (blank in blanks) {
+            assertTrue(GrownUpHold.hasNoMetadata(movie(idOf(1), rating = blank), null), "rating [$blank]")
+            assertTrue(GrownUpHold.hasNoMetadata(movie(idOf(1), genres = listOf(blank)), null), "genre [$blank]")
+            assertTrue(GrownUpHold.hasNoMetadata(movie(idOf(1), tags = listOf(blank, blank)), null), "tag [$blank]")
+            val ep = episode(idOf(2), showId, rating = blank)
+            val show = series(showId, rating = blank, genres = listOf(blank), tags = listOf(blank))
+            assertTrue(GrownUpHold.hasNoMetadata(ep, show), "episode and series [$blank]")
+            assertFalse(GrownUpHold.hasNoMetadata(ep, series(showId, genres = listOf(blank, "Drama"))), "[$blank]")
+        }
+        assertFalse(GrownUpHold.hasNoMetadata(movie(idOf(1), rating = " NR "), null))
+        assertFalse(GrownUpHold.hasNoMetadata(movie(idOf(1), tags = listOf(" ", "test")), null))
+    }
 }

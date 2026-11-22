@@ -55,6 +55,13 @@ channels, even one that carries a higher rating of its own (a special, or an epi
 That is a deliberate choice: episode ratings are often missing or inconsistent, and judging each one would empty
 the kids channels of shows that are made for kids.
 
+That choice stops at explicit and adult signals, which only ever move an episode up. An episode also counts the genres
+and keywords of its series: a series with an explicit rating, genre or keyword makes all its episodes explicit, and an
+episode with one of its own is explicit whatever its series is rated. An adult genre or keyword on either keeps the
+episode off the kids, family and teen channels. An episode whose series the app hasn't read is never aired on those channels
+either, and a grown-up channel with no rating limit and Odds & Ends (199) leave it out as well, because its series
+could be explicit.
+
 ## The stronger lock is on your server
 
 Jellyfin's own parental controls apply to everything the app shows. If an account has a maximum rating, blocked tags

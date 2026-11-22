@@ -338,6 +338,25 @@ class ChannelPropertiesTest {
             assertNull(whole[unreadable.id]?.plays)
         }
 
+    // A built-in channel moved into a young band shows the ceiling it airs under, not its recipe's (#1088).
+    @Test
+    fun aMovedStarterShowsItsBandCapAndACustomChannelDoesNot() =
+        runBlocking<Unit> {
+            val family = laughs.copy(numberOverride = 50)
+            val teen = themed.copy(numberOverride = 80)
+            val noCeiling = ChannelSource.Custom(mineRules.copy(maxRating = null))
+            val customHere = mine.copy(numberOverride = 55, source = noCeiling)
+            seed(family, teen, customHere)
+
+            assertEquals("PG", propertiesOf(family.id).description?.ceiling)
+            assertEquals("TV-14", propertiesOf(teen.id).description?.ceiling)
+            assertNull(propertiesOf(customHere.id).description?.ceiling, "no hidden cap on a viewer's own channel")
+            val whole = reader.identities().toList().last()
+            assertEquals("PG", whole[family.id]?.ceiling)
+            assertEquals("TV-14", whole[teen.id]?.ceiling)
+            assertNull(whole[customHere.id]?.ceiling)
+        }
+
     @Test
     fun aSecondReadOfTheSameLineupLooksNothingUp() =
         runBlocking<Unit> {

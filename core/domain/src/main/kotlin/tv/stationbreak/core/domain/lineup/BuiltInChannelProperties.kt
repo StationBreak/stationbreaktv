@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.builder.StudioNames
 import tv.stationbreak.core.domain.lineup.builder.playsRowsOf
 import tv.stationbreak.core.engine.lineup.Anchor
 import tv.stationbreak.core.engine.lineup.AnchorKind
+import tv.stationbreak.core.engine.lineup.ChannelCeilings
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.NameMatcher
@@ -102,7 +103,7 @@ class BuiltInChannelProperties(
     ) = ChannelIdentity(
         kind = summary.kind,
         kid = summary.kid,
-        ceiling = channel.rules()?.maxRating ?: leftoversCeiling(channel),
+        ceiling = ceilingOf(channel),
         personality = starterRecipe(channel)?.personality?.takeIf { it.isNotBlank() },
         plays = null,
     )
@@ -147,7 +148,9 @@ class BuiltInChannelProperties(
         rules: ChannelRules,
         channel: LineupChannel,
     ): RulesDescription {
-        val described = RulesDescription.of(rules, reader.draftOf(account, rules, channel.number))
+        // The ceiling shown is the one it airs under: the stricter of the recipe's and its band cap (#1088).
+        val aired = rules.copy(maxRating = ceilingOf(channel))
+        val described = RulesDescription.of(aired, reader.draftOf(account, aired, channel.number))
         // A studio filter is spelled as the library spells it, like the studio sources and exclusions.
         val studios = reader.spelled(account, described.narrowing.studios)
         return described.copy(narrowing = described.narrowing.copy(studios = studios))
@@ -158,13 +161,13 @@ class BuiltInChannelProperties(
         return service.catalog.recipes.firstOrNull { it.key == starter.recipeKey }
     }
 
-    // While the key is in the catalog the planner takes the ceiling from it; the stored one counts once it has left.
-    private fun leftoversCeiling(channel: LineupChannel): String? {
-        val leftovers = channel.source as? ChannelSource.Leftovers ?: return null
-        return service.catalog.leftovers
-            .firstOrNull { it.key == leftovers.recipeKey }
-            ?.maxRating ?: leftovers.maxRating
-    }
+    // What the channel airs under: the recipe's ceiling or its band cap, whichever is stricter (#1088), the one
+    // function the day build reads. A custom channel's is its own.
+    private fun ceilingOf(channel: LineupChannel): String? = ChannelCeilings.of(channel, service.catalog)
+
+    // The ceiling of a leftovers channel as it airs; none for any other channel.
+    private fun leftoversCeiling(channel: LineupChannel): String? =
+        if (channel.source is ChannelSource.Leftovers) ceilingOf(channel) else null
 
     // The channel is not on the air (shelf, hidden), or the schedule is not readable: no reason either way.
     private suspend fun hiddenAt(

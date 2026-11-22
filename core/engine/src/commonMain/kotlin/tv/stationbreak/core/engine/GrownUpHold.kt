@@ -59,18 +59,22 @@ object GrownUpHold {
     ): Boolean = entry.item.seriesId != null && series == null
 
     /**
-     * Whether [entry] has no metadata at all (#1078): no rating (absent: null or only spaces), no genre and no tag, on
-     * itself or its known [series]. A grown-up leftovers pool drops it; it can still air where a source matches it.
+     * Whether [entry] has no metadata at all (#1078): no rating, no genre and no tag, on itself or its known [series].
+     * A value that is null, empty or only white space (a tab, a no-break space...) counts as none (#1088). A grown-up
+     * leftovers pool drops it; it can still air where a source matches it.
      */
     fun hasNoMetadata(
         entry: RuleItem,
         series: RuleSeries?,
     ): Boolean =
-        EpisodeRating.isAbsent(entry.officialRating) &&
-            entry.genres.isEmpty() &&
-            entry.tags.isEmpty() &&
-            (
-                series == null ||
-                    (EpisodeRating.isAbsent(series.officialRating) && series.genres.isEmpty() && series.tags.isEmpty())
-            )
+        bare(entry.officialRating, entry.genres, entry.tags) &&
+            (series == null || bare(series.officialRating, series.genres, series.tags))
+
+    private fun bare(
+        rating: String?,
+        genres: List<String>,
+        tags: List<String>,
+    ): Boolean = blank(rating) && genres.all(::blank) && tags.all(::blank)
+
+    private fun blank(text: String?): Boolean = text == null || NoiseTidy.tidy(text).isEmpty()
 }

@@ -2489,7 +2489,9 @@ Everything below is in this repository, under `docs/`:
   Explicit tier of `kid-hold-8` / `grown-up-hold-7`, the ADR-0028 addendum of 2026-11-22: the explicit ratings, genres
   and tags, the three new adult tags, the tier limit of a young ceiling and the no-metadata drop of a grown-up leftovers
   pool) is a delta written by hand from #1078; `kid-hold-8` passes `kid-hold-6.json` and `kid-hold-7.json` with their
-  `adult` read as adult or explicit and their `X` rating at level 7.
+  `adult` read as adult or explicit and their `X` rating at level 7. `kid-hold-8-noise.json` (#1088) adds rows for input
+  noise only, no new meaning: a no-break space, tab, doubled space or dash variant in a rating, genre or tag no longer
+  hides it, and a blank rating, genre or tag counts as none in the no-metadata drop.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

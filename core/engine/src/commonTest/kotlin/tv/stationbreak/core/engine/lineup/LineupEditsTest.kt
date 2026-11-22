@@ -269,6 +269,25 @@ class LineupEditsTest {
         assertEquals(50, applied(lineup, LineupEdit.SetNumber(western, 50)).byId(western).number)
     }
 
+    // The same guard through ClearNumber and ReplaceCustom, each with a swap (#1088).
+    @Test
+    fun afterHoursCannotBeSwappedBelow100ThroughClearNumberOrReplaceCustom() {
+        val afterHours = LineupIds.starter(AdultMark.AFTER_HOURS_KEY)
+        // Western sits at 60 though its default is 310; After Hours holds 310. Clearing it would give After Hours 60.
+        val cleared =
+            lineupOf(starter("western", 310, override = 60), starter(AdultMark.AFTER_HOURS_KEY, 504, override = 310))
+        assertEquals(EditRefusal.OutOfRange, refusal(cleared, LineupEdit.ClearNumber(western, swapWith = afterHours)))
+        // A custom channel at 60 saved at 504, After Hours' number, would send After Hours to 60.
+        val mine = custom("low", 60)
+        val replaced = lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), mine)
+        val replace = LineupEdit.ReplaceCustom(mine.id, someRules, 504, swapWith = afterHours, kids = false)
+        assertEquals(EditRefusal.OutOfRange, refusal(replaced, replace))
+        // Both stay refused with the swap named or not, and a swap at or above 100 still works.
+        val high = custom("high", 700)
+        val ok = LineupEdit.ReplaceCustom(high.id, someRules, 504, swapWith = afterHours, kids = false)
+        assertEquals(700, applied(lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), high), ok).byId(afterHours).number)
+    }
+
     @Test
     fun setNumberAllowsAKidChannelAbove99() {
         val kid = starter(kidKey, 5)

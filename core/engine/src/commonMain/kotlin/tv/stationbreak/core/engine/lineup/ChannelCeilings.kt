@@ -12,7 +12,9 @@ import tv.stationbreak.core.rules.RatingLadder
  * the Kids band, is never above PG: a ceiling that is null or higher becomes PG. A built-in channel (a starter or a
  * leftovers channel) numbered in the Family band (34 to 66) is never above PG, and in the Teen band (67 to 99) never
  * above TV-14 (#1078): its band's promise holds wherever it is moved, and the grown-up hold reads that ceiling as the
- * band's tier limit (`GrownUpHold.tierLimit`). A custom channel keeps its own ceiling there: no hidden filters.
+ * band's tier limit (`GrownUpHold.tierLimit`). A retired recipe's channel (Custom, but with a `starter:` or
+ * `leftovers:` ID) counts as built-in (#1088). A viewer's own custom channel keeps its own ceiling there: no hidden
+ * filters.
  */
 object ChannelCeilings {
     /** The ceiling [channel] is scheduled under in [catalog], or null for none. */
@@ -27,13 +29,30 @@ object ChannelCeilings {
 
     // The most a built-in channel numbered in the Family or Teen band may air (#1078); null for any other channel.
     private fun youngBandCap(channel: LineupChannel): String? {
-        val builtIn = channel.source is ChannelSource.Starter || channel.source is ChannelSource.Leftovers
+        val builtIn = isBuiltIn(channel)
         return when (channel.number?.takeIf { builtIn }) {
             in Band.Family.numbers -> KIDS_MAX_RATING
             in Band.Teen.numbers -> TEEN_MAX_RATING
             else -> null
         }
     }
+
+    // A starter or leftovers channel, or a retired one: Custom but keeping its `starter:` or `leftovers:` ID (#1088),
+    // as `KidStatus.isKidChannel` reads it.
+    private fun isBuiltIn(channel: LineupChannel): Boolean =
+        when (channel.source) {
+            is ChannelSource.Starter, is ChannelSource.Leftovers -> {
+                true
+            }
+
+            is ChannelSource.Custom -> {
+                channel.id.value.startsWith("starter:") || channel.id.value.startsWith("leftovers:")
+            }
+
+            is ChannelSource.Unusable -> {
+                false
+            }
+        }
 
     // The ceiling before the kids' cap: the catalog's wherever it governs, else the stored one.
     private fun storedCeiling(

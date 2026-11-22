@@ -21,6 +21,7 @@ import tv.stationbreak.core.engine.lineup.SERVER
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
+import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.engine.snapshot
 import tv.stationbreak.core.engine.toSchedulerSettings
@@ -249,5 +250,28 @@ class ExplicitPoolTest {
         assertEquals(PoolPolicy.ExplicitOnly, KidStatus.basePolicyOf(at(null)))
         assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(at(60)))
         assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(at(99)))
+    }
+
+    // Each Explicit tag, on an anime and on a non-anime film alike (#1088): in After Hours' pool, and in no other pool.
+    @Test
+    fun eachExplicitTagPutsAnimeAndNonAnimeFilmsOnAfterHoursAlone() {
+        val films =
+            RatingTier.EXPLICIT_TIER_TAGS.flatMapIndexed { i, tag ->
+                listOf(
+                    movie(idOf(0xC00 + 2 * i), rating = "TV-14", tags = listOf(tag)),
+                    movie(idOf(0xC01 + 2 * i), rating = "TV-14", genres = listOf("Anime"), tags = listOf(tag)),
+                )
+            }
+        val snap = snapshot(items = films)
+        val ids = films.mapTo(HashSet()) { it.item.id }
+        val ahPool = PoolEvaluator.evaluate(rulesOf(afterHours), snap, PoolPolicy.ExplicitOnly).items
+        assertEquals(ids, ahPool.mapTo(HashSet()) { it.id }, "every tagged film airs on After Hours")
+        for (recipe in StarterCatalog.recipes.filter { it.key != AdultMark.AFTER_HOURS_KEY }) {
+            val pool = PoolEvaluator.evaluate(rulesOf(recipe), snap, KidStatus.policyOf(recipe)).items
+            assertEquals(emptySet(), pool.mapTo(HashSet()) { it.id } intersect ids, recipe.key)
+        }
+        for (policy in listOf(PoolPolicy.GrownUp, PoolPolicy.Custom)) {
+            assertEquals(emptyList(), Leftovers.pool(snap, emptySet(), null, policy).items, "leftovers $policy")
+        }
     }
 }
