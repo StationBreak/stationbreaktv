@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.FreeTier
+import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
@@ -17,6 +18,8 @@ import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.ServerId
+import tv.stationbreak.core.model.UserId
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -143,7 +146,7 @@ class ProRefundTest {
             seed(edited.copy(viewerChoice = ViewerChoice.Touched))
             val revocation = ProRevocation(service) { LIBRARIES }
 
-            assertTrue(revocation.onRevoked(ACCOUNT) { true })
+            assertEquals(Revocation.Reset, revocation.onRevoked(ACCOUNT) { true })
 
             val lineup = decoded()
             assertTrue(lineup.channels.none { it.chosenByViewer && it.source is ChannelSource.Starter })
@@ -156,7 +159,7 @@ class ProRefundTest {
             seed()
             val before = store.inner.peek(ACCOUNT)
 
-            assertFalse(ProRevocation(service) { LIBRARIES }.onRevoked(ACCOUNT) { true })
+            assertEquals(Revocation.NothingToReset, ProRevocation(service) { LIBRARIES }.onRevoked(ACCOUNT) { true })
             assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
@@ -167,7 +170,10 @@ class ProRefundTest {
             seed(touched.copy(viewerChoice = ViewerChoice.Touched))
             val before = store.inner.peek(ACCOUNT)
 
-            assertFalse(ProRevocation(service) { null }.onRevoked(ACCOUNT) { true })
+            assertEquals(Revocation.NotNow, ProRevocation(service) { null }.onRevoked(ACCOUNT) { true })
+            // An account that does not resolve to a lineup owner is not judged either.
+            val unresolved = LibraryAccount(ServerId("not an id"), UserId("nor this"))
+            assertEquals(Revocation.NotNow, ProRevocation(service) { LIBRARIES }.onRevoked(unresolved) { true })
             assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
@@ -225,7 +231,7 @@ class ProRefundTest {
             pro.set(true)
             lock.unlock()
 
-            assertFalse(reset.await(), "Pro is back: the reset is not saved")
+            assertEquals(Revocation.NotNow, reset.await(), "Pro is back: the reset is not saved")
             assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 

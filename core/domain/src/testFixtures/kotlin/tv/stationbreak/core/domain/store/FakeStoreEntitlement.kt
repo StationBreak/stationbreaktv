@@ -60,9 +60,18 @@ class InMemoryProCache(
         held = owned
     }
 
+    @Volatile private var handled: Set<String> = emptySet()
+
     override suspend fun readRefundPending(): Boolean = refundPending
 
     override suspend fun writeRefundPending(pending: Boolean) {
         refundPending = pending
+        if (!pending) handled = emptySet()
+    }
+
+    override suspend fun readRefundHandled(): Set<String> = handled
+
+    override suspend fun addRefundHandled(owner: String) {
+        handled = handled + owner
     }
 }

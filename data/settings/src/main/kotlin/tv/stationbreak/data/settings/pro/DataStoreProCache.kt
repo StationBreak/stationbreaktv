@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,10 +20,11 @@ import java.io.IOException
 
 /**
  * The [ProCache] in a Jetpack DataStore file of its own, [FILE_NAME] in `noBackupFilesDir`: never backed up or carried
- * to another TV, and cleared with the app's data. Two booleans: the store's last verified answer, and whether a
- * verified refund still owes its reset; no receipt, user ID or token is ever kept. A file that cannot be read gives
- * false for both (the store's next answer decides), a corrupt one is replaced by an empty one so the next write works
- * (#1063), and a write that fails is dropped: the next verified answer writes again.
+ * to another TV, and cleared with the app's data. Two booleans, the store's last verified answer and whether a verified
+ * refund stands, and the opaque lineup-owner keys of the accounts already reset for that refund; no receipt, name or
+ * token is ever kept. A file that cannot be read gives false and none (the store's next answer decides), a corrupt
+ * one is replaced by an empty one so the next write works (#1063), and a write that fails is dropped: the next
+ * verified answer writes again.
  */
 class DataStoreProCache internal constructor(
     private val data: DataStore<Preferences>,
@@ -51,9 +53,27 @@ class DataStoreProCache internal constructor(
 
     override suspend fun writeRefundPending(pending: Boolean) {
         try {
-            data.edit { it[REFUND_PENDING] = pending }
+            data.edit {
+                it[REFUND_PENDING] = pending
+                if (!pending) it.remove(REFUND_HANDLED)
+            }
         } catch (_: IOException) {
             // Dropped: the refund still stands in memory for this session.
+        }
+    }
+
+    override suspend fun readRefundHandled(): Set<String> =
+        try {
+            data.data.first()[REFUND_HANDLED].orEmpty()
+        } catch (_: IOException) {
+            emptySet()
+        }
+
+    override suspend fun addRefundHandled(owner: String) {
+        try {
+            data.edit { it[REFUND_HANDLED] = it[REFUND_HANDLED].orEmpty() + owner }
+        } catch (_: IOException) {
+            // Dropped: that account is asked again at its next sign-in; a second reset finds nothing to reset.
         }
     }
 
@@ -61,6 +81,7 @@ class DataStoreProCache internal constructor(
         const val FILE_NAME: String = "pro-cache.preferences_pb"
         private val OWNED = booleanPreferencesKey("owned")
         private val REFUND_PENDING = booleanPreferencesKey("refund_pending")
+        private val REFUND_HANDLED = stringSetPreferencesKey("refund_handled")
         private val made = HashMap<String, DataStoreProCache>()
 
         /** The one cache of the app's process over `noBackupFilesDir`: DataStore allows one instance per file. */

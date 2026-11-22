@@ -184,25 +184,28 @@ class StoreBackedProTest {
             val offline = FakeStoreEntitlement()
             val next = restarted(offline)
 
+            next.refundHandled("a")
             offline.purchase()
 
             assertFalse(next.revoked.value)
             assertFalse(cache.readRefundPending())
+            assertTrue(cache.readRefundHandled().isEmpty(), "the handled accounts end with the refund")
             assertFalse(restarted().revoked.value)
         }
 
     @Test
-    fun aHandledRefundIsNotOwedAtTheNextStart_butStandsForThisSession() =
+    fun aHandledAccountIsKeptAcrossStarts_whileTheRefundStandsForEveryOther() =
         runTest {
             val pro = pro()
             store.purchase()
             store.revoke()
 
-            pro.refundHandled()
+            pro.refundHandled("a")
 
-            assertTrue(pro.revoked.value, "another account signed in this session is still reset")
-            assertFalse(cache.readRefundPending())
-            assertFalse(restarted().revoked.value)
+            val next = restarted()
+            assertTrue(next.revoked.value, "another account that signs in later is still reset")
+            assertTrue(next.isRefundHandled("a"))
+            assertFalse(next.isRefundHandled("b"))
         }
 
     @Test

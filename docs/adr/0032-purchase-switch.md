@@ -48,10 +48,11 @@ must stay free of any billing code.
 7. **A refund, by ADR-0023.** A refund is the change from owned (verified, or kept in the cache) to a verified false
    (`ProEntitlement.revoked`), never an unanswered store, and never a false on a TV that did not hold Pro. A TV whose
    cache never held true is never reset. The refund is written to the same file before the owned answer is cleared,
-   and stays there until the reset has run for the active account (or had nothing to reset) or a purchase cancels it,
-   so a kill between the refund and the reset still resets at the next start
-   ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)). In memory it stands for the whole session,
-   so another account signed in then is reset too. Then:
+   with the accounts already reset for it (opaque lineup-owner keys, never names), and only a verified purchase clears
+   either ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)). So a kill before a reset still resets
+   at the next start, every account that signs in while the refund stands is reset once, and an account is counted as
+   done only when its reset ran or a lineup that was read and may be written holds no mark to reset; a lineup that
+   could not be read, or an account that does not resolve, is asked again later. Then:
    - the starters return to the planner's defaults, by the same reset the viewer's own reset runs (`ProRevocation`,
      which only acts while a starter still holds a viewer's mark, so asking again at every start is safe);
    - the customs beyond the first five by channel ID are locked by a rule (`lockedCustoms`), not a stored field. The ID

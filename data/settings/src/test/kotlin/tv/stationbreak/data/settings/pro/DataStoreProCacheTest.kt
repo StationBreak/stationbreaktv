@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -58,6 +59,18 @@ class DataStoreProCacheTest {
 
             open().writeRefundPending(false)
             assertFalse(open().readRefundPending())
+        }
+
+    @Test
+    fun theHandledAccountsSurviveARelaunch_andEndWithTheRefund() =
+        runBlocking {
+            open().writeRefundPending(true)
+            open().addRefundHandled("a")
+            open().addRefundHandled("b")
+            assertEquals(setOf("a", "b"), open().readRefundHandled())
+
+            open().writeRefundPending(false)
+            assertEquals(emptySet<String>(), open().readRefundHandled())
         }
 
     @Test
