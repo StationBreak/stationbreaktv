@@ -104,7 +104,7 @@ class PersistedDaysTest {
     ): List<ChannelDay> {
         val snapshots =
             scheduled.map { it.cutoffMs }.distinct().associateWith {
-                RuleSnapshot(it, setOf(LIBRARY_ID), items, emptyMap(), emptyMap(), collectionsSynced = true)
+                RuleSnapshot(it, setOf(LIBRARY_ID), items, seriesOf(items), emptyMap(), collectionsSynced = true)
             }
         return days.days(lineup, scheduled, snapshots)
     }

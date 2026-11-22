@@ -13,13 +13,16 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   thinner kids channels, never less safe ones.
 - **Kids' titles stay on the kids channels.** The other built-in channels leave out titles made for kids.
 - **Explicit titles air only on After Hours.** A title is explicit when it, or its series, has an adult-only rating
-  (X, XXX, AO, NC-17, or a country's adult rating such as R18 or X18+), an explicit genre (such as Hentai, Adult or
+  (X, XXX, AO, NC-17, or a country's adult rating such as R18 or X18+, also as part of a combined rating such as
+  R/NC-17), an explicit genre (such as Hentai, Adult or
   Erotica) or an explicit keyword from the server's metadata (such as pornography, softcore or sexploitation). Anime
   or not, no other built-in channel airs it, and Odds & Ends doesn't either. With After Hours off, explicit titles
   air nowhere.
-- **Teen and family channels follow their audience, not only a rating.** The family channels (34 to 66) air only
-  family titles, and the teen channels (67 to 99) only family and teen titles. A title with nudity, sexual or adult
-  keywords, or a rating above TV-14, stays off them even when its rating would fit.
+- **Teen and family channels follow their audience, not only a rating.** A built-in channel numbered 34 to 66 airs
+  only family titles, and one numbered 67 to 99 only family and teen titles, wherever its number came from: a
+  built-in channel you move there follows the same rule. A title with nudity, sexual or adult keywords, or a rating
+  above TV-14, stays off them even when its rating would fit. After Hours can't be given a number below 100. This
+  promise covers the built-in channels; your own channels keep no hidden filters at any number above 33.
 - **When in doubt, the app moves a title up.** NC-17 counts as explicit, and so does an explicit keyword on a
   mainstream film, so a few well-known films leave the regular channels for After Hours. Keywords that only describe
   a plot about the adult industry don't count.
@@ -43,8 +46,9 @@ rated wrongly is treated as rated.
 
 The explicit rule reads the same metadata. A file with no metadata at all can't be told apart from a test clip, so it
 is not treated as explicit: it stays off the kids, family and teen channels and out of Odds & Ends, but a grown-up
-channel that picks it by its library or collection can still air it. If a library holds adult media, limit which
-accounts can see it on your server.
+channel that picks it by its library or collection can still air it. An episode whose series the app hasn't read is
+treated the same way, because its series could be explicit. If a library holds adult media, limit which accounts can
+see it on your server.
 
 An episode of a series follows the series' rating. If a series is rated for kids, all its episodes can air on kids
 channels, even one that carries a higher rating of its own (a special, or an episode filed under the wrong series).

@@ -27,8 +27,9 @@ import tv.stationbreak.core.rules.RatingLadder
  *
  * Under `PoolPolicy.GrownUp`, and under `PoolPolicy.Custom` (here only the grown-up leftovers while no kids leftovers
  * channel is on: the kids-tier hold is lifted, the rest is not), a leftovers pool also drops (#1078, counted in
- * `blockedByCeiling`) every Explicit title, which only After Hours airs, and every title with no metadata
- * (`GrownUpHold.hasNoMetadata`), which only a source that matches it can air; and under a young ceiling it keeps only
+ * `blockedByCeiling`) every Explicit title, which only After Hours airs, every title with no metadata
+ * (`GrownUpHold.hasNoMetadata`), which only a source that matches it can air, and every episode whose series the
+ * snapshot lacks (`GrownUpHold.seriesMissing`); and under a young ceiling it keeps only
  * that band's tiers (`GrownUpHold.tierLimit`: Odds & Ends 66 the family tier, 99 family and teen). Under
  * `PoolPolicy.ExplicitOnly` it is a leftovers pool over the Explicit tier: anything else is `heldOut`.
  */
@@ -99,9 +100,19 @@ object Leftovers {
                 PoolPolicy.Custom, PoolPolicy.GrownUp -> {
                     val tier = RatingTier.of(entry, series)
                     when {
-                        tier == RatingTier.Kids && policy == PoolPolicy.GrownUp -> madeForKidsOut++
-                        tier == RatingTier.Explicit || GrownUpHold.hasNoMetadata(entry, series) -> blocked++
-                        else -> admit(entry, series, tier)
+                        tier == RatingTier.Kids && policy == PoolPolicy.GrownUp -> {
+                            madeForKidsOut++
+                        }
+
+                        tier == RatingTier.Explicit ||
+                            GrownUpHold.hasNoMetadata(entry, series) ||
+                            GrownUpHold.seriesMissing(entry, series) -> {
+                            blocked++
+                        }
+
+                        else -> {
+                            admit(entry, series, tier)
+                        }
                     }
                 }
 

@@ -217,4 +217,16 @@ class ExplicitTierTest {
             assertFalse(RatingMap.isExplicit(rating), "[$rating]")
         }
     }
+
+    // A combined rating is Explicit when any part is (fix round 1, MED-2).
+    @Test
+    fun aCombinedRatingIsExplicitWhenAnyPartIs() {
+        for (rating in listOf("R/NC-17", "GB-R18/AU-X18+", "TV-MA / XXX", "PG-13/R18+")) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertEquals(RatingTier.Explicit, tierOf(movie(idOf(1), rating = rating)), rating)
+        }
+        for (rating in listOf("R/TV-MA", "PG/PG-13", "TV-14/TV-MA", "gb/15")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
+        }
+    }
 }

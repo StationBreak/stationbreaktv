@@ -165,12 +165,19 @@ object PoolEvaluator {
                 PoolPolicy.GrownUp -> {
                     val tier = RatingTier.of(entry, series)
                     when {
-                        !GrownUpHold.drops(tier) -> admit(entry, series, tier)
+                        tier == RatingTier.Kids -> {
+                            madeForKidsOut++
+                        }
 
-                        tier == RatingTier.Kids -> madeForKidsOut++
+                        // Explicit: above every grown-up channel's limit (After Hours alone airs it). An episode whose
+                        // series is missing may hide an Explicit series: dropped with no ceiling (a ceiling blocks it).
+                        GrownUpHold.drops(tier) || (maxRating == null && GrownUpHold.seriesMissing(entry, series)) -> {
+                            blocked++
+                        }
 
-                        // Explicit: above every grown-up channel's limit (After Hours alone airs it).
-                        else -> blocked++
+                        else -> {
+                            admit(entry, series, tier)
+                        }
                     }
                 }
 

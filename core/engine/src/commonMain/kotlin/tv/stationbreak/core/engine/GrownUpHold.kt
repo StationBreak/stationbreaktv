@@ -49,6 +49,16 @@ object GrownUpHold {
     }
 
     /**
+     * Whether [entry] is an episode whose series ID is set but whose series the snapshot lacks (#1078, fail up): the
+     * series' explicit signals can't be read, so a grown-up pool with no ceiling and every grown-up leftovers pool drop
+     * it. (Under a ceiling rule 4 already blocks it.)
+     */
+    fun seriesMissing(
+        entry: RuleItem,
+        series: RuleSeries?,
+    ): Boolean = entry.item.seriesId != null && series == null
+
+    /**
      * Whether [entry] has no metadata at all (#1078): no rating (absent: null or only spaces), no genre and no tag, on
      * itself or its known [series]. A grown-up leftovers pool drops it; it can still air where a source matches it.
      */

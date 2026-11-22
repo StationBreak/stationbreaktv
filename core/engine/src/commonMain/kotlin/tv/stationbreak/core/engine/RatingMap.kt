@@ -87,11 +87,17 @@ object RatingMap {
 
     /**
      * Whether [raw] is a rating of the Explicit tier (`kid-hold-8`, #1078): level 7, or in [EXPLICIT] once cleaned as
-     * [levelOf] cleans it, as it is or with a two-letter country prefix (`GB-`, `AU:`) taken off.
+     * [levelOf] cleans it, as it is or with a two-letter country prefix (`GB-`, `AU:`) taken off. A combined rating
+     * (split on `/`, as [levelOf] splits a list) is Explicit when any part is: `R/NC-17`, `GB-R18/AU-X18+`.
      */
     fun isExplicit(raw: String?): Boolean {
         val key = raw?.let(::clean) ?: return false
-        return key in EXPLICIT || withoutCountry(key) in EXPLICIT || levelOfClean(key) == LEVEL_X
+        return explicitPart(key) || ('/' in key && key.split('/').any { explicitPart(it.trim(' ')) })
+    }
+
+    private fun explicitPart(key: String): Boolean {
+        val bare = withoutCountry(key)
+        return key in EXPLICIT || bare in EXPLICIT || levelOfClean(key) == LEVEL_X
     }
 
     private fun levelOfClean(key: String?): Int? =

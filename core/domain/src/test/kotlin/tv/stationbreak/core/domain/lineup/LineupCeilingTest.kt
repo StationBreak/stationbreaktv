@@ -165,4 +165,45 @@ class LineupCeilingTest {
         val moved = leftovers("kids-odds-and-ends", 150, maxRating = null)
         assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(moved), moved))
     }
+
+    // #1078: a built-in channel moved into the Family or Teen band follows that band's tiers; a custom one does not.
+    private fun seedYoungAndGrownUp() {
+        library.seed(
+            movie(1, "Drama", rating = "G"),
+            movie(2, "Drama", rating = "PG"),
+            movie(3, "Drama", rating = "R"),
+            movie(4, "Drama", rating = "TV-MA"),
+            movie(5, "Drama", rating = "PG-13"),
+            movie(6, "Drama", rating = "PG", tags = listOf("nudity")),
+        )
+    }
+
+    @Test
+    fun aGrownUpStarterMovedIntoTheFamilyBandAirsTheFamilyTierOnly() {
+        seedYoungAndGrownUp()
+        val moved = starter("laughs", 50, ChannelState.On, dramas)
+        assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(moved), moved))
+    }
+
+    @Test
+    fun aGrownUpStarterMovedIntoTheTeenBandAirsTheFamilyAndTeenTiers() {
+        seedYoungAndGrownUp()
+        val moved = starter("laughs", 80, ChannelState.On, dramas)
+        assertEquals(setOf(id(1), id(2), id(5)), scheduledPool(lineupOf(moved), moved))
+    }
+
+    @Test
+    fun theGrownUpLeftoversMovedIntoTheFamilyBandAirsTheFamilyTierOnly() {
+        seedYoungAndGrownUp()
+        val moved = leftovers("odds-and-ends", 60, maxRating = null)
+        assertEquals(setOf(id(1), id(2)), scheduledPool(lineupOf(moved), moved))
+    }
+
+    @Test
+    fun aCustomChannelAtFiftyKeepsNoHiddenFilters() {
+        seedYoungAndGrownUp()
+        val custom = channel("c2".padEnd(32, '0'), 50, ChannelState.On, ChannelSource.Custom(dramas))
+        val all = setOf(id(1), id(2), id(3), id(4), id(5), id(6))
+        assertEquals(all, scheduledPool(lineupOf(custom), custom))
+    }
 }

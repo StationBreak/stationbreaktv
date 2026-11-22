@@ -31,10 +31,22 @@ object KidStatus {
     fun basePolicyOf(channel: LineupChannel): PoolPolicy {
         val source = channel.source
         return when {
-            isKidChannel(channel) -> PoolPolicy.KidsOnly
-            source is ChannelSource.Starter && source.recipeKey == AdultMark.AFTER_HOURS_KEY -> PoolPolicy.ExplicitOnly
-            source is ChannelSource.Starter || source is ChannelSource.Leftovers -> PoolPolicy.GrownUp
-            else -> PoolPolicy.Custom
+            isKidChannel(channel) -> {
+                PoolPolicy.KidsOnly
+            }
+
+            // A stored After Hours below the floor (#1078: no edit puts it there) is held as grown-up.
+            isAfterHoursStarter(channel) && (channel.number ?: AFTER_HOURS_FLOOR) >= AFTER_HOURS_FLOOR -> {
+                PoolPolicy.ExplicitOnly
+            }
+
+            source is ChannelSource.Starter || source is ChannelSource.Leftovers -> {
+                PoolPolicy.GrownUp
+            }
+
+            else -> {
+                PoolPolicy.Custom
+            }
         }
     }
 
@@ -66,6 +78,9 @@ object KidStatus {
         lineup: Lineup,
         day: LineupDay,
     ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup, day))
+
+    /** The lowest number After Hours may take (#1078): the young bands below it promise their audience by number. */
+    const val AFTER_HOURS_FLOOR = 100
 
     private fun policyOf(
         channel: LineupChannel,
@@ -131,4 +146,10 @@ object KidStatus {
             }
         return inKidsBand || key?.let(::isKidKey) == true
     }
+}
+
+/** Whether [channel] is the After Hours starter, edited or not (not a custom copy). */
+internal fun isAfterHoursStarter(channel: LineupChannel): Boolean {
+    val source = channel.source as? ChannelSource.Starter
+    return source?.recipeKey == AdultMark.AFTER_HOURS_KEY
 }

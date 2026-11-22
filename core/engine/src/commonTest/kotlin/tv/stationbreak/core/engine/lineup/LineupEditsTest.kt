@@ -6,6 +6,7 @@ import tv.stationbreak.core.engine.forAllCases
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
+import tv.stationbreak.core.rules.AdultMark
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -250,6 +251,22 @@ class LineupEditsTest {
         // "western" is no kid key and sits at 310, outside the Kids band.
         val lineup = lineupOf(starter("western", 310))
         assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(western, 20)))
+    }
+
+    // #1078: the young bands promise their audience by number, so After Hours never moves below 100.
+    @Test
+    fun afterHoursCannotMoveBelow100ByANumberOrASwap() {
+        val afterHours = LineupIds.starter(AdultMark.AFTER_HOURS_KEY)
+        val lineup = lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), starter("western", 310), custom("low", 60))
+        for (number in listOf(1, 40, 60, 80, 99)) {
+            assertEquals(EditRefusal.OutOfRange, refusal(lineup, LineupEdit.SetNumber(afterHours, number)), "$number")
+        }
+        assertEquals(100, applied(lineup, LineupEdit.SetNumber(afterHours, 100)).byId(afterHours).number)
+        // The channel at 60 asking for 504 would send After Hours to 60.
+        val swap = LineupEdit.SetNumber(ChannelId("custom:low"), 504, swapWith = afterHours)
+        assertEquals(EditRefusal.OutOfRange, refusal(lineup, swap))
+        // A grown-up built-in may still move into 34 to 99; its band then holds it (Ceilings, #1078).
+        assertEquals(50, applied(lineup, LineupEdit.SetNumber(western, 50)).byId(western).number)
     }
 
     @Test

@@ -140,8 +140,9 @@ class RatingSafetyLeakTest {
             val tier = tierOf(entry)
             val kids = tier == RatingTier.Kids
             val dropped = kids || tier == RatingTier.Explicit
+            val seriesMissing = entry.item.seriesId != null && seriesOf(entry) == null
             assertEquals(kids, entry.item.id in kidsPool, "kid channel: $entry")
-            assertEquals(!dropped, entry.item.id in grownUp, "grown-up channel: $entry")
+            assertEquals(!dropped && !seriesMissing, entry.item.id in grownUp, "grown-up channel: $entry")
             assertEquals(dropped, GrownUpHold.dropsFromGrownUp(entry, seriesOf(entry)), "$entry")
         }
     }

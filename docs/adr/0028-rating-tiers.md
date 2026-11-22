@@ -184,6 +184,16 @@ and out of Odds & Ends 199, but a grown-up channel whose sources match it (a lib
 it. The engine can't tell it from a test clip; the account's library access on the server is the real lock. An
 episode's own Explicit rating fails up past its series' rating, unlike the kid hold's decisive rating.
 
+Fix round 1 (security review, 2026-11-22):
+- The young-band limit also follows the number: a built-in channel (starter or leftovers) numbered 34 to 66 is
+  scheduled under at most PG, and 67 to 99 at most TV-14 (`Ceilings`, alongside the existing Kids-band PG cap), so
+  the tier limit of rule 5 holds wherever a built-in is moved. Custom channels keep their own ceiling. After Hours
+  can't be numbered below 100 (`LineupEdits`, by a number or a swap, refused as `OutOfRange`), and a stored one below
+  100 is evaluated as grown-up, not `ExplicitOnly`.
+- A combined rating (split on `/`) is Explicit when any part is (`R/NC-17`, `GB-R18/AU-X18+`).
+- An episode whose series ID is set but whose series the snapshot lacks is dropped from every grown-up leftovers pool
+  and from grown-up pools with no ceiling (its series could be Explicit); under a ceiling rule 4 already blocks it.
+
 Every held day is remade once under the new hold names, and a lineup moves to catalog 14 as any catalog bump does.
 Vectors: `kid-hold-8.json`; `kid-hold-6.json` and `kid-hold-7.json` are unchanged, and a `kid-hold-8` port reads
 their `adult` as adult or explicit and their `X` row at level 7. Tests: `ExplicitTierTest`, `ExplicitPoolTest` and the

@@ -5,10 +5,15 @@ import tv.stationbreak.core.engine.LIB
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.RatingTier
+import tv.stationbreak.core.engine.episode
+import tv.stationbreak.core.engine.idOf
 import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.engine.lineup.ChannelSource
+import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LibraryNames
+import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.NO_NAMES
 import tv.stationbreak.core.engine.lineup.Recipe
 import tv.stationbreak.core.engine.lineup.RecipeResolver
@@ -17,6 +22,7 @@ import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.curation.Curation
 import tv.stationbreak.core.engine.lineup.curation.CurationChannel
 import tv.stationbreak.core.engine.rules
+import tv.stationbreak.core.engine.snapshot
 import tv.stationbreak.core.engine.toSchedulerSettings
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -207,5 +213,41 @@ class ExplicitPoolTest {
         assertEquals(emptySet(), leftovers(null, PoolPolicy.GrownUp) intersect explicit, "nor do the leftovers air it")
         val late = Curation.lateOn(library, curationOf(afterHours), homes)
         assertEquals(explicitTitles, late.homed intersect explicitTitles, "a late switch-on airs every Explicit title")
+    }
+
+    // An episode whose series row is missing can't show its series' explicit signals: fail up (fix round 1, MED-3).
+    @Test
+    fun anEpisodeOfAMissingSeriesLeavesGrownUpLeftoversAndGrownUpPoolsWithNoCeiling() {
+        val missing = idOf(0xB00)
+        val orphan = episode(idOf(0xB01), missing, rating = "TV-MA", genres = listOf("Anime"))
+        val nr = episode(idOf(0xB02), missing, rating = "NR", tags = listOf("anime"))
+        val snap = snapshot(items = listOf(orphan, nr))
+        val ids = setOf(orphan.item.id, nr.item.id)
+        for (policy in listOf(PoolPolicy.GrownUp, PoolPolicy.Custom)) {
+            val pool = Leftovers.pool(snap, emptySet(), null, policy).items.map { it.id }
+            assertEquals(emptyList(), pool, "Odds & Ends 199 under $policy")
+        }
+        val all = rules(listOf(Source.Library(LIB)))
+        assertEquals(emptyList(), PoolEvaluator.evaluate(all, snap, PoolPolicy.GrownUp).items, "a grown-up pool")
+        val tokyo = PoolEvaluator.evaluate(rulesOf(recipe("tokyo-after-school")), snap, PoolPolicy.GrownUp).items
+        assertEquals(emptyList(), tokyo, "Tokyo After School")
+        // A custom channel keeps no hidden filters, and After Hours' own sources still reach them.
+        assertEquals(ids, PoolEvaluator.evaluate(all, snap, PoolPolicy.Custom).items.mapTo(HashSet()) { it.id })
+    }
+
+    // A stored After Hours below 100 (no edit puts it there) is held as grown-up, not Explicit-only (fix round 1).
+    @Test
+    fun afterHoursBelow100IsNotExplicitOnly() {
+        val source = ChannelSource.Starter(AdultMark.AFTER_HOURS_KEY, false, rulesOf(afterHours))
+
+        fun at(number: Int?): LineupChannel {
+            val id = ChannelId("starter:after-hours")
+            return LineupChannel(id, number, null, null, ChannelState.On, source, 0L)
+        }
+        assertEquals(PoolPolicy.ExplicitOnly, KidStatus.basePolicyOf(at(504)))
+        assertEquals(PoolPolicy.ExplicitOnly, KidStatus.basePolicyOf(at(100)))
+        assertEquals(PoolPolicy.ExplicitOnly, KidStatus.basePolicyOf(at(null)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(at(60)))
+        assertEquals(PoolPolicy.GrownUp, KidStatus.basePolicyOf(at(99)))
     }
 }
