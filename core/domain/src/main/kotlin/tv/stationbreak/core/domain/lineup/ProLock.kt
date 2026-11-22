@@ -9,7 +9,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.engine.lineup.LineupChannel
-import tv.stationbreak.core.engine.lineup.isViewerCustom
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
@@ -21,19 +21,18 @@ import kotlin.time.Instant
  * The rank is the ID because it is the one thing of a custom channel that never changes: the lineup is re-sorted by
  * number at every plan, the number is the viewer's to change, and a channel's `onSince` moves each time it is switched
  * on. A custom ID is random, so the five that stay are a fixed but arbitrary set, not the first five made; the
- * creation time is not stored, and storing it would need a lineup-file change.
+ * creation time is not stored, and storing it would need a lineup-file change. Every `custom:` ID of [ids] is ranked,
+ * one this app cannot read too (#1063): it holds its place among the five, as it does under the cap, and is never
+ * deleted.
  */
-internal fun lockedCustoms(customs: List<ChannelId>): Set<ChannelId> {
-    val ranked = customs.sortedBy { it.value }
+internal fun lockedCustoms(ids: List<ChannelId>): Set<ChannelId> {
+    val ranked = ids.filter(LineupIds::isCustom).sortedBy { it.value }
     return ranked.drop(FreeTier.CUSTOM_CHANNELS).toSet()
 }
 
-internal fun List<LineupChannel>.lockedCustomIds(): Set<ChannelId> {
-    val mine = filter { it.isViewerCustom() }
-    return lockedCustoms(mine.map { it.id })
-}
+internal fun List<LineupChannel>.lockedCustomIds(): Set<ChannelId> = lockedCustoms(map { it.id })
 
-private fun List<ChannelSummary>.lockedIds(): Set<ChannelId> = lockedCustoms(filter { it.viewerMade }.map { it.id })
+private fun List<ChannelSummary>.lockedIds(): Set<ChannelId> = lockedCustoms(map { it.id })
 
 /**
  * The lineup as features see it while Pro may be locked (#99): [delegate]'s lists without the locked custom channels,
@@ -68,6 +67,20 @@ class ProLockedIds(
         val account = if (pro.pro.value) null else library.activeAccount().first()
         return if (account == null) emptySet() else channels.channels(account).first().lockedIds()
     }
+}
+
+/**
+ * What a channel holds while Pro may be locked (#1063): nothing for a locked custom channel. No screen lists one, but
+ * the guide reads the focused channel's holdings again when its day ends, and a refund can lock that channel first.
+ */
+class ProLockedHoldings(
+    private val delegate: ChannelHoldingsReader,
+    private val locked: ProLockedIds,
+) : ChannelHoldingsReader {
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelHoldings? = if (id in locked.now()) null else delegate.read(id, at)
 }
 
 /**

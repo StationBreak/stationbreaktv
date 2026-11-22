@@ -517,7 +517,7 @@ class CustomEditsTest {
     )
 
     @Test
-    fun viewerCustomCountIgnoresRetiredStartersAndUnreadableChannels() {
+    fun viewerCustomCountIgnoresRetiredStarters_butCountsUnreadableCustoms() {
         val unreadable =
             LineupChannel(ChannelId("custom:x"), 650, null, null, ChannelState.On, ChannelSource.Unusable("{}"), 5L)
         val lineup =
@@ -529,7 +529,8 @@ class CustomEditsTest {
                 custom("b", 602),
             )
 
-        assertEquals(2, lineup.viewerCustomCount())
+        // The unreadable custom holds its place under the free cap (#1063): counting fails closed.
+        assertEquals(3, lineup.viewerCustomCount())
     }
 
     @Test

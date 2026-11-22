@@ -40,9 +40,22 @@ enum class PurchaseOutcome {
     Pending,
 }
 
-/** The last verified answer, kept on this TV so an offline start keeps Pro. A revoke writes false over it. */
+/**
+ * The last verified answer, kept on this TV so an offline start keeps Pro. A revoke writes false over it. Beside it,
+ * whether a verified refund stands ([readRefundPending]), so a kill before its reset does not skip it, and the
+ * accounts whose reset for that refund is done ([readRefundHandled]): opaque lineup-owner keys, never names.
+ */
 interface ProCache {
     suspend fun read(): Boolean
 
     suspend fun write(owned: Boolean)
+
+    suspend fun readRefundPending(): Boolean
+
+    /** True: a refund stands. False (a verified purchase): it is over, and the handled accounts are forgotten too. */
+    suspend fun writeRefundPending(pending: Boolean)
+
+    suspend fun readRefundHandled(): Set<String>
+
+    suspend fun addRefundHandled(owner: String)
 }

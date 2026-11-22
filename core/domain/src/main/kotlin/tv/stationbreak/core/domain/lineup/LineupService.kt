@@ -596,18 +596,20 @@ class LineupService internal constructor(
      * refusal, publish no edit. [Saved.Failed]: the save failed or was rejected. [Saved.Invalid]: the edit would break
      * the lineup's rules. Null: there is no lineup, or the file may not be written (a newer app's, say). In none of
      * these, nor in a refusal, is the edit made, though a reconcile with the stored lineup ([reconciled]) may already
-     * have been published, so that memory matches disk.
+     * have been published, so that memory matches disk. [allowed] is the caller's own check (the Pro lock, #1063), run
+     * in the lock on the lineup the edit would change; false is [Saved.Denied], and nothing is made.
      */
     internal suspend fun edit(
         account: LibraryAccount,
         edit: LineupEdit,
         libraries: Set<ItemId>? = null,
+        allowed: (Lineup) -> Boolean = { true },
     ): Saved<EditOutcome>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
         val savedSeq = savedSeqNow()
         return entry.mutex.withLock {
-            editLocked(owner, entry, account, edit, libraries, savedSeq, loadedOf(owner, entry))
+            editLocked(owner, entry, account, edit, libraries, allowed, savedSeq, loadedOf(owner, entry))
         }
     }
 
@@ -630,6 +632,7 @@ class LineupService internal constructor(
         account: LibraryAccount,
         edit: LineupEdit,
         libraries: Set<ItemId>?,
+        allowed: (Lineup) -> Boolean,
         savedSeq: SavedSeqs?,
         loaded: Loaded,
     ): Saved<EditOutcome>? {
@@ -638,8 +641,14 @@ class LineupService internal constructor(
             noteWritable(entry)
             return null
         }
-        val outcome = applied(lineup, edit)
+        val denied = !allowed(lineup)
+        val outcome = if (denied) null else applied(lineup, edit)
         return when {
+            denied -> {
+                noteWritable(entry)
+                Saved.Denied
+            }
+
             outcome == null -> {
                 noteWritable(entry)
                 Saved.Invalid
@@ -726,13 +735,16 @@ class LineupService internal constructor(
      * even if the caller is cancelled, so the lineup is never left forgotten or half replaced. [Saved.Failed]: the
      * save failed or was rejected, and nothing changed. [Saved.Unavailable]: the library could not be read, and nothing
      * changed. Null: the
-     * file may not be written, and nothing changes. Never throws for stored data; other failures (the planner's, say)
-     * propagate, and `ChannelManager` turns them into `ResetResult.Failed`.
+     * file may not be written, and nothing changes. [Saved.Denied]: [allowed], the caller's own check (Pro, or a refund
+     * still standing: #1063), asked in the lock just before the save, said no, and nothing changed. Never throws for
+     * stored data; other failures (the planner's, say) propagate, and `ChannelManager` turns them into
+     * `ResetResult.Failed`.
      */
     @Suppress("TooGenericExceptionCaught") // Any failure to read the library: nothing is written and it is reported.
     internal suspend fun reset(
         account: LibraryAccount,
         libraries: Set<ItemId>,
+        allowed: () -> Boolean = { true },
     ): Saved<Lineup>? {
         val owner = ownerOf(account) ?: return null
         val entry = entryOf(owner)
@@ -763,7 +775,9 @@ class LineupService internal constructor(
             val (fresh, meta) = plannedFrom(owner, read, libraries, null, before, kept, replaced, never)
             withContext(NonCancellable) {
                 // A reset forgets the days built from the old lineup, and with them what was repaired of them.
-                if (saveVerified(owner, fresh, meta, TodayRepairs.NONE)) {
+                if (!allowed()) {
+                    Saved.Denied
+                } else if (saveVerified(owner, fresh, meta, TodayRepairs.NONE)) {
                     forgetDerived(owner.key, signOut = false)
                     publish(entry, fresh, meta, TodayRepairs.NONE)
                     entry.loaded = true
@@ -1501,7 +1515,7 @@ class LineupService internal constructor(
 
             lineup?.finalised == true -> {
                 val edited = LineupEdit.UseMyCollections(on)
-                if (editLocked(owner, entry, account, edited, libraries, savedSeq, loaded) is Saved.Ok) {
+                if (editLocked(owner, entry, account, edited, libraries, { true }, savedSeq, loaded) is Saved.Ok) {
                     SetupOutcome.Applied
                 } else {
                     SetupOutcome.Failed
@@ -1888,6 +1902,9 @@ internal sealed interface Saved<out T> {
 
     /** A reset could not read the library; nothing changed. */
     data object Unavailable : Saved<Nothing>
+
+    /** The caller's own check, asked in the lock, refused the change (the Pro lock, #1063); nothing changed. */
+    data object Denied : Saved<Nothing>
 }
 
 /**
@@ -2006,7 +2023,7 @@ internal fun episodesWithUnknownSeries(snapshot: RuleSnapshot): Int =
 
 // A channel the viewer built: custom (a retired starter too), or one whose rules need a newer app but whose stored
 // source says custom. Only the planner's own channels (starters, leftovers) are planned afresh by a reset.
-private fun LineupChannel.isTheViewers(): Boolean =
+internal fun LineupChannel.isTheViewers(): Boolean =
     when (val source = source) {
         is ChannelSource.Custom -> true
         is ChannelSource.Unusable -> kindOf(source.rawJson) == CUSTOM_KIND

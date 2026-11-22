@@ -57,6 +57,7 @@ import tv.stationbreak.core.domain.lineup.LineupRefresher
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ProLockedChannelRepository
+import tv.stationbreak.core.domain.lineup.ProLockedHoldings
 import tv.stationbreak.core.domain.lineup.ProLockedIds
 import tv.stationbreak.core.domain.lineup.ProLockedScheduleSource
 import tv.stationbreak.core.domain.lineup.ProRevocation
@@ -332,7 +333,7 @@ internal object LineupModule {
     /**
      * What a channel holds today (#757), for the guide's channel box and the properties sheet: one reader, so the two
      * show the same value. The titles are named by the library's own title lookup, the one the sheet's source labels
-     * use.
+     * use. A custom channel a refund locked holds nothing (#1063).
      */
     @Provides
     @Singleton
@@ -340,7 +341,8 @@ internal object LineupModule {
     fun channelHoldings(
         source: BuiltInScheduleSource,
         library: LibraryRepository,
-    ): ChannelHoldingsReader = BuiltInChannelHoldings(source, library, Dispatchers.Default)
+        locked: ProLockedIds,
+    ): ChannelHoldingsReader = ProLockedHoldings(BuiltInChannelHoldings(source, library, Dispatchers.Default), locked)
 
     /**
      * The library snapshots the schedule source and the channel preview share (spec 22): a preview of a draft reads no

@@ -272,17 +272,18 @@ object LineupIds {
 
     /** `custom:<unique>`. */
     fun custom(unique: String): ChannelId = ChannelId(CUSTOM_PREFIX + unique)
+
+    /** Whether [id] is one the viewer made (`custom:`), whether or not this app can read the channel. */
+    fun isCustom(id: ChannelId): Boolean = id.value.startsWith(CUSTOM_PREFIX)
 }
 
 /**
- * How many channels the viewer made: [ChannelSource.Custom] channels with a `custom:` ID. A starter whose recipe left
- * the catalog also becomes a Custom source but keeps its `starter:` ID; it is the planner's, so it is not counted.
- * Channels this app cannot read ([ChannelSource.Unusable]) are not counted either.
+ * How many channels the viewer made: every channel with a `custom:` ID. A starter whose recipe left the catalog also
+ * becomes a Custom source but keeps its `starter:` ID; it is the planner's, so it is not counted. A channel this app
+ * cannot read ([ChannelSource.Unusable]) with a `custom:` ID is counted (#1063): the free cap fails closed, so a
+ * channel nobody can read here still holds its place.
  */
-fun Lineup.viewerCustomCount(): Int = channels.count { it.isViewerCustom() }
+fun Lineup.viewerCustomCount(): Int = channels.count { LineupIds.isCustom(it.id) }
 
-/** Whether the viewer made this channel and this app can read it: see [viewerCustomCount]. */
-fun LineupChannel.isViewerCustom(): Boolean {
-    val isCustom = source is ChannelSource.Custom
-    return isCustom && id.value.startsWith(LineupIds.CUSTOM_PREFIX)
-}
+/** Whether the viewer made this channel and this app can read it, so the viewer may change it. */
+fun LineupChannel.isViewerCustom(): Boolean = source is ChannelSource.Custom && LineupIds.isCustom(id)

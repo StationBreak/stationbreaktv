@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -46,5 +47,42 @@ class DataStoreProCacheTest {
 
             open().write(false)
             assertFalse(open().read())
+        }
+
+    @Test
+    fun anOwedRefundResetSurvivesARelaunch_untilItIsCleared() =
+        runBlocking {
+            assertFalse(open().readRefundPending())
+
+            open().writeRefundPending(true)
+            assertTrue(open().readRefundPending())
+
+            open().writeRefundPending(false)
+            assertFalse(open().readRefundPending())
+        }
+
+    @Test
+    fun theHandledAccountsSurviveARelaunch_andEndWithTheRefund() =
+        runBlocking {
+            open().writeRefundPending(true)
+            open().addRefundHandled("a")
+            open().addRefundHandled("b")
+            assertEquals(setOf("a", "b"), open().readRefundHandled())
+
+            open().writeRefundPending(false)
+            assertEquals(emptySet<String>(), open().readRefundHandled())
+        }
+
+    @Test
+    fun aCorruptFileGrantsNothing_andTheNextWriteWorks() =
+        runBlocking {
+            File(folder.root, DataStoreProCache.FILE_NAME).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
+
+            val cache = open()
+            assertFalse("a corrupt cache never grants Pro", cache.read())
+            assertFalse(cache.readRefundPending())
+
+            cache.write(true)
+            assertTrue(open().read())
         }
 }

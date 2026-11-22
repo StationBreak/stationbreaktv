@@ -26,7 +26,8 @@ must stay free of any billing code.
 3. **A boolean cache.** The last verified answer is kept in a DataStore file of its own (`noBackupFilesDir`, never backed
    up), so a TV that starts offline keeps Pro. A verified false clears it and beats it. A start before the store has
    answered trusts the cache. It is a convenience, not a proof: someone who edits it on their own rooted TV gains only
-   what the GitHub build gives everyone.
+   what the GitHub build gives everyone. A corrupt file is replaced by an empty one, which grants nothing
+   ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)).
 4. **Flavors.**
 
    | Build | `PRO_UNLOCKED` | Store binding | Pro comes from |
@@ -46,8 +47,12 @@ must stay free of any billing code.
    from `reset = false`, an error, a partial page, offline) leaves it null.
 7. **A refund, by ADR-0023.** A refund is the change from owned (verified, or kept in the cache) to a verified false
    (`ProEntitlement.revoked`), never an unanswered store, and never a false on a TV that did not hold Pro. A TV whose
-   cache never held true is never reset. The flag lives in memory for the process; a refund seen and not yet applied
-   when the app is killed is not applied at the next start (the cache already says false). Then:
+   cache never held true is never reset. The refund is written to the same file before the owned answer is cleared,
+   with the accounts already reset for it (opaque lineup-owner keys, never names), and only a verified purchase clears
+   either ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)). So a kill before a reset still resets
+   at the next start, every account that signs in while the refund stands is reset once, and an account is counted as
+   done only when its reset ran or a lineup that was read and may be written holds no mark to reset; a lineup that
+   could not be read, or an account that does not resolve, is asked again later. Then:
    - the starters return to the planner's defaults, by the same reset the viewer's own reset runs (`ProRevocation`,
      which only acts while a starter still holds a viewer's mark, so asking again at every start is safe);
    - the customs beyond the first five by channel ID are locked by a rule (`lockedCustoms`), not a stored field. The ID
@@ -55,8 +60,13 @@ must stay free of any billing code.
      is the viewer's, and `onSince` moves on each switch-on. IDs are random, so the five that stay are a fixed but
      arbitrary set, not the first five made; ranking by creation time needs a stored field (a format-version decision)
      and is left for that decision. The set is ranked over the whole lineup, before Kids Mode filters anything:
-     `ProLockedChannelRepository` and `ProLockedScheduleSource` leave them out of every list and schedule (the way the
-     Kids lock does), and `ChannelManager` and `ChannelBuildManager` refuse to change or delete one;
+     `ProLockedChannelRepository`, `ProLockedScheduleSource` and `ProLockedHoldings` leave them out of every list,
+     schedule and channel box (the way the Kids lock does), and `ChannelManager` and `ChannelBuildManager` refuse to
+     change or delete one. Every `custom:` ID is ranked, one this app cannot read too: it holds its place among the
+     five, as it does under the free cap, and is never deleted;
+   - the gates are asked again inside the lineup's lock, on the lineup the change would write, and the refund's reset
+     asks again there just before it saves, so a refund or a purchase that lands while a change waits for the lock is
+     not missed ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063));
    - nothing is deleted, and buying Pro again unlocks them untouched, with no lineup-file change.
 
 ## Open: the Appstore SDK

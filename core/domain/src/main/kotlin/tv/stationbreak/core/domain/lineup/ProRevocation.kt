@@ -10,7 +10,6 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
-import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ItemId
 
 /**
@@ -26,30 +25,45 @@ class ProRevocation(
     private val service: LineupService,
     private val libraries: suspend () -> Set<ItemId>?,
 ) {
-    /** True when the starters were reset. */
+    /**
+     * What came of the reset for [account]. [stillRevoked] is asked in the lineup's lock just before the save (#1063):
+     * a purchase that lands while the reset waits or plans means no reset is saved. Only a lineup that was read and may
+     * be written is judged: one not read (a failed read, an account not resolved, none yet) is [Revocation.NotNow].
+     */
+    suspend fun onRevoked(
+        account: LibraryAccount,
+        stillRevoked: () -> Boolean,
+    ): Revocation {
+        val held = service.loaded(account)?.takeIf { it.writable }
+        return when {
+            held == null -> Revocation.NotNow
+            held.lineup.channels.none { !it.isTheViewers() && it.chosenByViewer } -> Revocation.NothingToReset
+            reset(account, stillRevoked) -> Revocation.Reset
+            else -> Revocation.NotNow
+        }
+    }
+
     @Suppress("TooGenericExceptionCaught") // Any failure of the plan or the save: reported, and tried again later.
-    suspend fun onRevoked(account: LibraryAccount): Boolean {
-        val channels =
-            service
-                .loaded(account)
-                ?.lineup
-                ?.channels
-                .orEmpty()
-        if (channels.none { !it.isViewerCustom() && it.chosenByViewer }) return false
-        return try {
+    private suspend fun reset(
+        account: LibraryAccount,
+        stillRevoked: () -> Boolean,
+    ): Boolean =
+        try {
             val chosen = libraries()?.takeIf { it.isNotEmpty() }
-            chosen != null && service.reset(account, chosen) is Saved.Ok
+            chosen != null && service.reset(account, chosen, stillRevoked) is Saved.Ok
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             service.reportEvent(LineupEvent.ResetFailed)
             false
         }
-    }
 
     /**
      * Resets the active account's starters while a refund stands ([ProEntitlement.revoked]) and Pro is off. A purchase
-     * that lands mid-reset, or a switch of account, cancels the one under way before it saves.
+     * that lands mid-reset, or a switch of account, cancels the one under way before it saves; a purchase that lands
+     * while it waits for the lineup's lock is caught there. An account whose reset is done for this refund
+     * ([ProEntitlement.refundHandled]) is not reset again; one that could not be judged or reset yet
+     * ([Revocation.NotNow]) is asked again at its next sign-in or start.
      */
     fun watch(
         scope: CoroutineScope,
@@ -59,6 +73,30 @@ class ProRevocation(
         scope.launch {
             combine(pro.revoked, pro.pro, library.activeAccount()) { revoked, isPro, account ->
                 account.takeIf { revoked && !isPro }
-            }.collectLatest { account -> if (account != null) onRevoked(account) }
+            }.collectLatest { account ->
+                val owner = account?.let(::ownerKey)
+                if (owner != null && !pro.isRefundHandled(owner)) {
+                    val done = onRevoked(account) { pro.revoked.value && !pro.pro.value } != Revocation.NotNow
+                    if (done) pro.refundHandled(owner)
+                }
+            }
         }
+}
+
+/** What came of a refund's reset for one account. */
+enum class Revocation {
+    /** The starters were reset. */
+    Reset,
+
+    /** The lineup was read and no starter holds a viewer's mark. */
+    NothingToReset,
+
+    /** Not judged or not done yet (no readable lineup, no libraries, a failed or refused save): ask again later. */
+    NotNow,
+}
+
+// The opaque key a refund's handled accounts are kept by: the lineup owner's canonical server and user IDs.
+private fun ownerKey(account: LibraryAccount): String? {
+    val owner = canonicalAccount(account) ?: return null
+    return "${owner.server.value}:${owner.user.value}"
 }

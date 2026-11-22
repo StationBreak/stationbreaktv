@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -163,14 +164,16 @@ class ChannelBuildFreeTierTest {
         }
 
     @Test
-    fun unreadableCustomChannelsAreNotCounted() =
+    fun unreadableCustomChannelsCountTowardTheCap() =
         runBlocking<Unit> {
+            // Fail closed (#1063): a custom this app cannot read still holds its place, and is never deleted.
             val newer = channel("custom:newer", 650, ChannelState.On, ChannelSource.Unusable("""{"kind":"custom"}"""))
             val corrupt = channel("custom:bad", 651, ChannelState.On, ChannelSource.Unusable("not json"))
-            seedWith(4, newer, corrupt)
+            seedWith(3, newer, corrupt)
 
-            assertTrue(builder.canAddCustom(ACCOUNT).first())
-            assertIs<BuildResult.Done>(create())
+            assertFalse(builder.canAddCustom(ACCOUNT).first())
+            assertEquals(BuildResult.Refused(BuildRefusal.CustomLimit), create())
+            assertEquals(2, stored().channels.count { it.source is ChannelSource.Unusable })
         }
 
     @Test
@@ -220,6 +223,56 @@ class ChannelBuildFreeTierTest {
             assertIs<BuildResult.Done>(create())
 
             assertFalse(withTimeout(TIMEOUT_MS) { gone.await() })
+        }
+
+    // Holds the lineup's lock while [during] runs: an edit asked for then waits on it, past every check made outside.
+    private suspend fun <T> whileLocked(
+        ask: suspend () -> T,
+        during: () -> Unit,
+    ): T =
+        coroutineScope {
+            service.loaded(ACCOUNT)
+            val lock = checkNotNull(service.lockOf(ACCOUNT))
+            lock.lock()
+            val asked = async(start = CoroutineStart.UNDISPATCHED) { ask() }
+            during()
+            lock.unlock()
+            asked.await()
+        }
+
+    @Test
+    fun aRefundThatLandsWhileACreateWaitsForTheLockKeepsTheCap() =
+        runBlocking<Unit> {
+            pro.set(true)
+            seedWith(customs = 5)
+            val draft = builder.blank(ACCOUNT, false).named()
+            val before = store.inner.peek(ACCOUNT)
+
+            val result = whileLocked({ builder.create(ACCOUNT, draft) }) { pro.set(false) }
+
+            assertEquals(BuildResult.Refused(BuildRefusal.NeedsPro), result)
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
+        }
+
+    @Test
+    fun aRefundThatLandsWhileAnEditWaitsForTheLockKeepsALockedCustomUnchanged() =
+        runBlocking<Unit> {
+            pro.set(true)
+            seedWith(customs = 7)
+            val locked = ChannelId("custom:c7")
+            val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, locked, copy = false))
+            val before = store.inner.peek(ACCOUNT)
+            val refusal = BuildResult.Refused(BuildRefusal.NeedsPro)
+
+            assertEquals(
+                refusal,
+                whileLocked({ builder.save(ACCOUNT, locked, opened.draft.copy(name = "Renamed")) }) { pro.set(false) },
+            )
+            pro.set(true)
+            assertEquals(refusal, whileLocked({ builder.reshuffle(ACCOUNT, locked) }) { pro.set(false) })
+            pro.set(true)
+            assertEquals(refusal, whileLocked({ builder.delete(ACCOUNT, locked) }) { pro.set(false) })
+            assertContentEquals(before, store.inner.peek(ACCOUNT))
         }
 
     @Test

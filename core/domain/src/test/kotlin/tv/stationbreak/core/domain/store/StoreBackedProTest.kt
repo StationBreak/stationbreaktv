@@ -157,6 +157,57 @@ class StoreBackedProTest {
             assertTrue(pro.revoked.value)
         }
 
+    // A new provider over the same cache, with a store that has not answered: the app after a kill, started offline.
+    private fun TestScope.restarted(offline: FakeStoreEntitlement = FakeStoreEntitlement()) =
+        StoreBackedPro(false, offline, cache, backgroundScope + UnconfinedTestDispatcher(testScheduler))
+
+    @Test
+    fun aRefundSeenBeforeAKillIsStillOwedItsResetAtTheNextStart() =
+        runTest {
+            pro()
+            store.purchase()
+            store.revoke()
+            assertTrue(cache.readRefundPending(), "kept before anything else")
+
+            val next = restarted()
+
+            assertTrue(next.revoked.value)
+            assertFalse(next.pro.value)
+        }
+
+    @Test
+    fun aPurchaseAfterTheRefundClearsTheOwedReset() =
+        runTest {
+            pro()
+            store.purchase()
+            store.revoke()
+            val offline = FakeStoreEntitlement()
+            val next = restarted(offline)
+
+            next.refundHandled("a")
+            offline.purchase()
+
+            assertFalse(next.revoked.value)
+            assertFalse(cache.readRefundPending())
+            assertTrue(cache.readRefundHandled().isEmpty(), "the handled accounts end with the refund")
+            assertFalse(restarted().revoked.value)
+        }
+
+    @Test
+    fun aHandledAccountIsKeptAcrossStarts_whileTheRefundStandsForEveryOther() =
+        runTest {
+            val pro = pro()
+            store.purchase()
+            store.revoke()
+
+            pro.refundHandled("a")
+
+            val next = restarted()
+            assertTrue(next.revoked.value, "another account that signs in later is still reset")
+            assertTrue(next.isRefundHandled("a"))
+            assertFalse(next.isRefundHandled("b"))
+        }
+
     @Test
     fun aBuildThatUnlocksProIsNeverRevoked() =
         runTest {

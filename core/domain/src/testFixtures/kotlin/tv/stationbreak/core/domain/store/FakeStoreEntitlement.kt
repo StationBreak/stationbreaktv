@@ -45,9 +45,10 @@ class FakeStoreEntitlement(
     }
 }
 
-/** A [ProCache] in memory, which counts its writes. */
+/** A [ProCache] in memory, which counts its writes of the owned answer. */
 class InMemoryProCache(
     private var held: Boolean = false,
+    @Volatile private var refundPending: Boolean = false,
 ) : ProCache {
     var writes: Int = 0
         private set
@@ -57,5 +58,20 @@ class InMemoryProCache(
     override suspend fun write(owned: Boolean) {
         writes++
         held = owned
+    }
+
+    @Volatile private var handled: Set<String> = emptySet()
+
+    override suspend fun readRefundPending(): Boolean = refundPending
+
+    override suspend fun writeRefundPending(pending: Boolean) {
+        refundPending = pending
+        if (!pending) handled = emptySet()
+    }
+
+    override suspend fun readRefundHandled(): Set<String> = handled
+
+    override suspend fun addRefundHandled(owner: String) {
+        handled = handled + owner
     }
 }

@@ -173,7 +173,10 @@ class ChannelBuildManager(
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, target)
                     val number = sent.number.takeIf { sent.numberChosen }
                     val limit = if (pro.pro.value) null else FreeTier.CUSTOM_CHANNELS
-                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids, limit), sent.kids, id)
+                    // No limit was set because Pro was on: Pro must still be on in the lock (#1063).
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids, limit), sent.kids, id) {
+                        limit != null || pro.pro.value
+                    }
                 }
             }
         }
@@ -206,16 +209,13 @@ class ChannelBuildManager(
                     refused(BuildRefusal.NotCustom)
                 }
 
-                !pro.pro.value && id in lineup.channels.lockedCustomIds() -> {
-                    refused(BuildRefusal.NeedsPro)
-                }
-
                 else -> {
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.Edit(stored))
                     // A number the viewer did not pick is the channel's own, or the first free one on the other side
                     // of a kids switch: worked out in the lock.
                     val number = sent.number.takeIf { sent.numberChosen }
-                    edited(account, LineupEdit.ReplaceCustom(id, rules, number, kids = sent.kids), sent.kids, id)
+                    val edit = LineupEdit.ReplaceCustom(id, rules, number, kids = sent.kids)
+                    edited(account, edit, sent.kids, id, unlocked(id))
                 }
             }
         }
@@ -225,11 +225,7 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            if (isLocked(account, id)) {
-                refused(BuildRefusal.NeedsPro)
-            } else {
-                edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id)
-            }
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, unlocked(id))
         }
 
     override suspend fun delete(
@@ -237,18 +233,12 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            if (isLocked(account, id)) {
-                refused(BuildRefusal.NeedsPro)
-            } else {
-                edited(account, LineupEdit.RemoveCustom(id), false, id)
-            }
+            edited(account, LineupEdit.RemoveCustom(id), false, id, unlocked(id))
         }
 
-    // A custom channel locked after a refund (ADR-0023, #99) is kept, not changed or deleted until Pro is back.
-    private suspend fun isLocked(
-        account: LibraryAccount,
-        id: ChannelId,
-    ): Boolean = !pro.pro.value && lineupOf(account)?.let { id in it.channels.lockedCustomIds() } == true
+    // A custom channel locked after a refund (ADR-0023, #99) is kept, not changed or deleted until Pro is back. Asked
+    // in the lineup's lock (#1063), on the lineup the edit would change.
+    private fun unlocked(id: ChannelId): (Lineup) -> Boolean = { pro.pro.value || id !in it.channels.lockedCustomIds() }
 
     override fun canAddCustom(account: LibraryAccount): Flow<Boolean> =
         flow {
@@ -261,13 +251,15 @@ class ChannelBuildManager(
             )
         }.distinctUntilChanged()
 
+    // [allowed] is asked in the lineup's lock: false is [BuildRefusal.NeedsPro].
     private suspend fun edited(
         account: LibraryAccount,
         edit: LineupEdit,
         kids: Boolean,
         id: ChannelId,
+        allowed: (Lineup) -> Boolean,
     ): BuildResult =
-        service.edit(account, edit).mapped(
+        service.edit(account, edit, allowed = allowed).mapped(
             done = { BuildResult.Done(id) },
             refused = { reason ->
                 val holder = (reason as? EditRefusal.NumberTaken)?.holder
@@ -282,6 +274,7 @@ class ChannelBuildManager(
                 Unsaved.NotEditable -> BuildResult.NotEditable
                 Unsaved.SaveFailed -> BuildResult.SaveFailed
                 Unsaved.Invalid -> BuildResult.Failed
+                Unsaved.Denied -> refused(BuildRefusal.NeedsPro)
             }
         }
 
