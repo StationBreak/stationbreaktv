@@ -7,6 +7,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import tv.stationbreak.core.domain.logName
+import tv.stationbreak.core.ui.RemoteKey
+import tv.stationbreak.core.ui.remoteKeyOf
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.LiveInfo
 import tv.stationbreak.feature.live.LiveState
@@ -67,7 +69,7 @@ internal sealed interface KeyAction {
  * What [key] does over [up]. Back from the full picture opens the guide, whatever tune banner shows; with the guide
  * open it is not ours, so the activity leaves live TV (spec 17, owner decision 3). The Guide key opens and closes it.
  */
-private fun keyAction(
+internal fun keyAction(
     key: Key,
     up: OverlayUp,
 ): KeyAction? {
@@ -75,7 +77,7 @@ private fun keyAction(
     return when {
         command != null -> KeyAction.Send(command)
         key == Key.Guide -> KeyAction.Guide(open = !up.guide)
-        key == Key.Back && !up.guide -> KeyAction.Guide(open = true)
+        remoteKeyOf(key) == RemoteKey.Back && !up.guide -> KeyAction.Guide(open = true)
         else -> null
     }
 }
@@ -85,14 +87,15 @@ private fun keyAction(
  * auto-repeat included, so holding Up or Down keeps flipping; a repeat's flip is marked as one, and the machine steps
  * those at its held-key rate (#430). Up/Down and the remote's CH+/CH- flip, Menu goes to the previous channel, Select
  * brings the actions banner (or plays, paused) and Info the program's info (spec 17). The media keys pause, play, and
- * step back and ahead (spec 20), and Left and Right do the same while paused. Back sends only while [up] says an
- * overlay is open (otherwise it opens the guide, which is no command). With the guide open nothing is sent.
+ * step back and ahead (spec 20), and Left and Right do the same while paused. Back is never sent here: it acts on its
+ * release ([handleLiveKey], through the shared remoteKeyToAct). With the guide open nothing is sent.
  */
 internal fun liveKeyCommand(
     event: KeyEvent,
     up: OverlayUp = OverlayUp.None,
 ): LiveCommand? {
-    if (event.type != KeyEventType.KeyDown) return null
+    // Back acts on its release (remoteKeyToAct), not here.
+    if (event.type != KeyEventType.KeyDown || remoteKeyOf(event.key) == RemoteKey.Back) return null
     val native = event.nativeKeyEvent
     val command = mappedCommand(event.key, up)
     val repeat = native.repeatCount > 0
@@ -153,15 +156,15 @@ internal class HeldKeys {
 }
 
 /**
- * Acts on a mapped key and says whether the screen consumed [event]: a mapped key's down (which acts) and its up (which
- * does nothing, but nothing else should see a stray release). Everything else passes. Back is mapped while an overlay
- * is up (it closes it) and from the full picture (it opens the guide through [guide]), never while the guide is open;
- * Select only while no overlay is. The auto-repeats and the release of a press that was consumed are consumed too,
- * whatever [up] says by then. A repeat sends again only when the press flipped or sought, so holding Up keeps
- * flipping; a held Select, Info, Back, Guide or Menu acts once, so a held Back never runs on from the info to the
- * banner to the guide and out of live TV. A repeat never starts anything: one of a press that passed through passes
- * too, and one of a press whose first down never came here (a long OK the guide took and closed on) is consumed,
- * doing nothing.
+ * Acts on a mapped key and says whether the screen consumed [event]: a mapped key's down (which acts, except Back's,
+ * which acts on its up, see [handleBack]) and its up (which does nothing, but nothing else should see a stray release).
+ * Everything else passes. Back is mapped while an overlay is up (it closes it) and from the full picture (it opens
+ * the guide through [guide]), never while the guide is open; Select only while no overlay is. The auto-repeats and
+ * the release of a press that was consumed are consumed too, whatever [up] says by then. A repeat sends again only
+ * when the press flipped or sought, so holding Up keeps flipping; a held Select, Info, Back, Guide or Menu acts once,
+ * so a held Back never runs on from the info to the banner to the guide and out of live TV. A repeat never starts
+ * anything: one of a press that passed through passes too, and one of a press whose first down never came here (a
+ * long OK the guide took and closed on) is consumed, doing nothing.
  */
 internal fun handleLiveKey(
     event: KeyEvent,
@@ -189,17 +192,29 @@ internal fun handleLiveKey(
     guide: (open: Boolean) -> Unit = {},
     atMs: Long? = null,
     send: (LiveCommand) -> Unit,
+): Boolean =
+    when {
+        type == KeyEventType.KeyDown && repeat > 0 -> handleRepeat(key, held, atMs, send)
+        remoteKeyOf(key) == RemoteKey.Back -> handleBack(type, key, up, held, guide, atMs, send)
+        else -> handlePress(type, key, up, held, guide, atMs, send)
+    }
+
+/** A press or release of any key but Back, which [handleBack] has: the down acts, the up is only consumed. */
+@Suppress("LongParameterList") // The key event's parts, kept apart so a test needs no Android KeyEvent.
+private fun handlePress(
+    type: KeyEventType,
+    key: Key,
+    up: OverlayUp,
+    held: HeldKeys,
+    guide: (open: Boolean) -> Unit,
+    atMs: Long?,
+    send: (LiveCommand) -> Unit,
 ): Boolean {
-    if (type == KeyEventType.KeyDown && repeat > 0) return handleRepeat(key, held, atMs, send)
     val release = release(key, type, held, send)
     if (type == KeyEventType.KeyDown && movesBetweenButtons(key, up)) send(LiveCommand.ShowBanner)
     val action = keyAction(key, up)
     if (action != null && type == KeyEventType.KeyDown) {
-        when (action) {
-            is KeyAction.Send -> send(action.command.timed(repeat = false, atMs = atMs))
-            is KeyAction.Guide -> guide(action.open)
-            is KeyAction.Scroll -> Unit
-        }
+        perform(action, guide, atMs, send)
         held.hold(key, action)
     } else if (type == KeyEventType.KeyDown) {
         held.pass(key)
