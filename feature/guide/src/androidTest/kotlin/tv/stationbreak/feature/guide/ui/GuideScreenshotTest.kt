@@ -615,7 +615,8 @@ class GuideScreenshotTest {
         }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         shoot("$SETTINGS_FRAME-link.png")
-        repeat(SettingsRow.SignOut.ordinal - SettingsRow.Libraries.ordinal) { press(Key.DirectionDown) }
+        val shown = SettingsRow.entries.filter { it.isShown(SettingsValues()) }
+        repeat(shown.indexOf(SettingsRow.SignOut) - shown.indexOf(SettingsRow.Libraries)) { press(Key.DirectionDown) }
         compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected()
         shoot("$SETTINGS_FRAME-action.png")
     }

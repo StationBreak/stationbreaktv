@@ -118,7 +118,7 @@ private object Launched {
 @HiltAndroidTest
 @UninstallModules(MediaServerModule::class, PlayerModule::class, FirstLineupModule::class)
 @RunWith(AndroidJUnit4::class)
-@Suppress("TooManyFunctions") // One function per route and behaviour.
+@Suppress("TooManyFunctions", "LargeClass") // One function per route and behaviour.
 class LaunchNavigationTest {
     @get:Rule(order = 0)
     val hilt = HiltAndroidRule(this)
@@ -659,8 +659,17 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.onNodeWithTag(GuideTags.SETTINGS_SYNC_NOW).assertIsSelected()
 
-        // Down is Sign out (#336): Select asks first, over the sheet, with the focus on Stay signed in, and Back stays.
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        // Down reaches Sign out (#336), past the Pro row where the build has one (the GitHub build's Support row; the
+        // Amazon stand-in has no store, so no row). Select asks first, over the sheet, with the focus on Stay signed
+        // in, and Back stays.
+        repeat(MAX_ROWS_TO_SIGN_OUT) {
+            val there =
+                compose
+                    .onAllNodes(hasTestTag(GuideTags.SETTINGS_SIGN_OUT) and isSelected())
+                    .fetchSemanticsNodes()
+                    .isNotEmpty()
+            if (!there) press(KeyEvent.KEYCODE_DPAD_DOWN)
+        }
         compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitSelected(SettingsTags.SIGN_OUT_STAY)
@@ -896,6 +905,9 @@ class LaunchNavigationTest {
         // Down presses from Appearance to Libraries: Screen fit, When changing channel, Even out volume, Kids Mode,
         // Hours of operation (there with Pro, which a debug build has), then it.
         const val ROWS_TO_LIBRARIES = 6
+
+        // Update library to Sign out: at most the one Pro row between them.
+        const val MAX_ROWS_TO_SIGN_OUT = 2
 
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L
