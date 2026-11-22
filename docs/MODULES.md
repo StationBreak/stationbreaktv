@@ -52,7 +52,8 @@ stationbreaktv/
 │   │                            SecretStore, ProEntitlement), use cases, and the built-in
 │   │                            ScheduleSource (engine + scheduler). Its `lineup` package owns the lineup in memory
 │   │                            (spec 12): the stored-form codec, `LineupService`, `LineupRefresher`. Its `selection`
-│   │                            package is the one writer of the chosen libraries (spec 26)
+│   │                            package is the one writer of the chosen libraries (spec 26). Its `hours` package is the Pro hours-of-operation
+│   │                            domain (#789, ADR-0033): `HoursOfOperation`, the schedule, its codec and the `HoursStore` port
 │   ├── testing/        [KMP]    Fixture libraries (incl. a synthetic 10k-item library), golden vectors for the
 │   │                            scheduler's lineups. (The vectors for the rules format, the primitives and the lineups are
 │   │                            canonical in `docs/rules-format/vectors/`; see "Golden vectors" below. `core:testing` keeps
