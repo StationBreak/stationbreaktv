@@ -24,11 +24,12 @@ import java.io.IOException
  * The [ProCache] in two Jetpack DataStore files of its own in `noBackupFilesDir`: never backed up or carried to another
  * TV, and cleared with the app's data. [FILE_NAME] holds the store's last verified answer; [REFUND_FILE_NAME] holds
  * whether a verified refund stands and the opaque lineup-owner keys of the accounts already reset for it. No receipt,
- * name or token is ever kept. A file that cannot be read gives false and none (the store's next answer decides), and a
- * write that fails is dropped: the next verified answer writes again. A corrupt file is replaced so the next write
- * works (#1063), and each fails closed on its own (#1067): a corrupt cache grants nothing and leaves the refund alone,
- * and a corrupt refund file is a refund owed with no account handled, so the resets run again until a verified
- * purchase ends it. The refund moved out of [FILE_NAME] in #1067; an install that kept it there moves it on first read.
+ * name or token is ever kept. A cache that cannot be read gives false, and a write that fails is dropped: the next
+ * verified answer writes again. A corrupt file is replaced so the next write works (#1063), and each fails closed on
+ * its own (#1067): a corrupt cache grants nothing and leaves the refund alone, and a refund file that is corrupt (kept
+ * as a mark until the next write) or cannot be read is unknown, with no account handled: no offline Pro and no reset
+ * until the store's verified answer settles it. The refund moved out of [FILE_NAME] in #1067; an install that kept it
+ * there moves it on first read.
  */
 class DataStoreProCache internal constructor(
     private val data: DataStore<Preferences>,
@@ -49,17 +50,18 @@ class DataStoreProCache internal constructor(
         }
     }
 
-    override suspend fun readRefundPending(): Boolean =
+    override suspend fun readRefundPending(): Boolean? =
         try {
-            refunds.data.first()[REFUND_PENDING] == true
+            refunds.data.first().let { if (REFUND_UNKNOWN in it) null else it[REFUND_PENDING] == true }
         } catch (_: IOException) {
-            false
+            null
         }
 
     override suspend fun writeRefundPending(pending: Boolean) {
         try {
             refunds.edit {
                 it[REFUND_PENDING] = pending
+                it.remove(REFUND_UNKNOWN)
                 if (!pending) it.remove(REFUND_HANDLED)
             }
         } catch (_: IOException) {
@@ -88,6 +90,7 @@ class DataStoreProCache internal constructor(
         private val OWNED = booleanPreferencesKey("owned")
         private val REFUND_PENDING = booleanPreferencesKey("refund_pending")
         private val REFUND_HANDLED = stringSetPreferencesKey("refund_handled")
+        private val REFUND_UNKNOWN = booleanPreferencesKey("refund_unknown")
         private val made = HashMap<String, DataStoreProCache>()
 
         /** The one cache of the app's process over `noBackupFilesDir`: DataStore allows one instance per file. */
@@ -104,8 +107,8 @@ class DataStoreProCache internal constructor(
             val data = dataStore(scope) { File(dir, FILE_NAME) }
             val refunds =
                 PreferenceDataStoreFactory.create(
-                    // Fail closed: a refund owed, no account handled. A verified purchase still clears it.
-                    corruptionHandler = ReplaceFileCorruptionHandler { preferencesOf(REFUND_PENDING to true) },
+                    // Unknown, no account handled: no offline Pro, no reset, until a verified answer writes.
+                    corruptionHandler = ReplaceFileCorruptionHandler { preferencesOf(REFUND_UNKNOWN to true) },
                     migrations = listOf(MoveRefund(data)),
                     scope = scope,
                     produceFile = { File(dir, REFUND_FILE_NAME) },

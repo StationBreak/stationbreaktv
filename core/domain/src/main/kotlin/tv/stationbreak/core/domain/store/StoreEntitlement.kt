@@ -91,9 +91,13 @@ interface ProCache {
 
     suspend fun write(owned: Boolean)
 
-    suspend fun readRefundPending(): Boolean
+    /** Null: unknown (the record is corrupt or cannot be read). Not a refund, but no offline Pro either (#1067). */
+    suspend fun readRefundPending(): Boolean?
 
-    /** True: a refund stands. False (a verified purchase): it is over, and the handled accounts are forgotten too. */
+    /**
+     * True: a refund stands. False (a verified purchase): it is over, and the handled accounts are forgotten too.
+     * Either ends an unknown.
+     */
     suspend fun writeRefundPending(pending: Boolean)
 
     suspend fun readRefundHandled(): Set<String>

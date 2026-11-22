@@ -25,9 +25,9 @@ must stay free of any billing code.
    verify Pro. The port carries no receipt, user ID or token, and nothing logs one.
 3. **A boolean cache.** The last verified answer is kept in a DataStore file of its own (`noBackupFilesDir`, never backed
    up), so a TV that starts offline keeps Pro. A verified false clears it and beats it. A start before the store has
-   answered trusts the cache, unless a refund is owed (7): an owed refund beats a cached owned, so a kill between
-   writing the one and clearing the other never grants Pro offline
-   ([#1067](https://github.com/StationBreak/stationbreaktv/issues/1067)). It is a convenience, not a proof: someone who
+   answered trusts the cache only when the refund record (7) reads as not owed: an owed or unknown refund beats a
+   cached owned, so a kill between writing the one and clearing the other, or a refund file that is corrupt or cannot
+   be read, never grants Pro offline ([#1067](https://github.com/StationBreak/stationbreaktv/issues/1067)). It is a convenience, not a proof: someone who
    edits it on their own rooted TV gains only what the GitHub build gives everyone. A corrupt file is replaced by an
    empty one, which grants nothing ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)) and leaves
    the refund alone.
@@ -50,12 +50,16 @@ must stay free of any billing code.
    from `reset = false`, an error, a partial page, offline) leaves it null.
 7. **A refund, by ADR-0023.** A refund is the change from owned (verified, or kept in the cache) to a verified false
    (`ProEntitlement.revoked`), never an unanswered store, and never a false on a TV that did not hold Pro. A TV whose
-   cache never held true is never reset. The refund is written before the owned answer is cleared, with the accounts
+   cache never held true is never reset, save the one case below where the refund record is unknown, and a TV that
+   never held Pro has no mark to reset. The refund is written before the owned answer is cleared, with the accounts
    already reset for it (opaque lineup-owner keys, never names), and only a verified purchase clears either
    ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063)). Both live in a DataStore file of their own,
-   apart from the cache, so a corrupt cache cannot drop them; a corrupt refund file fails closed, read as a refund
-   owed with no account handled, so the resets run again (each one only acts on a starter that still holds a mark)
-   until a verified purchase ends it. An install that kept the refund in the cache file moves it on first read
+   apart from the cache, so a corrupt cache cannot drop them. A refund file that is corrupt or cannot be read is
+   unknown, a third state: it never sets `revoked` and never resets anything, so an unanswered store still cannot
+   reset a paying viewer's starters, but the cache does not grant Pro while it stands (3). The store's first verified
+   answer settles it: true ends it; false is a refund, since the unknown file may hide one, and the resets run per
+   account as for any refund (the handled accounts it held are lost, and a second reset finds nothing to reset).
+   A corrupt file keeps the unknown as a mark until that answer is written. An install that kept the refund in the cache file moves it on first read
    ([#1067](https://github.com/StationBreak/stationbreaktv/issues/1067)). So a kill before a reset still resets
    at the next start, every account that signs in while the refund stands is reset once, and an account is counted as
    done only when its reset ran or a lineup that was read and may be written holds no mark to reset; a lineup that

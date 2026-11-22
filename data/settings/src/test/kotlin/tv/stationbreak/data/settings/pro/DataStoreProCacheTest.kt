@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -57,13 +58,13 @@ class DataStoreProCacheTest {
     @Test
     fun anOwedRefundResetSurvivesARelaunch_untilItIsCleared() =
         runBlocking {
-            assertFalse(open().readRefundPending())
+            assertEquals(false, open().readRefundPending())
 
             open().writeRefundPending(true)
-            assertTrue(open().readRefundPending())
+            assertEquals(true, open().readRefundPending())
 
             open().writeRefundPending(false)
-            assertFalse(open().readRefundPending())
+            assertEquals(false, open().readRefundPending())
         }
 
     @Test
@@ -85,7 +86,7 @@ class DataStoreProCacheTest {
 
             val cache = open()
             assertFalse("a corrupt cache never grants Pro", cache.read())
-            assertFalse(cache.readRefundPending())
+            assertEquals(false, cache.readRefundPending())
 
             cache.write(true)
             assertTrue(open().read())
@@ -100,22 +101,32 @@ class DataStoreProCacheTest {
 
             val cache = open()
             assertFalse(cache.read())
-            assertTrue("the refund is in a file of its own", cache.readRefundPending())
+            assertEquals("the refund is in a file of its own", true, cache.readRefundPending())
             assertEquals(setOf("a"), cache.readRefundHandled())
         }
 
     @Test
-    fun aCorruptRefundFileReadsAsOwedWithNoAccountHandled_untilAVerifiedPurchase() =
+    fun aCorruptRefundFileReadsAsUnknownWithNoAccountHandled_untilAVerifiedAnswerWrites() =
         runBlocking {
+            open().writeRefundPending(true)
             open().addRefundHandled("a")
             corrupt(DataStoreProCache.REFUND_FILE_NAME)
 
             val cache = open()
-            assertTrue("fail closed: the reset runs again", cache.readRefundPending())
+            assertNull("neither owed nor clear", cache.readRefundPending())
             assertEquals(emptySet<String>(), cache.readRefundHandled())
+            assertNull("kept across a relaunch", open().readRefundPending())
 
-            cache.writeRefundPending(false)
-            assertFalse(open().readRefundPending())
+            open().writeRefundPending(false)
+            assertEquals(false, open().readRefundPending())
+        }
+
+    @Test
+    fun anUnreadableRefundFileReadsAsUnknown() =
+        runBlocking {
+            File(folder.root, DataStoreProCache.REFUND_FILE_NAME).mkdirs()
+
+            assertNull(open().readRefundPending())
         }
 
     @Test
@@ -130,11 +141,11 @@ class DataStoreProCacheTest {
             }
 
             val cache = open()
-            assertTrue(cache.readRefundPending())
+            assertEquals(true, cache.readRefundPending())
             assertEquals(setOf("a"), cache.readRefundHandled())
 
             corrupt(DataStoreProCache.FILE_NAME)
-            assertTrue("moved, not only read through", open().readRefundPending())
+            assertEquals("moved, not only read through", true, open().readRefundPending())
             assertEquals(setOf("a"), open().readRefundHandled())
         }
 }

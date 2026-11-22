@@ -185,7 +185,40 @@ class ProRevocationWatchTest {
             untilReset()
 
             untilHandled(cache, 1)
-            assertTrue(cache.readRefundPending(), "only a purchase ends the refund")
+            assertEquals(true, cache.readRefundPending(), "only a purchase ends the refund")
+        }
+
+    // A corrupt or unreadable refund record on a paying TV (#1067): no reset until the store gives a verified false.
+    @Test
+    fun anUnknownRefundNeverResets_andAVerifiedPurchaseEndsIt() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            val cache = InMemoryProCache(held = true, refundPending = null)
+            val offline = start(cache)
+            untilWatching()
+
+            assertTrue(marked(), "an unknown refund is not a refund")
+
+            offline.purchase()
+            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending() != false) delay(POLL_MS) }
+            assertTrue(marked())
+        }
+
+    @Test
+    fun anUnknownRefundThenAVerifiedFalseResets() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            val cache = InMemoryProCache(held = true, refundPending = null)
+            val offline = start(cache)
+            untilWatching()
+            assertTrue(marked())
+
+            offline.revoke()
+
+            untilReset()
+            assertEquals(true, cache.readRefundPending())
         }
 
     @Test
@@ -240,7 +273,7 @@ class ProRevocationWatchTest {
             untilHandled(cache, 2)
 
             store2.purchase()
-            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending()) delay(POLL_MS) }
+            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending() != false) delay(POLL_MS) }
             assertTrue(cache.readRefundHandled().isEmpty())
         }
 

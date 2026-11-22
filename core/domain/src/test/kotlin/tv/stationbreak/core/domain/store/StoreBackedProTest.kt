@@ -146,6 +146,34 @@ class StoreBackedProTest {
         }
 
     @Test
+    fun anUnknownRefundRecordGrantsNothingFromTheCache_andIsNoRefund_untilTheStoreSaysTrue() =
+        runTest {
+            val unknown = InMemoryProCache(held = true, refundPending = null)
+            val pro = StoreBackedPro(false, store, unknown, backgroundScope + UnconfinedTestDispatcher(testScheduler))
+            assertFalse(pro.pro.value, "no offline Pro while the refund is unknown")
+            assertFalse(pro.revoked.value, "an unknown is not a refund")
+
+            store.purchase()
+
+            assertTrue(pro.pro.value)
+            assertFalse(pro.revoked.value)
+            assertEquals(false, unknown.readRefundPending(), "a verified answer settles it")
+        }
+
+    @Test
+    fun anUnknownRefundRecordThenAVerifiedFalseIsARefund() =
+        runTest {
+            val unknown = InMemoryProCache(held = true, refundPending = null)
+            val pro = StoreBackedPro(false, store, unknown, backgroundScope + UnconfinedTestDispatcher(testScheduler))
+
+            store.restore()
+
+            assertFalse(pro.pro.value)
+            assertTrue(pro.revoked.value)
+            assertEquals(true, unknown.readRefundPending())
+        }
+
+    @Test
     fun aVerifiedFalseBeforeTheCacheIsReadIsNotOverwrittenByIt() =
         runTest {
             cache.write(true)
@@ -201,7 +229,7 @@ class StoreBackedProTest {
             pro()
             store.purchase()
             store.revoke()
-            assertTrue(cache.readRefundPending(), "kept before anything else")
+            assertEquals(true, cache.readRefundPending(), "kept before anything else")
 
             val next = restarted()
 
@@ -222,7 +250,7 @@ class StoreBackedProTest {
             offline.purchase()
 
             assertFalse(next.revoked.value)
-            assertFalse(cache.readRefundPending())
+            assertEquals(false, cache.readRefundPending())
             assertTrue(cache.readRefundHandled().isEmpty(), "the handled accounts end with the refund")
             assertFalse(restarted().revoked.value)
         }
