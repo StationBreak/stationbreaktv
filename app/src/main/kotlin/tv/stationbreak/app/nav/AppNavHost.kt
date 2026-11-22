@@ -260,12 +260,12 @@ private fun AppNavHostContent(
             )
         }
         composable<SignedInRoute> {
-            // Back here leaves the app (Q-UX-2): the picker is only beneath this screen so that Continue can return to
-            // it, and Back must not pop to the picker, whose own Back opens this screen again.
-            val activity = LocalActivity.current
-            BackHandler { activity?.finish() }
+            // Back is Continue: the picker is beneath this screen, and its own Back opens this screen again, so
+            // popping is the way back to it (#1082). The screen's Continue holds while a switch runs.
+            val backToPicker: () -> Unit = { navController.popBackStack() }
+            BackHandler(onBack = backToPicker)
             SignedInDestination(
-                onContinue = { navController.popBackStack() },
+                onContinue = backToPicker,
                 onSwitchUser = { navController.replaceAll(SignInRoute()) },
                 onMissingSession = { navController.replaceAll(LaunchRoute) },
             )
