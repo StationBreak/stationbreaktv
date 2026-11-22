@@ -4,14 +4,13 @@ package tv.stationbreak.core.engine.audit
 import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
-import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.engine.lineup.ChannelCeilings
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.HouseholdSources
 import tv.stationbreak.core.engine.lineup.KidStatus
 import tv.stationbreak.core.engine.lineup.Leftovers
 import tv.stationbreak.core.engine.lineup.LineupChannel
-import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.engine.lineup.curatedOn
 import tv.stationbreak.core.engine.lineup.curation.Curated
 import tv.stationbreak.core.engine.lineup.curation.Curation
@@ -24,7 +23,6 @@ import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
-import tv.stationbreak.core.rules.RatingLadder
 
 /** One channel of the household view: what it airs on the day, under the ceiling and policy a day build gives it. */
 @Suppress("LongParameterList") // A plain carrier: one parameter for each fact the invariants and the report read.
@@ -53,8 +51,8 @@ internal class HouseholdView(
  * (`core:domain` `LineupDays`): its rules for the day with the household flag applied, under its scheduled ceiling
  * and its own policy; the curated starters through [Curation.curate]; then the leftovers channels in claim order
  * (ceilinged first, then by number), each over what the channels before it claimed, with the opt-in starters' pools
- * withheld. Left out, as in #784: the late-on pools and the epoch trim window. `core:engine` cannot depend on
- * `core:domain`, so the ceiling rule is mirrored here ([ceilingOf]) and held by the gate's own band invariants.
+ * withheld. Left out, as in #784: the late-on pools and the epoch trim window. The ceiling is `ChannelCeilings.of`, the
+ * one function `core:domain` schedules under too.
  */
 internal object HouseholdViews {
     fun of(planned: PlannedLineup): HouseholdView {
@@ -77,12 +75,13 @@ internal object HouseholdViews {
             channels += GateChannel(c.recipe.key, c.id, c.number, false, c.rules.maxRating, policy, pool.items, homed)
         }
         claimed += withheld(planned, household)
-        val order = compareBy<LineupChannel> { ceilingOf(it) == null }.thenBy { it.number }.thenBy { it.id.value }
+        val ceilinged = { c: LineupChannel -> ChannelCeilings.of(c, planned.catalog) == null }
+        val order = compareBy<LineupChannel>(ceilinged).thenBy { it.number }.thenBy { it.id.value }
         val claiming = lineup.channels.filter { it.source is ChannelSource.Leftovers && it.state != ChannelState.Shelf }
         for (channel in claiming.sortedWith(order)) {
             if (channel.startsAfter(day)) continue
             val source = channel.source as ChannelSource.Leftovers
-            val ceiling = ceilingOf(channel)
+            val ceiling = ChannelCeilings.of(channel, planned.catalog)
             val policy = KidStatus.policyOf(channel, lineup, day)
             val pool = Leftovers.pool(snapshot, claimed, ceiling, policy)
             pool.items.mapTo(claimed) { it.id }
@@ -105,7 +104,7 @@ internal object HouseholdViews {
         val recipe = planned.planning.recipe((channel.source as ChannelSource.Starter).recipeKey)
         val own = (channel.source as ChannelSource.Starter).rulesFor(planned.day.startMs)
         val rules = if (household) own else HouseholdSources.without(own, planned.snapshot)
-        val ruled = rules?.copy(maxRating = ceilingOf(channel))
+        val ruled = rules?.copy(maxRating = ChannelCeilings.of(channel, planned.catalog))
         val settings = ruled?.let { runCatching { it.toSchedulerSettings() }.getOrNull() }
         if (recipe == null || ruled == null || settings == null) return null
         val policy = policyOf(channel)
@@ -126,57 +125,5 @@ internal object HouseholdViews {
             pool.items.mapTo(out) { it.id }
         }
         return out
-    }
-
-    /**
-     * The ceiling [channel] is scheduled under, as `core:domain`'s `Ceilings.of` has it: the catalog's for a leftovers
-     * channel and for an unedited starter (else the stored one), but a kid channel and a key that was ever kid-safe
-     * are never above PG, and a built-in channel numbered in the Family band never above PG, in the Teen band never
-     * above TV-14.
-     */
-    fun ceilingOf(channel: LineupChannel): String? {
-        val stored = storedCeiling(channel.source)
-        val cap = capOf(channel)
-        return if (cap != null && !atMost(stored, cap)) cap else stored
-    }
-
-    private fun storedCeiling(source: ChannelSource): String? =
-        when (source) {
-            is ChannelSource.Leftovers -> {
-                StarterCatalog.leftovers.firstOrNull { it.key == source.recipeKey }?.maxRating ?: source.maxRating
-            }
-
-            is ChannelSource.Starter -> {
-                val recipe = StarterCatalog.recipe(source.recipeKey)?.maxRating
-                if (recipe != null && !source.edited) recipe else source.rules.maxRating
-            }
-
-            is ChannelSource.Custom -> {
-                source.rules.maxRating
-            }
-
-            is ChannelSource.Unusable -> {
-                null
-            }
-        }
-
-    private fun capOf(channel: LineupChannel): String? {
-        val everKidSafe = (channel.source as? ChannelSource.Starter)?.recipeKey in StarterCatalog.EVER_KID_SAFE_KEYS
-        return when {
-            KidStatus.isKidChannel(channel) || everKidSafe -> "PG"
-            channel.source is ChannelSource.Custom -> null
-            channel.number in Band.Family.numbers -> "PG"
-            channel.number in Band.Teen.numbers -> "TV-14"
-            else -> null
-        }
-    }
-
-    // True for a ceiling on the ladder at [limit] or lower; null (no ceiling) and unknown names are not.
-    private fun atMost(
-        rating: String?,
-        limit: String,
-    ): Boolean {
-        val rank = RatingLadder.rankOf(rating)
-        return rank != null && rank <= checkNotNull(RatingLadder.rankOf(limit))
     }
 }

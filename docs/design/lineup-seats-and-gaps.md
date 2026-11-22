@@ -300,8 +300,8 @@ new golden.
   leftovers channel; the kids fixture has a kids-band channel with homes; the report is the golden.
 - **Warnings** (report only, never a failure): a channel over 300 or under 12 hours, a leftovers total over the case's
   pinned cap, two channels sharing 12 hours or more and over three quarters of the smaller, a channel with no homes.
-- **Mirror:** `core:engine` cannot depend on `core:domain`, so the ceiling a day build gives a channel (`Ceilings.of`) is
-  written again in `HouseholdViews.ceilingOf`; the band-promise invariant fails if the two drift apart.
+- **Ceiling:** the gate and the day build share one function, `ChannelCeilings.of` in `core:engine`; the band-promise
+  invariant still holds the result.
 
 ### The seat rule (#785)
 
