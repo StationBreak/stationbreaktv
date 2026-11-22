@@ -1,0 +1,23 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  subgraph row1[" "]
+    direction LR
+    other["Another cell"] -->|"Back"| now["Cell on now"]
+  end
+  subgraph row2[" "]
+    direction LR
+    nowBack["Cell on now"] -->|"Back"| menuBack["Menu from Back"]
+  end
+  subgraph row3[" "]
+    direction LR
+    menuLeave["Menu from Back"] -->|"Back"| leave["Leaves the app"]
+  end
+  subgraph row4[" "]
+    direction LR
+    menuKey["Menu from Menu key"] -->|"Back"| grid["Back to the grid"]
+  end
+  subgraph row5[" "]
+    direction LR
+    nowSelect["Cell on now"] -->|"Select"| live["Live picture"]
+  end
+  row1 ~~~ row2 ~~~ row3 ~~~ row4 ~~~ row5

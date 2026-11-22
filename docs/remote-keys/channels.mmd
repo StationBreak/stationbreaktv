@@ -1,0 +1,23 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  subgraph row1[" "]
+    direction LR
+    listBack["Channel list"] -->|"Back"| guide["Guide"]
+  end
+  subgraph row2[" "]
+    direction LR
+    listSelect["Channel list"] -->|"Select a row"| actions["Actions"]
+  end
+  subgraph row3[" "]
+    direction LR
+    actionsBack["Actions"] -->|"Back"| list["Channel list"]
+  end
+  subgraph row4[" "]
+    direction LR
+    builderBack["Builder, unsaved"] -->|"Back"| confirm["Leave?"]
+  end
+  subgraph row5[" "]
+    direction LR
+    typingBack["Typing"] -->|"Back"| builder["Builder row"]
+  end
+  row1 ~~~ row2 ~~~ row3 ~~~ row4 ~~~ row5

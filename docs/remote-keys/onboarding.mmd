@@ -1,0 +1,23 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  subgraph row1[" "]
+    direction LR
+    welcomeBack["Welcome"] -->|"Back"| leave["Leaves the app"]
+  end
+  subgraph row2[" "]
+    direction LR
+    welcomeGo["Welcome"] -->|"Select"| server["Server"]
+  end
+  subgraph row3[" "]
+    direction LR
+    qcBack["Quick Connect"] -->|"Back"| signin["Sign in"]
+  end
+  subgraph row4[" "]
+    direction LR
+    signedBack["Signed in as"] -->|"Back"| leaveAgain["Leaves the app"]
+  end
+  subgraph row5[" "]
+    direction LR
+    cheerGo["Cheer"] -->|"Any key"| live["Live TV"]
+  end
+  row1 ~~~ row2 ~~~ row3 ~~~ row4 ~~~ row5
