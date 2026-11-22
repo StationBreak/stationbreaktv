@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.store
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -116,4 +122,66 @@ class StoreBackedProTest {
 
             assertFalse(pro.pro.value)
         }
+
+    @Test
+    fun aRefundIsOnlyTheChangeFromOwnedToAVerifiedFalse() =
+        runTest {
+            val never = pro()
+            store.restore()
+            assertFalse(never.pro.value)
+            assertFalse(never.revoked.value, "a TV that never held Pro is never refunded")
+        }
+
+    @Test
+    fun aRefundSetsRevoked_andBuyingAgainClearsIt() =
+        runTest {
+            val pro = pro()
+            store.purchase()
+            assertFalse(pro.revoked.value)
+
+            store.revoke()
+            assertTrue(pro.revoked.value)
+
+            store.purchase()
+            assertFalse(pro.revoked.value)
+        }
+
+    @Test
+    fun aCachedOwnedFollowedByAVerifiedFalseIsARefund() =
+        runTest {
+            cache.write(true)
+            val pro = pro()
+
+            store.restore()
+
+            assertTrue(pro.revoked.value)
+        }
+
+    @Test
+    fun aBuildThatUnlocksProIsNeverRevoked() =
+        runTest {
+            val pro = pro(buildUnlocked = true)
+            store.purchase()
+            store.revoke()
+            assertFalse(pro.revoked.value)
+        }
+
+    @Test
+    @Suppress("InjectDispatcher") // A real multi-threaded dispatcher: the state must be right off the test thread.
+    fun theStateFollowsTheStoreOnARealMultiThreadedDispatcher() =
+        runBlocking<Unit> {
+            val job = Job()
+            val pro = StoreBackedPro(false, store, cache, CoroutineScope(Dispatchers.Default + job))
+
+            store.purchase()
+            withTimeout(TIMEOUT_MS) { pro.pro.first { it } }
+            store.revoke()
+            withTimeout(TIMEOUT_MS) { pro.revoked.first { it } }
+            assertFalse(pro.pro.value)
+            job.cancel()
+        }
+
+    private companion object {
+        const val TIMEOUT_MS = 10_000L
+    }
 }

@@ -22,9 +22,11 @@ import javax.inject.Singleton
  *
  * - register a `PurchasingListener` and set [StoreEntitlement.verified] to true only after the SDK reports a valid
  *   Pro receipt (`PurchaseResponse` SUCCESSFUL, or ALREADY_PURCHASED) and `notifyFulfillment` was called;
- * - set it to false when `getPurchaseUpdates` (asked at start and at each resume, and by [restore] with reset)
- *   reports the receipt cancelled, and to false when it lists no Pro receipt;
- * - leave it null, never false, while the SDK has not answered (offline, error), so the cache stands;
+ * - set it to false ONLY from a successful, fully paged (`hasMore == false`) `getPurchaseUpdates(reset = true)` sync
+ *   that lists no Pro SKU, or lists it canceled. A refund is acted on (starters reset) only as the change from true to
+ *   such a false. Ask it at start and at each resume, and by [restore];
+ * - leave it null, never false, for anything else: an empty delta from `reset = false`, an error, a partial or
+ *   unfinished page, offline. Then the cache stands;
  * - never log a receipt, user ID, marketplace ID or token;
  * - take the one SKU from [PRO_SKU], the only place the SKU is named.
  */

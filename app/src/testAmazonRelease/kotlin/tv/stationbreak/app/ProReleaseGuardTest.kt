@@ -5,8 +5,9 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import tv.stationbreak.app.di.AmazonStore
+import tv.stationbreak.core.domain.store.FakeStoreEntitlement
 import tv.stationbreak.core.domain.store.InMemoryProCache
 import tv.stationbreak.core.domain.store.StoreBackedPro
 
@@ -21,14 +22,19 @@ class ProReleaseGuardTest {
         assertFalse("PRO_UNLOCKED must be false in the store release build", BuildConfig.PRO_UNLOCKED)
     }
 
-    // Pro comes only from the store here (#99): the stand-in owns nothing, so the release is free until the adapter is
-    // linked, and a cached "owned" from nowhere does not unlock it once the store has answered.
+    // Pro comes only from the store here (#99): with the release's build flag and a store that has not verified a
+    // purchase, Pro is locked, and a verified purchase unlocks it. The store is a fake, so this holds for whichever
+    // adapter the flavor binds.
     @Test
-    fun theStoreReleaseIsLockedUntilTheStoreVerifiesAPurchase() {
+    fun theStoreReleaseIsLockedUntilTheStoreVerifiesAPurchase() =
         runTest {
+            val store = FakeStoreEntitlement(initial = null)
             val scope = backgroundScope + UnconfinedTestDispatcher(testScheduler)
-            val pro = StoreBackedPro(BuildConfig.PRO_UNLOCKED, AmazonStore(), InMemoryProCache(), scope)
+            val pro = StoreBackedPro(BuildConfig.PRO_UNLOCKED, store, InMemoryProCache(), scope)
             assertFalse(pro.pro.value)
+
+            store.purchase()
+
+            assertTrue(pro.pro.value)
         }
-    }
 }

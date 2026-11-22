@@ -4,12 +4,12 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
-import tv.stationbreak.core.domain.store.StoreEntitlement
 import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ItemId
 
@@ -18,7 +18,8 @@ import tv.stationbreak.core.model.ItemId
  * the way the viewer's own reset does it, which keeps every custom channel), and the customs beyond the free cap are
  * locked by [lockedCustoms], which stores nothing. Nothing is deleted. A reset is made only when a starter still holds
  * a viewer's mark, so it is safe to ask again at every start: a free viewer cannot make such a mark. It is asked only
- * on a verified answer of the store, never on an unanswered one, so a TV that starts offline keeps its lineup.
+ * on a verified change from owned to not owned ([ProEntitlement.revoked]), never on an unanswered store or on a TV that
+ * never held Pro, so a TV that starts offline keeps its lineup.
  * [libraries] is the viewer's playable libraries, as for a reset; none known means try again later.
  */
 class ProRevocation(
@@ -46,16 +47,18 @@ class ProRevocation(
         }
     }
 
-    /** Resets the active account's starters whenever the store verifies Pro is not owned and the build is locked. */
+    /**
+     * Resets the active account's starters while a refund stands ([ProEntitlement.revoked]) and Pro is off. A purchase
+     * that lands mid-reset, or a switch of account, cancels the one under way before it saves.
+     */
     fun watch(
         scope: CoroutineScope,
         pro: ProEntitlement,
-        store: StoreEntitlement,
         library: LibraryRepository,
     ): Job =
         scope.launch {
-            combine(store.verified, pro.pro, library.activeAccount()) { verified, isPro, account ->
-                account.takeIf { verified == false && !isPro }
-            }.collect { account -> if (account != null) onRevoked(account) }
+            combine(pro.revoked, pro.pro, library.activeAccount()) { revoked, isPro, account ->
+                account.takeIf { revoked && !isPro }
+            }.collectLatest { account -> if (account != null) onRevoked(account) }
         }
 }

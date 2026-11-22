@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain
 
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -9,7 +10,15 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface ProEntitlement {
     val pro: StateFlow<Boolean>
+
+    /**
+     * True from the moment the store verifies a refund (it said Pro was owned, now it says not) until Pro is back.
+     * Never true for a build that unlocks Pro, nor for a TV that never held Pro. A refund is acted on only through it.
+     */
+    val revoked: StateFlow<Boolean> get() = NOT_REVOKED
 }
+
+private val NOT_REVOKED: StateFlow<Boolean> = MutableStateFlow(false)
 
 /** What the free tier allows. Commercial policy, so it lives here and not in the engine. */
 object FreeTier {

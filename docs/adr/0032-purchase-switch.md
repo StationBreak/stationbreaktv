@@ -41,12 +41,20 @@ must stay free of any billing code.
 5. **One SKU constant**, `PRO_SKU` in that file. The console's SKU is the owner's to create.
 6. **Verification (the adapter's contract, written in the seam file).** Register a `PurchasingListener`; set `verified`
    to true only after the SDK reports a valid receipt and `notifyFulfillment` was called; ask `getPurchaseUpdates` at
-   start and each resume; set false when it reports the receipt cancelled or lists none; leave null while the SDK has
-   not answered.
-7. **A refund, by ADR-0023.** The refund is seen only as a verified false, never an unanswered store. Then:
+   start and each resume. Set `verified` to false only from a successful, fully paged (`hasMore == false`)
+   `getPurchaseUpdates(reset = true)` sync that lists no Pro SKU or lists it canceled. Anything else (an empty delta
+   from `reset = false`, an error, a partial page, offline) leaves it null.
+7. **A refund, by ADR-0023.** A refund is the change from owned (verified, or kept in the cache) to a verified false
+   (`ProEntitlement.revoked`), never an unanswered store, and never a false on a TV that did not hold Pro. A TV whose
+   cache never held true is never reset. The flag lives in memory for the process; a refund seen and not yet applied
+   when the app is killed is not applied at the next start (the cache already says false). Then:
    - the starters return to the planner's defaults, by the same reset the viewer's own reset runs (`ProRevocation`,
      which only acts while a starter still holds a viewer's mark, so asking again at every start is safe);
-   - the customs beyond the five oldest are locked by a rule over creation time (`lockedCustoms`), not a stored field:
+   - the customs beyond the first five by channel ID are locked by a rule (`lockedCustoms`), not a stored field. The ID
+     is the only stable rank without a lineup-file change: the lineup is re-sorted by number at every plan, the number
+     is the viewer's, and `onSince` moves on each switch-on. IDs are random, so the five that stay are a fixed but
+     arbitrary set, not the first five made; ranking by creation time needs a stored field (a format-version decision)
+     and is left for that decision. The set is ranked over the whole lineup, before Kids Mode filters anything:
      `ProLockedChannelRepository` and `ProLockedScheduleSource` leave them out of every list and schedule (the way the
      Kids lock does), and `ChannelManager` and `ChannelBuildManager` refuse to change or delete one;
    - nothing is deleted, and buying Pro again unlocks them untouched, with no lineup-file change.

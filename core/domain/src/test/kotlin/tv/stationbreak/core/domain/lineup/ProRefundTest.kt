@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.FreeTier
+import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -42,7 +45,6 @@ class ProRefundTest {
             null,
             ChannelState.On,
             ChannelSource.Custom(rules("C$n", Source.Genre("Comedy"))),
-            onSinceMs = ADDED_MS + n,
         ).copy(numberOverride = 600 + n)
 
     private suspend fun seed(vararg extra: LineupChannel) {
@@ -103,12 +105,34 @@ class ProRefundTest {
         }
 
     @Test
-    fun theLockFollowsCreationOrder_notTheNumber() {
-        val locked = lineupOf(custom(2), custom(1), custom(3)).channels.lockedCustomIds()
-        assertTrue(locked.isEmpty(), "three customs are under the cap")
-        val six = (1..FreeTier.CUSTOM_CHANNELS + 1).map { custom(it).copy(numberOverride = 700 - it) }
-        assertEquals(setOf(id(FreeTier.CUSTOM_CHANNELS + 1)), six.lockedCustomIds())
+    fun theLockFollowsTheIdAlone_notTheNumberNorWhenAChannelWasSwitchedOn() {
+        val six =
+            (1..FreeTier.CUSTOM_CHANNELS + 1).map {
+                custom(it).copy(numberOverride = 700 - it, onSinceMs = 9_000L - it)
+            }
+        val expected = setOf(id(FreeTier.CUSTOM_CHANNELS + 1))
+        assertEquals(expected, six.lockedCustomIds())
+
+        // Switching the oldest on again moves its onSince, and the order of the list is not a rank: nothing moves.
+        val switched = six.map { if (it.id == id(1)) it.copy(onSinceMs = 99_999L) else it }.reversed()
+        assertEquals(expected, switched.lockedCustomIds())
     }
+
+    @Test
+    fun kidsModeDoesNotUncoverALockedCustom_sinceTheLockIsRankedOverTheWholeLineup() =
+        runBlocking<Unit> {
+            // c6 and c7 are the locked ones; both are kids channels. Kids Mode on shows only numbers up to 33.
+            val customs = (1..total).map { custom(it).copy(numberOverride = if (it >= 6) 20 + it else 600 + it) }
+            val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
+            store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(*(listOf(base) + customs).toTypedArray())))
+            val lock = FakeKidsLock()
+            lock.lock(KidsCap.Kids)
+            pro.set(false)
+
+            val shownInKids = KidsLockedChannelRepository(locked, lock).channels(ACCOUNT).first()
+
+            assertEquals(emptyList(), shownInKids.map { it.id })
+        }
 
     @Test
     fun aRefundResetsTheStartersTheViewerEditedAndKeepsEveryCustom() =

@@ -16,25 +16,30 @@ import kotlin.time.Instant
 
 /**
  * The channels a free lineup keeps but does not air or edit (ADR-0023, #99): the viewer's own custom channels beyond
- * the [FreeTier.CUSTOM_CHANNELS] oldest. [customs] is each custom channel's ID and the time it was made, whatever
- * state it is in. Nothing is stored: it is a rule over the lineup, so a refund locks the extras, buying Pro again
- * unlocks them untouched, and no channel is ever deleted.
+ * the [FreeTier.CUSTOM_CHANNELS] with the lowest IDs, whatever state they are in. Nothing is stored: it is a rule over
+ * the lineup, so a refund locks the extras, buying Pro again unlocks them untouched, and no channel is ever deleted.
+ * The rank is the ID because it is the one thing of a custom channel that never changes: the lineup is re-sorted by
+ * number at every plan, the number is the viewer's to change, and a channel's `onSince` moves each time it is switched
+ * on. A custom ID is random, so the five that stay are a fixed but arbitrary set, not the first five made; the
+ * creation time is not stored, and storing it would need a lineup-file change.
  */
-internal fun lockedCustoms(customs: List<Pair<ChannelId, Long>>): Set<ChannelId> =
-    customs
-        .sortedWith(compareBy({ it.second }, { it.first.value }))
-        .drop(FreeTier.CUSTOM_CHANNELS)
-        .mapTo(HashSet()) { it.first }
+internal fun lockedCustoms(customs: List<ChannelId>): Set<ChannelId> {
+    val ranked = customs.sortedBy { it.value }
+    return ranked.drop(FreeTier.CUSTOM_CHANNELS).toSet()
+}
 
-internal fun List<LineupChannel>.lockedCustomIds(): Set<ChannelId> =
-    lockedCustoms(filter { it.isViewerCustom() }.map { it.id to it.onSinceMs })
+internal fun List<LineupChannel>.lockedCustomIds(): Set<ChannelId> {
+    val mine = filter { it.isViewerCustom() }
+    return lockedCustoms(mine.map { it.id })
+}
 
-private fun List<ChannelSummary>.lockedIds(): Set<ChannelId> =
-    lockedCustoms(filter { it.viewerMade }.map { it.id to it.onSince.toEpochMilliseconds() })
+private fun List<ChannelSummary>.lockedIds(): Set<ChannelId> = lockedCustoms(filter { it.viewerMade }.map { it.id })
 
 /**
  * The lineup as features see it while Pro may be locked (#99): [delegate]'s lists without the locked custom channels,
- * so the guide, flipping and channel management never show one. Each list is emitted again when Pro changes.
+ * so the guide, flipping and channel management never show one. Each list is emitted again when Pro changes. The
+ * locked set is ranked over [delegate]'s whole lists, so [delegate] must not be filtered by anything else (Kids Mode
+ * wraps this one, not the other way round).
  */
 class ProLockedChannelRepository(
     private val delegate: ChannelRepository,

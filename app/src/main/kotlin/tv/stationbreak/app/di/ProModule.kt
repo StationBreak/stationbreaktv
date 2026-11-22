@@ -48,8 +48,7 @@ internal class ProRevocationWatch
     constructor(
         private val revocation: ProRevocation,
         private val pro: ProEntitlement,
-        private val store: StoreEntitlement,
         private val library: LibraryRepository,
     ) {
-        fun start(scope: CoroutineScope) = revocation.watch(scope, pro, store, library)
+        fun start(scope: CoroutineScope) = revocation.watch(scope, pro, library)
     }

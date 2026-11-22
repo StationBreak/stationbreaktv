@@ -468,11 +468,11 @@ bought Pro. Owner decision (2026-11-16) for a refund revocation:
   renumbers, hides, switch-offs and switch-ons, and every `Added` mark, are discarded, as in a viewer's reset (which keeps
   custom channels). They are not stashed: a viewer who buys Pro again re-edits the starters, which the owner accepts as
   a small inconvenience. A lineup with no `Added` mark writes version 3 or 4 again.
-- **Custom channels beyond the first 5 are locked, not deleted.** The 5 oldest by creation stay usable. The others stay
+- **Custom channels beyond the first 5 are locked, not deleted.** Five stay usable, ranked by channel ID (ADR-0032: creation time is not stored, and no other rank is stable). The others stay
   in the lineup file as the household's data, but are hidden and cannot be edited or aired. Buying Pro again unlocks
   them. This refines #793's "a stored lineup with more than 5 customs keeps them": for a revoked household the extra
   customs are kept but inaccessible.
-- Not built by this change. The lock needs a stored marker or a rule over creation order (a new lineup-file field if
+- Built by [ADR-0032](0032-purchase-switch.md) (#99) without a stored marker. The lock needed a stored marker or a rule over creation order (a new lineup-file field if
   stored, so a format-version decision), and the revocation reset needs the `ProEntitlement` port (#99). Both are to be
   designed with #99.
 

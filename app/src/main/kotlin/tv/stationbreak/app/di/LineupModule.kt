@@ -190,7 +190,7 @@ internal object LineupModule {
         service: LineupService,
         lock: KidsLock,
         pro: ProEntitlement,
-    ): ChannelRepository = ProLockedChannelRepository(KidsLockedChannelRepository(service, lock), pro)
+    ): ChannelRepository = KidsLockedChannelRepository(ProLockedChannelRepository(service, pro), lock)
 
     /** The customs a refund locked, read from the whole lineup (#99): what the schedule leaves out while Pro is off. */
     @Provides
