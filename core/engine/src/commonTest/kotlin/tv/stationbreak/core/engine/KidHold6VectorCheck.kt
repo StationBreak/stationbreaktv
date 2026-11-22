@@ -18,7 +18,8 @@ import kotlin.test.assertTrue
 
 /**
  * Holds `RatingMap`, `RatingTier`, `KidHold` and `GrownUpHold` to every case of `kid-hold-6.json`, of
- * `kid-hold-7.json`, which has the same shape and only 'tier' rows, and of `kid-hold-8.json`, which adds the
+ * `kid-hold-7.json`, which has the same shape and only 'tier' rows, of `kid-hold-9.json` (a delta, see its description
+ * for the rows it supersedes) and of `kid-hold-8.json`, which adds the
  * 'explicitRating', 'tierLimit' and 'noMetadata' sections (the text is given, so the same check runs on the copy in
  * commonTest and on the published file in jvmTest).
  *
@@ -32,6 +33,9 @@ internal object KidHold6VectorCheck {
 
     /** The ratingMap rows of the earlier files that `kid-hold-8` moves, with their new level. */
     private val MOVED_AT_8: Map<String?, Int?> = mapOf("X" to 7)
+
+    /** The explicitRating rows of earlier files that `kid-hold-9` supersedes (#1088), with their new answer. */
+    private val SUPERSEDED_AT_9: Map<String?, Boolean> = mapOf("\tX" to true)
 
     fun run(
         text: String,
@@ -49,7 +53,8 @@ internal object KidHold6VectorCheck {
         for (row in doc.sectionOrEmpty("explicitRating")) {
             rows++
             val rating = row.stringOrNull("rating")
-            assertEquals(row.string("explicit").toBooleanStrict(), RatingMap.isExplicit(rating), "explicit: [$rating]")
+            val explicit = SUPERSEDED_AT_9[rating] ?: row.string("explicit").toBooleanStrict()
+            assertEquals(explicit, RatingMap.isExplicit(rating), "explicit: [$rating]")
         }
         for (row in doc.sectionOrEmpty("tier")) {
             rows++

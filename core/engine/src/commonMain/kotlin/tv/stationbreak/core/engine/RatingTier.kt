@@ -248,11 +248,12 @@ enum class RatingTier {
                         (anyIn(familyVetoTags, series.foldedTags) || anyIn(familyVetoGenres, series.foldedGenres))
                 )
 
+        // Genre and tag names are tidied before the match (#1088): a no-break space or an en dash does not hide one.
         private fun anyIn(
             set: Set<String>,
             folded: List<String>,
         ): Boolean {
-            for (index in folded.indices) if (folded[index] in set) return true
+            for (index in folded.indices) if (NoiseTidy.tidy(folded[index]) in set) return true
             return false
         }
     }

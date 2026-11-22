@@ -65,7 +65,10 @@ internal object PlannerSelection {
             if (recipe.optIn || number == null) continue
             val policy = KidStatus.policyOf(recipe)
             // Ties order by the recipe's number, as in the day build.
-            candidates += p.curationChannel(id, recipe.number, recipe, policy, rules.getValue(recipe.key), p.household)
+            // The pool is scored under the ceiling the day build airs it under (a band cap on a moved starter, #1088).
+            val channel = p.starterChannel(recipe, number, ChannelState.On, rules.getValue(recipe.key))
+            val ruled = rules.getValue(recipe.key).copy(maxRating = ChannelCeilings.of(channel, p.catalog))
+            candidates += p.curationChannel(id, recipe.number, recipe, policy, ruled, p.household)
         }
         val room = LineupDefaults.PLANNER_PICKS
         val selected = Selection.select(p.snapshot, candidates, emptySet(), emptySet(), room)
@@ -350,7 +353,9 @@ internal fun reasonInputOf(
     val recipe = checkNotNull(p.recipe(source.recipeKey))
     val own = channel.state == ChannelState.On || source.edited
     val rules = if (own) source.rules else p.reResolved(recipe, source)
-    return ReasonInput(channel.id, rules, KidStatus.basePolicyOf(channel), household || source.edited)
+    // Scored under the ceiling the day build airs it under: the recipe's, or a band cap on a moved starter (#1088).
+    val ruled = rules.copy(maxRating = ChannelCeilings.of(channel, p.catalog))
+    return ReasonInput(channel.id, ruled, KidStatus.basePolicyOf(channel), household || source.edited)
 }
 
 // One starter's part of [ReasonsKey]: what its curation channel is made from (its recipe follows from its ID and

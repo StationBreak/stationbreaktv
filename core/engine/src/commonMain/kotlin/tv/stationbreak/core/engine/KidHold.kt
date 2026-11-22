@@ -23,10 +23,14 @@ import tv.stationbreak.core.model.studioKey2
  * `kid-hold-8` (#1078, ADR-0028 addendum 2026-11-22) adds the [RatingTier.Explicit] tier above adult (explicit ratings,
  * genres and tags, [RatingMap.isExplicit]), three adult tags, and X, AO and Adults Only at level 7. What a kid channel
  * admits is unchanged: the kids tier only.
+ * `kid-hold-9` (#1088) tidies input noise before matching: a dash variant or a doubled space in a rating
+ * ([RatingMap.levelOf]), a tab or no-break space in a rating read for [RatingMap.isExplicit] (fail up), and odd
+ * spaces and dash variants in the genres and tags of the tier lists ([NoiseTidy]). Results move only up, except a
+ * rating that was unknown for its noise and now has its level.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-8"
+    const val VERSION_NAME = "kid-hold-9"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
