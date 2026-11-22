@@ -60,8 +60,11 @@ internal data class ProState(
     val held: Boolean = false,
     val locked: Boolean = true,
 ) {
-    /** Buy and Restore are offered: a store build, Pro not yet owned, no purchase held, Kids Mode off. */
-    val actionable: Boolean get() = offer is ProOffer.Store && !owned && !held && !locked
+    /** Buy and Restore are offered: a store build, Pro not yet owned, Kids Mode off. */
+    val actionable: Boolean get() = offer is ProOffer.Store && !owned && !locked
+
+    /** Buy is offered: [actionable], and no purchase held (a held one waits for the store; Restore stays). */
+    val canBuy: Boolean get() = actionable && !held
 }
 
 /**
@@ -101,7 +104,8 @@ internal class ProViewModel
 
         val state: StateFlow<ProState> =
             combine(local, pro.pro, store.price, kidsOn) { l, owned, price, locked ->
-                ProState(offer, owned, price, l.focus, l.busy, said(l.result, owned), l.held, locked)
+                val focus = if (l.held) ProChoice.Restore else l.focus
+                ProState(offer, owned, price, focus, l.busy, said(l.result, owned), l.held, locked)
             }.stateIn(scope, SharingStarted.Eagerly, ProState(offer))
 
         init {
@@ -136,7 +140,7 @@ internal class ProViewModel
 
         /** Up to Buy, Down to Restore purchases. */
         fun move(up: Boolean) {
-            local.update { it.copy(focus = if (up) ProChoice.Buy else ProChoice.Restore) }
+            local.update { it.copy(focus = if (up && !it.held) ProChoice.Buy else ProChoice.Restore) }
         }
 
         /** OK: starts the focused action, once; nothing while a call runs, with Pro owned, or with Kids Mode on. */
@@ -147,14 +151,16 @@ internal class ProViewModel
                 if (it.busy) {
                     it
                 } else {
-                    choice = it.focus
+                    choice = if (it.held) ProChoice.Restore else it.focus
                     it.copy(busy = true, result = null)
                 }
             }
             val asked = choice ?: return
             scope.launch {
                 val result = ask(asked)
-                local.update { it.copy(busy = false, result = result, held = result == ProResult.Pending) }
+                local.update {
+                    it.copy(busy = false, result = result, held = it.held || result == ProResult.Pending)
+                }
             }
         }
 

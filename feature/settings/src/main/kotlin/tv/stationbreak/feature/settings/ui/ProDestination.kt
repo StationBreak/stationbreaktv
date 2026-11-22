@@ -147,11 +147,13 @@ internal fun ProScreen(
         }
         if (state.actionable) {
             Column(verticalArrangement = Arrangement.spacedBy(SheetMeasures.RowGap)) {
-                Answer(
-                    stringResource(R.string.settings_pro_buy),
-                    SettingsTags.PRO_BUY,
-                    focused = state.focus == ProChoice.Buy,
-                )
+                if (state.canBuy) {
+                    Answer(
+                        stringResource(R.string.settings_pro_buy),
+                        SettingsTags.PRO_BUY,
+                        focused = state.focus == ProChoice.Buy,
+                    )
+                }
                 Answer(
                     stringResource(R.string.settings_pro_restore),
                     SettingsTags.PRO_RESTORE,

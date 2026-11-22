@@ -216,9 +216,13 @@ class ProViewModelTest {
             press(rig)
             assertEquals(ProResult.Pending, rig.now.result)
             assertTrue(rig.now.held)
-            assertFalse(rig.now.actionable)
+            assertFalse("Buy is off", rig.now.canBuy)
+            assertTrue("Restore stays", rig.now.actionable)
+            assertEquals(ProChoice.Restore, rig.now.focus)
+            rig.vm.move(up = true)
             press(rig)
             assertEquals("a second purchase was not started", 1, store.purchases)
+            assertEquals("Restore ran instead", 1, store.restores)
 
             store.settle(false)
             runCurrent()
@@ -229,15 +233,29 @@ class ProViewModelTest {
         }
 
     @Test
+    fun restoreWhilePending_findsThePurchase_andEndsThePendingAsOwned() =
+        runTest {
+            store.next = PurchaseOutcome.Pending
+            val rig = rig()
+            press(rig)
+            assertTrue(rig.now.held)
+            store.owned = true
+            press(rig)
+            assertTrue(rig.now.owned)
+            assertFalse(rig.now.held)
+            assertEquals(ProResult.Restored, rig.now.result)
+        }
+
+    @Test
     fun pendingIsForgottenWhenTheViewerLeavesAndComesBack() =
         runTest {
             store.next = PurchaseOutcome.Pending
             val rig = rig()
             press(rig)
-            assertFalse(rig.now.actionable)
+            assertFalse(rig.now.canBuy)
             rig.vm.open()
             runCurrent()
-            assertTrue(rig.now.actionable)
+            assertTrue(rig.now.canBuy)
             assertNull(rig.now.result)
         }
 
