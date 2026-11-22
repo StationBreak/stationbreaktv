@@ -88,6 +88,9 @@ object GuideTags {
     const val SETTINGS_KIDS_MODE = "guide:settings:kidsMode"
     const val SETTINGS_CHANGE_PIN = "guide:settings:changePin"
 
+    /** The Hours of operation row (#789, Pro) of the Settings sheet. */
+    const val SETTINGS_HOURS = "guide:settings:hours"
+
     /** The line under a Settings row that Kids Mode has switched off, and the one in the menu sheet. */
     internal fun settingsLocked(row: SettingsRow): String = settingsRow(row) + ":locked"
 
@@ -133,6 +136,7 @@ object GuideTags {
             SettingsRow.VolumeLevelling -> SETTINGS_LEVELLING
             SettingsRow.KidsMode -> SETTINGS_KIDS_MODE
             SettingsRow.ChangePin -> SETTINGS_CHANGE_PIN
+            SettingsRow.Hours -> SETTINGS_HOURS
             SettingsRow.Libraries -> SETTINGS_LIBRARIES
             SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
             SettingsRow.SignOut -> SETTINGS_SIGN_OUT

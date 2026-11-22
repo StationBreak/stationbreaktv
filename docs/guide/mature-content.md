@@ -112,3 +112,31 @@ first. The reset needs the TV to reach the server. It does not sign the TV out o
 missing lock record keeps Kids Mode on: if the lock's file is ever damaged or deleted after a PIN was set, no PIN can be
 set or checked, the reset cannot repair it, and the TV needs its app data cleared in the TV's settings, which also signs
 the TV out and forgets its channels.
+
+## Hours of operation (Pro)
+
+Hours of operation is a weekly schedule for this TV: a list of periods, each with a day, a start, an end and a level.
+The levels are the ones Kids Mode uses (Kids, Family, Teen), plus **Adult** and **Off Air**. It is part of Pro and each
+TV keeps its own schedule. An empty schedule means no hours: the TV behaves as it does without them.
+
+**Note:** for now this screen only keeps your schedule. The TV does not yet change what it shows by it.
+
+Open the guide's menu, choose **Settings**, then **Hours of operation**. Without Pro the screen says it is a Pro
+feature, and changes nothing. With Pro it needs a PIN first (set one with **Kids Mode**, as above), so a grown-up can
+always override the hours. While Kids Mode is on, the row does nothing and says **Turn off Kids Mode first**.
+
+- **Adding or changing a period.** Choose **Add a period**, or a period in the list. Move down the rows and press Left
+  or Right to change a value: the day, **From**, **To** and the level. Times move 15 minutes at a time and go round
+  past midnight; the days go round the week. Choose **Save** to keep it. Back leaves without saving.
+- **Overnight.** A period that ends at or before its start carries on into the next day, and the list says "the next
+  day". For example Friday 10:00 PM to 6:00 AM is Friday night into Saturday morning. A period belongs to the day it
+  starts on. A start and an end that are the same time are not allowed.
+- **Deleting a period.** Choose the period, move down to **Delete this period** and press OK.
+- **Overlaps.** Periods may overlap. Where they do, the strictest level applies, with Off Air the strictest, then Kids,
+  Family, Teen and Adult.
+
+The PIN overrides the hours: enter the PIN to turn Kids Mode off and the TV is grown-up until Kids Mode comes back on,
+for example after the 2 hours without a key press described above.
+
+If Pro goes away (for example after a refund) your schedule is kept, but it is switched off and can't be changed until
+Pro is back.

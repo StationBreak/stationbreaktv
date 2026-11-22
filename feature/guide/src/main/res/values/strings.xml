@@ -217,4 +217,47 @@
     <string name="guide_runtime_minutes">%1$d min</string>
     <string name="guide_runtime_hours_minutes">%1$d h %2$d min</string>
     <string name="guide_runtime_hours">%1$d h</string>
+
+    <!-- Hours of operation (#789, Pro): its section flag, its Settings row, and its screen over the Settings sheet. -->
+    <string name="guide_settings_group_hours">Hours</string>
+    <string name="guide_settings_hours">Hours of operation</string>
+    <string name="guide_hours_title">Hours of operation</string>
+    <string name="guide_hours_title_add">Add a period</string>
+    <string name="guide_hours_title_edit">Edit a period</string>
+    <!-- What the screen says without Pro, or with Pro and no PIN set. -->
+    <string name="guide_hours_pro_required">Hours of operation is a Pro feature.</string>
+    <string name="guide_hours_needs_pin">Set a PIN first. A grown-up needs it to override the hours. Kids Mode in Settings sets one.</string>
+    <string name="guide_hours_empty">No hours set. The TV follows Kids Mode only.</string>
+    <string name="guide_hours_pin_note">The PIN overrides the hours: enter the PIN and the TV is grown-up until it locks again.</string>
+    <string name="guide_hours_overlap_note">Where periods overlap, the strictest one applies.</string>
+    <string name="guide_hours_add">Add a period</string>
+    <!-- A period as one line: %1$s the day, %2$s the start, %3$s the end. An overnight period ends the next day. -->
+    <string name="guide_hours_period">%1$s, %2$s to %3$s</string>
+    <string name="guide_hours_period_overnight">%1$s, %2$s to %3$s the next day</string>
+    <string name="guide_hours_end_next_day">%1$s the next day</string>
+    <!-- Said by a screen reader for a period: %1$s the period as above, %2$s its level. -->
+    <string name="guide_hours_period_spoken">%1$s, %2$s</string>
+    <string name="guide_hours_level_adult">Adult</string>
+    <string name="guide_hours_level_teen">Teen</string>
+    <string name="guide_hours_level_family">Family</string>
+    <string name="guide_hours_level_kids">Kids</string>
+    <string name="guide_hours_level_off_air">Off Air</string>
+    <string name="guide_hours_field_day">Day</string>
+    <string name="guide_hours_field_from">From</string>
+    <string name="guide_hours_field_to">To</string>
+    <string name="guide_hours_field_level">Level</string>
+    <string name="guide_hours_field_save">Save</string>
+    <string name="guide_hours_field_delete">Delete this period</string>
+    <!-- A stepper row's value, with the arrows that change it. -->
+    <string name="guide_hours_stepper">&#9666; %1$s &#9656;</string>
+    <!-- What saving came to. -->
+    <string name="guide_hours_saved">Saved.</string>
+    <string name="guide_hours_notice_pro">Hours of operation is a Pro feature. Nothing changed.</string>
+    <string name="guide_hours_notice_pin">Set a PIN first. Nothing changed.</string>
+    <string name="guide_hours_notice_unavailable">Could not save. Nothing changed.</string>
+    <!-- What OK does on a row of the hours screen, in its hint row. -->
+    <string name="guide_hint_hours_edit">Edit</string>
+    <string name="guide_hint_hours_add">Add</string>
+    <string name="guide_hint_hours_save">Save</string>
+    <string name="guide_hint_hours_delete">Delete</string>
 </resources>

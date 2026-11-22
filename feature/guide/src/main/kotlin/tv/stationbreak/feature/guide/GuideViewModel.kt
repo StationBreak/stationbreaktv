@@ -25,10 +25,14 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
 import tv.stationbreak.core.domain.details.LogoCache
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
+import tv.stationbreak.core.domain.hours.HoursEdit
+import tv.stationbreak.core.domain.hours.HoursOfOperation
+import tv.stationbreak.core.domain.hours.HoursSchedule
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockState
@@ -105,6 +109,12 @@ internal class GuideViewModel
         private val kids: KidsLock,
         /** Starts the Kids Mode PIN's reset with a server administrator's approval (#789); see [recoverPin]. */
         private val recoverPin: () -> Flow<PinRecovery> = { emptyFlow() },
+        /** The stored hours schedule (#789, Pro), for the Settings sheet's hours screen. */
+        private val storedHours: Flow<HoursSchedule> = emptyFlow(),
+        /** Whether Pro is unlocked (#789): without it the hours screen is a notice and a save is refused. */
+        private val pro: StateFlow<Boolean> = MutableStateFlow(false),
+        /** Saves the hours schedule ([HoursOfOperation.edit]), which says why when it cannot. */
+        private val editHours: suspend (HoursSchedule) -> HoursEdit = { HoursEdit.ProRequired },
     ) : ViewModel() {
         @Inject
         constructor(
@@ -120,6 +130,8 @@ internal class GuideViewModel
             identities: ChannelIdentityReader,
             kids: KidsLock,
             recovery: KidsPinRecovery,
+            hours: HoursOfOperation,
+            entitlement: ProEntitlement,
         ) : this(
             schedule,
             details,
@@ -135,10 +147,14 @@ internal class GuideViewModel
             identities,
             kids,
             recovery::recover,
+            hours.stored,
+            entitlement.pro,
+            hours::edit,
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
         private val shownKids = MutableStateFlow<KidsLockState?>(null)
+        private val shownHours = MutableStateFlow(HoursSchedule.EMPTY)
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
         private val shownHoldings = MutableStateFlow<ShownHoldings?>(null)
         private val shownIdentities = MutableStateFlow<Map<ChannelId, ChannelIdentity>>(emptyMap())
@@ -171,6 +187,21 @@ internal class GuideViewModel
 
         /** Select on the Settings panel's Sync now row: starts a sync, or nothing while one runs or Kids Mode is on. */
         fun syncNow(): Boolean = !kidsOn && sync.start()
+
+        /** The stored hours schedule as it is now (#789): none until it has been read. */
+        val hoursState: StateFlow<HoursSchedule> = shownHours.asStateFlow()
+
+        /** Whether Pro is unlocked, as it is now (#789). */
+        val proState: StateFlow<Boolean> get() = pro
+
+        /**
+         * Saves [schedule] as the hours (#789): what [HoursOfOperation.edit] says. While Kids Mode is on (or not yet
+         * read) the Settings row is switched off, and nothing is saved: [HoursEdit.Unavailable].
+         */
+        suspend fun saveHours(schedule: HoursSchedule): HoursEdit {
+            if (kidsOn) return HoursEdit.Unavailable
+            return editHours(schedule)
+        }
 
         /** The Kids Mode lock as it is now, or null until the stored lock has been read. */
         val kidsState: StateFlow<KidsLockState?> = shownKids.asStateFlow()
@@ -233,6 +264,7 @@ internal class GuideViewModel
 
         init {
             CoroutineScope(dispatcher + SupervisorJob(root)).launch { kids.state.collect { shownKids.value = it } }
+            CoroutineScope(dispatcher + SupervisorJob(root)).launch { storedHours.collect { shownHours.value = it } }
         }
 
         // Everything below is read and written under [lock].

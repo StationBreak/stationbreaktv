@@ -299,6 +299,8 @@ internal fun GuideRoot(
     // What the Settings sheet's choice rows show; a key there steps on from the stores' values as they stand
     // ([valuesNow]), or from these where there are no stores (a test's host).
     val kids by viewModel.kidsState.collectAsStateWithLifecycle()
+    val hours by viewModel.hoursState.collectAsStateWithLifecycle()
+    val pro by viewModel.proState.collectAsStateWithLifecycle()
     val settingsValues =
         SettingsValues(
             themeChoice,
@@ -312,6 +314,8 @@ internal fun GuideRoot(
             kidsPinSet = kids?.pinSet == true,
             kidsKnown = kids != null,
             kidsCap = kids?.cap ?: KidsCap.DEFAULT,
+            pro = pro,
+            hours = hours,
         )
     val shownValues by rememberUpdatedState(settingsValues)
     // Kids Mode, like the stores' values, as it stands at the key.
@@ -323,6 +327,8 @@ internal fun GuideRoot(
             kidsPinSet = lock?.pinSet == true,
             kidsKnown = lock != null,
             kidsCap = lock?.cap ?: KidsCap.DEFAULT,
+            pro = viewModel.proState.value,
+            hours = viewModel.hoursState.value,
         )
     }
     val scope = rememberCoroutineScope()
@@ -439,6 +445,10 @@ internal fun GuideRoot(
                                 // The lock's answers come back to the pad; a PIN goes no further than the lock.
                                 step.pinSubmit?.let { ask ->
                                     scope.launch { settings = settings?.pinAnswered(viewModel.submitPin(ask)) }
+                                }
+                                // The hours screen's save comes back to it, with what it came to.
+                                step.hoursSave?.let { schedule ->
+                                    scope.launch { settings = settings?.hoursSaved(viewModel.saveHours(schedule)) }
                                 }
                                 if (step.kidsEnable) scope.launch { viewModel.enableKids() }
                                 step.kidsCap?.let { cap -> scope.launch { viewModel.setKidsCap(cap) } }

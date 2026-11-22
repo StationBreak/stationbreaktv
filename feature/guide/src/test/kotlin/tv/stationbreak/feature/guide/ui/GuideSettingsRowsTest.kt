@@ -34,12 +34,13 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Kids Mode", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Kids Mode", "Hours", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
         assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin), SettingsGroup.Kids.rows)
+        assertEquals(listOf(SettingsRow.Hours), SettingsGroup.Hours.rows)
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
@@ -55,6 +56,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.VolumeLevelling to (RowKind.Choice to "Even out volume"),
                 SettingsRow.KidsMode to (RowKind.Action to "Kids Mode"),
                 SettingsRow.ChangePin to (RowKind.Action to "Change PIN"),
+                SettingsRow.Hours to (RowKind.Link to "Hours of operation"),
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
                 SettingsRow.SyncNow to (RowKind.Action to "Update library"),
                 SettingsRow.SignOut to (RowKind.Action to "Sign out"),
@@ -177,7 +179,7 @@ class GuideSettingsRowsTest {
     fun kidsModeSwitchesOffExactlyTheRowsThatCouldUndoIt_andTheirHintHasOnlyBack() {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         val inert = SettingsRow.entries.filter { it.isInert(on) }
-        assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut), inert)
+        assertEquals(listOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut), inert)
         val pinOnly = SettingsValues(kidsPinSet = true)
         assertEquals(emptyList<SettingsRow>(), SettingsRow.entries.filter { it.isInert(pinOnly) })
         for (row in inert) {
