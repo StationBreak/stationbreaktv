@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
+import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.StoredBytes
 import tv.stationbreak.core.domain.store.FakeStoreEntitlement
 import tv.stationbreak.core.domain.store.InMemoryProCache
@@ -46,6 +53,49 @@ class ProRevocationWatchTest {
     @AfterTest
     fun stop() = job.cancel()
 
+    // A watcher has begun when it has read the active account: a negative test waits for this, not for the clock.
+    private var watching = CompletableDeferred<Unit>()
+
+    private fun observed(): LibraryRepository {
+        watching = CompletableDeferred()
+        val seen = watching
+        return object : LibraryRepository by library {
+            override fun activeAccount(): Flow<LibraryAccount?> = library.activeAccount().onEach { seen.complete(Unit) }
+        }
+    }
+
+    private suspend fun untilWatching() = withTimeout(TIMEOUT_MS) { watching.await() }
+
+    // A store that says when the provider has collected its answers: its start-up decisions are made by then.
+    private class WatchedStore(
+        initial: Boolean? = null,
+    ) : FakeStoreEntitlement(initial) {
+        val collected = CompletableDeferred<Unit>()
+        private val real = super.verified
+
+        override val verified: StateFlow<Boolean?> =
+            object : StateFlow<Boolean?> by real {
+                override suspend fun collect(collector: FlowCollector<Boolean?>): Nothing {
+                    collected.complete(Unit)
+                    real.collect(collector)
+                }
+            }
+    }
+
+    // The watcher's own question "is this account done for the refund?", and the answer it was given.
+    private var handledCheck = CompletableDeferred<Boolean>()
+    private var started: StoreBackedPro? = null
+
+    // The watcher has finished with the account it was on: a second account (with no lineup) makes it ask about that
+    // one, and it only does so after the first one's work is done or cancelled. Nothing is written for the second.
+    private suspend fun afterTheWatcherIsDone() {
+        handledCheck = CompletableDeferred()
+        library.useAccount(LibraryAccount(ACCOUNT.server, UserId(id(98).value)))
+        withTimeout(TIMEOUT_MS) { handledCheck.await() }
+    }
+
+    private suspend fun untilDecided(store: WatchedStore) = withTimeout(TIMEOUT_MS) { store.collected.await() }
+
     private suspend fun seedMarked(account: LibraryAccount = ACCOUNT) {
         val touched = starter("whodunit", 210, ChannelState.Shelf, rules("W", Source.Genre("Crime")))
         val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
@@ -75,16 +125,24 @@ class ProRevocationWatchTest {
         cache: InMemoryProCache,
         files: LineupStore = store,
         on: CoroutineScope = scope,
-    ): FakeStoreEntitlement {
-        val offline = FakeStoreEntitlement()
+        libraries: suspend () -> Set<tv.stationbreak.core.model.ItemId>? = { LIBRARIES },
+    ): WatchedStore {
+        val offline = WatchedStore()
         val restarted = StoreBackedPro(false, offline, cache, on)
+        started = restarted
+        handledCheck = CompletableDeferred()
+        val probed =
+            object : ProEntitlement by restarted {
+                override suspend fun isRefundHandled(owner: String): Boolean =
+                    restarted.isRefundHandled(owner).also { handledCheck.complete(it) }
+            }
         val fresh = LineupService(files, library, clock, { 0 }, { }, TestCatalog)
-        ProRevocation(fresh) { LIBRARIES }.watch(on, restarted, library)
+        ProRevocation(fresh, libraries).watch(on, probed, observed())
         return offline
     }
 
     private fun watcher(libraries: suspend () -> Set<tv.stationbreak.core.model.ItemId>? = { LIBRARIES }) =
-        ProRevocation(service, libraries).watch(scope, pro, library)
+        ProRevocation(service, libraries).watch(scope, pro, observed())
 
     @Test
     fun aVerifiedRefundResetsTheActiveAccountsStarters() =
@@ -104,7 +162,7 @@ class ProRevocationWatchTest {
             seedMarked()
             watcher()
             pro.refund()
-            delay(SETTLE_MS)
+            untilWatching()
             assertTrue(marked(), "no account: nothing to reset")
 
             library.useAccount(ACCOUNT)
@@ -118,10 +176,14 @@ class ProRevocationWatchTest {
             seedMarked()
             library.useAccount(ACCOUNT)
             // The Amazon stand-in answers false from the start, and the cache never held true.
-            val real = StoreBackedPro(false, FakeStoreEntitlement(initial = false), InMemoryProCache(false), scope)
-            ProRevocation(service) { LIBRARIES }.watch(scope, real, library)
+            val answers = WatchedStore(initial = false)
+            val cache = InMemoryProCache(false)
+            val real = StoreBackedPro(false, answers, cache, scope)
+            ProRevocation(service) { LIBRARIES }.watch(scope, real, observed())
 
-            delay(SETTLE_MS)
+            // The store's false is taken in once it is written to the cache, the last thing the provider does with it.
+            untilDecided(answers)
+            withTimeout(TIMEOUT_MS) { while (cache.writes < 1) delay(POLL_MS) }
 
             assertFalse(real.pro.value)
             assertFalse(real.revoked.value)
@@ -135,17 +197,23 @@ class ProRevocationWatchTest {
             library.useAccount(ACCOUNT)
             val entered = CompletableDeferred<Unit>()
             val release = CompletableDeferred<Unit>()
+            val cancelled = CompletableDeferred<Unit>()
             watcher {
                 entered.complete(Unit)
-                release.await()
+                try {
+                    release.await()
+                } catch (c: CancellationException) {
+                    cancelled.complete(Unit)
+                    throw c
+                }
                 LIBRARIES
             }
             pro.refund()
             withTimeout(TIMEOUT_MS) { entered.await() }
 
             pro.set(true)
+            withTimeout(TIMEOUT_MS) { cancelled.await() }
             release.complete(Unit)
-            delay(SETTLE_MS)
 
             assertTrue(marked(), "the reset was cancelled: Pro is back")
         }
@@ -162,7 +230,42 @@ class ProRevocationWatchTest {
             untilReset()
 
             untilHandled(cache, 1)
-            assertTrue(cache.readRefundPending(), "only a purchase ends the refund")
+            assertEquals(true, cache.readRefundPending(), "only a purchase ends the refund")
+        }
+
+    // A corrupt or unreadable refund record on a paying TV (#1067): no reset until the store gives a verified false.
+    @Test
+    fun anUnknownRefundNeverResets_andAVerifiedPurchaseEndsIt() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            val cache = InMemoryProCache(held = true, refundPending = null)
+            val offline = start(cache)
+            untilDecided(offline)
+
+            assertFalse(checkNotNull(started).revoked.value, "an unknown refund is not a refund")
+            assertTrue(marked(), "an unknown refund is not a refund")
+
+            offline.purchase()
+            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending() != false) delay(POLL_MS) }
+            assertTrue(marked())
+        }
+
+    @Test
+    fun anUnknownRefundThenAVerifiedFalseResets() =
+        runBlocking<Unit> {
+            seedMarked()
+            library.useAccount(ACCOUNT)
+            val cache = InMemoryProCache(held = true, refundPending = null)
+            val offline = start(cache)
+            untilDecided(offline)
+            assertFalse(checkNotNull(started).revoked.value)
+            assertTrue(marked())
+
+            offline.revoke()
+
+            untilReset()
+            assertEquals(true, cache.readRefundPending())
         }
 
     @Test
@@ -173,18 +276,20 @@ class ProRevocationWatchTest {
             val cache = InMemoryProCache(held = false, refundPending = true)
             val failsOnce =
                 object : LineupStore by store {
-                    var failed = false
+                    @Volatile var failed = false
 
                     override suspend fun load(account: LibraryAccount): StoredBytes =
                         if (failed) store.load(account) else StoredBytes.Failed.also { failed = true }
                 }
             val firstRun = Job()
             start(cache, failsOnce, CoroutineScope(Dispatchers.Default + firstRun))
-            delay(SETTLE_MS)
+            withTimeout(TIMEOUT_MS) { while (!failsOnce.failed) delay(POLL_MS) }
+            afterTheWatcherIsDone()
             firstRun.cancel()
 
             assertTrue(marked())
             assertTrue(cache.readRefundHandled().isEmpty(), "a lineup not read is never judged clean")
+            library.useAccount(ACCOUNT)
 
             start(cache)
 
@@ -209,7 +314,8 @@ class ProRevocationWatchTest {
             // A later start: the first account is marked again (as if by Pro before the refund) and is not reset twice.
             seedMarked()
             val store2 = start(cache)
-            delay(SETTLE_MS)
+            // The watcher's own answer to "is this account done?" is the decision; it does nothing after a yes.
+            assertTrue(withTimeout(TIMEOUT_MS) { handledCheck.await() }, "already handled for this refund")
             assertTrue(marked(), "already handled for this refund")
 
             library.useAccount(other)
@@ -217,7 +323,7 @@ class ProRevocationWatchTest {
             untilHandled(cache, 2)
 
             store2.purchase()
-            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending()) delay(POLL_MS) }
+            withTimeout(TIMEOUT_MS) { while (cache.readRefundPending() != false) delay(POLL_MS) }
             assertTrue(cache.readRefundHandled().isEmpty())
         }
 
@@ -227,10 +333,17 @@ class ProRevocationWatchTest {
             seedMarked()
             library.useAccount(ACCOUNT)
             val cache = InMemoryProCache(held = false, refundPending = true)
-            val restarted = StoreBackedPro(false, FakeStoreEntitlement(), cache, scope)
-            ProRevocation(service) { null }.watch(scope, restarted, library)
+            val asked = CompletableDeferred<Unit>()
+            start(
+                cache,
+                libraries = {
+                    asked.complete(Unit)
+                    null
+                },
+            )
 
-            delay(SETTLE_MS)
+            withTimeout(TIMEOUT_MS) { asked.await() }
+            afterTheWatcherIsDone()
 
             assertTrue(marked())
             assertTrue(cache.readRefundHandled().isEmpty(), "no libraries known: asked again at the next start")
@@ -239,6 +352,5 @@ class ProRevocationWatchTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
         const val POLL_MS = 20L
-        const val SETTLE_MS = 400L
     }
 }

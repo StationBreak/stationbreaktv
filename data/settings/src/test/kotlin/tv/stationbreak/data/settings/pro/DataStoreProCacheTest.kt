@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.data.settings.pro
 
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -26,8 +30,10 @@ class DataStoreProCacheTest {
     private fun open(): DataStoreProCache {
         close()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
-        return DataStoreProCache(DataStoreProCache.dataStore(scope) { File(folder.root, DataStoreProCache.FILE_NAME) })
+        return DataStoreProCache.inDir(scope, folder.root)
     }
+
+    private fun corrupt(name: String) = File(folder.root, name).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
 
     @After
     fun close() =
@@ -52,13 +58,13 @@ class DataStoreProCacheTest {
     @Test
     fun anOwedRefundResetSurvivesARelaunch_untilItIsCleared() =
         runBlocking {
-            assertFalse(open().readRefundPending())
+            assertEquals(false, open().readRefundPending())
 
             open().writeRefundPending(true)
-            assertTrue(open().readRefundPending())
+            assertEquals(true, open().readRefundPending())
 
             open().writeRefundPending(false)
-            assertFalse(open().readRefundPending())
+            assertEquals(false, open().readRefundPending())
         }
 
     @Test
@@ -76,13 +82,70 @@ class DataStoreProCacheTest {
     @Test
     fun aCorruptFileGrantsNothing_andTheNextWriteWorks() =
         runBlocking {
-            File(folder.root, DataStoreProCache.FILE_NAME).writeBytes(byteArrayOf(0x7f, 0x00, 0x13, 0x37, 0x42))
+            corrupt(DataStoreProCache.FILE_NAME)
 
             val cache = open()
             assertFalse("a corrupt cache never grants Pro", cache.read())
-            assertFalse(cache.readRefundPending())
+            assertEquals(false, cache.readRefundPending())
 
             cache.write(true)
             assertTrue(open().read())
+        }
+
+    @Test
+    fun aCorruptCacheFileKeepsTheOwedRefund() =
+        runBlocking {
+            open().writeRefundPending(true)
+            open().addRefundHandled("a")
+            corrupt(DataStoreProCache.FILE_NAME)
+
+            val cache = open()
+            assertFalse(cache.read())
+            assertEquals("the refund is in a file of its own", true, cache.readRefundPending())
+            assertEquals(setOf("a"), cache.readRefundHandled())
+        }
+
+    @Test
+    fun aCorruptRefundFileReadsAsUnknownWithNoAccountHandled_untilAVerifiedAnswerWrites() =
+        runBlocking {
+            open().writeRefundPending(true)
+            open().addRefundHandled("a")
+            corrupt(DataStoreProCache.REFUND_FILE_NAME)
+
+            val cache = open()
+            assertNull("neither owed nor clear", cache.readRefundPending())
+            assertEquals(emptySet<String>(), cache.readRefundHandled())
+            assertNull("kept across a relaunch", open().readRefundPending())
+
+            open().writeRefundPending(false)
+            assertEquals(false, open().readRefundPending())
+        }
+
+    @Test
+    fun anUnreadableRefundFileReadsAsUnknown() =
+        runBlocking {
+            File(folder.root, DataStoreProCache.REFUND_FILE_NAME).mkdirs()
+
+            assertNull(open().readRefundPending())
+        }
+
+    @Test
+    fun anOwedRefundInTheOldFileMovesToTheRefundFile() =
+        runBlocking {
+            // The #1063 layout: the refund and its handled accounts beside the owned answer in the one cache file.
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
+            DataStoreProCache.dataStore(scope) { File(folder.root, DataStoreProCache.FILE_NAME) }.edit {
+                it[booleanPreferencesKey("owned")] = false
+                it[booleanPreferencesKey("refund_pending")] = true
+                it[stringSetPreferencesKey("refund_handled")] = setOf("a")
+            }
+
+            val cache = open()
+            assertEquals(true, cache.readRefundPending())
+            assertEquals(setOf("a"), cache.readRefundHandled())
+
+            corrupt(DataStoreProCache.FILE_NAME)
+            assertEquals("moved, not only read through", true, open().readRefundPending())
+            assertEquals(setOf("a"), open().readRefundHandled())
         }
 }

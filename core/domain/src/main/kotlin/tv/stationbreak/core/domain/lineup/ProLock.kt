@@ -84,6 +84,20 @@ class ProLockedHoldings(
 }
 
 /**
+ * What the properties sheet reads while Pro may be locked (#1067): nothing for a locked custom channel, so a sheet left
+ * open across a refund shows no rules when it reads again. The locked set is read afresh at each call.
+ */
+class ProLockedProperties(
+    private val delegate: ChannelPropertiesReader,
+    private val locked: ProLockedIds,
+) : ChannelPropertiesReader {
+    override suspend fun read(
+        id: ChannelId,
+        at: Instant,
+    ): ChannelProperties? = if (id in locked.now()) null else delegate.read(id, at)
+}
+
+/**
  * The schedule as live TV and the guide read it while Pro may be locked (#99): a locked custom channel is not among
  * the [airings], has no rows in a [schedule] window, is not on the air for [onAir] and has no stand-ins. The locked
  * set is read afresh at each call, so a purchase or a refund applies to the next one.

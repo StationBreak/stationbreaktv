@@ -472,6 +472,9 @@ bought Pro. Owner decision (2026-11-16) for a refund revocation:
   in the lineup file as the household's data, but are hidden and cannot be edited or aired. Buying Pro again unlocks
   them. This refines #793's "a stored lineup with more than 5 customs keeps them": for a revoked household the extra
   customs are kept but inaccessible.
+- **Customs this app cannot read count too (#1067).** A custom channel written by a newer app is unreadable here, yet it
+  holds its place among the free five for every free viewer, not only a refunded one. Fail closed: it is never deleted
+  and never ranked out of the count, so a downgrade cannot be used to open more than five.
 - Built by [ADR-0032](0032-purchase-switch.md) (#99) without a stored marker. The lock needed a stored marker or a rule over creation order (a new lineup-file field if
   stored, so a format-version decision), and the revocation reset needs the `ProEntitlement` port (#99). Both are to be
   designed with #99.

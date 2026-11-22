@@ -61,10 +61,10 @@ open class FakeStoreEntitlement(
     }
 }
 
-/** A [ProCache] in memory, which counts its writes of the owned answer. */
+/** A [ProCache] in memory, which counts its writes of the owned answer. A null [refundPending] is an unknown record. */
 class InMemoryProCache(
     private var held: Boolean = false,
-    @Volatile private var refundPending: Boolean = false,
+    @Volatile private var refundPending: Boolean? = false,
 ) : ProCache {
     var writes: Int = 0
         private set
@@ -78,7 +78,7 @@ class InMemoryProCache(
 
     @Volatile private var handled: Set<String> = emptySet()
 
-    override suspend fun readRefundPending(): Boolean = refundPending
+    override suspend fun readRefundPending(): Boolean? = refundPending
 
     override suspend fun writeRefundPending(pending: Boolean) {
         refundPending = pending
