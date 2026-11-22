@@ -18,8 +18,7 @@ import tv.stationbreak.core.model.ChannelId
 
 /**
  * The free tier with the store available (#99): Pro choices are listed and answer with a note and the way to buy. With
- * the store unavailable (the default of the rig) the free behaviour of [ChannelsFreeTierTest] stands, and the same
- * actions say nothing of Pro.
+ * the store unavailable (the default of the rig, #1071) the note is the same and only closes: [ChannelsFreeTierTest].
  */
 class ChannelsProOfferedTest {
     private val lineup = listOf(summary(A, 5), summary(B, 7, kind = ChannelKind.Custom))
@@ -65,12 +64,15 @@ class ChannelsProOfferedTest {
         }
 
     @Test
-    fun withTheStoreUnavailable_theSameChoicesAreNotListedAndNothingSaysPro() =
+    fun withTheStoreUnavailable_theNoteIsTheSameButOffersNoWayToBuy() =
         channelsTest(lineup) { rig ->
             rig.pro.set(false)
             openRow(rig, A)
-            assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), choicesOf(rig.ui))
-            assertNull(rig.ui.panel as? ChannelsPanel.NeedsPro)
+            rig.pick(Choice.SwitchOff)
+            runCurrent()
+
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+            assertEquals(listOf(Choice.Cancel), choicesOf(rig.ui))
             rig.vm.seePro()
             assertFalse(rig.ui.seeingPro)
         }
@@ -149,7 +151,7 @@ class ChannelsProOfferedTest {
         }
 
     @Test
-    fun resetIsAStopWhenOffered_andAsksWithTheNote_butIsNotAStopWhenUnavailable() =
+    fun resetIsAStopAndAsksWithTheNote_whateverTheStore() =
         channelsTest(lineup) { rig ->
             rig.freeAndOffered()
             rig.open(this)
@@ -164,11 +166,12 @@ class ChannelsProOfferedTest {
 
             rig.offered.value = false
             runCurrent()
-            assertTrue(rig.ui.focus != ChannelsFocus.Reset)
+            assertEquals(ChannelsFocus.Reset, rig.ui.focus)
+            assertEquals(listOf(Choice.Cancel), choicesOf(rig.ui))
         }
 
     @Test
-    fun atTheCap_newShowsTheNoteWhenOffered_andThePlainLineWhenNot() =
+    fun atTheCap_newShowsTheNote_withTheWayToBuyOnlyWhenOffered() =
         channelsTest(lineup) { rig ->
             rig.freeAndOffered()
             rig.builder.canAdd.value = false
@@ -181,12 +184,13 @@ class ChannelsProOfferedTest {
             rig.offered.value = false
             runCurrent()
             rig.vm.select()
-            assertNull(rig.ui.panel)
-            assertEquals(ChannelsMessage.CustomLimit, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.CustomLimit), rig.ui.panel)
+            assertEquals(listOf(Choice.Cancel), choicesOf(rig.ui))
+            assertNull(rig.ui.message)
         }
 
     @Test
-    fun theChoicesFollowTheStore() {
+    fun theNoteOffersTheWayToBuyOnlyWithAStore() {
         val row =
             ChannelRow(
                 id = A,
@@ -199,12 +203,10 @@ class ChannelsProOfferedTest {
                 reason = null,
                 hasOverride = false,
             )
-        val shown = actionsOf(row, LineupAccess.Editable, reasonsRead = true, isPro = false, proOffered = true)
-        assertTrue(Choice.SwitchOff in shown)
-        val hidden = actionsOf(row, LineupAccess.Editable, reasonsRead = true, isPro = false)
-        assertFalse(Choice.SwitchOff in hidden)
-        assertTrue(canReset(isPro = false, proOffered = true))
-        assertFalse(canReset(isPro = false))
+        assertTrue(Choice.SwitchOff in actionsOf(row, LineupAccess.Editable, reasonsRead = true))
+        val note = ChannelsUi.Empty.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset))
+        assertEquals(listOf(Choice.SeePro, Choice.Cancel), choicesOf(note.copy(proOffered = true)))
+        assertEquals(listOf(Choice.Cancel), choicesOf(note))
         assertEquals(ProNeed.Reshape, proNeedOf(Choice.SwitchOn, row, isPro = false, canAddCustom = true))
         assertNull(proNeedOf(Choice.SwitchOn, row, isPro = true, canAddCustom = true))
         assertEquals(ProNeed.CustomLimit, proNeedOf(Choice.CopyToCustomise, row, isPro = true, canAddCustom = false))
@@ -212,7 +214,7 @@ class ChannelsProOfferedTest {
 
     @Test
     fun theProNoteIsHeardWithItsFirstChoice() {
-        val ui = ChannelsUi.Empty.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset))
+        val ui = ChannelsUi.Empty.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset), proOffered = true)
         assertEquals(listOf(Choice.SeePro, Choice.Cancel), choicesOf(ui))
         assertEquals(0, startChoice(ui.panel, confirmingReset = false))
     }

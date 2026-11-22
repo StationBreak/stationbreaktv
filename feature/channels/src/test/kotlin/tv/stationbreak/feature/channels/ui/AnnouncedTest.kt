@@ -68,7 +68,7 @@ class AnnouncedTest {
     }
 
     @Test
-    fun aFreePanelAnnouncesOnlyTheChoicesItLists() {
+    fun aFreePanelAnnouncesEveryChoiceItLists() {
         val panel =
             base.copy(
                 panel = ChannelsPanel.Actions(id),
@@ -78,7 +78,8 @@ class AnnouncedTest {
             )
         val said = choicesOf(panel).indices.map { (announcedOf(panel.copy(choice = it)) as Announced.Pick).choice }
 
-        assertEquals(listOf(Choice.Watch, Choice.CopyToCustomise, Choice.About), said)
+        val expected = listOf(Choice.Watch, Choice.SwitchOff, Choice.CopyToCustomise, Choice.ChangeNumber, Choice.About)
+        assertEquals(expected, said)
     }
 
     @Test

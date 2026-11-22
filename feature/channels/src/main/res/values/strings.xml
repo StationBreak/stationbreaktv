@@ -26,6 +26,7 @@
     <string name="channels_action_change_number">Change number</string>
     <string name="channels_action_default_number">Default number</string>
     <string name="channels_action_cancel">Cancel</string>
+    <string name="channels_action_ok">OK</string>
     <string name="channels_action_swap">Swap</string>
     <string name="channels_confirm_opt_in">%1$s shows adult content. Switch it on?</string>
     <string name="channels_number_taken">Channel %1$d is %2$s. Swap numbers?</string>

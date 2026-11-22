@@ -176,7 +176,7 @@ internal enum class BuilderMessage {
     /** Free holds a few custom channels and they are all made (#793). */
     CustomLimit,
 
-    /** The channel is adult content and a free viewer may not copy it (#984); the line never names Pro. */
+    /** Part of Pro: a free viewer may not copy adult content (#984) or change a locked custom channel. */
     NeedsPro,
 }
 
