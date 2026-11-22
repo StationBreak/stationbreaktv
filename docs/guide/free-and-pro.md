@@ -34,6 +34,10 @@ Pro stops, and your lineup is tidied the way it would be on the free app:
 
 ## Where Pro is sold
 
-Paid Pro is sold on Amazon, for Fire TV, and nowhere else. The GitHub download of StationBreak is open source, and it
-has Pro unlocked. It will have a "Support StationBreak" link for anyone who wants to help the project, and it never
-nags.
+Paid Pro is sold on Amazon, for Fire TV, and nowhere else. On the Amazon version, once its store is connected, **Settings → StationBreak Pro** shows
+what Pro adds and the price the store gives, with **Buy Pro** and **Restore purchases** (after a reinstall, or on a
+second TV with the same Amazon account). Until then the app shows nothing about Pro. It is also offered, once, when you choose something that is part of Pro, such
+as switching a built-in channel off. Nothing pops up by itself, and it is never shown in Kids Mode.
+
+The GitHub download of StationBreak is open source, and it has Pro unlocked. Its **Settings → Support StationBreak**
+page shows where to help the project, and it never nags.

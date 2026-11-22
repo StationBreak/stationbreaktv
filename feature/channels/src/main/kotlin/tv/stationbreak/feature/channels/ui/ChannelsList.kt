@@ -67,7 +67,7 @@ private sealed interface Line {
 
 private fun linesOf(
     rows: List<ChannelRow>,
-    isPro: Boolean,
+    showsReset: Boolean,
 ): List<Line> =
     buildList {
         add(Line.Household)
@@ -78,7 +78,7 @@ private fun linesOf(
             add(Line.Heading(group, inGroup.size))
             inGroup.forEach { add(Line.Channel(it)) }
         }
-        if (canReset(isPro)) add(Line.Reset)
+        if (showsReset) add(Line.Reset)
     }
 
 @Composable
@@ -86,7 +86,7 @@ internal fun ChannelList(
     ui: ChannelsUi,
     modifier: Modifier = Modifier,
 ) {
-    val lines = remember(ui.rows, ui.isPro) { linesOf(ui.rows, ui.isPro) }
+    val lines = remember(ui.rows, ui.isPro, ui.proOffered) { linesOf(ui.rows, canReset(ui.isPro, ui.proOffered)) }
     val state = rememberLazyListState()
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }

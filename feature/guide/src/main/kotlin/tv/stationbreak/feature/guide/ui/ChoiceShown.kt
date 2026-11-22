@@ -35,7 +35,7 @@ internal fun choiceShown(
         SettingsRow.ChannelChange -> shown(CHANGES, values.channelChange, ::channelChangeWords)
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
         SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
-        SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours -> null
+        SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours, SettingsRow.Pro -> null
         SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> null
     }
 

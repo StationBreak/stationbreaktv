@@ -19,6 +19,9 @@ internal enum class Choice {
     /** Opens the properties sheet: what the channel is and what feeds it. Never shown on the sheet itself. */
     About,
     Confirm,
+
+    /** Opens the purchase screen (#99); only on the note a free viewer gets for a choice that is part of Pro. */
+    SeePro,
     Cancel,
 }
 
@@ -27,20 +30,22 @@ internal enum class Choice {
  * read), Switch off for one that is on, and the changes (switching, the builder, numbers) only when the lineup can
  * be written, and About for every channel, last. [reasonsRead]
  * is whether the first read of why channels have nothing to air has landed. A choice that [isAvailable] refuses is not
- * listed.
+ * listed; with [proOffered] (the store is available, #99) none is refused: the ones that are part of Pro give a free
+ * viewer the note that says so ([proNeedOf]).
  */
 internal fun actionsOf(
     row: ChannelRow,
     access: LineupAccess,
     reasonsRead: Boolean,
     isPro: Boolean,
+    proOffered: Boolean = false,
 ): List<Choice> =
     buildList {
         val on = row.group == ChannelGroup.On
         // Until the reasons have been read an On row may be one with nothing to air, so Watch is not offered yet.
         val watchable = reasonsRead && row.reason == null && !row.gettingReady
         if (on && watchable) add(Choice.Watch)
-        addChanges(row, on, access, isPro)
+        addChanges(row, on, access, isPro || proOffered)
         add(Choice.About)
     }
 
@@ -67,7 +72,7 @@ private fun MutableList<Choice>.addChanges(
  * Whether [choice] on [row] may be offered at all (#793). Reshaping the planner's lineup (switching a built-in channel,
  * numbering it) is Pro: a free viewer is not shown those choices on a channel they did not make, and the viewer's own
  * custom channels are free. The one rule for listing a choice and for what Select does, so a hidden choice cannot be
- * reached.
+ * reached. Callers pass `isPro || proOffered` where Pro is on offer, so nothing is hidden then.
  */
 internal fun isAvailable(
     choice: Choice,
@@ -79,8 +84,43 @@ internal fun isAvailable(
         else -> true
     }
 
-/** Whether the Reset channels line is offered: resetting the planner's lineup is Pro, so free is not shown it. */
-internal fun canReset(isPro: Boolean): Boolean = isPro
+/**
+ * Whether the Reset channels line is offered: resetting the planner's lineup is Pro, so free is not shown it unless
+ * Pro is on offer.
+ */
+internal fun canReset(
+    isPro: Boolean,
+    proOffered: Boolean = false,
+): Boolean = isPro || proOffered
+
+/**
+ * The note Select on [choice] shows instead of acting, or null: Copy to customise makes a custom channel, so it is
+ * held to the free cap (#793). The choice stays listed, unmarked. Where Pro is on offer the note is [proNeedOf]'s.
+ */
+internal fun limitOf(
+    choice: Choice,
+    canAddCustom: Boolean,
+): ChannelsMessage? = ChannelsMessage.CustomLimit.takeIf { choice == Choice.CopyToCustomise && !canAddCustom }
+
+/**
+ * What [choice] on [row] needs that the viewer does not have, or null (#793, #99). Reshaping the planner's lineup
+ * (switching a built-in channel, numbering it) is Pro, and the viewer's own custom channels are free; Copy to
+ * customise makes a custom channel, so it is held to the free cap. Every choice stays listed: Select on one that needs
+ * Pro shows the note with the way to the purchase screen instead of acting.
+ */
+internal fun proNeedOf(
+    choice: Choice,
+    row: ChannelRow?,
+    isPro: Boolean,
+    canAddCustom: Boolean,
+): ProNeed? =
+    when {
+        choice in RESHAPING && !isPro && row?.viewerMade != true -> ProNeed.Reshape
+        choice == Choice.CopyToCustomise && !canAddCustom -> ProNeed.CustomLimit
+        else -> null
+    }
+
+private val RESHAPING = setOf(Choice.SwitchOn, Choice.SwitchOff, Choice.ChangeNumber, Choice.DefaultNumber)
 
 /**
  * Whether the Swap panel may be offered for the number [holder] has: a free viewer swaps only with a custom
@@ -93,22 +133,14 @@ internal fun swapOffered(
     holder: ChannelId,
 ): Boolean = isPro || rows.firstOrNull { it.id == holder }?.viewerMade == true
 
-/**
- * The note Select on [choice] shows instead of acting, or null: Copy to customise makes a custom channel, so it is
- * held to the free cap (#793). The choice stays listed, unmarked.
- */
-internal fun limitOf(
-    choice: Choice,
-    canAddCustom: Boolean,
-): ChannelsMessage? = ChannelsMessage.CustomLimit.takeIf { choice == Choice.CopyToCustomise && !canAddCustom }
-
 /** What the properties sheet offers for [row]: the actions panel's choices, without the one that opened the sheet. */
 internal fun sheetActionsOf(
     row: ChannelRow,
     access: LineupAccess,
     reasonsRead: Boolean,
     isPro: Boolean,
-): List<Choice> = actionsOf(row, access, reasonsRead, isPro).filter { it != Choice.About }
+    proOffered: Boolean = false,
+): List<Choice> = actionsOf(row, access, reasonsRead, isPro, proOffered).filter { it != Choice.About }
 
 /** The choices of whatever panel is open over [ui], in the order they are listed; none for the number picker. */
 internal fun choicesOf(ui: ChannelsUi): List<Choice> {
@@ -118,16 +150,21 @@ internal fun choicesOf(ui: ChannelsUi): List<Choice> {
             emptyList()
         }
 
+        panel is ChannelsPanel.NeedsPro -> {
+            listOf(Choice.SeePro, Choice.Cancel)
+        }
+
         panel is ChannelsPanel.Actions -> {
             val row = ui.rows.firstOrNull { it.id == panel.id }
             // A panel with nothing to pick still needs a way out that can be seen.
-            row?.let { actionsOf(it, ui.access, ui.reasonsRead, ui.isPro) }.orEmpty().ifEmpty { listOf(Choice.Cancel) }
+            val listed = row?.let { actionsOf(it, ui.access, ui.reasonsRead, ui.isPro, ui.proOffered) }.orEmpty()
+            listed.ifEmpty { listOf(Choice.Cancel) }
         }
 
         // The sheet beneath no panel: its own actions, or a way out when it has none.
         panel == null && ui.about != null -> {
             val row = ui.rows.firstOrNull { it.id == ui.about }
-            val offered = row?.let { sheetActionsOf(it, ui.access, ui.reasonsRead, ui.isPro) }.orEmpty()
+            val offered = row?.let { sheetActionsOf(it, ui.access, ui.reasonsRead, ui.isPro, ui.proOffered) }.orEmpty()
             offered.ifEmpty { listOf(Choice.Cancel) }
         }
 

@@ -91,6 +91,9 @@ object GuideTags {
     /** The Hours of operation row (#789, Pro) of the Settings sheet. */
     const val SETTINGS_HOURS = "guide:settings:hours"
 
+    /** The Pro row (#99): the purchase screen, or Support StationBreak in a build with no store. */
+    const val SETTINGS_PRO = "guide:settings:pro"
+
     /** The line under a Settings row that Kids Mode has switched off, and the one in the menu sheet. */
     internal fun settingsLocked(row: SettingsRow): String = settingsRow(row) + ":locked"
 
@@ -137,6 +140,7 @@ object GuideTags {
             SettingsRow.KidsMode -> SETTINGS_KIDS_MODE
             SettingsRow.ChangePin -> SETTINGS_CHANGE_PIN
             SettingsRow.Hours -> SETTINGS_HOURS
+            SettingsRow.Pro -> SETTINGS_PRO
             SettingsRow.Libraries -> SETTINGS_LIBRARIES
             SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
             SettingsRow.SignOut -> SETTINGS_SIGN_OUT

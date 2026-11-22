@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.ui.ChannelChangeStyle
 import tv.stationbreak.core.ui.ScreenFit
@@ -49,6 +50,25 @@ class GuideSettingsKeysTest {
         assertEquals(SettingsStep(on(SettingsRow.ScreenFit)), on(SettingsRow.ChannelChange).press(Key.DirectionUp))
         // A release moves nothing.
         assertEquals(SettingsStep(on(SettingsRow.Libraries)), on(SettingsRow.Libraries).release(Key.DirectionUp))
+    }
+
+    @Test
+    fun okOnTheProRowShowsTheProScreen_andBackFromItReturnsToTheSheetOnTheRow() {
+        val pro = on(SettingsRow.Pro)
+        val shown = pro.press(Key.DirectionCenter, defaults.copy(storeAvailable = true))
+        assertEquals(SettingsStep(SettingsPanel(SettingsRow.Pro, proShown = true)), shown)
+        assertTrue(checkNotNull(shown.panel).covered)
+        // While it shows, the sheet keeps every key and does nothing: the screen has them.
+        val kept = checkNotNull(shown.panel)
+        assertEquals(SettingsStep(kept), kept.press(Key.DirectionDown))
+        assertEquals(SettingsStep(kept), kept.press(Key.Back))
+        assertEquals(SettingsPanel(SettingsRow.Pro), kept.proDone())
+    }
+
+    @Test
+    fun okOnTheProRowDoesNothingWhileKidsModeIsOn() {
+        val locked = defaults.copy(kidsOn = true, kidsPinSet = true, storeAvailable = true)
+        assertEquals(SettingsStep(on(SettingsRow.Pro)), on(SettingsRow.Pro).press(Key.DirectionCenter, locked))
     }
 
     @Test

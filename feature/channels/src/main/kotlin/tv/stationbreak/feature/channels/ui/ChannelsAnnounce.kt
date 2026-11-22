@@ -53,7 +53,7 @@ internal sealed interface Announced {
 }
 
 /** The question an open panel asks, so it is heard with its first choice. */
-internal enum class Asking { OptIn, Swap, Reset }
+internal enum class Asking { OptIn, Swap, Reset, Pro }
 
 /** What the focus of [ui] is on: the open panel's choice when one is open, else the list's focused line. */
 internal fun announcedOf(ui: ChannelsUi): Announced =
@@ -86,6 +86,7 @@ private fun askingOf(ui: ChannelsUi): Asking? =
     when {
         ui.panel is ChannelsPanel.ConfirmOptIn -> Asking.OptIn
         ui.panel is ChannelsPanel.Swap -> Asking.Swap
+        ui.panel is ChannelsPanel.NeedsPro -> Asking.Pro
         ui.panel == null && ui.confirmingReset -> Asking.Reset
         else -> null
     }
@@ -166,6 +167,10 @@ private fun question(
 
         pick.asking == Asking.Reset -> {
             stringResource(R.string.channels_reset_confirm)
+        }
+
+        pick.asking == Asking.Pro && panel is ChannelsPanel.NeedsPro -> {
+            stringResource(proNeedText(panel.need))
         }
 
         else -> {

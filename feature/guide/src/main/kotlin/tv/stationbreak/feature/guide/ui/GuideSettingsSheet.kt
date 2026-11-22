@@ -158,7 +158,7 @@ private fun spokenOf(
     values: SettingsValues,
     status: String?,
 ): String {
-    val label = stringResource(row.label)
+    val label = stringResource(row.labelFor(values))
     val value = valueText(row, values, spoken = true)
     val locked = stringResource(R.string.guide_kids_locked).takeIf { row.isInert(values) }
     val said = locked ?: status?.takeIf { row == SettingsRow.SyncNow } ?: value
@@ -207,7 +207,7 @@ private fun SettingsLine(
     focused: Boolean,
 ) {
     val colors = LocalPanelColors.current
-    val label = stringResource(row.label)
+    val label = stringResource(row.labelFor(values))
     val choice = choiceShown(row, values)
     val value = valueText(row, values)
     val spokenValue = valueText(row, values, spoken = true)

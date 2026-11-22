@@ -7,7 +7,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import tv.stationbreak.core.domain.store.ProOffer
 import tv.stationbreak.core.domain.store.PurchaseOutcome
+import tv.stationbreak.core.domain.store.RestoreOutcome
 import tv.stationbreak.core.domain.store.StoreEntitlement
 import javax.inject.Singleton
 
@@ -21,12 +23,27 @@ internal object StoreModule {
     @Provides
     @Singleton
     fun storeEntitlement(): StoreEntitlement = NoStore
+
+    /** No purchase here: Settings shows a link to support the project. */
+    @Provides
+    fun proOffer(): ProOffer = ProOffer.Support(SUPPORT_URL)
 }
+
+/**
+ * PLACEHOLDER for the owner (#99): the project has no donation or sponsor page yet, so this is the repository's own
+ * page. Replace it with the real support page when there is one; it is shown to the viewer as text.
+ */
+internal const val SUPPORT_URL: String = "https://github.com/StationBreak/stationbreaktv"
 
 private object NoStore : StoreEntitlement {
     override val verified: StateFlow<Boolean?> = MutableStateFlow(false)
 
     override suspend fun purchase(): PurchaseOutcome = PurchaseOutcome.Failed
 
-    override suspend fun restore() = Unit
+    // The stand-in has no store behind it, so nothing Pro-facing shows until a real adapter reports true.
+    override val available: StateFlow<Boolean> = MutableStateFlow(false)
+
+    override val price: StateFlow<String?> = MutableStateFlow(null)
+
+    override suspend fun restore(): RestoreOutcome = RestoreOutcome.Failed
 }
