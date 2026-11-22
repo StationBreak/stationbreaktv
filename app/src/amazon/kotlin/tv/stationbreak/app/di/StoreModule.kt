@@ -38,9 +38,6 @@ internal object StoreModule {
     fun storeEntitlement(): StoreEntitlement = AmazonStore()
 }
 
-/** The Pro SKU as the Appstore console names it. The console's SKU is the owner's to create: this is its name here. */
-internal const val PRO_SKU: String = "stationbreak.pro"
-
 internal class AmazonStore : StoreEntitlement {
     override val verified: StateFlow<Boolean?> = MutableStateFlow(false)
 
