@@ -482,9 +482,9 @@ class GuideNoLibrariesUiTest {
         const val TIMEOUT_MS = 5_000L
 
         // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries
-        // (past Kids Mode).
+        // (past Kids Mode and Hours of operation).
         const val ROWS_TO_LEVELLING = 3
-        const val ROWS_TO_LIBRARIES = 5
+        const val ROWS_TO_LIBRARIES = 6
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

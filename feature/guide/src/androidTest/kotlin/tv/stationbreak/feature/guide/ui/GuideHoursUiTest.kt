@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -126,8 +127,10 @@ class GuideHoursUiTest {
                 HoursEdit.NoPin to "Set a PIN first. Nothing changed.",
                 HoursEdit.Unavailable to "Could not save. Nothing changed.",
             )
+        val shown = mutableStateOf(HoursEdit.Saved)
+        show { GuideHours(HoursScreen(notice = shown.value), pro) }
         for ((edit, words) in said) {
-            compose.setContent { ProvideGuideColors(GuideColors.Dark) { GuideHours(HoursScreen(notice = edit), pro) } }
+            compose.runOnUiThread { shown.value = edit }
             compose.waitForIdle()
             compose.onNodeWithTag(HoursTags.NOTICE).assertTextEquals(words)
         }

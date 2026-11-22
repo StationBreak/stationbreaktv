@@ -34,13 +34,12 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Kids Mode", "Hours", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Kids and hours", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
-        assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin), SettingsGroup.Kids.rows)
-        assertEquals(listOf(SettingsRow.Hours), SettingsGroup.Hours.rows)
+        assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours), SettingsGroup.Kids.rows)
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)

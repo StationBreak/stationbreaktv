@@ -100,8 +100,10 @@ internal enum class SettingsGroup(
 ) {
     Picture(R.string.guide_settings_group_picture, listOf(SettingsRow.Appearance, SettingsRow.ScreenFit)),
     Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
-    Kids(R.string.guide_settings_group_kids, listOf(SettingsRow.KidsMode, SettingsRow.ChangePin)),
-    Hours(R.string.guide_settings_group_hours, listOf(SettingsRow.Hours)),
+    Kids(
+        R.string.guide_settings_group_kids,
+        listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours),
+    ),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.SignOut)),
     Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),

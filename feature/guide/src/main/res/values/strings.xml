@@ -149,7 +149,7 @@
     <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
     <!-- Kids Mode (#789): its section flag, its row and the row that changes its PIN. The row's value is On or Off. -->
-    <string name="guide_settings_group_kids">Kids Mode</string>
+    <string name="guide_settings_group_kids">Kids and hours</string>
     <string name="guide_settings_kids_mode">Kids Mode</string>
     <string name="guide_kids_off">Off</string>
     <string name="guide_kids_on">On</string>
@@ -219,7 +219,6 @@
     <string name="guide_runtime_hours">%1$d h</string>
 
     <!-- Hours of operation (#789, Pro): its section flag, its Settings row, and its screen over the Settings sheet. -->
-    <string name="guide_settings_group_hours">Hours</string>
     <string name="guide_settings_hours">Hours of operation</string>
     <string name="guide_hours_title">Hours of operation</string>
     <string name="guide_hours_title_add">Add a period</string>
