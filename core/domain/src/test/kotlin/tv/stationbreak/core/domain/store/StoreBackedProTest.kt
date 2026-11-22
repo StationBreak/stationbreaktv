@@ -130,6 +130,22 @@ class StoreBackedProTest {
         }
 
     @Test
+    fun anOwedRefundMeansTheCacheNeverGrantsPro_untilTheStoreVerifiesAPurchase() =
+        runTest {
+            // A kill between writing the owed refund and clearing the owned answer (#1067).
+            cache.writeRefundPending(true)
+            cache.write(true)
+            val pro = pro()
+            assertFalse(pro.pro.value, "an owed refund beats a cached owned")
+            assertTrue(pro.revoked.value)
+
+            store.purchase()
+
+            assertTrue(pro.pro.value, "a verified purchase still unlocks")
+            assertFalse(pro.revoked.value)
+        }
+
+    @Test
     fun aVerifiedFalseBeforeTheCacheIsReadIsNotOverwrittenByIt() =
         runTest {
             cache.write(true)
