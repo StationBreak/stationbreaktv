@@ -65,7 +65,10 @@ class PickerKeyTest {
 
     @Test
     fun backClosesThePickerNotTheBanner() {
-        assertTrue(press(Key.Back, OverlayUp(actions = true, picker = true)))
+        val open = OverlayUp(actions = true, picker = true)
+        assertTrue(press(Key.Back, open))
+        assertEquals("Back acts on its release", emptyList<LiveCommand>(), sent)
+        assertTrue(handleLiveKey(KeyEventType.KeyUp, Key.Back, open, held) { sent += it })
         assertEquals(listOf<LiveCommand>(LiveCommand.DismissOverlay), sent)
     }
 

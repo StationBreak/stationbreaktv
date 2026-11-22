@@ -3,6 +3,8 @@ package tv.stationbreak.feature.live.ui
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import tv.stationbreak.core.ui.RemoteKey
+import tv.stationbreak.core.ui.remoteKeyOf
 import tv.stationbreak.feature.live.FlipDirection
 import tv.stationbreak.feature.live.LiveCommand
 import tv.stationbreak.feature.live.PickerKind
@@ -34,7 +36,7 @@ private fun pickerCommand(
     when {
         key == Key.Captions -> LiveCommand.OpenPicker(PickerKind.Subtitles)
         key == Key.MediaAudioTrack -> LiveCommand.OpenPicker(PickerKind.Audio)
-        open && key == Key.Back -> LiveCommand.DismissOverlay
+        open && remoteKeyOf(key) == RemoteKey.Back -> LiveCommand.DismissOverlay
         else -> null
     }
 
@@ -47,7 +49,23 @@ private fun overlayCommand(
     // Over the actions banner Select clicks its focused button; over the info overlay it does nothing; paused it plays
     // (ADR-0021, 2).
     val select = if (scrubbing) LiveCommand.Play else LiveCommand.ShowBanner.takeUnless { up.actions || up.info }
-    return when (key) {
+    // Select and Back are the shared policy's (core/ui): all three Select keys, and Back, which acts on its release.
+    return when (remoteKeyOf(key)) {
+        RemoteKey.Select -> select
+
+        // Back closes an overlay; with none up it opens the guide (keyAction).
+        RemoteKey.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
+
+        else -> liveOnlyCommand(key, scrubbing)
+    }
+}
+
+/** The keys live TV alone maps (CH+/CH-, Menu, Last Channel, Info, the media keys); the D-pad flips. */
+private fun liveOnlyCommand(
+    key: Key,
+    scrubbing: Boolean,
+): LiveCommand? =
+    when (key) {
         Key.DirectionUp, Key.ChannelUp -> LiveCommand.Flip(FlipDirection.Up)
 
         Key.DirectionDown, Key.ChannelDown -> LiveCommand.Flip(FlipDirection.Down)
@@ -57,14 +75,8 @@ private fun overlayCommand(
 
         Key.Info -> LiveCommand.ShowInfo
 
-        Key.DirectionCenter, Key.Enter -> select
-
-        // Back closes an overlay; with none up it opens the guide (keyAction).
-        Key.Back -> LiveCommand.DismissOverlay.takeIf { up.actions || up.info }
-
         else -> transportCommand(key, scrubbing)
     }
-}
 
 /**
  * Which way [key] scrolls the program info's overview over [up]: true for Down, false for Up, null when it scrolls

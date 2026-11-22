@@ -318,12 +318,13 @@ class LiveKeysTest {
     fun backClosesAnOverlayButNeverATuneBanner() {
         val got = mutableListOf<LiveCommand>()
         val guide = mutableListOf<Boolean>()
-        // With nothing up, Back opens the guide: consumed, but no command for the machine.
+        // With nothing up, Back opens the guide on its release (the shared remoteKeyToAct): consumed, no command.
         assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), guide = { guide += it }) { got += it })
+        assertEquals(emptyList<Boolean>(), guide)
+        assertTrue(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), guide = { guide += it }) { got += it })
         assertEquals(listOf(true), guide)
-        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
         assertTrue(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), OverlayUp(info = true)) { got += it })
-        assertTrue(handleLiveKey(key(ACTION_DOWN, KEYCODE_BACK), OverlayUp(actions = true)) { got += it })
+        assertTrue(handleLiveKey(key(ACTION_UP, KEYCODE_BACK), OverlayUp(actions = true)) { got += it })
         assertEquals(listOf(LiveCommand.DismissOverlay, LiveCommand.DismissOverlay), got)
     }
 }
