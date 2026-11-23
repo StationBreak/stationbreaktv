@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import tv.stationbreak.core.domain.store.ProCache
 import java.io.File
 import java.io.IOException
+import kotlin.time.Instant
 
 /**
  * The [ProCache] in two Jetpack DataStore files of its own in `noBackupFilesDir`: never backed up or carried to another
@@ -47,6 +49,25 @@ class DataStoreProCache internal constructor(
             data.edit { it[OWNED] = owned }
         } catch (_: IOException) {
             // Only a cache: the store answers again at the next start.
+        }
+    }
+
+    override suspend fun readVerifiedAt(): Instant? =
+        try {
+            data.data.first()[VERIFIED_AT]?.let(Instant::fromEpochMilliseconds)
+        } catch (_: IOException) {
+            null
+        } catch (_: ClassCastException) {
+            null // A value of the wrong type is a garbled stamp: none.
+        } catch (_: IllegalArgumentException) {
+            null // A millisecond count out of the range of an Instant.
+        }
+
+    override suspend fun writeVerifiedAt(at: Instant) {
+        try {
+            data.edit { it[VERIFIED_AT] = at.toEpochMilliseconds() }
+        } catch (_: IOException) {
+            // Only a cache: the next verified answer stamps again.
         }
     }
 
@@ -88,6 +109,7 @@ class DataStoreProCache internal constructor(
         const val FILE_NAME: String = "pro-cache.preferences_pb"
         const val REFUND_FILE_NAME: String = "pro-refund.preferences_pb"
         private val OWNED = booleanPreferencesKey("owned")
+        private val VERIFIED_AT = longPreferencesKey("verified_at_ms")
         private val REFUND_PENDING = booleanPreferencesKey("refund_pending")
         private val REFUND_HANDLED = stringSetPreferencesKey("refund_handled")
         private val REFUND_UNKNOWN = booleanPreferencesKey("refund_unknown")

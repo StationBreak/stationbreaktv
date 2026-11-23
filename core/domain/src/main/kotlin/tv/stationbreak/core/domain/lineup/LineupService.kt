@@ -1433,6 +1433,17 @@ class LineupService internal constructor(
         }
     }
 
+    /**
+     * The IDs of [account]'s customs a free lineup locks ([lockedCustoms]), ranked over the lineup this service holds
+     * (read first if it has not been), with no summaries built. Empty while there is no lineup.
+     */
+    internal suspend fun lockedCustomIds(account: LibraryAccount): Set<ChannelId> =
+        loaded(account)
+            ?.lineup
+            ?.channels
+            .orEmpty()
+            .lockedCustomIds()
+
     /** For tests: waits for the one-time rewrites started so far. */
     internal suspend fun awaitRewrites() = rewrites.await()
 

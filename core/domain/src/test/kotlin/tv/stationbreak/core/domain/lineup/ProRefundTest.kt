@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
+import tv.stationbreak.core.domain.store.FakeStoreEntitlement
+import tv.stationbreak.core.domain.store.InMemoryProCache
+import tv.stationbreak.core.domain.store.StoreBackedPro
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -27,6 +33,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /** A refund after Pro (#99, ADR-0023): the starters reset, the customs past the free five are kept and locked. */
@@ -78,6 +85,62 @@ class ProRefundTest {
             assertEquals((1..FreeTier.CUSTOM_CHANNELS).map(::id), shown())
             assertEquals(total, service.channels(ACCOUNT).first().count { it.viewerMade }, "all are still held")
             assertContentEquals(before, store.inner.peek(ACCOUNT), "locking writes nothing")
+        }
+
+    @Test
+    fun theLockedIdsComeFromTheLoadedLineup_andAreEmptyWhileProIsOnOrThereIsNoLineup() =
+        runBlocking<Unit> {
+            seed()
+            library.useAccount(ACCOUNT)
+            val ids = ProLockedIds(pro, library, service)
+
+            assertEquals(emptySet(), ids.now(), "Pro is on")
+
+            pro.set(false)
+            assertEquals(((FreeTier.CUSTOM_CHANNELS + 1)..total).map(::id).toSet(), ids.now())
+        }
+
+    @Test
+    fun noLineupLocksNothing() =
+        runBlocking<Unit> {
+            library.useAccount(ACCOUNT)
+            pro.set(false)
+
+            assertEquals(emptySet(), ProLockedIds(pro, library, service).now())
+        }
+
+    @Test
+    fun theFiveLowestIdsStay_whateverOrderTheyWereMadeIn() {
+        // IDs are random: the five that stay are the five that sort lowest, not the five made first.
+        val names = listOf("zz", "b1", "q7", "a0", "m3", "c9", "k2")
+        val locked = lockedCustoms(names.map { ChannelId("custom:$it") })
+        assertEquals(setOf(ChannelId("custom:q7"), ChannelId("custom:zz")), locked)
+        assertTrue(lockedCustoms(names.take(FreeTier.CUSTOM_CHANNELS).map { ChannelId("custom:$it") }).isEmpty())
+    }
+
+    @Test
+    fun aLapseOfTheOfflineGraceLocksTheExtras_andTheStoresNextTrueBringsThemBackUntouched() =
+        runBlocking<Unit> {
+            seed()
+            library.useAccount(ACCOUNT)
+            val before = store.inner.peek(ACCOUNT)
+            val verified = FakeStoreEntitlement()
+            val cache = InMemoryProCache(held = true)
+            cache.writeVerifiedAt(NOON - 31.days)
+            val job = Job()
+            val real = StoreBackedPro(false, verified, cache, CoroutineScope(job), clock)
+            val gated = ProLockedChannelRepository(service, real)
+            try {
+                assertEquals(FreeTier.CUSTOM_CHANNELS, gated.channels(ACCOUNT).first().count { it.viewerMade })
+
+                verified.settle(true)
+                withTimeout(10_000L) { real.pro.first { it } }
+
+                assertEquals(total, gated.channels(ACCOUNT).first().count { it.viewerMade })
+                assertContentEquals(before, store.inner.peek(ACCOUNT), "nothing was written or deleted")
+            } finally {
+                job.cancel()
+            }
         }
 
     @Test

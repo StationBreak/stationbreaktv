@@ -2,6 +2,7 @@
 package tv.stationbreak.core.domain.store
 
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Instant
 
 /**
  * What the app store says about StationBreak Pro (#99, ADR-0032). The one port the store SDKs sit behind: only the
@@ -92,6 +93,14 @@ interface ProCache {
     suspend fun read(): Boolean
 
     suspend fun write(owned: Boolean)
+
+    /**
+     * When the store last answered true (#1065), or null when none is kept or it cannot be read (a garbled value reads
+     * as none). The cached owned answer stops granting Pro [StoreBackedPro.OFFLINE_GRACE] after it.
+     */
+    suspend fun readVerifiedAt(): Instant?
+
+    suspend fun writeVerifiedAt(at: Instant)
 
     /** Null: unknown (the record is corrupt or cannot be read). Not a refund, but no offline Pro either (#1067). */
     suspend fun readRefundPending(): Boolean?
