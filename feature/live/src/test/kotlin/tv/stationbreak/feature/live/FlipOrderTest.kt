@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.model.ChannelId
@@ -22,6 +23,7 @@ class FlipOrderTest {
         name = "Test Channel $number",
         epochStart = Instant.fromEpochMilliseconds(0),
         hidden = hidden,
+        floor = NO_FLOOR,
     )
 
     private fun order(vararg numbers: Int) = FlipOrder(numbers.map { channel(it) })

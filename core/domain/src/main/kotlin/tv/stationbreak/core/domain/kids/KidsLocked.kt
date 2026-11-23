@@ -72,7 +72,7 @@ class KidsLockedScheduleSource(
         if (state.enabled) {
             val at = Instant.fromEpochMilliseconds(block.startMs)
             val airing = delegate.airings(at).firstOrNull { it.id == channel }
-            if (!state.allows(airing?.number, airing?.floor ?: 1)) return emptyList()
+            if (!state.allows(airing?.number, airing?.floor ?: NO_FLOOR)) return emptyList()
         }
         return delegate.standIns(channel, block, exclude)
     }

@@ -60,6 +60,7 @@ import org.junit.runner.RunWith
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChangeRefusal
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
@@ -157,6 +158,7 @@ private fun summary(
         playKey = PlayKey("test"),
         shelfReason = shelfReason,
         viewerMade = viewerMade,
+        floor = NO_FLOOR,
     )
 }
 

@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelRow
@@ -34,7 +35,7 @@ class GuideFocusTest {
         number: Int,
         vararg blocks: AiringBlock,
     ) = ChannelRow(
-        ChannelAiring(id, number, "Test Channel $number", Instant.fromEpochMilliseconds(T0), null),
+        ChannelAiring(id, number, "Test Channel $number", Instant.fromEpochMilliseconds(T0), null, floor = NO_FLOOR),
         blocks.toList(),
         T0 + 48 * 60 * MIN,
     )

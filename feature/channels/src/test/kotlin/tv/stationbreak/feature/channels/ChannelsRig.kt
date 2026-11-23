@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChangeResult
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelEditor
@@ -66,6 +67,7 @@ internal fun summary(
     optIn,
     PlayKey("test"),
     shelfReason,
+    floor = NO_FLOOR,
 )
 
 internal class FakeChannels(

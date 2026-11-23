@@ -94,6 +94,25 @@ class CustomYoungBandTest {
         }
     }
 
+    // A retired recipe's channel is kept as Custom with its `starter:` ID: a built-in for the band cap, so a channel
+    // in a young band is capped by ChannelCeilings and, with the cap as its ceiling, now gets the tier limit as well.
+    @Test
+    fun aRetiredBuiltInKeptAsCustomInAYoungBandIsCappedAndTierLimited() {
+        val retired =
+            LineupChannel(
+                ChannelId("starter:retired-recipe"),
+                40,
+                null,
+                null,
+                ChannelState.On,
+                ChannelSource.Custom(rules(listOf(Source.Library(LIB)), maxRating = null)),
+                5L,
+            )
+        assertEquals("PG", ChannelCeilings.of(retired, StarterCatalog))
+        assertEquals(airs(custom(40, "PG")), airs(retired))
+        assertEquals(setOf(1L, 9L), airs(retired))
+    }
+
     @Test
     fun aKidChannelByNumberStaysKidsOnly() {
         assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(custom(20, "PG")))

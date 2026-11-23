@@ -26,6 +26,12 @@ private const val FAMILY_UP_TO = 66
 private const val TEEN_UP_TO = 99
 
 /**
+ * The floor of a channel that does not exist: [KidsLockState.allows] with it decides by the number alone. Pass it only
+ * where there is genuinely no channel to ask (a bare number); a channel always gives its own floor (#1097, #1108).
+ */
+const val NO_FLOOR = 1
+
+/**
  * What the Kids Mode lock is now: whether it is [enabled], its [cap], and whether a PIN is set ([pinSet]). It never
  * carries the PIN or anything derived from it.
  */
@@ -38,11 +44,11 @@ data class KidsLockState(
      * Whether a channel numbered [number] can be seen and tuned: every channel while the lock is off; while it is on,
      * only one numbered 1 to the cap. A channel with no number is hidden then. [floor] is the lowest number the channel
      * may have (`ChannelFloors`, #1097): one numbered below it is hidden too, so a stored lineup not yet moved up (an
-     * Adult channel at 40) never shows in a young band. A caller with no channel leaves it at 1.
+     * Adult channel at 40) never shows in a young band. A caller with no channel passes [NO_FLOOR].
      */
     fun allows(
         number: Int?,
-        floor: Int = 1,
+        floor: Int,
     ): Boolean = !enabled || (number != null && number >= floor && number in 1..cap.upTo)
 }
 

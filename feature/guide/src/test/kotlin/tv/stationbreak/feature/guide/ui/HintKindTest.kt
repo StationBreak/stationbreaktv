@@ -3,6 +3,7 @@ package tv.stationbreak.feature.guide.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelRow
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH9
@@ -34,7 +35,7 @@ class HintKindTest {
             } else {
                 listOf(program(0, goneAt, 1), program(goneAt, 600, 2, info = null))
             }
-        val channel = ChannelAiring(CH9, 9, "Test Channel 9", Instant.fromEpochMilliseconds(T0), null)
+        val channel = ChannelAiring(CH9, 9, "Test Channel 9", Instant.fromEpochMilliseconds(T0), null, floor = NO_FLOOR)
         val row = ChannelRow(channel, blocks, min(600))
         val model = buildGuideModel(ScheduleWindow(listOf(row), complete = true), min(nowMin))
         val ready = GuideState.Ready(model, model.originMs, 0, min(nowMin))

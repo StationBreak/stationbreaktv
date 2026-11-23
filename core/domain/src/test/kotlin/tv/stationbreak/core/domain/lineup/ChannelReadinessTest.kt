@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
@@ -67,7 +68,7 @@ class ChannelReadinessTest {
         number: Int,
         name: String,
         hidden: HiddenReason? = null,
-    ) = ChannelAiring(id, number, name, NOON, hidden)
+    ) = ChannelAiring(id, number, name, NOON, hidden, floor = NO_FLOOR)
 
     @Test
     fun aChannelThatFillsIsReadyAfterTheBuild() =

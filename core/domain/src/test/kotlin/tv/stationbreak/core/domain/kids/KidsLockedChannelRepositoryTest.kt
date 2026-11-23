@@ -38,6 +38,7 @@ class KidsLockedChannelRepositoryTest {
             kid = number != null && number < 100,
             optIn = false,
             playKey = PlayKey("test"),
+            floor = NO_FLOOR,
         )
 
     private class Lineup(

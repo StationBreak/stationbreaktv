@@ -52,6 +52,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
@@ -433,6 +434,7 @@ class GuideNoLibrariesUiTest {
         kid = false,
         optIn = false,
         playKey = PlayKey("test"),
+        floor = NO_FLOOR,
     )
 
     // The Libraries screen hides the guide: a lineup change under it reloads nothing until it closes, then once, and

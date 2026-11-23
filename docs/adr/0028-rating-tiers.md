@@ -242,6 +242,9 @@ migration left below its floor airs the same. Kid-flag channels (`KidsOnly`), ad
 or a ceiling above TV-14 are unchanged. It is a documented exception to "no hidden filters" for custom channels
 (`docs/guide/mature-content.md`).
 
+A retired recipe's channel kept as Custom (its `starter:` or `leftovers:` ID) in a young band is a built-in for the band
+cap (`ChannelCeilings`); with that cap as its ceiling it now also gets the tier limit, which only narrows it.
+
 **Version.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-9`; `kid-hold-9` does not change, since no kid rule did.
 `PersistedDays.HOLDS` follows, so every stored day is rebuilt once. Vectors: `grown-up-hold-9.json`, a delta of
 `customCeiling` rows (the older files are unedited).

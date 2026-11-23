@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.HOUR
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.model.CanonicalId
@@ -82,7 +83,7 @@ class FakeSchedule : ScheduleSource {
         /** The catalog recipe key of a starter or leftovers channel, null for any other. */
         var recipeKey: String? = null,
         /** The lowest number the channel may have (`ChannelFloors`). */
-        var floor: Int = 1,
+        var floor: Int = NO_FLOOR,
     )
 
     val channels = linkedMapOf<ChannelId, Entry>()
