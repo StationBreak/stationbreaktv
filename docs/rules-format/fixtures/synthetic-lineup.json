@@ -1,7 +1,7 @@
 {
   "description": "A published reference fixture for implementers of the rules format (docs/rules-format.md, \"Verify your client\"). A synthetic library (versions.generator; nothing real) is given to the lineup planner at first setup, and the days of every switched-on channel are built from the lineup it plans. snapshot is the planner's input: items, series and collections as the engine reads them; the library's other kinds (videos, music videos) and every item with no runtime are left out, as the app's own snapshot leaves them out. lineup is what the planner chose: per channel its id, number, source, state and seed (decimal text), and for a starter or custom channel its rules in the exact text RulesWriter writes. A leftovers channel has no rules: its pool is the engine's, from the other channels. days[i] is the broadcast day i of every switched-on channel: the day that holds inputs.nowMs is day 0. A channel's blocks tile [epochStartMs, epochEndMs) and are half-open; a block is {startMs, endMs, itemId, mediaStartOffsetMs} for a program or {startMs, endMs, slate: true}. Every millisecond count is decimal text. A mismatch of versions (catalog, kid hold, grown-up hold, curation) means the files are not comparable.",
   "fixtureFormat": 1,
-  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 14, "rulesFormat": 5, "kidHold": "kid-hold-9", "grownUpHold": "grown-up-hold-8", "curation": "curation-1", "extras": "extras-1"},
+  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 15, "rulesFormat": 5, "kidHold": "kid-hold-9", "grownUpHold": "grown-up-hold-8", "curation": "curation-1", "extras": "extras-1"},
   "inputs": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
@@ -9,7 +9,7 @@
     "standardOffsetMinutes": 0,
     "nowMs": "1792411200000",
     "days": 3,
-    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 14}
+    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 15}
   },
   "snapshot": {
     "libraryId": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
@@ -2630,7 +2630,7 @@
   "lineup": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
-    "catalogVersion": 14,
+    "catalogVersion": 15,
     "utcOffsetMinutes": 0,
     "finalised": true,
     "useMyCollections": true,
@@ -3767,7 +3767,7 @@
         {
           "id": "leftovers:kids-odds-and-ends",
           "number": 33,
-          "name": "Kids' Odds & Ends",
+          "name": "Tots' Odds & Ends",
           "n": "20745",
           "epochStartMs": "1792389600000",
           "epochEndMs": "1792476000000",
@@ -3813,7 +3813,7 @@
         {
           "id": "leftovers:family-odds-and-ends",
           "number": 66,
-          "name": "Family Odds & Ends",
+          "name": "Kids' Odds & Ends",
           "n": "20745",
           "epochStartMs": "1792389600000",
           "epochEndMs": "1792476000000",
@@ -3906,7 +3906,7 @@
         {
           "id": "leftovers:teen-odds-and-ends",
           "number": 99,
-          "name": "Teen Odds & Ends",
+          "name": "Teens' Odds & Ends",
           "n": "20745",
           "epochStartMs": "1792389600000",
           "epochEndMs": "1792476000000",
@@ -4408,7 +4408,7 @@
         {
           "id": "leftovers:kids-odds-and-ends",
           "number": 33,
-          "name": "Kids' Odds & Ends",
+          "name": "Tots' Odds & Ends",
           "n": "20746",
           "epochStartMs": "1792476000000",
           "epochEndMs": "1792562400000",
@@ -4454,7 +4454,7 @@
         {
           "id": "leftovers:family-odds-and-ends",
           "number": 66,
-          "name": "Family Odds & Ends",
+          "name": "Kids' Odds & Ends",
           "n": "20746",
           "epochStartMs": "1792476000000",
           "epochEndMs": "1792562400000",
@@ -4560,7 +4560,7 @@
         {
           "id": "leftovers:teen-odds-and-ends",
           "number": 99,
-          "name": "Teen Odds & Ends",
+          "name": "Teens' Odds & Ends",
           "n": "20746",
           "epochStartMs": "1792476000000",
           "epochEndMs": "1792562400000",
@@ -5062,7 +5062,7 @@
         {
           "id": "leftovers:kids-odds-and-ends",
           "number": 33,
-          "name": "Kids' Odds & Ends",
+          "name": "Tots' Odds & Ends",
           "n": "20747",
           "epochStartMs": "1792562400000",
           "epochEndMs": "1792648800000",
@@ -5110,7 +5110,7 @@
         {
           "id": "leftovers:family-odds-and-ends",
           "number": 66,
-          "name": "Family Odds & Ends",
+          "name": "Kids' Odds & Ends",
           "n": "20747",
           "epochStartMs": "1792562400000",
           "epochEndMs": "1792648800000",
@@ -5215,7 +5215,7 @@
         {
           "id": "leftovers:teen-odds-and-ends",
           "number": 99,
-          "name": "Teen Odds & Ends",
+          "name": "Teens' Odds & Ends",
           "n": "20747",
           "epochStartMs": "1792562400000",
           "epochEndMs": "1792648800000",
