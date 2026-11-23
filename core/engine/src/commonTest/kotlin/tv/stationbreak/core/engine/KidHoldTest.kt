@@ -421,10 +421,10 @@ class KidHoldTest {
         assertEquals(setOf("NR", "NOT RATED", "UNRATED"), AnimatedFamilySignal.UNRATED_SPELLINGS)
     }
 
-    // The grown-up hold follows kid-hold's predicate, so the two version names move together: a pinned pair. (#1108's
-    // grown-up-hold-9 moved alone: no kid-hold rule changed, a custom channel's tier limit did.)
+    // The two version names are pinned as a pair. They do not always move together: #1108's grown-up-hold-9 moved alone
+    // (no kid-hold rule changed, a custom channel's tier limit did), so a bump of one is a deliberate edit of this pair.
     @Test
-    fun theHoldVersionNamesMoveTogether() {
+    fun theCurrentHoldVersionNamesArePinnedAsAPair() {
         assertEquals(
             mapOf("kid-hold-9" to "grown-up-hold-9"),
             mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
