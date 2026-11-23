@@ -70,3 +70,10 @@ Notes for whoever picks these up:
 Rules format 5 (the spread day end) adds no stored state. A day is still a function of rules, snapshot, seed, time and
 app version. See `docs/superpowers/specs/2026-11-13-spread-day-end-design.md` and
 [ADR-0027](0027-v5-release-rule.md).
+
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+channels once called kids channels are the **Tots** channels (1 to 33), the 1 to 99 setting is **Family Mode** (it was
+Kids Mode), and the 34 to 66 band is **Kids**. The kid hold keeps its name (`kid-hold-*`), as do `kidsOnly` and stored
+values. See the [glossary](../guide/glossary.md).
