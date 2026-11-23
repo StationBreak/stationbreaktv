@@ -444,6 +444,29 @@ class BandFloorsTest {
         assertNotEquals(320, result.numberOf(adult))
     }
 
+    // The built-in's default (70) is held only by an offender (the Adult custom at 70): once that has moved on, the
+    // built-in returns to it rather than keeping its override. Never down, no number twice, and idempotent.
+    @Test
+    fun aBuiltInReturnsToADefaultOnlyAnotherOffenderWasHolding() {
+        val teenOne = starter("teen", 70, override = 40)
+        val adult = custom("adult", 70)
+        val result = FloorMigration.apply(listOf(teenOne, adult), catalog, DAY)
+        assertEquals(70, result.channels.numberOf(teenOne))
+        assertEquals(null, result.channels.first { it.id == teenOne.id }.numberOverride)
+        assertEquals(true, result.channels.numberOf(adult)!! >= 100)
+        assertEquals(
+            result.channels
+                .mapNotNull { it.number }
+                .toSet()
+                .size,
+            2,
+            "no number twice",
+        )
+        val again = FloorMigration.apply(result.channels, catalog, DAY)
+        assertEquals(result.channels, again.channels)
+        assertEquals(emptyList(), again.notices)
+    }
+
     private fun plannerSetup(): Triple<TestCatalog, tv.stationbreak.core.model.RuleSnapshot, Lineup> {
         val keys = listOf("alpha" to 110, "bravo" to 120, "charlie" to 210, "delta" to 310, "echo" to 410)
         val plain = TestCatalog(keys.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true))

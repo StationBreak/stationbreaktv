@@ -19,9 +19,9 @@ import kotlin.test.assertTrue
 /**
  * Holds `RatingMap`, `RatingTier`, `KidHold` and `GrownUpHold` to every case of `kid-hold-6.json`, of
  * `kid-hold-7.json`, which has the same shape and only 'tier' rows, of `kid-hold-9.json` (a delta, see its description
- * for the rows it supersedes) and of `kid-hold-8.json`, which adds the
- * 'explicitRating', 'tierLimit' and 'noMetadata' sections (the text is given, so the same check runs on the copy in
- * commonTest and on the published file in jvmTest).
+ * for the rows it supersedes), of `grown-up-hold-9.json` (a delta of 'customCeiling' rows, with genres and tags) and
+ * of `kid-hold-8.json`, which adds the 'explicitRating', 'tierLimit' and 'noMetadata' sections (the text is given, so
+ * the same check runs on the copy in commonTest and on the published file in jvmTest).
  *
  * The frozen files of the versions before `kid-hold-8` ([explicitIsAdult]) are read as `kid-hold-8` reads them: the
  * Explicit tier was part of their adult tier, and the one rating `kid-hold-8` moves ([MOVED_AT_8]) is held to its new
@@ -96,7 +96,14 @@ internal object KidHold6VectorCheck {
     private fun customCeilingPasses(row: JsonObject): Boolean {
         val rating = row.stringOrNull("rating")
         val episodeOf = row.string("shape") == "episode"
-        val item = if (episodeOf) episode(idOf(2), showId, rating = rating) else movie(idOf(2), rating = rating)
+        val genres = row.names("genres")
+        val tags = row.names("tags")
+        val item =
+            if (episodeOf) {
+                episode(idOf(2), showId, rating = rating, genres = genres, tags = tags)
+            } else {
+                movie(idOf(2), rating = rating, genres = genres, tags = tags)
+            }
         val shows = if (episodeOf) listOf(series(showId, rating = row.stringOrNull("seriesRating"))) else emptyList()
         val policy =
             when (val name = row.string("policy")) {

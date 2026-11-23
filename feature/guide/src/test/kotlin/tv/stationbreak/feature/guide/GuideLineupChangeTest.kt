@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelStatus
 import tv.stationbreak.core.domain.lineup.ChannelSummary
@@ -49,6 +50,7 @@ class GuideLineupChangeTest : GuideRig() {
         kid = false,
         optIn = false,
         playKey = PlayKey("test"),
+        floor = NO_FLOOR,
     )
 
     // #556: a save that only changes the play order, and a reshuffle, move neither a channel nor its number.

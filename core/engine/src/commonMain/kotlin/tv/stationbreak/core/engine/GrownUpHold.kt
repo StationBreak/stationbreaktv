@@ -17,10 +17,12 @@ import tv.stationbreak.core.model.RuleSeries
  * grown-up leftovers pool drops a title with no metadata ([hasNoMetadata]).
  * `grown-up-hold-8` moves with `kid-hold-9` (#1088): the tidy of [NoiseTidy], and a blank rating, genre or tag (empty
  * or only white space, a tab or no-break space included) is none in [hasNoMetadata].
+ * `grown-up-hold-9` (#1108) moves alone: kid-hold-9 stays. A custom channel under a young ceiling follows the tier
+ * limit of its band ([tierLimit]), as a built-in channel of that band does (ADR-0028 addendum 2026-11-23).
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-8"
+    const val VERSION_NAME = "grown-up-hold-9"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take

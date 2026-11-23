@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRow
@@ -66,6 +67,7 @@ class GuideMenuTest : GuideRig() {
         kid = false,
         optIn = false,
         playKey = PlayKey("test"),
+        floor = NO_FLOOR,
     )
 
     @Test

@@ -4,6 +4,7 @@ package tv.stationbreak.feature.guide
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
@@ -30,7 +31,7 @@ class GuidePlayingAiringTest : GuideRig() {
         channel: ChannelId,
         vararg blocks: AiringBlock,
     ) = ChannelRow(
-        ChannelAiring(channel, 5, "Test Channel", Instant.fromEpochMilliseconds(T0), null),
+        ChannelAiring(channel, 5, "Test Channel", Instant.fromEpochMilliseconds(T0), null, floor = NO_FLOOR),
         blocks.toList(),
         T0 + 48 * 60 * MIN,
     )

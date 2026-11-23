@@ -225,6 +225,30 @@ the cap follows the ID, not the source type.
 
 Vectors: `kid-hold-9.json` (a delta; the older files are unedited). Every held day is remade once under the new hold names.
 
+## Addendum 2026-11-23 (3): a custom channel under a young ceiling, `grown-up-hold-9` (#1108)
+
+Since #1097 the floor of a viewer's own channel follows its ceiling (`ChannelFloors`): PG or less is numbered 34 or up,
+TV-14 or less 67 or up, anything else 100 or up. The channel was then in a band whose built-in channels air family (or
+family and teen) titles only, but `PoolPolicy.Custom` still let through what rule 5's tier limit keeps off those bands:
+a PG-rated title with the Horror genre or a gore or violence tag, or with an explicit or adult tag (Teen, Adult or
+Explicit by tier). The ceiling, and `Approved` as unrated under it, already held (`kid-hold-6`); they were not the gap.
+
+**Decision (owner, 2026-11-23: fail closed by default; reversible).** Under `PoolPolicy.Custom` a ceiling at or below
+PG or at or below TV-14 applies `GrownUpHold.tierLimit`, the one function a built-in channel of the band uses. A title
+above the limit is `blockedByCeiling`. Nothing else of the grown-up hold is taken over: a custom channel keeps its own
+sources, filters, ceiling, name and number, and it keeps the kids tier (the made-for-kids drop is a rule for sharing
+titles between channels, not a promise of the band). The rule follows the ceiling, not the number, so a channel the
+migration left below its floor airs the same. Kid-flag channels (`KidsOnly`), adult copies and channels with no ceiling
+or a ceiling above TV-14 are unchanged. It is a documented exception to "no hidden filters" for custom channels
+(`docs/guide/mature-content.md`).
+
+A retired recipe's channel kept as Custom (its `starter:` or `leftovers:` ID) in a young band is a built-in for the band
+cap (`ChannelCeilings`); with that cap as its ceiling it now also gets the tier limit, which only narrows it.
+
+**Version.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-9`; `kid-hold-9` does not change, since no kid rule did.
+`PersistedDays.HOLDS` follows, so every stored day is rebuilt once. Vectors: `grown-up-hold-9.json`, a delta of
+`customCeiling` rows (the older files are unedited).
+
 ## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
 
 This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the

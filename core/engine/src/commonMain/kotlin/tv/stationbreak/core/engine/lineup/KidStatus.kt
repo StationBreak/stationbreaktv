@@ -36,7 +36,7 @@ object KidStatus {
             }
 
             // A stored After Hours below the floor (#1078: no edit puts it there) is held as grown-up.
-            isAfterHoursStarter(channel) && (channel.number ?: AFTER_HOURS_FLOOR) >= AFTER_HOURS_FLOOR -> {
+            isAfterHoursStarter(channel) && (channel.number ?: Int.MAX_VALUE) >= Band.General.numbers.first -> {
                 PoolPolicy.ExplicitOnly
             }
 
@@ -78,9 +78,6 @@ object KidStatus {
         lineup: Lineup,
         day: LineupDay,
     ): PoolPolicy = policyOf(channel, hasKidLeftoversOn(lineup, day))
-
-    /** The lowest number After Hours may take (#1078): the young bands below it promise their audience by number. */
-    const val AFTER_HOURS_FLOOR = 100
 
     private fun policyOf(
         channel: LineupChannel,

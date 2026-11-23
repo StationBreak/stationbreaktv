@@ -22,12 +22,19 @@ data class MovedNotice(
         /** The epoch day (UTC) of [ms]: what the planner's own clock says is today. */
         fun dayOf(ms: Long): Long = ms.floorDiv(DAY_MS)
 
-        /** [notices] still to be told on [today]: of a channel in [ids], at most [KEEP_DAYS] days old. */
+        /**
+         * [notices] still to be told on [today]: of a channel in [ids], at most [KEEP_DAYS] days old. A notice dated
+         * after [today] (a clock that was set ahead, or a file edited by hand) was made today: it is returned with
+         * [today] as its day, so it still ends [KEEP_DAYS] days on.
+         */
         fun live(
             notices: List<MovedNotice>,
             ids: Set<ChannelId>,
             today: Long,
-        ): List<MovedNotice> = notices.filter { it.id in ids && today - it.day <= KEEP_DAYS }
+        ): List<MovedNotice> =
+            notices
+                .filter { it.id in ids && it.day >= today - KEEP_DAYS }
+                .map { it.copy(day = minOf(it.day, today)) }
     }
 }
 
@@ -64,30 +71,34 @@ internal object FloorMigration {
         val offenders =
             channels
                 .filter { isBelowFloor(it, catalog) }
-                .sortedWith(compareBy({ it.number }, { it.id.value }))
+                // The viewer's own channels first: they never take a built-in's default (reserved below), so what
+                // they leave is free for a built-in to return to.
+                .sortedWith(compareBy({ ChannelCeilings.isBuiltIn(it) }, { it.number }, { it.id.value }))
         if (offenders.isEmpty()) return Result(channels, emptyList())
         val leaving = offenders.mapTo(HashSet()) { it.id }
-        // What nothing may take: the channels that stay, each offender's own number (one that cannot move stays on it),
-        // then each number a moved channel lands on.
-        val held = HashSet<Int>()
-        held += channels.filter { it.id !in leaving }.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) }
-        held += offenders.mapNotNull { it.number }
+        // What nothing may take: the channels that stay, each number a moved channel lands on, and an offender's own
+        // number until it has moved (one that cannot move stays on it).
+        val stays = FreeNumbers.usedBy(channels.filter { it.id !in leaving })
+        val landed = HashSet<Int>()
+        val sitting = offenders.mapNotNullTo(ArrayList()) { it.number }
         // A built-in offender's default is its own to return to: no other channel takes it first.
         val defaults = offenders.filter { ChannelCeilings.isBuiltIn(it) }.mapNotNull { it.defaultNumber }
-        val reserved = catalog.recipes.map { it.number } + catalog.leftovers.map { it.number } + catalog.retiredNumbers
-        val taken = (reserved + defaults).toSet()
+        val reserved = (catalog.recipes.map { it.number } + catalog.leftovers.map { it.number } + defaults).toSet()
         val moved = HashMap<ChannelId, LineupChannel>()
         val notices = ArrayList<MovedNotice>()
         for (channel in offenders) {
-            val number = target(channel, catalog, held, taken) ?: continue
-            held += number
+            val number = target(channel, catalog, stays + landed + sitting, reserved) ?: continue
+            landed += number
+            sitting.remove(checkNotNull(channel.number))
             moved[channel.id] = withNumber(channel, number)
             notices += MovedNotice(channel.id, checkNotNull(channel.number), number, day)
         }
         return Result(channels.map { moved[it.id] ?: it }, notices)
     }
 
-    // The number [channel] moves to, or null when none is free.
+    // The number [channel] moves to, or null when none is free: [held] is what a channel holds or sits on, [reserved]
+    // what the catalog and the built-in offenders' defaults keep. A built-in may return to its default when [held]
+    // does not have it, whoever else is still on it.
     private fun target(
         channel: LineupChannel,
         catalog: StarterCatalogView,
@@ -102,9 +113,9 @@ internal object FloorMigration {
         val own = if (builtIn) ChannelFloors.starterBand(channel, catalog)?.numbers ?: band.numbers else band.numbers
         val retired = channel.source is ChannelSource.Custom
         return back
-            ?: firstFree(own.asSequence().filter { it >= floor && (builtIn || band != Band.General) }, taken)
-            ?: firstFree(LineupDefaults.CUSTOM_NUMBERS.asSequence().filter { !builtIn || retired }, taken)
-            ?: firstFree((floor..LineupEdits.MAX_NUMBER).asSequence(), taken)
+            ?: firstFree(own.asSequence().filter { it >= floor && (builtIn || band != Band.General) }, taken, catalog)
+            ?: firstFree(LineupDefaults.CUSTOM_NUMBERS.asSequence().filter { !builtIn || retired }, taken, catalog)
+            ?: firstFree((floor..LineupEdits.MAX_NUMBER).asSequence(), taken, catalog)
     }
 
     // A channel numbered below its floor: the viewer's own custom, or a built-in kept below its band.
@@ -119,8 +130,9 @@ internal object FloorMigration {
 
     private fun firstFree(
         range: Sequence<Int>,
-        held: Set<Int>,
-    ): Int? = range.firstOrNull { it !in held }
+        taken: Set<Int>,
+        catalog: StarterCatalogView,
+    ): Int? = FreeNumbers.free(range, taken, catalog).firstOrNull()
 
     // The number is the channel's override when it has one, else its default; a built-in back on its default drops it.
     private fun withNumber(

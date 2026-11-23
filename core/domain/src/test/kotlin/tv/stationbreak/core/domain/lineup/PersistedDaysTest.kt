@@ -266,12 +266,12 @@ class PersistedDaysTest {
     // made a rated series decide for its episodes (kid-hold-5, grown-up-hold-4); ADR-0028 brought the four tiers
     // (kid-hold-6, grown-up-hold-5); ADR-0029 the moves up and the bump list (kid-hold-7,
     // grown-up-hold-6); #1078 the Explicit tier (kid-hold-8, grown-up-hold-7); #1088 the input tidy (kid-hold-9,
-    // grown-up-hold-8). Each rename rebuilds every held day
-    // once.
+    // grown-up-hold-8); #1108 a custom channel's young-ceiling tier limit (grown-up-hold-9, kid-hold-9 stays). Each
+    // rename rebuilds every held day once.
     @Test
-    fun theHoldNamesAreKidHoldNineAndGrownUpHoldEight() {
+    fun theHoldNamesAreKidHoldNineAndGrownUpHoldNine() {
         assertTrue("kid-hold-9" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
-        assertTrue("grown-up-hold-8" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+        assertTrue("grown-up-hold-9" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
     }
 
     @Test

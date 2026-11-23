@@ -103,7 +103,7 @@ class GateRuleMutationTest {
     fun aCustomChannelWithAPg13CeilingAirsNoTvMaTitle() {
         val tvMa = leaks.episodeOf { it.officialRating == "TV-MA" }
         val id = ChannelId("custom:1")
-        val custom = GateChannel("custom", id, 600, 100, false, "PG-13", PoolPolicy.Custom, listOf(tvMa), emptySet())
+        val custom = GateChannel("custom", id, 600, false, "PG-13", PoolPolicy.Custom, listOf(tvMa), emptySet())
         assertTrue(Rule.Ceiling in leaks.broken(leaks.withChannels(leaks.view.channels + custom)))
     }
 

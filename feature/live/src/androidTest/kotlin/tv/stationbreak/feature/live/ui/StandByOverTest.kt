@@ -32,6 +32,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
@@ -245,6 +246,7 @@ class StandByOverTest {
             kid = false,
             optIn = false,
             playKey = PlayKey("test"),
+            floor = NO_FLOOR,
         )
 
     @Test

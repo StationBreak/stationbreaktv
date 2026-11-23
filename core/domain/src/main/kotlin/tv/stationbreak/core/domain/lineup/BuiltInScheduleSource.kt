@@ -26,8 +26,10 @@ import tv.stationbreak.core.domain.WalkClock
 import tv.stationbreak.core.domain.lineup.repair.TodayRepairs
 import tv.stationbreak.core.domain.lineup.repair.programId
 import tv.stationbreak.core.engine.ExtrasFilter
+import tv.stationbreak.core.engine.lineup.ChannelFloors
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.Lineup
+import tv.stationbreak.core.engine.lineup.StarterCatalogView
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -366,7 +368,7 @@ class BuiltInScheduleSource(
     override suspend fun airings(at: Instant): List<ChannelAiring> =
         withContext(dispatcher) {
             val (account, chosen) = signedIn() ?: return@withContext emptyList()
-            channelDays(account, chosen, at).map { it.airing(at.toEpochMilliseconds()) }
+            channelDays(account, chosen, at).map { it.airing(at.toEpochMilliseconds(), service.catalog) }
         }
 
     // The account and its saved selection, read together once per call; null with no account or nothing chosen.
@@ -473,7 +475,7 @@ class BuiltInScheduleSource(
             laid.mapIndexed { i, (today, builtUntilMs, blocks) ->
                 // A row that stops short of the window (or of what is built) lacks a day: not built, kept or laid out.
                 if ((blocks.lastOrNull()?.block?.endMs ?: fromMs) < minOf(untilMs, builtUntilMs)) complete = false
-                ChannelRow(today.airing(fromMs), named[i], builtUntilMs)
+                ChannelRow(today.airing(fromMs, service.catalog), named[i], builtUntilMs)
             }
         return ScheduleWindow(rows, complete)
     }
@@ -593,7 +595,7 @@ class BuiltInScheduleSource(
         // A fill splits a block in pieces: what is on air is the piece that holds `at`, and only what follows it.
         val first = airings.indexOfFirst { atMs < it.endMs }.coerceAtLeast(0)
         val ahead = airings.drop(first)
-        return ChannelOnAir(today.airing(atMs), ahead.first(), ahead.drop(1).take(next), builtUntilMs)
+        return ChannelOnAir(today.airing(atMs, service.catalog), ahead.first(), ahead.drop(1).take(next), builtUntilMs)
     }
 
     /** A block of a day's layout with the day it belongs to (its pool is what fills it, if it is gone). */
@@ -1379,16 +1381,19 @@ internal object ThreadCpu {
 }
 
 // The day as it airs at [atMs]: its hidden reason is the record's from a repair's pin end ([ChannelDay.hiddenAt]).
-private fun ChannelDay.airing(atMs: Long) =
-    ChannelAiring(
-        id = channel.id,
-        number = checkNotNull(channel.number),
-        name = name,
-        epochStart = Instant.fromEpochMilliseconds(epochStartMs),
-        hidden = hiddenAt(atMs),
-        ceilingRank = ceilingRank,
-        recipeKey = channel.source.recipeKey(),
-    )
+private fun ChannelDay.airing(
+    atMs: Long,
+    catalog: StarterCatalogView,
+) = ChannelAiring(
+    id = channel.id,
+    number = checkNotNull(channel.number),
+    name = name,
+    epochStart = Instant.fromEpochMilliseconds(epochStartMs),
+    hidden = hiddenAt(atMs),
+    ceilingRank = ceilingRank,
+    recipeKey = channel.source.recipeKey(),
+    floor = ChannelFloors.of(channel, catalog),
+)
 
 private fun ScheduleBlock.toAiring(info: Map<CanonicalId, ProgramInfo>): AiringBlock =
     when (val c = content) {

@@ -7,6 +7,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.AiringBlock
 import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelRow
@@ -29,7 +30,7 @@ class GuideModelTest {
     ) = ScheduleWindow(
         listOf(
             ChannelRow(
-                ChannelAiring(CH5, 5, "Test Channel 5", Instant.fromEpochMilliseconds(T0), null),
+                ChannelAiring(CH5, 5, "Test Channel 5", Instant.fromEpochMilliseconds(T0), null, floor = NO_FLOOR),
                 blocks.toList(),
                 T0 + 48 * 60 * MIN,
             ),
@@ -170,7 +171,15 @@ class GuideModelTest {
         name: String,
         recipeKey: String? = null,
     ) = ChannelRow(
-        ChannelAiring(ChannelId(id), number, name, Instant.fromEpochMilliseconds(T0), null, recipeKey = recipeKey),
+        ChannelAiring(
+            ChannelId(id),
+            number,
+            name,
+            Instant.fromEpochMilliseconds(T0),
+            null,
+            recipeKey = recipeKey,
+            floor = NO_FLOOR,
+        ),
         listOf(program(0, 120, 1)),
         T0 + 48 * 60 * MIN,
     )

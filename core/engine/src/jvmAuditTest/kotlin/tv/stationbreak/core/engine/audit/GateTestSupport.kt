@@ -39,7 +39,7 @@ internal object GateTestSupport {
                 .mapNotNull { (it.source as? ChannelSource.Starter)?.recipeKey }
         val keys = StarterCatalog.recipes.filter { !it.optIn && it.key !in on }.map { it.key }
         val optIn = if (case.afterHours) listOf(AdultMark.AFTER_HOURS_KEY) else emptyList()
-        return PlannedLineup.of(snapshot, names, Viewer(keys + optIn, emptyList()))
+        return PlannedLineup.of(snapshot, names, Viewer(keys + optIn, case.customs))
     }
 
     /** The everything-on pass of [case] as a view, for a test that breaks it on purpose. */

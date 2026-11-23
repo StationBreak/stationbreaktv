@@ -148,12 +148,16 @@ class ExplicitPoolTest {
         assertTrue(teenBand.all { it !in controls && it !in explicit && it != noMetadata })
         assertEquals(setOf(family), leftovers("PG", PoolPolicy.GrownUp), "Odds & Ends 66")
         assertTrue(teen in leftovers("TV-14", PoolPolicy.GrownUp), "Odds & Ends 99")
-        // A custom channel has no hidden filters: the same ceiling there is the ladder alone.
+        // A custom channel under a young ceiling follows its band's tier limit (#1108); with no ceiling, or a higher
+        // one, it has no hidden filters.
         val ecchi =
             SyntheticAdultSlice.CONTROLS
                 .single { it.title == "Synthetic TV-14 Ecchi Anime" }
                 .entry.item.id
-        assertTrue(ecchi in broad("TV-14", PoolPolicy.Custom), "a custom channel keeps no hidden filters")
+        assertTrue(ecchi !in broad("TV-14", PoolPolicy.Custom), "a custom TV-14 channel follows the Teen band")
+        assertEquals(teenBand, broad("TV-14", PoolPolicy.Custom), "and airs what that band's pool airs")
+        assertEquals(familyBand, broad("PG", PoolPolicy.Custom), "a custom PG channel, the Family band's")
+        assertTrue(ecchi in broad("R", PoolPolicy.Custom), "a custom channel above TV-14 keeps no hidden filters")
         assertTrue(explicit.any { it in broad(null, PoolPolicy.Custom) }, "nor drops Explicit titles")
     }
 

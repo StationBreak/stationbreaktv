@@ -240,7 +240,7 @@ internal class PlannedLineup(
                 LineupChannel(
                     id = ChannelId("custom:${i + 1}"),
                     defaultNumber = null,
-                    numberOverride = FIRST_CUSTOM_NUMBER + i,
+                    numberOverride = custom.number ?: (FIRST_CUSTOM_NUMBER + i),
                     nameOverride = custom.name,
                     state = ChannelState.On,
                     source = ChannelSource.Custom(custom.rules),

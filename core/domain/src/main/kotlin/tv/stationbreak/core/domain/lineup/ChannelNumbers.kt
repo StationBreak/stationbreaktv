@@ -50,7 +50,8 @@ enum class BandNeeded(
             when (band) {
                 Band.Family -> Family
                 Band.Teen -> Teen
-                else -> General
+                Band.General, Band.Drama, Band.Genre, Band.World, Band.Premium, Band.Seasonal -> General
+                Band.Kids -> error("a channel never needs the kids band: a kid channel may use any number")
             }
     }
 }

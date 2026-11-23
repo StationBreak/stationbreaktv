@@ -22,15 +22,18 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   only family titles, and one numbered 67 to 99 only family and teen titles, wherever its number came from: a
   built-in channel you move there follows the same rule. A title with nudity, sexual or adult keywords, or a rating
   above TV-14, stays off them even when its rating would fit. After Hours can't be given a number below 100. This
-  promise covers the built-in channels; your own channels keep no hidden filters at any number above 33.
+  promise covers the built-in channels, and your own channels with a PG or TV-14 limit (see below); your own channels with no limit, or a higher one, keep no hidden filters at any number above 33.
 - **When in doubt, the app moves a title up.** NC-17 counts as explicit, and so does an explicit keyword on a
   mainstream film, so a few well-known films leave the regular channels for After Hours. Keywords that only describe
   a plot about the adult industry don't count.
 - **Titles with no information stay out of Odds & Ends.** A title with no rating, no genre and no keyword is kept off
   the Tots, Kids and Teens channels and out of Odds & Ends (199). It can still air on a grown-up channel whose own
   sources pick it, such as a collection.
-- **Your own channels air what you choose.** A custom channel outside the Tots numbers has no hidden filters. If you
-  turn on **Tots channel** in the builder, it gets the Tots rules above.
+- **Your own channels air what you choose.** A custom channel outside the Tots numbers has no hidden filters, with one
+  exception: a channel whose rating limit is PG or lower follows the Kids rules, and one whose limit is TV-14 or lower
+  follows the Teens rules, since the app numbers it in those bands. Titles with a horror, violence or adult keyword stay
+  off it even when the rating would fit. A channel with a higher limit, or none, is unchanged. If you turn on
+  **Tots channel** in the builder, it gets the Tots rules above.
 - **Copies of After Hours stay adult.** A copy of After Hours is always an adult channel. You aren't asked, and you
   can't choose otherwise or change it later. Copying After Hours is only for Pro, as any change to a built-in channel
   is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.

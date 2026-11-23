@@ -38,7 +38,7 @@ class KidsLockedChannelRepository(
 
     private fun allowed(lists: Flow<List<ChannelSummary>>): Flow<List<ChannelSummary>> =
         combine(lists, lock.filter()) { list, state ->
-            if (state.enabled) list.filter { state.allows(it.number) } else list
+            if (state.enabled) list.filter { state.allows(it.number, it.floor) } else list
         }
 }
 
@@ -60,7 +60,7 @@ class KidsLockedScheduleSource(
         next: Int,
     ): ChannelOnAir? {
         val state = state()
-        return delegate.onAir(channel, at, next)?.takeIf { state.allows(it.channel.number) }
+        return delegate.onAir(channel, at, next)?.takeIf { state.allows(it.channel.number, it.channel.floor) }
     }
 
     override suspend fun standIns(
@@ -71,15 +71,15 @@ class KidsLockedScheduleSource(
         val state = state()
         if (state.enabled) {
             val at = Instant.fromEpochMilliseconds(block.startMs)
-            val number = delegate.airings(at).firstOrNull { it.id == channel }?.number
-            if (!state.allows(number)) return emptyList()
+            val airing = delegate.airings(at).firstOrNull { it.id == channel }
+            if (!state.allows(airing?.number, airing?.floor ?: NO_FLOOR)) return emptyList()
         }
         return delegate.standIns(channel, block, exclude)
     }
 
     override suspend fun airings(at: Instant): List<ChannelAiring> {
         val state = state()
-        return delegate.airings(at).filter { state.allows(it.number) }
+        return delegate.airings(at).filter { state.allows(it.number, it.floor) }
     }
 
     override suspend fun schedule(
@@ -89,6 +89,7 @@ class KidsLockedScheduleSource(
     ): ScheduleWindow? {
         val state = state()
         val window = delegate.schedule(from, until, build) ?: return null
-        return if (state.enabled) window.copy(rows = window.rows.filter { state.allows(it.channel.number) }) else window
+        val shown = window.rows.filter { state.allows(it.channel.number, it.channel.floor) }
+        return if (state.enabled) window.copy(rows = shown) else window
     }
 }

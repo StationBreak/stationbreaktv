@@ -9,13 +9,15 @@ import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.LineupIds
 import tv.stationbreak.core.engine.lineup.StarterCatalog
 import tv.stationbreak.core.rules.AdultMark
 
 /**
  * One fixture run of the gate: the snapshot file [file] (in the fixtures folder), whether the fixture opts After Hours
  * in, the most leftover hours it may hold before the warnings say so ([leftoverCapHours], null for no cap) and whether
- * it is the kids fixture ([kidsHomes]: a kids-band themed channel must have homes). Several cases may share a file.
+ * it is the kids fixture ([kidsHomes]: a kids-band themed channel must have homes), and the [customs] the viewer has
+ * built, with the numbers they hold. Several cases may share a file.
  */
 internal class GateCase(
     val key: String,
@@ -23,6 +25,7 @@ internal class GateCase(
     val afterHours: Boolean = false,
     val leftoverCapHours: Int? = null,
     val kidsHomes: Boolean = false,
+    val customs: List<CustomChannel> = emptyList(),
 )
 
 /** What one case produced: the deterministic [report] (the golden), the hard-fail [violations] and the [warnings]. */
@@ -60,9 +63,10 @@ internal object LineupGate {
                 .map { (it.source as ChannelSource.Starter).recipeKey }
                 .sorted()
         val optIn = if (case.afterHours) listOf(AdultMark.AFTER_HOURS_KEY) else emptyList()
-        val standard = if (optIn.isEmpty()) base else PlannedLineup.of(snapshot, names, Viewer(optIn, emptyList()))
+        val ownChoice = optIn.isEmpty() && case.customs.isEmpty()
+        val standard = if (ownChoice) base else PlannedLineup.of(snapshot, names, Viewer(optIn, case.customs))
         val everyKey = StarterCatalog.recipes.filter { !it.optIn && it.key !in picks }.map { it.key }
-        val everything = PlannedLineup.of(snapshot, names, Viewer(everyKey + optIn, emptyList()))
+        val everything = PlannedLineup.of(snapshot, names, Viewer(everyKey + optIn, case.customs))
 
         val top = LinkedHashMap<String, JsonElement>()
         top["case"] = JsonPrimitive(case.key)
@@ -89,7 +93,7 @@ internal object LineupGate {
     ) {
         private val runtime = view.snapshot.items.associate { it.item.id to it.item.runtimeMs }
         private val titles = view.snapshot.items.associate { it.item.id to it.item.groupId }
-        private val onStarters = view.channels.filter { !it.leftovers }
+        private val onStarters = view.channels.filter { !it.leftovers && !LineupIds.isCustom(it.id) }
 
         fun hours(c: GateChannel): Double = tenths(c.items.sumOf { runtime.getValue(it.id) } / MS_PER_HOUR)
 

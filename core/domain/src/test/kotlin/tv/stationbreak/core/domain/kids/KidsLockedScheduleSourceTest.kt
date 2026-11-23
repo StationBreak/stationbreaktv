@@ -86,4 +86,29 @@ class KidsLockedScheduleSourceTest {
             val first = locked.firstOnAir(now) { visible -> visible.sortedByDescending { it.number } }
             assertEquals(33, first?.channel?.number)
         }
+
+    // A stored lineup not yet moved up (#1097): numbered inside the cap but below its floor, it stays hidden and
+    // cannot be tuned by id. A channel at or above its floor is unaffected, and the lock off shows everything.
+    @Test
+    fun aChannelBelowItsFloorIsHiddenAndUntunableWhateverItsNumber() =
+        runTest {
+            val adult = ChannelId("adult-40")
+            val teens = ChannelId("teens-40")
+            val placed = ChannelId("placed-40")
+            schedule.channel(adult, 40, listOf(program(0, 60, 40))).floor = 100
+            schedule.channel(teens, 40, listOf(program(0, 60, 41))).floor = 67
+            schedule.channel(placed, 41, listOf(program(0, 60, 42))).floor = 34
+            for (cap in listOf(KidsCap.Family, KidsCap.Teen)) {
+                lock.lock(cap)
+                val teen = if (cap == KidsCap.Teen) listOf(67, 99) else emptyList()
+                assertEquals(listOf(1, 33, 34, 41, 66) + teen, airing().sorted())
+                assertNull(locked.onAir(adult, now, 1), "adult at 40, $cap")
+                assertNull(locked.onAir(teens, now, 1), "teens at 40, $cap")
+                assertNotNull(locked.onAir(placed, now, 1), "placed at 41, $cap")
+                assertTrue(locked.standIns(adult, locked.onAir(placed, now, 1)!!.now, emptySet()).isEmpty())
+            }
+            lock.unlock()
+            assertNotNull(locked.onAir(adult, now, 1))
+            assertTrue(airing().contains(40))
+        }
 }

@@ -28,6 +28,7 @@ import tv.stationbreak.core.domain.details.ProgramDetailsCache
 import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
 import tv.stationbreak.core.domain.kids.KidsLockedScheduleSource
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
@@ -453,6 +454,7 @@ class FakeChannels : ChannelRepository {
                     kid = false,
                     optIn = false,
                     playKey = PlayKey("test"),
+                    floor = NO_FLOOR,
                 )
             } +
             notOn.map { (id, off) ->
@@ -468,6 +470,7 @@ class FakeChannels : ChannelRepository {
                     kid = false,
                     optIn = false,
                     playKey = PlayKey("test"),
+                    floor = NO_FLOOR,
                 )
             }
     }

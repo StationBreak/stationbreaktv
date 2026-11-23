@@ -14,6 +14,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLock
 import tv.stationbreak.core.domain.kids.KidsLockState
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.kids.PinResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH7
 
@@ -199,8 +200,8 @@ class GuideKidsLockTest : GuideRig() {
             kidsLock.lock(KidsCap.Family)
             runCurrent()
             assertEquals(KidsCap.Family, vm.kidsState.value?.cap)
-            assertTrue(vm.kidsState.value?.allows(40) == true)
-            assertFalse(vm.kidsState.value?.allows(70) == true)
+            assertTrue(vm.kidsState.value?.allows(40, NO_FLOOR) == true)
+            assertFalse(vm.kidsState.value?.allows(70, NO_FLOOR) == true)
         }
 
     @Test

@@ -11,7 +11,9 @@ sealed interface PoolPolicy {
 
     /**
      * A custom channel outside the Kids band: the rules-format evaluation, except that under a ceiling `Approved` is
-     * unrated and fails it (`kid-hold-6`, ADR-0028).
+     * unrated and fails it (`kid-hold-6`, ADR-0028), and under a young ceiling (PG or TV-14 or less) only that band's
+     * tiers ([GrownUpHold.tierLimit], #1108, `grown-up-hold-9`): the channel airs what a built-in channel of the band
+     * it is numbered in airs. Its sources and filters stay its own, and it keeps the kids tier.
      */
     data object Custom : PoolPolicy
 

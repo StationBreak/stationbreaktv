@@ -33,7 +33,9 @@ import tv.stationbreak.core.rules.Source
  * ladder (ADR-0019). Under [PoolPolicy.GrownUp] it must not be something a kid channel could take
  * ([GrownUpHold.dropsFromGrownUp]: the kids tier, counted in `madeForKidsOut`, or the Explicit tier, counted in
  * `blockedByCeiling`); the ladder applies as usual (ADR-0020), and under a young ceiling so does its tier limit
- * ([GrownUpHold.tierLimit], #1078; a title above it is `blockedByCeiling`). Under [PoolPolicy.ExplicitOnly] (After
+ * ([GrownUpHold.tierLimit], #1078; a title above it is `blockedByCeiling`). Under [PoolPolicy.Custom] with a young
+ * ceiling that tier limit applies too, and nothing else of the grown-up hold (#1108, `grown-up-hold-9`). Under
+ * [PoolPolicy.ExplicitOnly] (After
  * Hours, #1078) every Explicit title counts as matched by a source (it is not in `matchedBySource`), and then the
  * kids tier is dropped as under [PoolPolicy.GrownUp]. This is the app's narrowing, not rules-format behaviour: rules
  * format v1 knows nothing of it, and [PoolPolicy.Open] is exactly the evaluation above.
@@ -154,8 +156,15 @@ object PoolEvaluator {
             series: RuleSeries?,
         ) {
             when (policy) {
-                PoolPolicy.Open, PoolPolicy.Custom -> {
+                PoolPolicy.Open -> {
                     admit(entry, series)
+                }
+
+                // A custom channel under a young ceiling (PG or TV-14 or less) airs what that band's built-in channels
+                // air: its tier limit applies (#1108), so PG-rated horror or a gore tag stays out as it does from the
+                // Family band. Above that, or with no ceiling, it is open.
+                PoolPolicy.Custom -> {
+                    admit(entry, series, if (tierLimit < RatingTier.Adult) RatingTier.of(entry, series) else null)
                 }
 
                 PoolPolicy.KidsOnly -> {

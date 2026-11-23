@@ -6,6 +6,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ServerId
 import tv.stationbreak.core.model.UserId
@@ -65,6 +66,7 @@ class ActiveChannelsTest {
             kid = false,
             optIn = false,
             playKey = PlayKey("test"),
+            floor = NO_FLOOR,
         )
 
         val list =
@@ -109,6 +111,7 @@ class ActiveChannelsTest {
             kid = false,
             optIn = false,
             playKey = PlayKey("test"),
+            floor = NO_FLOOR,
         )
         // 7 was playing and was deleted; 8 is on the shelf and 9 is hidden, so the next on the air above is 12.
         val list =

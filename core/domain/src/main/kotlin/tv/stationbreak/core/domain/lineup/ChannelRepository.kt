@@ -95,6 +95,8 @@ data class ChannelSummary(
      * that: a starter whose recipe left the catalog is [ChannelKind.Custom] but still the planner's (#805).
      */
     val viewerMade: Boolean = kind == ChannelKind.Custom,
+    /** The lowest number the channel may have (`ChannelFloors`, #1097), for Kids Mode. Always given. */
+    val floor: Int,
 )
 
 /**

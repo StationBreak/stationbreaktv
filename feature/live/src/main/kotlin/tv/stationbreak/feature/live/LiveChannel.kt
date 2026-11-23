@@ -47,6 +47,7 @@ import tv.stationbreak.core.domain.lineup.ChannelAiring
 import tv.stationbreak.core.domain.lineup.ChannelOnAir
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelStatus
+import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.FIRST_LINEUP_WAIT
 import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.FirstLineupState
@@ -683,7 +684,7 @@ class LiveChannel(
                 val now = clock.now()
                 list.filter { it.state == ChannelStatus.On && it.number != null && it.onSince <= now }
             }.first { it.isNotEmpty() }
-            .map { ChannelAiring(it.id, checkNotNull(it.number), it.name, it.onSince, null) }
+            .map { it.toEarlyAiring() }
 
     /** Where a sitting lands: the account, the channel with what is on it, and a kept place to return to on it. */
     private data class Landing(
@@ -894,7 +895,7 @@ private suspend fun followKidsLock(
 ) {
     lock?.collect { state ->
         val now = playing()
-        if (now != null && !state.allows(now.number)) hidden()
+        if (now != null && !state.allows(now.number, now.floor)) hidden()
     }
 }
 
@@ -932,3 +933,12 @@ private fun firstOpenGroup(ceilingRank: Int?): Int =
         ceilingRank != null && ceilingRank < ChannelAiring.PG_TIER -> 1
         else -> 2
     }
+
+/**
+ * A lineup entry as the early lineup and the channel card use it before a day is built: the channel's own floor goes
+ * with it, so Kids Mode decides on the channel and not on its number alone (#1108).
+ */
+internal fun ChannelSummary.toEarlyAiring(): ChannelAiring {
+    val shown = checkNotNull(number)
+    return ChannelAiring(id, shown, name, onSince, hidden = null, floor = floor)
+}

@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.kids.FakeKidsLock
 import tv.stationbreak.core.domain.kids.KidsCap
 import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.domain.store.FakeStoreEntitlement
 import tv.stationbreak.core.domain.store.InMemoryProCache
 import tv.stationbreak.core.domain.store.StoreBackedPro
@@ -245,7 +246,7 @@ class ProRefundTest {
         runBlocking<Unit> {
             seed()
             library.useAccount(ACCOUNT)
-            val airings = (1..total).map { ChannelAiring(id(it), 600 + it, "C$it", NOON, null) }
+            val airings = (1..total).map { ChannelAiring(id(it), 600 + it, "C$it", NOON, null, floor = NO_FLOOR) }
             val source = ProLockedScheduleSource(AiringsOnly(airings), ProLockedIds(pro, library, service))
 
             assertEquals(total, source.airings(NOON).size)

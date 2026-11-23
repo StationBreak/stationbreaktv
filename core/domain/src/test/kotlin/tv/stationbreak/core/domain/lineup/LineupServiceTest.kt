@@ -13,6 +13,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.domain.kids.NO_FLOOR
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -588,6 +589,7 @@ class LineupServiceTest {
                     optIn = false,
                     playKey = toons.playKey,
                     recipeKey = "toons",
+                    floor = NO_FLOOR,
                 )
             assertEquals(expected, toons)
             val odds = summaries.first { it.id == LineupIds.leftovers("odds-and-ends") }
