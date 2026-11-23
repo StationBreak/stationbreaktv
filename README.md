@@ -25,6 +25,7 @@ Turn your Jellyfin library into always-on, flip-through broadcast channels on Fi
 | [ADRs](docs/adr/) | Architecture decision records |
 | [Install a CI build](docs/testing/install-ci-apk.md) | For testers: download a CI APK and install it on a Fire TV over ADB |
 | [Playback matrix](docs/compatibility/playback-matrix.md) | What the player did with a spread of files on real Fire TV devices, measured on device |
+| [Remote keys](docs/remote-keys/README.md) | What Back and Select do on each screen, with a phone-sized chart per area |
 
 The playback matrix is produced by the tooling in `scripts/playback-matrix/`.
 

@@ -1,0 +1,23 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  subgraph row1[" "]
+    direction LR
+    sheetBack["Settings"] -->|"Back"| guide["Guide"]
+  end
+  subgraph row2[" "]
+    direction LR
+    sheetPin["Settings"] -->|"Select"| pin["PIN pad"]
+  end
+  subgraph row3[" "]
+    direction LR
+    pinBack["PIN pad"] -->|"Back"| sheet["Settings"]
+  end
+  subgraph row4[" "]
+    direction LR
+    askBack["Sign out?"] -->|"Back or Stay"| stay["Settings"]
+  end
+  subgraph row5[" "]
+    direction LR
+    askGo["Sign out?"] -->|"Select Sign out"| server["Server screen"]
+  end
+  row1 ~~~ row2 ~~~ row3 ~~~ row4 ~~~ row5

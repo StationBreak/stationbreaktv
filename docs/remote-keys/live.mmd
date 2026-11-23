@@ -1,0 +1,23 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  subgraph row1[" "]
+    direction LR
+    pictureBack["Picture"] -->|"Back"| guide["Guide"]
+  end
+  subgraph row2[" "]
+    direction LR
+    pictureSelect["Picture"] -->|"Select"| banner["Banner"]
+  end
+  subgraph row3[" "]
+    direction LR
+    bannerBack["Banner"] -->|"Back"| picture["Picture"]
+  end
+  subgraph row4[" "]
+    direction LR
+    bannerInfo["Banner"] -->|"Select Info"| info["Program info"]
+  end
+  subgraph row5[" "]
+    direction LR
+    infoBack["Program info"] -->|"Back"| bannerAgain["Banner"]
+  end
+  row1 ~~~ row2 ~~~ row3 ~~~ row4 ~~~ row5

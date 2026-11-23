@@ -1,0 +1,213 @@
+flowchart TD
+  exitApp["Activity finishes"]
+
+  subgraph covers [Covers over the whole graph]
+    opening["Stan opening"]
+    cheerCover["Cheer still over live TV"]
+  end
+
+  subgraph setup [Onboarding]
+    launch["Launch: routing"]
+    launchFail["Launch: unavailable"]
+    welcome["Welcome"]
+    server["Server address"]
+    serverTest["Server: testing"]
+    serverOk["Server: connected"]
+    serverFail["Server: failed"]
+    cleartext["Cleartext dialog"]
+    trust["Trust dialog"]
+    signIn["Sign-in form"]
+    qc["Quick Connect"]
+    libs["Library picker"]
+    signed["Signed in as"]
+    sync["First sync: progress"]
+    syncFail["First sync: failed"]
+    cheer["First sync: cheer"]
+  end
+
+  subgraph live [Live TV]
+    picture["Picture, no overlay"]
+    paused["Paused, no overlay"]
+    banner["Actions banner"]
+    info["Program info"]
+    picker["Track picker"]
+  end
+
+  subgraph guide [Guide]
+    gLoad["Guide loading"]
+    gCell["Grid cell, not the one on now"]
+    gNow["Playing cell on now"]
+    gChan["Channel column"]
+    gMenu["Menu opened with Menu"]
+    gMenuBack["Menu opened with Back, or no libraries"]
+    gEmpty["Guide empty"]
+    gNote["First-visit note"]
+  end
+
+  subgraph chans [Channels, properties, builder]
+    list["Channel list"]
+    sheet["Properties sheet"]
+    panel["Actions, confirm, swap, or Pro note"]
+    number["Channel-number digits"]
+    message["Message line"]
+    builder["Channel builder"]
+    bConfirm["Builder confirm"]
+    bType["Builder text field"]
+    proNote["Pro screen from a note"]
+  end
+
+  subgraph sets [Settings over the guide]
+    settings["Settings sheet"]
+    pin["Kids PIN pad"]
+    reset["PIN reset"]
+    hoursList["Hours list"]
+    hoursEdit["Hours editor"]
+    hoursLock["Hours: no Pro or no PIN"]
+    setLibs["Settings libraries"]
+    signOut["Sign out?"]
+    signBusy["Signing out"]
+    pro["Pro or Support"]
+  end
+
+  opening -->|"Back, launch not ready"| exitApp
+  opening -->|"Back or any other key, launch ready"| launch
+  opening -->|"Select or other key, launch not ready"| opening
+  cheerCover -->|"Back or any other key"| picture
+
+  launch -->|"routes itself; not a stop"| welcome
+  launchFail -->|"Back"| exitApp
+  launchFail -->|"Select Retry"| launch
+  launchFail -->|"Select Change server"| server
+
+  welcome -->|"Back, only screen"| exitApp
+  welcome -->|"Select Get started"| server
+  server -->|"Back, Welcome underneath"| welcome
+  server -->|"Back, only screen"| exitApp
+  server -->|"Select address field"| server
+  server -->|"Select Test"| serverTest
+  serverTest -->|"Back"| welcome
+  serverTest -->|"Select Cancel"| server
+  server -->|"test needs cleartext"| cleartext
+  server -->|"test needs trust"| trust
+  cleartext -->|"Back or Select Cancel"| server
+  cleartext -->|"Select Continue"| serverTest
+  trust -->|"Back or Select Don't trust"| server
+  trust -->|"Select Trust"| serverTest
+  serverOk -->|"Select Continue"| signIn
+  serverFail -->|"Select Retry"| serverTest
+  serverFail -->|"Select Edit address"| server
+
+  signIn -->|"Back, server underneath"| server
+  signIn -->|"Back, sign-in is the only screen"| server
+  signIn -->|"Select Sign in"| signIn
+  signIn -->|"Select Quick Connect"| qc
+  signIn -->|"signed in"| libs
+  qc -->|"Back or Select Cancel"| signIn
+  libs -->|"Back, not while saving"| signed
+  libs -->|"Back while saving"| libs
+  libs -->|"Select a library or collections"| libs
+  libs -->|"Select Done"| sync
+  signed -->|"Back"| exitApp
+  signed -->|"Select Continue"| libs
+  signed -->|"Select Switch user"| signIn
+  sync -->|"Back"| exitApp
+  sync -->|"sync failed"| syncFail
+  syncFail -->|"Back"| exitApp
+  syncFail -->|"Select Retry"| sync
+  sync -->|"channels on the air"| cheer
+  cheer -->|"Back, Select, or any other key on release"| cheerCover
+
+  picture -->|"Back"| gLoad
+  picture -->|"Select Center or Enter"| banner
+  picture -->|"Up or Down"| picture
+  paused -->|"Select Center or Enter"| picture
+  paused -->|"Left or Right"| paused
+  paused -->|"Back"| gLoad
+  banner -->|"Back"| picture
+  banner -->|"Select Info"| info
+  banner -->|"Select Last"| picture
+  banner -->|"Select Live, when paused or behind"| picture
+  banner -->|"Select a chip"| picker
+  info -->|"Back"| banner
+  info -->|"Select"| info
+  info -->|"Up or Down, overview overflows"| info
+  picker -->|"Back"| banner
+  picker -->|"Select a row"| banner
+
+  gNote -->|"any fresh key, then that key"| gCell
+  gLoad -->|"Back, libraries exist, no menu"| exitApp
+  gLoad -->|"grid ready"| gCell
+  gEmpty -->|"Back"| gMenuBack
+  gCell -->|"Back"| gNow
+  gNow -->|"Back"| gMenuBack
+  gChan -->|"Back"| gCell
+  gChan -->|"Select, Kids Mode off"| sheet
+  gCell -->|"Select on a program, or a slate on now"| picture
+  gCell -->|"Select on a slate not on now"| gCell
+  gMenu -->|"Back or Menu"| gCell
+  gMenu -->|"Select About or Channels, Kids Mode on"| gMenu
+  gMenu -->|"Select About"| sheet
+  gMenu -->|"Select Channels"| list
+  gMenu -->|"Select Settings"| settings
+  gMenu -->|"Select Exit"| exitApp
+  gMenuBack -->|"Back"| exitApp
+  gMenuBack -->|"Select Exit"| exitApp
+  gMenuBack -->|"Select Settings"| settings
+  gMenuBack -->|"Select Channels"| list
+
+  list -->|"Back"| gCell
+  list -->|"Select a row"| panel
+  list -->|"Select New, Copy, or Edit"| builder
+  list -->|"Select Use my collections"| list
+  list -->|"Select Reset"| panel
+  sheet -->|"Back, nothing else open"| gCell
+  sheet -->|"Select an action"| panel
+  sheet -->|"Select Watch"| picture
+  panel -->|"Back"| list
+  panel -->|"Select Cancel"| list
+  panel -->|"Select See Pro"| proNote
+  panel -->|"Select Change number"| number
+  number -->|"Back"| panel
+  number -->|"Select, number above 0"| list
+  number -->|"Select on 000"| number
+  message -->|"Back"| list
+  proNote -->|"Back"| panel
+  builder -->|"Back from first page, clean"| list
+  builder -->|"Back from first page, dirty"| bConfirm
+  builder -->|"Back from a later page"| builder
+  builder -->|"Select Save"| list
+  builder -->|"Select Save and watch"| picture
+  bConfirm -->|"Back"| builder
+  bConfirm -->|"Select keep"| builder
+  bConfirm -->|"Select yes on Leave"| list
+  builder -->|"Select a text row"| bType
+  bType -->|"Back"| builder
+
+  settings -->|"Back"| gCell
+  settings -->|"Select a choice row"| settings
+  settings -->|"Select Kids Mode or Change PIN"| pin
+  settings -->|"Select Hours"| hoursList
+  settings -->|"Select Libraries, Kids Mode off"| setLibs
+  settings -->|"Select Update library"| settings
+  settings -->|"Select Pro or Support"| pro
+  settings -->|"Select Sign out, Kids Mode off"| signOut
+  settings -->|"Select a row Kids Mode locked"| settings
+  pin -->|"Back"| settings
+  pin -->|"Select a digit, or a number key"| pin
+  pin -->|"Select Forgot"| reset
+  reset -->|"Back"| settings
+  reset -->|"Select when finished"| settings
+  hoursLock -->|"Back"| settings
+  hoursLock -->|"Select"| hoursLock
+  hoursList -->|"Back"| settings
+  hoursList -->|"Select a period or Add"| hoursEdit
+  hoursEdit -->|"Back"| hoursList
+  hoursEdit -->|"Select Save or Delete"| hoursList
+  setLibs -->|"Back"| settings
+  setLibs -->|"Select a row"| setLibs
+  signOut -->|"Back or Select Stay"| settings
+  signOut -->|"Select Sign out"| signBusy
+  signBusy -->|"Back or Select"| signBusy
+  signBusy -->|"finished"| server
+  pro -->|"Back"| settings
+  pro -->|"Select Buy or Restore"| pro
