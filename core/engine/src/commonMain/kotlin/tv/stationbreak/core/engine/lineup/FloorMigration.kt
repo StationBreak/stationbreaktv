@@ -32,6 +32,7 @@ internal object FloorMigration {
             val number =
                 firstFree(band.numbers.asSequence().filter { band != Band.General }, held)
                     ?: firstFree(LineupDefaults.CUSTOM_NUMBERS.asSequence(), held)
+                    ?: firstFree((band.numbers.first..LineupEdits.MAX_NUMBER).asSequence(), held)
                     ?: continue
             held += number
             moved[channel.id] = withNumber(channel, number)

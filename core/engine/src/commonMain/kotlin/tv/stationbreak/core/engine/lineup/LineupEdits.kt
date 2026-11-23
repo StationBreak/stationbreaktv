@@ -705,20 +705,6 @@ object LineupEdits {
         number: Int,
     ): Boolean = KidStatus.isKidChannel(channel) && !KidStatus.isKidChannel(channel.withNumber(number))
 
-    // Why the [holder] cannot take the edited channel's [old] number: a grown-up holder cannot go into the Kids band,
-    // and no holder goes below its floor (#1097; one message for a swap).
-    private fun holderRefusal(
-        holder: LineupChannel,
-        old: Int?,
-        holderIsKid: Boolean,
-        catalog: StarterCatalogView,
-    ): EditRefusal? =
-        when {
-            old == null -> null
-            old in Band.Kids.numbers && !holderIsKid -> EditRefusal.KidsBandOnly
-            else -> belowFloor(holder, old, catalog)
-        }
-
     // The holder takes the edited channel's old number, or one of its own bands' free ones if that had none.
     private fun swapped(
         lineup: Lineup,
@@ -729,7 +715,7 @@ object LineupEdits {
     ): EditOutcome {
         val old = channel.number
         val holderIsKid = KidStatus.isKidChannel(holder)
-        holderRefusal(holder, old, holderIsKid, catalog)?.let { return refused(it) }
+        if (old != null && old in Band.Kids.numbers && !holderIsKid) return refused(EditRefusal.KidsBandOnly)
         val moved = channel.withNumber(number)
         // Looking for the holder's number: the edited channel already has the new one, the holder keeps its default.
         val others =
@@ -742,13 +728,15 @@ object LineupEdits {
             }
         val holderNumber = old ?: FreeNumbers.lowest(others, holder, holderIsKid, catalog)
         val taken = holderNumber?.let { holder.withNumber(it) }
+        // The holder never goes below its floor, at the old number or at one found for it (#1097; one message).
+        val problem = if (holderNumber == null) EditRefusal.NoFreeNumber else belowFloor(holder, holderNumber, catalog)
         return when {
-            taken == null -> refused(EditRefusal.NoFreeNumber)
+            problem != null -> refused(problem)
 
             // A swap never changes the holder's kid status: a kid channel that would leave the band stays put.
-            holderIsKid && !KidStatus.isKidChannel(taken) -> refused(EditRefusal.KidsBandOnly)
+            holderIsKid && !KidStatus.isKidChannel(checkNotNull(taken)) -> refused(EditRefusal.KidsBandOnly)
 
-            else -> EditOutcome.Applied(replaced(lineup, moved, taken))
+            else -> EditOutcome.Applied(replaced(lineup, moved, checkNotNull(taken)))
         }
     }
 
@@ -801,12 +789,9 @@ private object FreeNumbers {
         channel: LineupChannel,
         catalog: StarterCatalogView,
     ): IntRange? =
-        when (val source = channel.source) {
+        when (channel.source) {
             is ChannelSource.Starter -> {
-                catalog.recipes
-                    .firstOrNull { it.key == source.recipeKey }
-                    ?.band
-                    ?.numbers
+                ChannelFloors.starterBand(channel, catalog)?.numbers
             }
 
             is ChannelSource.Leftovers -> {

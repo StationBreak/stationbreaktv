@@ -236,9 +236,11 @@ object LineupPlanner {
         p: Planning,
         userId: CanonicalId,
         withoutCollections: Boolean,
-        kept: List<LineupChannel>,
+        stored: List<LineupChannel>,
         setting: Lineup,
     ): Lineup {
+        // The viewer's own channels kept across a reset come in line with the band floors too (#1097).
+        val kept = FloorMigration.apply(stored, p.catalog)
         val unfinalised =
             Lineup(
                 p.serverId,

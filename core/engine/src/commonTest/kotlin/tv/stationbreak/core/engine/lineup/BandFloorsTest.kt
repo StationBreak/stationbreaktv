@@ -14,7 +14,11 @@ import kotlin.test.assertNotEquals
 /** #1097: no Adult channel below 100, no Teen below 67, no Family below 34; every number path, and the stored move. */
 class BandFloorsTest {
     private val kidKey = StarterCatalog.EVER_KID_SAFE_KEYS.first()
-    private val catalog = TestCatalog(listOf(recipeOf("western", 310)), retiredNumbers = setOf(100, 601))
+    private val catalog =
+        TestCatalog(
+            listOf(recipeOf("western", 310), recipeOf("family", 40), recipeOf("teen", 70)),
+            retiredNumbers = setOf(100, 601),
+        )
 
     private fun rulesOf(max: String? = null): ChannelRules = rules(listOf(Source.Genre("drama")), maxRating = max)
 
@@ -266,6 +270,32 @@ class BandFloorsTest {
     }
 
     @Test
+    fun aChannelWhoseBandAndTheCustomRangeAreFullStillMovesUpAboveItsFloor() {
+        val full = (67..99).map { custom("t$it", it, "TV-14") } + (600..899).map { custom("c$it", it) }
+        val offender = custom("low", 40, "TV-14")
+        val moved = FloorMigration.apply(full + offender, catalog).numberOf(offender)!!
+        assertEquals(true, moved >= 67 && moved != 100 && moved != 601, "$moved")
+    }
+
+    // A starter with no default number (its band was full at the first choice) is placed by its recipe's band.
+    @Test
+    fun aNumberlessStarterSwitchedOnIsHeldToItsRecipesBandFloor() {
+        val family = starter("family", null).copy(state = ChannelState.Shelf)
+        val teenOne = starter("teen", null).copy(state = ChannelState.Shelf)
+        val both = applied(lineupOf(family, teenOne), LineupEdit.SwitchOn(family.id))
+        val on = applied(both, LineupEdit.SwitchOn(teenOne.id))
+        assertEquals(34, on.numberOf(family))
+        assertEquals(67, on.numberOf(teenOne))
+        assertEquals(41, applied(on, LineupEdit.SetNumber(family.id, 41)).numberOf(family))
+        assertEquals(68, applied(on, LineupEdit.SetNumber(teenOne.id, 68)).numberOf(teenOne))
+        assertEquals(EditRefusal.KidsBandOnly, refusal(on, LineupEdit.SetNumber(family.id, 33)))
+        assertEquals(teen, refusal(on, LineupEdit.SetNumber(teenOne.id, 66)))
+        // The two swap numbers inside the safe bands without the Adult line: Family takes Teen's 67, Teen then 34.
+        val swap = LineupEdit.SetNumber(family.id, 67, swapWith = teenOne.id)
+        assertEquals(teen, refusal(on, swap), "the Teen channel would land at 34")
+    }
+
+    @Test
     fun aBandWithNoFreeNumberSendsTheChannelToTheCustomRange() {
         val full = (67..99).map { custom("t$it", it, "TV-14") }
         val offender = custom("low", 40, "TV-14")
@@ -300,6 +330,19 @@ class BandFloorsTest {
         val stored = first.copy(channels = first.channels + low)
         val next = planOf(stored, library, plain, nowMs = 2_000L)
         assertEquals(600, next.channels.first { it.id == low.id }.number)
-        assertEquals(next, planOf(next, library, plain, nowMs = 2_000L).copy(channels = next.channels), "once")
+        assertEquals(stored.channels.size, next.channels.size)
+        assertEquals(next.channels, planOf(next, library, plain, nowMs = 2_000L).channels, "once")
+        assertEquals(next.channels, planOf(next, library, plain, nowMs = 3_000L).channels, "and again later")
+    }
+
+    @Test
+    fun aResetKeepsTheViewersChannelsInLineWithTheFloors() {
+        val keys = listOf("alpha" to 110, "bravo" to 120, "charlie" to 210, "delta" to 310, "echo" to 410)
+        val plain = TestCatalog(keys.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true))
+        val library = libraryOf(keys.associate { it.first to 30 } + ("late" to 30))
+        val low = custom("low", 50)
+        val day = nextDayStart(1_000L)
+        val reset = LineupPlanner.plan(null, SERVER, USER, 0, library, NO_NAMES, 1_000L, day, plain, kept = listOf(low))
+        assertEquals(600, reset.channels.first { it.id == low.id }.number)
     }
 }

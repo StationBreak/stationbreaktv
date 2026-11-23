@@ -28,7 +28,7 @@ object ChannelFloors {
 
             KidStatus.isKidChannel(channel) -> Band.Kids
 
-            ChannelCeilings.isBuiltIn(channel) -> channel.defaultNumber?.let(::bandOfDefault) ?: Band.General
+            ChannelCeilings.isBuiltIn(channel) -> builtInNeeds(channel, catalog)
 
             channel.source is ChannelSource.Custom -> ownCustomNeeds(channel, catalog)
 
@@ -40,6 +40,22 @@ object ChannelFloors {
         channel: LineupChannel,
         catalog: StarterCatalogView,
     ): Int = needs(channel, catalog).numbers.first
+
+    // The catalog's band of the recipe (a starter, as `FreeNumbers` places it) or leftovers channel, so a channel
+    // with no default number still has its band; a retired one falls back to its default number, then General.
+    private fun builtInNeeds(
+        channel: LineupChannel,
+        catalog: StarterCatalogView,
+    ): Band {
+        val source = channel.source
+        val number =
+            when (source) {
+                is ChannelSource.Leftovers -> catalog.leftovers.firstOrNull { it.key == source.recipeKey }?.number
+                else -> null
+            }
+        val band = starterBand(channel, catalog)?.takeIf { it.young } ?: number?.let(::bandOfDefault)
+        return band ?: channel.defaultNumber?.let(::bandOfDefault) ?: Band.General
+    }
 
     // A custom channel marked adult (a copy of After Hours, #984).
     private fun isAdultCopy(channel: LineupChannel): Boolean {
@@ -59,6 +75,15 @@ object ChannelFloors {
             RatingTier.Teen -> Band.Teen
             else -> Band.General
         }
+
+    /** The band of the catalog recipe of a starter channel, null for any other or a retired one. */
+    internal fun starterBand(
+        channel: LineupChannel,
+        catalog: StarterCatalogView,
+    ): Band? {
+        val source = channel.source as? ChannelSource.Starter ?: return null
+        return catalog.recipes.firstOrNull { it.key == source.recipeKey }?.band
+    }
 
     // The young band a default number is in, else General (every band from 100 up shares the floor 100).
     private fun bandOfDefault(number: Int): Band = Band.of(number)?.takeIf { it.young } ?: Band.General
