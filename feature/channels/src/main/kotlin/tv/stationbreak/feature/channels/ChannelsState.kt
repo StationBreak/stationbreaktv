@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels
 
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.domain.lineup.MovedChannel
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderMode
@@ -90,6 +92,11 @@ internal sealed interface ChannelsPanel {
 /** A line the screen shows after something did not happen. */
 internal enum class ChannelsMessage {
     KidsBand,
+
+    /** The number is below the lowest band the channel may use (#1097): Family, Teen or Adult numbers and up. */
+    NeedsFamily,
+    NeedsTeen,
+    NeedsGeneral,
     LastOn,
     NoNumber,
     NotEditable,
@@ -107,6 +114,14 @@ internal enum class ChannelsMessage {
     /** The same for Default number: there is no number to pick again, so the note does not ask for one. */
     DefaultNumberTaken,
 }
+
+/** The line for a number below the lowest band [needs] a channel may use (#1097). */
+internal fun belowBandMessage(needs: BandNeeded): ChannelsMessage =
+    when (needs) {
+        BandNeeded.Family -> ChannelsMessage.NeedsFamily
+        BandNeeded.Teen -> ChannelsMessage.NeedsTeen
+        BandNeeded.General -> ChannelsMessage.NeedsGeneral
+    }
 
 /** Where the focus is, by identity, so it follows a row that moves group. */
 internal sealed interface ChannelsFocus {
@@ -137,6 +152,8 @@ internal data class ChannelsUi(
     val choosing: Boolean,
     val panel: ChannelsPanel?,
     val message: ChannelsMessage?,
+    /** The channels moved to their band's floor, one line each under the title, told once (#1097). */
+    val moved: List<MovedChannel> = emptyList(),
     val confirmingReset: Boolean,
     /** Which choice of the open panel (or of the reset question) is focused; see [choicesOf]. */
     val choice: Int = 0,

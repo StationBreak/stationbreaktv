@@ -29,6 +29,7 @@ internal enum class Rule(
     BandPromise("a channel numbered in a young band airs under that band's policy and ceiling"),
     NoMetadataInLeftovers("a title with no metadata at all is in no leftovers channel"),
     KidsBandEmpty("the kids fixture has a kids-band themed channel with homes"),
+    BelowFloor("no channel is numbered below the lowest number its content allows (Adult 100, Teen 67, Family 34)"),
 }
 
 /** One broken rule: where (a pass and a channel key) and what (an item or title ID, never a name). */
@@ -64,6 +65,7 @@ internal object GateInvariants {
         }
         for (channel in view.channels) {
             out += bandPromise(pass, channel)
+            out += belowFloor(pass, channel)
             // What airs on the day, and the whole pool behind it: a leak in the part the epoch cut leaves out counts.
             for (item in (channel.items + channel.pool).distinctBy { it.id }) {
                 out += itemRules(pass, channel, ctx, item.id)
@@ -156,6 +158,20 @@ internal object GateInvariants {
                 else -> true
             }
         return if (kept) emptyList() else listOf(Violation(Rule.BandPromise, pass, channel.key, "number $number"))
+    }
+
+    // #1097: a channel never sits below the floor `ChannelFloors` gives it, so no channel is in a lower band than its
+    // content allows.
+    private fun belowFloor(
+        pass: String,
+        channel: GateChannel,
+    ): List<Violation> {
+        val number = channel.number ?: return emptyList()
+        return if (number < channel.floor) {
+            listOf(Violation(Rule.BelowFloor, pass, channel.key, "number $number below ${channel.floor}"))
+        } else {
+            emptyList()
+        }
     }
 
     private fun explicitHomes(

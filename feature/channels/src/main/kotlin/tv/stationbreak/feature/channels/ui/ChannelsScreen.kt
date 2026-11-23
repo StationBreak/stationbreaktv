@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.ui.LocalScreenFit
@@ -122,6 +123,9 @@ private fun Header(ui: ChannelsUi) {
         if (message != null && !(readOnly && message == ChannelsMessage.NotEditable)) {
             NoteLine(messageText(message), ChannelsTags.MESSAGE)
         }
+        ui.moved.forEach {
+            NoteLine(stringResource(R.string.channels_moved_note, it.name, it.from, it.to), ChannelsTags.MOVED)
+        }
         if (ui.choosing) NoteLine(stringResource(R.string.channels_choosing), ChannelsTags.CHOOSING)
         if (ui.gettingReady) NoteLine(stringResource(R.string.channels_getting_ready), ChannelsTags.GETTING_READY)
     }
@@ -157,15 +161,35 @@ private fun NoteLine(
 
 @Composable
 private fun messageText(message: ChannelsMessage): String =
-    if (message == ChannelsMessage.KidsBand) {
-        stringResource(R.string.channels_refused_kids_band, ChannelNumbers.kids.first, ChannelNumbers.kids.last)
-    } else {
-        stringResource(messageRes(message))
+    when (message) {
+        ChannelsMessage.KidsBand -> {
+            stringResource(R.string.channels_refused_kids_band, ChannelNumbers.kids.first, ChannelNumbers.kids.last)
+        }
+
+        ChannelsMessage.NeedsFamily -> {
+            needsText(BandNeeded.Family)
+        }
+
+        ChannelsMessage.NeedsTeen -> {
+            needsText(BandNeeded.Teen)
+        }
+
+        ChannelsMessage.NeedsGeneral -> {
+            needsText(BandNeeded.General)
+        }
+
+        else -> {
+            stringResource(messageRes(message))
+        }
     }
 
+@Suppress("CyclomaticComplexMethod") // One line per message, exhaustive so a new one cannot go unworded.
 private fun messageRes(message: ChannelsMessage): Int =
     when (message) {
         ChannelsMessage.KidsBand -> R.string.channels_refused_kids_band
+        ChannelsMessage.NeedsFamily -> R.string.channels_refused_needs_family
+        ChannelsMessage.NeedsTeen -> R.string.channels_refused_needs_teen
+        ChannelsMessage.NeedsGeneral -> R.string.channels_refused_needs_general
         ChannelsMessage.LastOn -> R.string.channels_refused_last_on
         ChannelsMessage.NoNumber -> R.string.channels_refused_no_number
         ChannelsMessage.NotEditable -> R.string.channels_not_editable

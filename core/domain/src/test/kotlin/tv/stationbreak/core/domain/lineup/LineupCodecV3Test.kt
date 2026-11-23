@@ -492,7 +492,7 @@ class LineupCodecV3Test {
     fun theShelfReasonsArePinnedToTheFileVersion() {
         val names = listOf("Empty", "TooThin", "BelowCap", "NoNumber", "OptIn")
         assertEquals(names, ShelfReason.entries.map { it.name }, GUARD)
-        assertEquals(7, LineupCodec.VERSION, GUARD)
+        assertEquals(8, LineupCodec.VERSION, GUARD)
     }
 
     @Test

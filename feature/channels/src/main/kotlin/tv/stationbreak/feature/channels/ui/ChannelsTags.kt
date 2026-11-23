@@ -15,6 +15,9 @@ object ChannelsTags {
 
     /** The line under the title for a refusal or a failure. */
     const val MESSAGE = "channels:message"
+
+    /** The lines under the title that tell of channels moved to their band's floor (#1097), one each. */
+    const val MOVED = "channels:moved"
     const val RESET = "channels:reset"
 
     /** The "Use my collections" switch row at the top of the list. */

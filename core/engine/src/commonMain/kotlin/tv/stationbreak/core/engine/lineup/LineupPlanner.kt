@@ -159,7 +159,8 @@ object LineupPlanner {
      * The kept channels sit on top and cost the planner no place: it picks [LineupDefaults.PLANNER_PICKS] starters
      * whatever they are, so a reset and the boundary after it agree. The leftovers channels are always switched on (the
      * "Odds and ends" decision), so the lineup can hold more.
-     * A finalised lineup ignores [kept]: it is planned from its own channels.
+     * A finalised lineup ignores [kept]: it is planned from its own channels. [movedNotices] are the pending notices of
+     * a lineup a reset replaces (#1097): those of the kept channels go on to the new one.
      *
      * "Use my collections" is a setting, and a plan keeps it: a lineup not yet finalised keeps its own flag (and, while
      * it waits, its basis); the first choice ranks under the flag and applies it at once, with no basis, as a reset
@@ -184,6 +185,7 @@ object LineupPlanner {
         withoutCollections: Boolean = false,
         kept: List<LineupChannel> = emptyList(),
         useMyCollections: Boolean = true,
+        movedNotices: List<MovedNotice> = emptyList(),
         snapshotGeneration: Long? = null,
         keptReasons: KeptReasonsMemo? = null,
     ): Lineup {
@@ -193,7 +195,16 @@ object LineupPlanner {
         }
         return if (current == null || !current.finalised) {
             // The flag and basis a first choice keeps: the unfinalised lineup's own, else the one given.
-            val held = current ?: Lineup(serverId, userId, catalog.version, standardOffsetMinutes, false, emptyList())
+            val held =
+                current ?: Lineup(
+                    serverId,
+                    userId,
+                    catalog.version,
+                    standardOffsetMinutes,
+                    false,
+                    emptyList(),
+                    movedNotices = movedNotices,
+                )
             val setting = if (current == null) held.copy(useMyCollections = useMyCollections) else held
             // The first choice applies the flag at once (`chosen` drops the basis), so it ranks under it for today too.
             val household = setting.useMyCollections
@@ -236,9 +247,12 @@ object LineupPlanner {
         p: Planning,
         userId: CanonicalId,
         withoutCollections: Boolean,
-        kept: List<LineupChannel>,
+        stored: List<LineupChannel>,
         setting: Lineup,
     ): Lineup {
+        // The viewer's own channels kept across a reset come in line with the band floors too (#1097).
+        val migrated = FloorMigration.apply(stored, p.catalog, MovedNotice.dayOf(p.nowMs))
+        val kept = migrated.channels
         val unfinalised =
             Lineup(
                 p.serverId,
@@ -249,6 +263,12 @@ object LineupPlanner {
                 ordered(kept),
                 useMyCollections = setting.useMyCollections,
                 curationBasis = setting.curationBasis,
+                movedNotices =
+                    MovedNotice.live(
+                        setting.movedNotices + migrated.notices,
+                        kept.mapTo(HashSet()) { it.id },
+                        MovedNotice.dayOf(p.nowMs),
+                    ),
             )
         return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised, kept) else unfinalised
     }
@@ -301,13 +321,17 @@ object LineupPlanner {
         val infer = !lineup.viewerChoicesKnown && mode == PlannerSelection.Mode.Select
         val current = if (infer) withInferredChoices(lineup, p) else lineup
         val keepers = previousKeepers(current.channels, protectedStarters(current, p), p, newer)
-        // The numbers of a newer catalog first (catalog 8), so everything below sees a lineup on the new numbers.
-        val numbered =
+        // The numbers of a newer catalog first (catalog 8), so everything below sees a lineup on the new numbers; then
+        // channels below their band's floor move up, once (#1097).
+        val renumbered =
             if (newer) {
                 CatalogRenumbering.apply(current.channels, lineup.catalogVersion, p.catalog)
             } else {
                 current.channels
             }
+        val today = MovedNotice.dayOf(p.nowMs)
+        val floored = FloorMigration.apply(renumbered, p.catalog, today)
+        val numbered = floored.channels
         val refreshed = numbered.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         val planned =
@@ -319,6 +343,9 @@ object LineupPlanner {
             current.copy(
                 catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
                 channels = ordered(planned),
+                movedNotices =
+                    MovedNotice.live(current.movedNotices, planned.mapTo(HashSet()) { it.id }, today) +
+                        floored.notices,
             )
         // A change of the curated on-set starts at the boundary: the days before it keep the old one (D1).
         return current.withBasisFor(next, p.nowMs, p.boundaryMs, p.recipeKeys)

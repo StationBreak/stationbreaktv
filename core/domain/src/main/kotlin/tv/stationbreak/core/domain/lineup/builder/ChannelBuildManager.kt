@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.flow
 import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.ProEntitlement
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
@@ -310,6 +311,8 @@ class ChannelBuildManager(
             is EditRefusal.NumberTaken -> null
 
             EditRefusal.KidsBandOnly -> BuildRefusal.KidsBand
+
+            is EditRefusal.BelowBand -> BuildRefusal.BelowBand(BandNeeded.of(needs))
 
             EditRefusal.CustomLimit -> BuildRefusal.CustomLimit
 

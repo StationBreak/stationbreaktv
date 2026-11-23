@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup.builder
 import kotlinx.coroutines.runBlocking
 import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.lineup.ACCOUNT
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.CountingLibrary
 import tv.stationbreak.core.domain.lineup.LIBRARIES
 import tv.stationbreak.core.domain.lineup.LineupCodec
@@ -504,6 +505,22 @@ class ChannelBuildManagerTest {
 
             val taken = BuildRefusal.NumberTaken(ChannelId("custom:Other"))
             assertEquals(BuildResult.Refused(taken), result)
+        }
+
+    @Test
+    fun aPickedNumberBelowTheChannelsFloorIsRefusedWithTheBandItNeeds() =
+        runBlocking<Unit> {
+            seed(custom("Mine", 610))
+            val id = ChannelId("custom:Mine")
+            val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+
+            val result = builder.save(ACCOUNT, id, draft.copy(number = 50, numberChosen = true))
+
+            assertEquals(BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.General)), result)
+            assertEquals(610, stored().channel(id).number)
+            val blank = named(builder.blank(ACCOUNT, kids = false))
+            val created = builder.create(ACCOUNT, blank.copy(number = 66, numberChosen = true))
+            assertEquals(BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.General)), created)
         }
 
     @Test

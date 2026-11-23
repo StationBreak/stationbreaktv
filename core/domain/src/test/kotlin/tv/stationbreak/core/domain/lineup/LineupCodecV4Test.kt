@@ -233,7 +233,7 @@ class LineupCodecV4Test {
             HiddenReason.entries.map { it.name },
             GUARD,
         )
-        assertEquals(7, LineupCodec.VERSION, GUARD)
+        assertEquals(8, LineupCodec.VERSION, GUARD)
     }
 
     @Test

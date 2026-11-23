@@ -46,7 +46,8 @@ class LineupFieldTripwireTest {
         pinned(
             Lineup::class.java,
             // Read by a day: serverId, utcOffsetMinutes, channels, useMyCollections, curationBasis.
-            // No day reads: userId, catalogVersion (inputsOf has the catalog's own), finalised, viewerChoicesKnown.
+            // No day reads: userId, catalogVersion (inputsOf has the catalog's own), finalised, viewerChoicesKnown,
+            // movedNotices (a note for the viewer; the numbers it tells of are in `channels`).
             setOf(
                 "serverId",
                 "userId",
@@ -57,6 +58,7 @@ class LineupFieldTripwireTest {
                 "useMyCollections",
                 "curationBasis",
                 "viewerChoicesKnown",
+                "movedNotices",
             ),
         )
 

@@ -12,6 +12,7 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupIds
+import tv.stationbreak.core.engine.lineup.MovedNotice
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
 import tv.stationbreak.core.model.RuleSnapshot
@@ -19,6 +20,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -58,6 +60,81 @@ class ChannelManagerTest {
             val result = manager.change(ACCOUNT, ChannelChange.SetNumber(LineupIds.starter("laughs"), 210))
 
             assertEquals(ChangeResult.Refused(ChangeRefusal.NumberTaken(LineupIds.starter("whodunit"))), result)
+        }
+
+    @Test
+    fun aNumberBelowTheChannelsFloorIsRefusedWithTheBandItNeeds() =
+        runBlocking<Unit> {
+            seed(lineup())
+
+            val result = manager.change(ACCOUNT, ChannelChange.SetNumber(LineupIds.starter("laughs"), 50))
+
+            assertEquals(ChangeResult.Refused(ChangeRefusal.BelowBand(BandNeeded.General)), result)
+        }
+
+    private fun withNotices(): Lineup {
+        val base = lineup()
+        val laughs = LineupIds.starter("laughs")
+        val renamed = base.channels.map { if (it.id == laughs) it.copy(nameOverride = "Mine") else it }
+        val notices =
+            listOf(
+                MovedNotice(LineupIds.starter("laughs"), 50, 110, 20_000L),
+                MovedNotice(LineupIds.starter("whodunit"), 60, 210, 20_000L),
+            )
+        return base.copy(channels = renamed, movedNotices = notices)
+    }
+
+    private suspend fun stored(): ByteArray = assertIs<StoredBytes.Present>(store.inner.load(ACCOUNT)).bytes
+
+    @Test
+    fun movedNoticesAreTakenOnceAndClearedFromTheFile() =
+        runBlocking<Unit> {
+            seed(withNotices())
+            assertTrue("\"moved\"" in stored().decodeToString())
+
+            val first = manager.takeMovedNotices(ACCOUNT)
+
+            val told = listOf(MovedChannel("Mine", 50, 110), MovedChannel("Whodunit", 60, 210))
+            assertEquals(told, first.sortedBy { it.from })
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "never shown twice")
+            val after = stored()
+            assertTrue("\"moved\"" !in after.decodeToString(), "the file is written without the key")
+            val read = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(after))
+            assertEquals(LineupCodec.BASE_VERSION, read.fileVersion)
+        }
+
+    @Test
+    fun takingWithNoNoticesWritesNothing() =
+        runBlocking<Unit> {
+            seed(lineup())
+            val before = stored()
+            val saves = store.calls.count { it == "save" }
+
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+
+            assertContentEquals(before, stored())
+            assertEquals(saves, store.calls.count { it == "save" })
+        }
+
+    @Test
+    fun aNoticeForAChannelThatIsGoneIsNotTold() =
+        runBlocking<Unit> {
+            val base = withNotices()
+            val gone = base.copy(channels = base.channels.filter { it.id != LineupIds.starter("whodunit") })
+            seed(gone)
+            assertEquals(listOf("Mine"), manager.takeMovedNotices(ACCOUNT).map { it.name })
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+        }
+
+    @Test
+    fun aLineupThatMayNotBeWrittenKeepsItsNotices() =
+        runBlocking<Unit> {
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "no lineup")
+            seed(withNotices())
+            store.inner.failWrites = true
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "the save failed, so it is not told")
+            store.inner.failWrites = false
+            assertEquals(2, manager.takeMovedNotices(ACCOUNT).size, "the next visit tells it")
         }
 
     @Test

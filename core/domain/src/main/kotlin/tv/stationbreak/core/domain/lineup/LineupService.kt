@@ -474,6 +474,8 @@ class LineupService internal constructor(
                 // A setting survives a reset: one planned from nothing takes the replaced lineup's flag (the planner
                 // keeps a current lineup's own).
                 useMyCollections = household ?: offsetFrom?.useMyCollections ?: true,
+                // A reset keeps the replaced lineup's pending moved notices for the channels it keeps (#1097).
+                movedNotices = offsetFrom?.movedNotices.orEmpty(),
                 snapshotGeneration = read.generation,
                 keptReasons = entryOf(owner).keptReasons,
             )

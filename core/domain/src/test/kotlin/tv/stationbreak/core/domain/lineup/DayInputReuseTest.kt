@@ -227,7 +227,8 @@ class DayInputReuseTest {
         change: (tv.stationbreak.core.engine.lineup.LineupChannel) -> tv.stationbreak.core.engine.lineup.LineupChannel,
     ) = lineup.copy(channels = lineup.channels.map { if (it.id.value == id) change(it) else it })
 
-    // Changes the edits do not make: the flag, the basis, a rules change, the server, the offset, a leave time.
+    // Changes the edits do not make: the flag, the basis, a rules change, the server, the offset, a leave time, and a
+    // number below the floor.
     private fun changesOf(lineup: Lineup): List<Pair<String, Lineup>> {
         val starters = lineup.channels.filter { it.source is ChannelSource.Starter }.map { it.id.value }
         val own = lineup.channels.firstOrNull { it.state == ChannelState.On && it.source is ChannelSource.Starter }?.id
@@ -255,6 +256,11 @@ class DayInputReuseTest {
                         val source = it.source as ChannelSource.Starter
                         it.copy(source = source.withPrevious(rules("Old", Source.Genre(genre)), noon + 18 * hour))
                     }
+            }
+            // A lineup stored before the band floors (#1097) can hold a built-in channel at 50 or 98; the edits can no
+            // longer put it there, so the corpus does.
+            for (number in listOf(50, 98)) {
+                out += "stored $id at $number" to withChannel(lineup, id) { it.copy(numberOverride = number) }
             }
             out += "edited $id" to
                 withChannel(lineup, id) { it.copy(source = (it.source as ChannelSource.Starter).copy(edited = true)) }
@@ -540,8 +546,8 @@ class DayInputReuseTest {
         // the key (a later onSince is in it); curation by the key of the curated members (a
         // curated starter's key holds the curation, a leftovers channel reads it through its claimed channels' keys);
         // a claimed channel's scheduled day by its key and rules. Since #1078 a claimed channel's key is pinned alone:
-        // a built-in renumbered into 34 to 99 (the corpus moves channels to 50 and 98) takes its band's ceiling, which
-        // its key holds and its rules do not.
+        // a built-in stored in 34 to 99 (the corpus puts channels at 50 and 98; the edits cannot since #1097) takes its
+        // band's ceiling, which its key holds and its rules do not.
         val PINNED_ALONE =
             setOf(
                 "key",

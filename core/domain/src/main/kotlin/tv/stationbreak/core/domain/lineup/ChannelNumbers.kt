@@ -25,3 +25,32 @@ object ChannelNumbers {
      */
     fun startFor(kid: Boolean): Int = if (kid) kids.first else Band.General.numbers.first
 }
+
+/**
+ * The lowest band a channel may use, when a number is below what the channel airs allows (#1097): its numbers start at
+ * [first]. Never the kids band (a kid channel may use any number from 1). A screen words it from [first], never from a
+ * copy of the bands.
+ */
+enum class BandNeeded(
+    val first: Int,
+) {
+    /** Family stations and up (ceiling at or below PG, and Teen, and Adult). */
+    Family(Band.Family.numbers.first),
+
+    /** Teen stations and up. */
+    Teen(Band.Teen.numbers.first),
+
+    /** Adult stations, After Hours included: 100 and up. */
+    General(Band.General.numbers.first),
+    ;
+
+    companion object {
+        /** The band the engine says a channel needs ([Band.Kids] never is one). */
+        fun of(band: Band): BandNeeded =
+            when (band) {
+                Band.Family -> Family
+                Band.Teen -> Teen
+                else -> General
+            }
+    }
+}
