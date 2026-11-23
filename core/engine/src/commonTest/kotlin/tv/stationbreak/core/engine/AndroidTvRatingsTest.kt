@@ -198,7 +198,25 @@ class AndroidTvRatingsTest {
     // LOW 2 of the #987 review: one prefix rule for the level and the explicit check, so a `/` prefix fails up too.
     @Test
     fun everyCountrySeparatorAlsoReadsAnExplicitRating() {
-        for (rating in listOf("GB/R18", "DE/X18+", "AU/X18+", "de:r18", "GB - R18", "gb / r18", "NZ/AO", "ES/X")) {
+        val explicit =
+            listOf(
+                "GB/R18",
+                "DE/X18+",
+                "AU/X18+",
+                "de:r18",
+                "GB - R18",
+                "gb / r18",
+                "NZ/AO",
+                "ES/X",
+                "NC - 17",
+                "NC -17",
+                "NC-  17",
+                "NC\t-\t17",
+                "R/NC - 17",
+                "GB-NC - 17",
+                "R - 18",
+            )
+        for (rating in explicit) {
             assertTrue(RatingMap.isExplicit(rating), rating)
             assertEquals(RatingTier.Explicit, RatingTier.of(kidsMovie(rating), null), rating)
         }

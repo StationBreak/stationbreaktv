@@ -49,7 +49,7 @@ rated wrongly is treated as rated.
 
 Ratings from other countries count when the server gives them with a country code, such as `DE-12` or `AU-PG`, and
 the country's board is one the app knows (it uses the Android TV ratings list). Each is read at its minimum age, rounded
-up. Coverage is partial: the UK's `12A` or `15`, German `FSK 16`, Japan's Eirin ratings and Australian `MA15+` are not
+up, except Australian PG, which is read as PG. Coverage is partial: the UK's `12A` or `15`, German `FSK 16`, Japan's Eirin ratings and Australian `MA15+` are not
 recognised. A rating the app does not recognise is treated as adult, the same as no rating. A bare age such as `6` is
 treated as family at most, never as a Tots title, because it names no rating system.
 

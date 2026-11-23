@@ -99,11 +99,15 @@ object RatingMap {
         return explicitPart(key) || ('/' in key && key.split('/').any { explicitPart(it.trim(' ')) })
     }
 
-    // As written, or with its spaces taken out (`R 18+`, `NC 17`), with or without a country prefix.
+    // As written, or with its spaces taken out (`R 18+`, `NC 17`), with or without a country prefix. The whole key
+    // packed is read too, so a name whose letters look like a prefix (`NC - 17`) stays Explicit (#987 review).
     private fun explicitPart(key: String): Boolean {
         val bare = withoutCountry(key)
-        val packed = bare.replace(" ", "")
-        return key in EXPLICIT || bare in EXPLICIT || packed in EXPLICIT || levelOfClean(key) == LEVEL_X
+        return key in EXPLICIT ||
+            key.replace(" ", "") in EXPLICIT ||
+            bare in EXPLICIT ||
+            bare.replace(" ", "") in EXPLICIT ||
+            levelOfClean(key) == LEVEL_X
     }
 
     private fun levelOfClean(key: String?): Int? =

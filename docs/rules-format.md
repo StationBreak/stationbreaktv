@@ -2011,7 +2011,8 @@ that map reads the US names, `Rated `, `/` lists, a bare minimum age (capped at 
 systems of the Android TV ratings XML (Apache-2.0, see `NOTICE`) when a country code and `-`, `:` or `/` come first
 (`DE-12`, `KR-15`, `BR-L`, `AU-PG`). Each of those has a *level* on the app's ladder: 0 ALL, 1 (ages up to 7), 2 (8 to
 10), 3 (11 to 13), 4 (14), 5 (15 to 17), 6 (18 and up), 7 Explicit; a rating the map does not know has no level and is
-adult. The level is the rating's minimum age rounded up to the next rung (`kid-hold-10.json` holds the level of every
+adult. The level is the rating's minimum age rounded up to the next rung, except Australian PG, read as PG
+(level 2; ADR-0028 rule 6 lists the overrides) (`kid-hold-10.json` holds the level of every
 spelling, in its `ratingMap` rows). A rating that table lacks (`U`, `12A`, `FSK 16`, `MA15+`, a single letter without a
 country, and the like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json`
 and `kid-hold-10.json`). A client that matches StationBreak's tiers uses that table, not one of its own, and reports the
