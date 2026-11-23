@@ -32,8 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.RemoteKey
+import tv.stationbreak.core.ui.padToAct
 import tv.stationbreak.core.ui.remoteKeyOf
-import tv.stationbreak.core.ui.remoteKeyToAct
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.ChannelsViewModel
 import tv.stationbreak.feature.channels.PanelMove
@@ -232,16 +232,6 @@ internal fun channelsKey(
     padToAct(event.key, event.type, event.nativeKeyEvent.repeatCount)?.let(pad)
     return true
 }
-
-/**
- * The pad to act on for a key event, or null when the event is only consumed: the shared remote policy (#823), with
- * every direction a pad here (Left and Right move between the sheet's columns and the builder's panels).
- */
-internal fun padToAct(
-    key: Key,
-    type: KeyEventType,
-    repeatCount: Int,
-): Pad? = remoteKeyToAct(key, type, repeatCount)
 
 /**
  * What a key does, given what is open. Every decision is the ViewModel's, taken on its state at that moment, so a key

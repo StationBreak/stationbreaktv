@@ -62,4 +62,22 @@ class RemoteKeyTest {
                 Key.DirectionRight to RemoteKey.Right,
             )
     }
+
+    @Test
+    fun padToActTakesEveryDirectionByDefault() {
+        assertEquals(RemoteKey.Left, padToAct(Key.DirectionLeft, KeyEventType.KeyDown, 0))
+        assertEquals(RemoteKey.Right, padToAct(Key.DirectionRight, KeyEventType.KeyDown, 4))
+        assertEquals(RemoteKey.Up, padToAct(Key.DirectionUp, KeyEventType.KeyDown, 2))
+        assertNull(padToAct(Key.DirectionRight, KeyEventType.KeyUp, 0))
+    }
+
+    @Test
+    fun padToActWithUpDownKeepsLeftAndRightButDoesNothingForThem() {
+        assertEquals(RemoteKey.Up, padToAct(Key.DirectionUp, KeyEventType.KeyDown, 3, UP_DOWN))
+        assertEquals(RemoteKey.Down, padToAct(Key.DirectionDown, KeyEventType.KeyDown, 0, UP_DOWN))
+        assertNull(padToAct(Key.DirectionLeft, KeyEventType.KeyDown, 0, UP_DOWN))
+        assertNull(padToAct(Key.DirectionRight, KeyEventType.KeyDown, 2, UP_DOWN))
+        assertEquals(RemoteKey.Back, padToAct(Key.Back, KeyEventType.KeyUp, 0, UP_DOWN))
+        assertEquals(RemoteKey.Select, padToAct(Key.Enter, KeyEventType.KeyDown, 0, UP_DOWN))
+    }
 }

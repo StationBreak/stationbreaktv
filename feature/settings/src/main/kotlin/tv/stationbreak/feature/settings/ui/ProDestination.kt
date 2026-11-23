@@ -78,7 +78,7 @@ internal fun ProRoot(
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
-    val actions = remember(viewModel) { ProActions(viewModel) { done() } }
+    val actions = remember(viewModel) { ListActions(viewModel::move, viewModel::select) { done() } }
     ProScreen(
         state,
         modifier
@@ -86,36 +86,6 @@ internal fun ProRoot(
             .onKeyEvent { listScreenKey(it, actions::pad) }
             .focusable(),
     )
-}
-
-/** What a key does. Back finishes the screen once: a key that follows it (a fast double Back) is ignored. */
-internal class ProActions(
-    private val vm: ProViewModel,
-    private val onDone: () -> Unit,
-) {
-    private var finished = false
-
-    fun pad(pad: Pad) {
-        if (finished) return
-        when (pad) {
-            Pad.Up -> {
-                vm.move(up = true)
-            }
-
-            Pad.Down -> {
-                vm.move(up = false)
-            }
-
-            Pad.Select -> {
-                vm.select()
-            }
-
-            Pad.Back -> {
-                finished = true
-                onDone()
-            }
-        }
-    }
 }
 
 /** The screen as [state] has it: Pro's page for a store build, the Support page for the others. */

@@ -6,6 +6,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import tv.stationbreak.core.ui.padToAct
 
 /** The channel screen's own keys. The shared remote policy (Back, Select, repeat) is `RemoteKeyTest`'s (#823). */
 class ChannelsKeyTest {
