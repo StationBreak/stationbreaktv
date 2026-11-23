@@ -240,9 +240,10 @@ jobs:
     # Not skipped when a check fails: the job still reports. Skipped for docs-only PRs (see `checks`).
     if: ${{ !cancelled() && needs.checks.outputs.build == 'true' }}
     runs-on: ubuntu-latest
-    # About 20 minutes cold (a build-logic change or a new dependency empties the build cache), 8 to 10 warm: 30
-    # leaves a third of headroom for a slow runner without hiding a hang.
-    timeout-minutes: 30
+    # About 25 to 30 minutes in practice now (main runs 1685 and 1686: 29.5 minutes, then BUILD SUCCESSFUL in 25m31s
+    # and cancelled by the old 30-minute limit while saving the Gradle cache), cold or warm. 45 leaves headroom for a
+    # slow runner and the cache save, and still catches a hang.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
