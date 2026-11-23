@@ -412,6 +412,45 @@ class ChannelPreviewsTest {
         assertEquals(listOf(SkippedPick("Too Strong", SkipReason.AboveKidsRating)), shown.skipped)
     }
 
+    // #1115: the preview applies the channel's own ceiling and tier limit, as its pool does, so a pick the grown-up
+    // hold refuses on a PG or TV-14 channel is listed and not shown as airing.
+    @Test
+    fun aPgDraftListsAHorrorPickAndAnRPickAsSkipped() {
+        film(1, "Plain Comedy", genres = listOf("Comedy"), rating = "PG")
+        film(2, "Scary One", genres = listOf("Horror"), rating = "PG")
+        film(3, "Strong One", genres = listOf("Comedy"), rating = "R")
+        val mine =
+            draft(
+                DraftSource.Pick(id(1).value, "Plain Comedy"),
+                DraftSource.Pick(id(2).value, "Scary One"),
+                DraftSource.Pick(id(3).value, "Strong One"),
+                filters = DraftFilters(maxRating = "PG"),
+            )
+
+        val shown = preview(mine)
+
+        assertEquals(setOf("Scary One", "Strong One"), shown.skipped.map { it.label }.toSet())
+        assertTrue(ids(shown).all { it == id(1) }, "neither refused pick is in next")
+        assertEquals(1, shown.itemCount)
+    }
+
+    @Test
+    fun aTeenDraftListsAnRPickAsSkippedAndKeepsATv14Pick() {
+        film(1, "Teen Film", genres = listOf("Comedy"), rating = "PG-13")
+        film(2, "Strong One", genres = listOf("Comedy"), rating = "R")
+        val mine =
+            draft(
+                DraftSource.Pick(id(1).value, "Teen Film"),
+                DraftSource.Pick(id(2).value, "Strong One"),
+                filters = DraftFilters(maxRating = "TV-14"),
+            )
+
+        val shown = preview(mine)
+
+        assertEquals(listOf("Strong One"), shown.skipped.map { it.label })
+        assertEquals(1, shown.itemCount)
+    }
+
     @Test
     fun aGrownUpDraftSkipsNothing() {
         film(2, "Too Strong", genres = listOf("Kids"), rating = "R")
