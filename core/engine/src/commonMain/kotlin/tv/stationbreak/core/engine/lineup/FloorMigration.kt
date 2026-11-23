@@ -5,7 +5,8 @@ import tv.stationbreak.core.model.ChannelId
 
 /**
  * Moves the viewer's own custom channels that sit below their floor ([ChannelFloors], #1097) up, once: to the first
- * free number from the floor in the channel's own band, else the first free one in [LineupDefaults.CUSTOM_NUMBERS].
+ * free number from the floor in the channel's own band (Family or Teen), else the first free one in
+ * [LineupDefaults.CUSTOM_NUMBERS]: an Adult channel goes straight there, never into a built-in General slot.
  * Never down, never deleted, never into the Kids band (a kid channel is never below its floor). Nothing lands on a
  * number another channel holds, a catalog recipe or leftovers channel has as its number, or the catalog retired. A
  * built-in channel is not moved: [ChannelCeilings] already holds its content to its band. Idempotent: once moved, no
@@ -29,7 +30,7 @@ internal object FloorMigration {
         for (channel in offenders) {
             val band = ChannelFloors.needs(channel, catalog)
             val number =
-                firstFree(band.numbers.asSequence(), held)
+                firstFree(band.numbers.asSequence().filter { band != Band.General }, held)
                     ?: firstFree(LineupDefaults.CUSTOM_NUMBERS.asSequence(), held)
                     ?: continue
             held += number

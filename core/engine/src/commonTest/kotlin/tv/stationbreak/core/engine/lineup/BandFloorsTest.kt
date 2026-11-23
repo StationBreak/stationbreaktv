@@ -243,8 +243,8 @@ class BandFloorsTest {
         val teenCustom = custom("teen", 40, "TV-14")
         val heldBy = custom("held", 67, "TV-14")
         val old = migrate(starter("western", 310), adult, teenCustom, heldBy)
-        // 100 is retired, 101 free; 67 is held, so 68.
-        assertEquals(101, old.numberOf(adult))
+        // An Adult channel goes to 600-899 (601 is retired); 67 is held, so the Teen one takes 68.
+        assertEquals(600, old.numberOf(adult))
         assertEquals(68, old.numberOf(teenCustom))
         assertEquals(67, old.numberOf(heldBy))
     }
@@ -259,7 +259,7 @@ class BandFloorsTest {
         assertEquals(all.map { it.id }, once.map { it.id })
         val numbers = once.mapNotNull { it.number }
         assertEquals(numbers.size, numbers.toSet().size, "no number twice")
-        assertEquals(false, 100 in numbers, "a retired number")
+        assertEquals(false, 601 in numbers, "a retired number")
         for ((before, after) in all.zip(once)) assertEquals(true, after.number!! >= before.number!!, before.id.value)
         assertEquals(40, once.numberOf(offenders.last()), "a Family channel at 40 is not an offender")
         assertEquals(once, FloorMigration.apply(once, catalog), "a second run changes nothing")
@@ -267,8 +267,8 @@ class BandFloorsTest {
 
     @Test
     fun aBandWithNoFreeNumberSendsTheChannelToTheCustomRange() {
-        val full = (100..199).map { custom("g$it", it) }
-        val offender = custom("low", 50)
+        val full = (67..99).map { custom("t$it", it, "TV-14") }
+        val offender = custom("low", 40, "TV-14")
         val moved = FloorMigration.apply(full + offender, catalog)
         assertEquals(600, moved.numberOf(offender))
     }
@@ -286,7 +286,7 @@ class BandFloorsTest {
     fun theMovedNumberIsTheOverrideOrTheDefaultWhicheverTheChannelHeld() {
         val byDefault = custom("d", null).copy(defaultNumber = 50)
         val moved = migrate(byDefault).first()
-        assertEquals(101, moved.defaultNumber)
+        assertEquals(600, moved.defaultNumber)
         assertEquals(null, moved.numberOverride)
     }
 
@@ -299,7 +299,7 @@ class BandFloorsTest {
         val low = custom("low", 50)
         val stored = first.copy(channels = first.channels + low)
         val next = planOf(stored, library, plain, nowMs = 2_000L)
-        assertEquals(100, next.channels.first { it.id == low.id }.number)
+        assertEquals(600, next.channels.first { it.id == low.id }.number)
         assertEquals(next, planOf(next, library, plain, nowMs = 2_000L).copy(channels = next.channels), "once")
     }
 }
