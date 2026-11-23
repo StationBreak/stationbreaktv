@@ -45,6 +45,8 @@ allowlist in `build-logic` ([ADR-0003](docs/adr/0003-licensing-and-contributions
 
 ## Contributing
 
+Outside pull requests are not being accepted yet, until the app-store permission is final ([#745](https://github.com/StationBreak/stationbreaktv/issues/745)); issues and ideas are welcome.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md). Contributions require a DCO sign-off (`git commit -s`). Everyone taking
 part follows the [Code of Conduct](CODE_OF_CONDUCT.md). Report security vulnerabilities privately as described in
 [SECURITY.md](SECURITY.md).

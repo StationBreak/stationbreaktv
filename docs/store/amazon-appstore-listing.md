@@ -200,7 +200,7 @@ The controls line follows `feature/live/.../ui/LiveKeys.kt` and `OverlayKeys.kt`
 Not part of this draft, tracked elsewhere:
 
 - The Phase 2 and Phase 3 gates (owner, 2026-11-06): 14 days of daily use, then outside testers (#31).
-- The final text and review of the app-store GPL exception (#745).
+- Nothing about the app-store GPL exception: since 2026-11-23 it no longer gates the listing. The owner is the sole copyright holder, so he can license the app to the store himself. The exception (#745) now gates the first outside contribution instead.
 - Branding (#118). The listing icons and the 1280×720 Fire TV icon are in `store/` (#572). The 1920×1080 Fire TV background is not in that folder.
 - The privacy policy published on stationbreak.tv, so its URL works.
 - The reviewers' demo server running, with its address and sign-in ready for the Testing instructions field.

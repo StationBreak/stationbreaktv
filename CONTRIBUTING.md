@@ -3,6 +3,11 @@
 Thanks for helping. This page covers how to open a pull request, what you agree to when you contribute, and the
 checks CI runs on every pull request.
 
+> **Outside contributions aren't being accepted yet.** The app-store additional permission that every contribution is
+> licensed under is still a draft, waiting for its final text and a review by a qualified party
+> ([#745](https://github.com/StationBreak/stationbreaktv/issues/745), [ADR-0003](docs/adr/0003-licensing-and-contributions.md)).
+> Until it is final, pull requests from outside the project will not be merged. Issues, bug reports and ideas are welcome.
+
 ## Opening a pull request
 
 1. Fork the repository and create a branch from `main`.
