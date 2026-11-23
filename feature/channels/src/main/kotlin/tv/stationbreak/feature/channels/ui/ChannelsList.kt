@@ -18,6 +18,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -29,7 +33,9 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.HiddenReason
+import tv.stationbreak.core.domain.lineup.NumberBand
 import tv.stationbreak.core.domain.lineup.ShelfReason
+import tv.stationbreak.core.domain.lineup.bandOf
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.core.ui.mark.ChannelMark
@@ -43,40 +49,6 @@ import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
 
-/**
- * One line of the list: the "Use my collections" switch, the New channel row, a group's heading, a channel, or the
- * Reset row after the last group.
- */
-private sealed interface Line {
-    data object Household : Line
-
-    data object New : Line
-
-    data class Heading(
-        val group: ChannelGroup,
-        val count: Int,
-    ) : Line
-
-    data class Channel(
-        val row: ChannelRow,
-    ) : Line
-
-    data object Reset : Line
-}
-
-private fun linesOf(rows: List<ChannelRow>): List<Line> =
-    buildList {
-        add(Line.Household)
-        add(Line.New)
-        ChannelGroup.entries.forEach { group ->
-            val inGroup = rows.filter { it.group == group }
-            if (inGroup.isEmpty()) return@forEach
-            add(Line.Heading(group, inGroup.size))
-            inGroup.forEach { add(Line.Channel(it)) }
-        }
-        add(Line.Reset)
-    }
-
 @Composable
 internal fun ChannelList(
     ui: ChannelsUi,
@@ -86,7 +58,9 @@ internal fun ChannelList(
     val state = rememberLazyListState()
     val focus = ui.focus
     val focused = remember(lines, focus) { lines.indexOfFirst { it.isFocus(focus) } }
-    LaunchedEffect(focused, lines) { if (focused >= 0) state.keepVisible(focused, linesAbove = 1) }
+    LaunchedEffect(focused, lines) {
+        if (focused >= 0) state.keepVisible(focused, linesAbove = linesAboveOf(lines, focused))
+    }
     RequestVisibleMarks(lines, state)
     LazyColumn(
         modifier.fillMaxWidth().testTag(ChannelsTags.LIST),
@@ -98,6 +72,7 @@ internal fun ChannelList(
                 Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
                 Line.New -> NewLine(focused = i == focused)
                 is Line.Heading -> HeadingLine(line.group, line.count)
+                is Line.Band -> BandLine(line.group, line.band)
                 is Line.Channel -> RowLine(line.row, focused = i == focused, isPro = ui.isPro)
                 Line.Reset -> ResetLine(focused = i == focused)
             }
@@ -111,7 +86,7 @@ private fun Line.isFocus(focus: ChannelsFocus?): Boolean =
         Line.New -> focus == ChannelsFocus.New
         is Line.Channel -> focus == ChannelsFocus.Row(row.id)
         Line.Reset -> focus == ChannelsFocus.Reset
-        is Line.Heading -> false
+        is Line.Heading, is Line.Band -> false
     }
 
 private fun Line.key(): String =
@@ -119,6 +94,7 @@ private fun Line.key(): String =
         Line.Household -> "household"
         Line.New -> "new"
         is Line.Heading -> "heading:$group"
+        is Line.Band -> "band:$group:$band"
         is Line.Channel -> "row:${row.id.value}"
         Line.Reset -> "reset"
     }
@@ -133,10 +109,12 @@ private fun RowLine(
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
+    val stripe = bandOf(row.number)?.takeIf { it != NumberBand.Adults }?.let { ChannelsPalette.band.of(it) }
     Row(
         Modifier
             .fillMaxWidth()
             .panelFocus(focused)
+            .bandStripe(stripe)
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .testTag(ChannelsTags.row(row.id))
             // One announcement for the whole row, reasons included; the state stays the row's own.
@@ -185,6 +163,23 @@ private fun RowLine(
         }
     }
 }
+
+/**
+ * A [STRIPE_WIDTH] stripe of the band's accent on a row's left edge, inside the 3 dp focus ring (which is drawn over
+ * it), with a little room above and below. Decoration only: it has no semantics, and Adults has none.
+ */
+private fun Modifier.bandStripe(color: Color?): Modifier =
+    if (color == null) {
+        this
+    } else {
+        drawBehind {
+            val inset = STRIPE_INSET.toPx()
+            drawRect(color, Offset(inset, inset), Size(STRIPE_WIDTH.toPx(), size.height - 2 * inset))
+        }
+    }
+
+private val STRIPE_WIDTH = 3.dp
+private val STRIPE_INSET = 4.dp
 
 // A smaller box than the guide's 50 x 28 so the mark does not crowd a 16sp row; the same proportion.
 private val ROW_MARK_WIDTH = 40.dp

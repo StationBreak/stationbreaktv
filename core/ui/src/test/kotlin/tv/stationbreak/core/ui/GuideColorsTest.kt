@@ -249,6 +249,35 @@ class GuideColorsTest {
         }
     }
 
+    // The band accents are shapes (stripe, dot, rule): 3:1 on the page, a card and a sheet, in both themes. They are
+    // never orange, red or yellow, which mean focus, now and status, so each leans green or blue.
+    @Test
+    fun theBandAccentsHoldThreeToOneAndAreNeitherWarmNorFocus() {
+        for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
+            val b = c.band
+            val accents = listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "adults" to b.adults)
+            for ((band, color) in accents) {
+                assertContrast(3.0, color, c.page, "$name $band on the page", c.page)
+                assertContrast(3.0, color, c.card, "$name $band on a card", c.page)
+                assertContrast(3.0, color, c.sheet.surface, "$name $band on the sheet", c.page)
+                assertTrue("$name $band is not the focus colour", color != c.focusFill)
+            }
+            assertTrue("$name tots lean green", b.tots.green > b.tots.red && b.tots.green > b.tots.blue)
+            for (color in listOf(b.kids, b.teens)) {
+                assertTrue("$name $color leans blue", color.blue > color.red && color.blue > color.green)
+            }
+            assertEquals("$name adults is the neutral stroke", c.textSupporting, b.adults)
+            assertEquals(4, accents.map { it.second }.toSet().size)
+            assertSame(b, c.panel.band)
+        }
+        assertEquals(Color(0xFF6FCF97), GuideColors.Dark.band.tots)
+        assertEquals(Color(0xFF5AB0E8), GuideColors.Dark.band.kids)
+        assertEquals(Color(0xFFA98BE8), GuideColors.Dark.band.teens)
+        assertEquals(Color(0xFF2E8B57), GuideColors.Light.band.tots)
+        assertEquals(Color(0xFF1F6FB5), GuideColors.Light.band.kids)
+        assertEquals(Color(0xFF6B4FB8), GuideColors.Light.band.teens)
+    }
+
     private fun assertContrast(
         minimum: Double,
         a: Color,

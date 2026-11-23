@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
+import tv.stationbreak.core.ui.BandColors
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.PanelColors
 
@@ -41,6 +42,9 @@ internal object ChannelsPalette {
 
     /** The 1 dp line: the rule above a list group's flag, and the properties sheet's identity rule. */
     val sheetLine: Color @Composable get() = LocalPanelColors.current.sheet.line
+
+    /** The number bands' accents: the dot of a band flag and the stripe on a row. Shapes, never text. */
+    val band: BandColors @Composable get() = LocalPanelColors.current.band
 
     /** The content-rating badge on the sheet. */
     val ratingBadge: Color @Composable get() = LocalPanelColors.current.sheet.ratingBadge

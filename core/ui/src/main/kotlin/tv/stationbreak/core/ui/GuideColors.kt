@@ -51,6 +51,8 @@ class GuideColors(
      * colour render as it is (Dark). See `channelmarks` in `core/ui/CHANNELMARKS.md`.
      */
     val markTint: Color? = null,
+    /** The number bands' accents, for a stripe, a dot or a rule beside the band's name. */
+    val band: BandColors,
     /**
      * A sheet drawn over the guide (the menu sheet, a channel's properties): its surface is the brand panel
      * (#262320) in Dark, a step lighter than the paper in Light, so a sheet stands off the dimmed guide behind it in
@@ -68,6 +70,7 @@ class GuideColors(
             sheet = sheet,
             keyCapStroke = keyCapStroke,
             flag = sectionFlag,
+            band = band,
         )
 
     companion object {
@@ -92,6 +95,7 @@ class GuideColors(
                 keyCapStroke = BrandColors.Grey,
                 sectionFlag = BrandColors.Grey,
                 sheet = DarkSheet,
+                band = BandColors.Dark,
             )
 
         /**
@@ -122,6 +126,7 @@ class GuideColors(
                 keyCapStroke = BrandColors.PaperLine,
                 sectionFlag = BrandColors.DarkGrey,
                 markTint = BrandColors.Ink,
+                band = BandColors.Light,
                 sheet =
                     SheetColors(
                         surface = BrandColors.PaperLift,

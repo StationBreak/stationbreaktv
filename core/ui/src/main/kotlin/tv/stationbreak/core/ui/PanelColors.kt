@@ -12,7 +12,8 @@ import androidx.compose.ui.graphics.Color
  * only the default for a panel shown with no guide around it (the same warm ink, cream, muted and orange). Text colours
  * may carry an alpha; contrast is judged on the composite over [ground]. [sheet] is the sheet over the guide; text on
  * its surface is [text] and [secondary]. [keyCapStroke] outlines a hint's key cap, and [flag] is a section flag's
- * text (DESIGN.md's grey in Dark). The core:ui sheet pieces (`LeftSheet`, `KeyCap`, `KeyHintRow`) read only these.
+ * text (DESIGN.md's grey in Dark). [band] is the number bands' accents. The core:ui sheet pieces (`LeftSheet`,
+ * `KeyCap`, `KeyHintRow`) read only these.
  */
 @Suppress("LongParameterList") // One field per panel colour role.
 class PanelColors(
@@ -23,6 +24,7 @@ class PanelColors(
     val sheet: SheetColors,
     val keyCapStroke: Color,
     val flag: Color,
+    val band: BandColors,
 ) {
     companion object {
         val Dark =
@@ -34,6 +36,7 @@ class PanelColors(
                 sheet = DarkSheet,
                 keyCapStroke = BrandColors.Grey,
                 flag = BrandColors.Grey,
+                band = BandColors.Dark,
             )
     }
 }

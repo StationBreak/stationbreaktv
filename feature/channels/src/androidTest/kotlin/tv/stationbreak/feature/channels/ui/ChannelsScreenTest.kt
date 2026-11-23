@@ -440,12 +440,21 @@ class ChannelsScreenTest {
 
     private fun exists(tag: String): Boolean = compose.runOnUiThread { nodes(hasTestTag(tag)).isNotEmpty() }
 
+    /** Walks the list to the line [matcher] names: the band flags push a long list past what is composed at once. */
+    private fun scrollListTo(matcher: SemanticsMatcher) {
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(matcher)
+        compose.waitForIdle()
+    }
+
     @Test
     fun listShowsGroupsAndReasons() {
         show(ALPHA)
         until { exists(ChannelsTags.reason(BRAVO)) }
         listOf(ChannelsTags.HEADING_ON, ChannelsTags.HEADING_SHELF, ChannelsTags.HEADING_OFF)
-            .forEach { assertTrue(it, exists(it)) }
+            .forEach {
+                scrollListTo(hasTestTag(it))
+                assertTrue(it, exists(it))
+            }
         compose
             .onNodeWithTag(ChannelsTags.reason(BRAVO), useUnmergedTree = true)
             .assertTextContains("Nothing in your libraries fits this channel", substring = true)
@@ -459,6 +468,15 @@ class ChannelsScreenTest {
     @Test
     fun aShelvedRowShowsAndSpeaksItsShelfReason() {
         show(ALPHA)
+        until { exists(ChannelsTags.reason(BRAVO)) }
+        // Bravo's "nothing to air" line is spoken with its row too; Alpha has no reason line at all.
+        compose
+            .onNodeWithTag(ChannelsTags.row(BRAVO))
+            .assertContentDescriptionContains("Nothing in your libraries fits this channel", substring = true)
+        assertTrue(!exists(ChannelsTags.shelfReason(ALPHA)))
+        // Charlie is shelved, further down: the band flags can push it past what is composed, so walk the list to it.
+        // The row's tag is in the merged tree; the reason line inside it is not, so walk to the row.
+        scrollListTo(hasTestTag(ChannelsTags.row(CHARLIE)))
         until { exists(ChannelsTags.shelfReason(CHARLIE)) }
         compose
             .onNodeWithTag(ChannelsTags.shelfReason(CHARLIE), useUnmergedTree = true)
@@ -467,11 +485,6 @@ class ChannelsScreenTest {
             .onNodeWithTag(ChannelsTags.row(CHARLIE))
             .assertContentDescriptionContains("Charlie", substring = true)
             .assertContentDescriptionContains(LINEUP_FULL, substring = true)
-        // Bravo's "nothing to air" line is spoken with its row too; Alpha has no reason line at all.
-        compose
-            .onNodeWithTag(ChannelsTags.row(BRAVO))
-            .assertContentDescriptionContains("Nothing in your libraries fits this channel", substring = true)
-        assertTrue(!exists(ChannelsTags.shelfReason(ALPHA)))
     }
 
     @Test
@@ -662,7 +675,13 @@ class ChannelsScreenTest {
         show(ALPHA)
         until { exists(ChannelsTags.reason(BRAVO)) }
         // On: Alpha and Bravo; More channels: Charlie and Night; Off: Delta.
-        listOf("ON THE AIR \u00B7 2", "MORE CHANNELS \u00B7 2", "SWITCHED OFF \u00B7 1").forEach { flag ->
+        // A heading's text is under its own semantics (the merged tree has only the heading), so walk to the heading.
+        mapOf(
+            ChannelsTags.HEADING_ON to "ON THE AIR \u00B7 2",
+            ChannelsTags.HEADING_SHELF to "MORE CHANNELS \u00B7 2",
+            ChannelsTags.HEADING_OFF to "SWITCHED OFF \u00B7 1",
+        ).forEach { (tag, flag) ->
+            scrollListTo(hasTestTag(tag))
             assertTrue(flag, compose.runOnUiThread { nodes(hasText(flag)).isNotEmpty() })
         }
         val spoken =
@@ -672,6 +691,7 @@ class ChannelsScreenTest {
                 ChannelsTags.HEADING_OFF to "Switched off, 1 channel",
             )
         spoken.forEach { (tag, words) ->
+            scrollListTo(hasTestTag(tag))
             val node = compose.runOnUiThread { nodes(hasTestTag(tag)).single() }
             assertTrue("$tag is a heading", node.config.contains(SemanticsProperties.Heading))
             assertEquals(words, node.config.getOrNull(SemanticsProperties.ContentDescription)?.single())

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.NumberBand
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.LocalGuideColors
@@ -87,6 +88,11 @@ private val TileRadius = 2.dp
 // The playing channel's marker: a 2 dp bar, 3 dp in from the tile's left, top and bottom edges.
 private val MarkerWidth = 2.dp
 private val MarkerInset = 3.dp
+
+// The channel tile's number band (#1100): a 3 dp stripe at its very edge, which ends where the marker's inset begins,
+// and a 2 dp rule centred on the gap above the tile where a band starts.
+private val BandStripeWidth = 3.dp
+private val DividerHeight = 2.dp
 private val LabelGap = 6.dp
 private val OutlineWidth = 2.dp
 private val OutlineRadius = 3.dp
@@ -139,7 +145,13 @@ internal fun GuideGrid(
                     val row = model.rows[index]
                     key(row.channel) {
                         Row(Modifier.height(RowHeight)) {
-                            ChannelCell(row, playing = row.channel == current, focusOf, channelFocusOf)
+                            ChannelCell(
+                                row,
+                                playing = row.channel == current,
+                                dividerBand = dividerBandAt(model.rows, index, firstVisibleRow),
+                                focusOf,
+                                channelFocusOf,
+                            )
                             Spacer(Modifier.width(ChannelTileGap))
                             GuideRowCells(
                                 row.channel,
@@ -223,16 +235,21 @@ private fun GuideRowCells(
  * 2 dp accent outline, inside its bounds. The channel playing also carries a 2 dp bar of primary text on the tile's
  * left edge ([TileLook.marker]), which no focus state draws, and a "playing" state for a screen reader. The outlines
  * are read in the draw phase, so a focus move redraws and recomposes nothing; only the number's colour changes with
- * the row that holds the focus, on those two cells.
+ * the row that holds the focus, on those two cells. The tile also carries its number band's [BandStripeWidth] stripe
+ * on the left edge, and a [DividerHeight] rule across its top, in the colour of [dividerBand], where that band starts
+ * between two visible rows. Both are decoration: a screen reader hears the band in the details panel, once.
  */
 @Composable
 private fun ChannelCell(
     row: GuideRow,
     playing: Boolean,
+    dividerBand: NumberBand?,
     focusOf: () -> GuideFocus?,
     channelFocusOf: () -> ChannelId?,
 ) {
     val colors = LocalGuideColors.current
+    val stripe = stripeOf(row.band, colors)
+    val divider = dividerBand?.let { colors.band.of(it) }
     val playingLabel = stringResource(R.string.guide_playing)
     // Both read when drawing, never in composition: a move to another row recomposes no channel cell.
     val lookNow = { tileLook(focusOf()?.channel == row.channel, playing, colors) }
@@ -240,7 +257,7 @@ private fun ChannelCell(
         Modifier
             .width(ChannelColumnWidth - ChannelTileGap)
             .fillMaxHeight()
-            .channelTile(colors.card, lookNow)
+            .channelTile(colors.card, stripe, divider, lookNow)
             .channelOutline(colors.accent) { channelFocusOf() == row.channel }
             .padding(horizontal = TilePadding)
             .semantics { if (playing) stateDescription = playingLabel },
@@ -299,10 +316,14 @@ internal fun tileLook(
 /**
  * The tile behind a channel cell (#803): [fill] with a [TileLine] outline of the colour [lookOf] says (read when
  * drawing, so a focus move redraws it and recomposes nothing), a [TileRadius] radius, [CellInset] from the rows above
- * and below as the cells are from each other, and the [TileLook.marker] bar inside the left edge when there is one.
+ * and below as the cells are from each other, and the [TileLook.marker] bar inside the left edge when there is one. The
+ * band [stripe] (null for none) is drawn at the very edge, [BandStripeWidth] wide, which ends where the marker's
+ * inset begins; the [divider] rule is centred on the gap above the tile, over the tile's width only.
  */
 private fun Modifier.channelTile(
     fill: Color,
+    stripe: Color?,
+    divider: Color?,
     lookOf: () -> TileLook,
 ): Modifier =
     drawBehind {
@@ -311,6 +332,8 @@ private fun Modifier.channelTile(
         val corner = CornerRadius(TileRadius.toPx())
         val height = size.height - 2 * inset
         drawRoundRect(fill, Offset(0f, inset), Size(size.width, height), corner)
+        stripe?.let { drawRoundRect(it, Offset(0f, inset), Size(BandStripeWidth.toPx(), height), corner) }
+        divider?.let { drawRect(it, Offset(0f, -DividerHeight.toPx() / 2), Size(size.width, DividerHeight.toPx())) }
         val look = lookOf()
         drawRoundRect(
             look.line,
