@@ -60,8 +60,12 @@ internal data class ProState(
     val held: Boolean = false,
     val locked: Boolean = true,
 ) {
-    /** Buy and Restore are offered: a store build, Pro not yet owned, Kids Mode off. */
-    val actionable: Boolean get() = offer is ProOffer.Store && !owned && !locked
+    /**
+     * Buy and Restore are offered: a store build, Pro not yet owned, Kids Mode off, and no success waiting on the
+     * store ([ProResult.Confirming]: a second press would only be told the store already has it).
+     */
+    val actionable: Boolean
+        get() = offer is ProOffer.Store && !owned && !locked && result != ProResult.Confirming
 
     /** Buy is offered: [actionable], and no purchase held (a held one waits for the store; Restore stays). */
     val canBuy: Boolean get() = actionable && !held
@@ -99,6 +103,9 @@ internal class ProViewModel
 
         private val local = MutableStateFlow(Local())
 
+        // A hold ends with the Pending line it explains; anything else said stays.
+        private fun Local.release() = copy(held = false, result = result.takeUnless { it == ProResult.Pending })
+
         // Kids Mode counts as on until the stored lock has been read.
         private val kidsOn = kids.state.map { it.enabled }.onStart { emit(true) }
 
@@ -119,11 +126,11 @@ internal class ProViewModel
                     was = owned
                 }
             }
-            // The store's answer moving ends a hold: Buy may start again.
+            // The store's answer moving ends a hold: Buy may start again, and the Pending line goes with it.
             scope.launch {
                 var was: Boolean? = store.verified.value
                 store.verified.collect { v ->
-                    if (v != was) local.update { it.copy(held = false) }
+                    if (v != was) local.update { it.release() }
                     was = v
                 }
             }
@@ -156,10 +163,14 @@ internal class ProViewModel
                 }
             }
             val asked = choice ?: return
+            // The answer the call began under: a Pending that returns after it moved has nothing to wait on.
+            val began = store.verified.value
             scope.launch {
                 val result = ask(asked)
                 local.update {
-                    it.copy(busy = false, result = result, held = it.held || result == ProResult.Pending)
+                    val holds = it.held || (result == ProResult.Pending && store.verified.value == began)
+                    val said = if (result == ProResult.Pending && !holds) null else result
+                    it.copy(busy = false, result = said, held = holds)
                 }
             }
         }
