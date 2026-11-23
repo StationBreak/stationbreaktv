@@ -5,7 +5,10 @@ import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelFloors
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.rules.AdultMark
+import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -65,6 +68,24 @@ class GateFloorMutationTest {
             val left = swapped(customView, channel.key) { it.numbered(floor - 1) }
             assertTrue(floorBroken(left), "${channel.key} left at ${floor - 1}, floor $floor")
         }
+    }
+
+    // #1115: an After Hours copy keeps its PG ceiling and is still adult, so its floor is 100 (as `ChannelFloors` has
+    // it). A weak `ChannelFloors` leaves it at 40; an oracle that read the ceiling alone (34) would pass that.
+    @Test
+    fun anAfterHoursCopyWithAPgCeilingFailsBelow100WhateverChannelFloorsSays() {
+        val copy = CustomChannel("Invented adult copy", AdultMark.marked(rules(listOf(Source.Genre("Crime")), maxRating = "PG")), 40)
+        val case = GateCase("adult-copy", "edge-cases.json", customs = listOf(copy))
+        val adultView = GateTestSupport.everythingOn(case)
+        val own = adultView.channels.single { it.key.startsWith("custom:") }
+        assertTrue(own.adultMark, "the view carries the mark")
+        assertEquals(100, FloorOracle.of(own))
+        assertTrue(own.number!! >= 100, "the real planner moved the copy up: ${own.number}")
+        assertTrue(Rule.BelowFloor !in leaks.broken(adultView, case), "the real view is clean")
+        val left = swapped(adultView, own.key) { it.numbered(40) }
+        assertTrue(Rule.BelowFloor in leaks.broken(left, case), "the copy left at 40 fails")
+        val unmarked = swapped(adultView, own.key) { it.copy(number = 40, adultMark = false) }
+        assertTrue(Rule.BelowFloor !in leaks.broken(unmarked, case), "without the mark the PG ceiling alone allows 40")
     }
 
     @Test

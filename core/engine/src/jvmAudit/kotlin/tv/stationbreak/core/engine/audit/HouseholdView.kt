@@ -27,6 +27,7 @@ import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
 import tv.stationbreak.core.model.schedule.SchedulerSettings
+import tv.stationbreak.core.rules.AdultMark
 
 /**
  * The epoch pool the day build makes of a channel's [items] for the day that starts at `dayStartMs`
@@ -56,6 +57,8 @@ internal data class GateChannel(
     val homed: Set<CanonicalId>,
     /** The whole pool before the epoch cut (a starter's curated pool, a leftovers pool): the invariants read it too. */
     val pool: List<ScheduleItem> = items,
+    /** A viewer's own channel marked adult (a copy of After Hours, #984): it needs a number of 100 or up. */
+    val adultMark: Boolean = false,
 )
 
 /** The household view of one lineup on one day. [homes] is the curation's, null when no starter is on. */
@@ -173,7 +176,8 @@ internal object HouseholdViews {
         val pool = PoolEvaluator.evaluate(rules, planned.snapshot, policy).items
         val items = epoch.cut(settings, pool, day.startMs)
         val id = channel.id
-        return GateChannel(id.value, id, channel.number, false, ceiling, policy, items, emptySet(), pool)
+        val marked = AdultMark.isMarked((channel.source as ChannelSource.Custom).rules)
+        return GateChannel(id.value, id, channel.number, false, ceiling, policy, items, emptySet(), pool, marked)
     }
 
     // The catalog's recipe while the key is in it, as `LineupDays.leftoversSettings` has it.
