@@ -88,8 +88,8 @@ class LineupCodecV7Test {
     }
 
     @Test
-    fun version7IsTheNewestAndOnlyAGiveUpNeedsIt() {
-        assertEquals(7, LineupCodec.VERSION)
+    fun version8IsTheNewestAndOnlyAGiveUpOrANoticeNeedsAHigherOne() {
+        assertEquals(8, LineupCodec.VERSION)
         val other = lineupOf(starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy"))))
         assertEquals(3, versionOf(LineupCodec.encode(other)))
     }

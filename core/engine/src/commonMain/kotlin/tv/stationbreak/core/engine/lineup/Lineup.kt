@@ -189,7 +189,8 @@ fun ChannelSource.canHoldAddedMark(): Boolean = this is ChannelSource.Starter &&
  *
  * [useMyCollections] is the "Use my collections" flag. [curationBasis] keeps the old on-set and flag for days before
  * its boundary. [viewerChoicesKnown] is false for a lineup read from a file before version 3, whose
- * [LineupChannel.chosenByViewer] is only inferred.
+ * [LineupChannel.chosenByViewer] is only inferred. [movedNotices] are the channels the band-floor migration moved
+ * (#1097) that the viewer has not been told about yet.
  *
  * Invariants: channel IDs are unique, numbers that are set are unique, and every switched-on channel has a number.
  */
@@ -203,6 +204,7 @@ data class Lineup(
     val useMyCollections: Boolean = true,
     val curationBasis: CurationBasis? = null,
     val viewerChoicesKnown: Boolean = true,
+    val movedNotices: List<MovedNotice> = emptyList(),
 ) {
     init {
         require(uniqueIds(channels)) { "Channel IDs are unique" }
@@ -226,6 +228,7 @@ data class Lineup(
             useMyCollections: Boolean = true,
             curationBasis: CurationBasis? = null,
             viewerChoicesKnown: Boolean = true,
+            movedNotices: List<MovedNotice> = emptyList(),
         ): Lineup? {
             val valid = uniqueIds(channels) && uniqueNumbers(channels) && onAreNumbered(channels)
             return if (valid) {
@@ -239,6 +242,7 @@ data class Lineup(
                     useMyCollections,
                     curationBasis,
                     viewerChoicesKnown,
+                    movedNotices,
                 )
             } else {
                 null

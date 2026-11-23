@@ -18,6 +18,8 @@ import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.CurationBasis
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
+import tv.stationbreak.core.engine.lineup.LineupEdits
+import tv.stationbreak.core.engine.lineup.MovedNotice
 import tv.stationbreak.core.engine.lineup.ShelfReason
 import tv.stationbreak.core.engine.lineup.ViewerChoice
 import tv.stationbreak.core.engine.lineup.canHoldAddedMark
@@ -32,7 +34,7 @@ import tv.stationbreak.core.rules.StudioFold2Gate
 import tv.stationbreak.core.rules.upgradedToStudioFold2
 
 /**
- * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3 to 7 ([VERSION] is the newest). Only
+ * The stored form of a [Lineup] (spec 12): compact JSON with `"version"` 3 to 8 ([VERSION] is the newest). Only
  * `core:domain` reads or writes it. A version-1 or 2 file is read as it is (version 1 has no meta `extrasFromMs`,
  * which reads as null; before version 3 there are no viewer choices, so `viewerChoicesKnown` is false and each
  * channel's `chosenByViewer` is inferred from its state and overrides); it is written back as version 3, and the
@@ -81,6 +83,12 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * A version-7 file opened by an older build is left alone ([Decoded.NewerVersion]): the lineup is read-only there, and
  * on a cold start it has no lineup until the app is updated. The flag clears once a collection pass is taken in or the
  * lineup finalises (the next save writes 3 to 6 again), which bounds how long a TV holds a version-7 file.
+ *
+ * Version 8 (#1097) adds the optional top-level `moved` list, the channels the band-floor migration moved, each as
+ * `{"id", "from", "to"}` (an ID and two numbers: no name or title), written only while the viewer has not been told
+ * (the version of a file is the highest any feature in it needs, so a file with no notice is written as before). An
+ * older build reads a version-8 file as [Decoded.NewerVersion]; a `moved` key in a file below version 8 makes it
+ * [Decoded.Unreadable]. A notice for a channel no longer in the lineup is dropped on reading.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -140,8 +148,11 @@ internal object LineupCodec {
     /** The version that holds the meta field `plannedWithoutCollections`. */
     const val GAVE_UP_VERSION = 7
 
-    /** The newest schema version this app reads and writes (7: the meta field `plannedWithoutCollections`). */
-    const val VERSION = GAVE_UP_VERSION
+    /** The version that holds the top-level `moved` list: channels the band-floor migration moved (#1097). */
+    const val MOVED_VERSION = 8
+
+    /** The newest schema version this app reads and writes (8: the top-level `moved` list). */
+    const val VERSION = MOVED_VERSION
 
     /** What [decode] found. */
     sealed interface Decoded {
@@ -200,6 +211,7 @@ internal object LineupCodec {
                 viewerChoicesKnown = if (lineup.viewerChoicesKnown) null else false,
                 curationBasis = lineup.curationBasis?.let { BasisV1.of(it, ids) },
                 repairs = if (repairs.isEmpty) null else RepairsCodec.encode(repairs),
+                moved = lineup.movedNotices.takeIf { it.isNotEmpty() }?.map { MovedV1(it.id.value, it.from, it.to) },
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -286,6 +298,7 @@ internal object LineupCodec {
                 useMyCollections = file.useMyCollections ?: true,
                 curationBasis = file.curationBasis?.basis(ids),
                 viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
+                movedNotices = file.moved.orEmpty().mapNotNull { it.notice(ids) },
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
         return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs, rawAdded)) {
@@ -326,7 +339,8 @@ internal object LineupCodec {
             (fileVersion < NO_NUMBER_VERSION && file.channels.any { it.shelfReason == NO_NUMBER_JSON }) ||
             (fileVersion < 2 && meta.extrasFromMs != null) ||
             (fileVersion < BASE_VERSION && (hasVersion3Field(file) || meta.replanFromMs != null)) ||
-            (fileVersion < REPAIRS_VERSION && hasRepairs)
+            (fileVersion < REPAIRS_VERSION && hasRepairs) ||
+            (fileVersion < MOVED_VERSION && file.moved != null)
 
     private fun hasVersion3Field(file: FileV1): Boolean =
         file.useMyCollections != null ||
@@ -476,6 +490,7 @@ private object AddedMark {
             if (lineup.channels.any { holds(it) }) LineupCodec.SWITCH_ONS_VERSION else 0,
             if (lineup.channels.any { storesNoNumber(it) }) LineupCodec.NO_NUMBER_VERSION else 0,
             if (meta.givenUpMatters(lineup)) LineupCodec.GAVE_UP_VERSION else 0,
+            if (lineup.movedNotices.isNotEmpty()) LineupCodec.MOVED_VERSION else 0,
         )
 
     // Whether the channel's stored reason is NoNumber: [channelOf] writes a reason on a starter only.
@@ -677,7 +692,23 @@ private class FileV1(
     val viewerChoicesKnown: Boolean? = null,
     val curationBasis: BasisV1? = null,
     val repairs: JsonElement? = null,
+    val moved: List<MovedV1>? = null,
 )
+
+// A channel the band-floor migration moved (#1097): its ID and the two numbers, never a name or title.
+@Serializable
+private class MovedV1(
+    val id: String,
+    val from: Int,
+    val to: Int,
+) {
+    /** The notice, when the channel is still in the lineup ([ids]) and the numbers are channel numbers. */
+    fun notice(ids: Set<ChannelId>): MovedNotice? {
+        val numbers = LineupEdits.MIN_NUMBER..LineupEdits.MAX_NUMBER
+        val channel = id.takeIf { it.isNotBlank() }?.let(::ChannelId)?.takeIf { it in ids }
+        return channel?.takeIf { from in numbers && to in numbers }?.let { MovedNotice(it, from, to) }
+    }
+}
 
 @Serializable
 private class BasisV1(

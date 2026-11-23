@@ -237,7 +237,7 @@ class BandFloorsTest {
     }
 
     // The stored move.
-    private fun migrate(vararg channels: LineupChannel) = FloorMigration.apply(channels.toList(), catalog)
+    private fun migrate(vararg channels: LineupChannel) = FloorMigration.apply(channels.toList(), catalog).channels
 
     private fun List<LineupChannel>.numberOf(channel: LineupChannel) = first { it.id == channel.id }.number
 
@@ -258,7 +258,7 @@ class BandFloorsTest {
         val offenders = (1..4).map { custom("o$it", 60 + it) } + custom("pg", 40, "PG")
         val others = (101..110).map { custom("c$it", it) } + starter("western", 310, override = 111)
         val all = offenders + others
-        val once = FloorMigration.apply(all, catalog)
+        val once = FloorMigration.apply(all, catalog).channels
         assertEquals(all.size, once.size)
         assertEquals(all.map { it.id }, once.map { it.id })
         val numbers = once.mapNotNull { it.number }
@@ -266,14 +266,67 @@ class BandFloorsTest {
         assertEquals(false, 601 in numbers, "a retired number")
         for ((before, after) in all.zip(once)) assertEquals(true, after.number!! >= before.number!!, before.id.value)
         assertEquals(40, once.numberOf(offenders.last()), "a Family channel at 40 is not an offender")
-        assertEquals(once, FloorMigration.apply(once, catalog), "a second run changes nothing")
+        assertEquals(once, FloorMigration.apply(once, catalog).channels, "a second run changes nothing")
+    }
+
+    // A built-in a viewer's number put below its band (#1078 allowed it) goes back to its default, and says so.
+    @Test
+    fun aBuiltInBelowItsBandGoesBackToItsDefaultNumber() {
+        val western = starter("western", 310, override = 98)
+        val teenOne = starter("teen", 70, override = 50)
+        val result = FloorMigration.apply(listOf(western, teenOne), catalog)
+        assertEquals(null, result.channels.first { it.id == western.id }.numberOverride)
+        assertEquals(310, result.channels.first { it.id == western.id }.number)
+        assertEquals(70, result.channels.first { it.id == teenOne.id }.number)
+        assertEquals(
+            setOf(MovedNotice(western.id, 98, 310), MovedNotice(teenOne.id, 50, 70)),
+            result.notices.toSet(),
+        )
+        val again = FloorMigration.apply(result.channels, catalog)
+        assertEquals(result.channels, again.channels)
+        assertEquals(emptyList(), again.notices, "no second notice")
+    }
+
+    @Test
+    fun aBuiltInWhoseDefaultIsHeldTakesTheFirstFreeNumberInItsBandAtOrAboveTheFloor() {
+        val western = starter("western", 310, override = 50)
+        val holder = custom("holder", 310)
+        val result = FloorMigration.apply(listOf(western, holder), catalog).channels
+        // Its own recipe band is 300-399: 310 is held, 300 is free.
+        assertEquals(300, result.numberOf(western))
+        assertEquals(310, result.numberOf(holder))
+    }
+
+    @Test
+    fun aRetiredBuiltInFallsBackToTheCustomRangeOnlyWhenItsBandIsFull() {
+        val retired =
+            LineupChannel(
+                ChannelId("starter:gone"),
+                150,
+                60,
+                null,
+                ChannelState.On,
+                ChannelSource.Custom(rulesOf()),
+                5L,
+            )
+        assertEquals(
+            150,
+            FloorMigration
+                .apply(listOf(retired), catalog)
+                .channels
+                .single()
+                .number,
+        )
+        val full = (100..199).filter { it != 150 }.map { custom("g$it", it) } + custom("holder", 150)
+        val moved = FloorMigration.apply(full + retired, catalog).channels.numberOf(retired)
+        assertEquals(600, moved)
     }
 
     @Test
     fun aChannelWhoseBandAndTheCustomRangeAreFullStillMovesUpAboveItsFloor() {
         val full = (67..99).map { custom("t$it", it, "TV-14") } + (600..899).map { custom("c$it", it) }
         val offender = custom("low", 40, "TV-14")
-        val moved = FloorMigration.apply(full + offender, catalog).numberOf(offender)!!
+        val moved = FloorMigration.apply(full + offender, catalog).channels.numberOf(offender)!!
         assertEquals(true, moved >= 67 && moved != 100 && moved != 601, "$moved")
     }
 
@@ -299,17 +352,17 @@ class BandFloorsTest {
     fun aBandWithNoFreeNumberSendsTheChannelToTheCustomRange() {
         val full = (67..99).map { custom("t$it", it, "TV-14") }
         val offender = custom("low", 40, "TV-14")
-        val moved = FloorMigration.apply(full + offender, catalog)
+        val moved = FloorMigration.apply(full + offender, catalog).channels
         assertEquals(600, moved.numberOf(offender))
     }
 
     @Test
-    fun theStoredMoveLeavesBuiltInsKidsAndNumberlessChannelsAlone() {
-        val belowButBuiltIn = starter("western", 310, override = 60)
+    fun theStoredMoveLeavesKidsNumberlessAndInBandChannelsAlone() {
         val kid = custom("kid", 12)
         val shelf = custom("shelf", null)
-        val unchanged = listOf(belowButBuiltIn, kid, shelf, starter(kidKey, 5))
-        assertEquals(unchanged, FloorMigration.apply(unchanged, catalog))
+        val inBand = listOf(starter("family", 40, override = 50), starter("teen", 70))
+        val unchanged = listOf(kid, shelf, starter(kidKey, 5)) + inBand
+        assertEquals(unchanged, FloorMigration.apply(unchanged, catalog).channels)
     }
 
     @Test
@@ -333,6 +386,23 @@ class BandFloorsTest {
         assertEquals(stored.channels.size, next.channels.size)
         assertEquals(next.channels, planOf(next, library, plain, nowMs = 2_000L).channels, "once")
         assertEquals(next.channels, planOf(next, library, plain, nowMs = 3_000L).channels, "and again later")
+    }
+
+    @Test
+    fun aMovedChannelIsNotedOnceAndNoChannelStaysBelowItsFloor() {
+        val keys = listOf("alpha" to 110, "bravo" to 120, "charlie" to 210, "delta" to 310, "echo" to 410)
+        val plain = TestCatalog(keys.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true))
+        val library = libraryOf(keys.associate { it.first to 30 } + ("late" to 30))
+        val first = planOf(null, library, plain)
+        val low = custom("low", 50)
+        val alpha = first.channel("alpha").copy(numberOverride = 98)
+        val stored = first.copy(channels = first.channels.filter { it.id != alpha.id } + alpha + low)
+        val next = planOf(stored, library, plain, nowMs = 2_000L)
+        assertEquals(setOf(low.id, alpha.id), next.movedNotices.map { it.id }.toSet())
+        assertEquals(110, next.channel("alpha").number)
+        assertEquals(true, next.channels.all { ChannelFloors.of(it, plain) <= (it.number ?: Int.MAX_VALUE) })
+        val later = planOf(next, library, plain, nowMs = 3_000L)
+        assertEquals(next.movedNotices, later.movedNotices, "no second notice")
     }
 
     @Test

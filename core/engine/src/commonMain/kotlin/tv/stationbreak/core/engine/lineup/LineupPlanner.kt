@@ -240,7 +240,8 @@ object LineupPlanner {
         setting: Lineup,
     ): Lineup {
         // The viewer's own channels kept across a reset come in line with the band floors too (#1097).
-        val kept = FloorMigration.apply(stored, p.catalog)
+        val migrated = FloorMigration.apply(stored, p.catalog)
+        val kept = migrated.channels
         val unfinalised =
             Lineup(
                 p.serverId,
@@ -251,6 +252,7 @@ object LineupPlanner {
                 ordered(kept),
                 useMyCollections = setting.useMyCollections,
                 curationBasis = setting.curationBasis,
+                movedNotices = migrated.notices,
             )
         return if (p.snapshot.collectionsSynced || withoutCollections) chosen(p, unfinalised, kept) else unfinalised
     }
@@ -311,7 +313,8 @@ object LineupPlanner {
             } else {
                 current.channels
             }
-        val numbered = FloorMigration.apply(renumbered, p.catalog)
+        val floored = FloorMigration.apply(renumbered, p.catalog)
+        val numbered = floored.channels
         val refreshed = numbered.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         val planned =
@@ -323,6 +326,7 @@ object LineupPlanner {
             current.copy(
                 catalogVersion = if (newer) p.catalog.version else current.catalogVersion,
                 channels = ordered(planned),
+                movedNotices = current.movedNotices + floored.notices,
             )
         // A change of the curated on-set starts at the boundary: the days before it keep the old one (D1).
         return current.withBasisFor(next, p.nowMs, p.boundaryMs, p.recipeKeys)

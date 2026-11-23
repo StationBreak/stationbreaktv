@@ -189,7 +189,9 @@ Fix round 1 (security review, 2026-11-22):
   scheduled under at most PG, and 67 to 99 at most TV-14 (`Ceilings`, alongside the existing Kids-band PG cap), so
   the tier limit of rule 5 holds wherever a built-in is moved. Custom channels keep their own ceiling. After Hours
   can't be numbered below 100 (`LineupEdits`, by a number or a swap, refused as `OutOfRange`), and a stored one below
-  100 is evaluated as grown-up, not `ExplicitOnly`.
+  100 is evaluated as grown-up, not `ExplicitOnly`. Since #1097 no channel may be numbered below its band's floor
+  (`ChannelFloors`, refused as `BelowBand`), and a built-in stored below it goes back to its default number on the next
+  refresh (`FloorMigration`), so the cap above no longer applies to it and it airs as its recipe says.
 - A combined rating (split on `/`) is Explicit when any part is (`R/NC-17`, `GB-R18/AU-X18+`).
 - An episode whose series ID is set but whose series the snapshot lacks is dropped from every grown-up leftovers pool
   and from grown-up pools with no ceiling (its series could be Explicit); under a ceiling rule 4 already blocks it.
