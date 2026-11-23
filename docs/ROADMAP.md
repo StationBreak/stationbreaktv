@@ -150,7 +150,7 @@ App Store**. Work is tracked in [#752](https://github.com/StationBreak/stationbr
 public-domain or Creative Commons content, with each item's source logged; it has at least 6 channels; and it is the
 source of every listing, site and social screenshot. Next is the branded site at stationbreak.tv
 ([#935](https://github.com/StationBreak/stationbreaktv/issues/935), F4.6a; its Look web pack is approved). Then the
-release pipeline (#32), listing (#33), the GPL exception text (#745), art (#572) and brand (#118). Pro (F4.5, #36) is
+release pipeline (#32), listing (#33), art (#572) and brand (#118). The GPL exception text (#745) is no longer a listing requirement (owner, 2026-11-23): it gates the first outside contribution. Pro (F4.5, #36) is
 the first update after the listing, not part of V1. Google Play (F4.3, #34), GitHub Releases (F4.4, #35) and the docs
 site (F4.6, #37, priority Should) follow the listing and are not needed for it.
 
