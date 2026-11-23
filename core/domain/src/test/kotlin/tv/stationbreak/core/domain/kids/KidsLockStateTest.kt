@@ -38,4 +38,12 @@ class KidsLockStateTest {
         assertFalse(on(KidsCap.Teen).allows(-1, NO_FLOOR))
         assertFalse(on(KidsCap.Teen).allows(null, NO_FLOOR))
     }
+
+    @Test
+    fun offAirAllowsNoChannelWhateverTheNumberOrTheFloor() {
+        val off = KidsLockState(enabled = true, cap = KidsCap.Teen, pinSet = false, offAir = true)
+        listOf(1, 40, 99, 150).forEach { assertFalse(off.allows(it, NO_FLOOR)) }
+        assertFalse(off.allows(null, NO_FLOOR))
+        assertFalse(off.copy(enabled = false).allows(5, NO_FLOOR))
+    }
 }

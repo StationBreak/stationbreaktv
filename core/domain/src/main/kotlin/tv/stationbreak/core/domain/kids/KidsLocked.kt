@@ -20,7 +20,7 @@ import tv.stationbreak.core.model.ChannelId
 import kotlin.time.Instant
 
 /** The part of the lock's state that decides what is seen: a PIN being set changes nothing shown. */
-private fun KidsLock.filter(): Flow<KidsLockState> = state.map { it.copy(pinSet = false) }.distinctUntilChanged()
+private fun KidsLockView.filter(): Flow<KidsLockState> = state.map { it.copy(pinSet = false) }.distinctUntilChanged()
 
 /**
  * The lineup as features see it while Kids Mode may be on (#789): [delegate]'s lists with every channel the lock does
@@ -30,7 +30,7 @@ private fun KidsLock.filter(): Flow<KidsLockState> = state.map { it.copy(pinSet 
  */
 class KidsLockedChannelRepository(
     private val delegate: ChannelRepository,
-    private val lock: KidsLock,
+    private val lock: KidsLockView,
 ) : ChannelRepository {
     override fun channels(account: LibraryAccount): Flow<List<ChannelSummary>> = allowed(delegate.channels(account))
 
@@ -50,7 +50,7 @@ class KidsLockedChannelRepository(
  */
 class KidsLockedScheduleSource(
     private val delegate: ScheduleSource,
-    private val lock: KidsLock,
+    private val lock: KidsLockView,
 ) : ScheduleSource {
     private suspend fun state(): KidsLockState = lock.state.first()
 

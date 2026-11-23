@@ -32,7 +32,7 @@ Jellyfin, and the PIN is cleared and Family Mode turned off. See
 
 **Can I set hours for when the TV is limited to Tots, Kids or Teens, or off the air?**
 That is hours of operation. The **Hours of operation** row in Settings appears with StationBreak Pro. It needs a PIN first, and the PIN always
-overrides the hours. For now the screen keeps your schedule and the TV does not yet follow it. See
+overrides the hours. The TV follows the schedule, and the PIN always gets you past it. See
 [Hours of operation](mature-content.md#hours-of-operation-pro).
 
 **Can Family Mode show more than the Tots channels?**

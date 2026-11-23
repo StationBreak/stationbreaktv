@@ -107,9 +107,11 @@ class LiveChannel(
      */
     private val firstLineup: FirstLineup? = null,
     /**
-     * The Kids Mode lock (#789). [schedule] and [channels] already leave out what it hides; this is followed so that a
-     * channel the lock hides while it plays is left at once for the first allowed one, and so that a remembered channel
-     * it hides gives the first allowed one rather than its neighbour. Null leaves it unwatched.
+     * The Kids Mode lock, or the hours of operation's effective audience in its place (#789). [schedule] and [channels]
+     * already leave out what it hides; this is followed so that a channel it hides while it plays is left at once for
+     * the first allowed one, and so that a remembered channel it hides gives the first allowed one rather than its
+     * neighbour. While it is [KidsLockState.offAir] nothing is allowed: playback stops and the off-the-air card shows
+     * until a period ends or the PIN turns the lock off. Null leaves it unwatched.
      */
     private val kidsLock: Flow<KidsLockState>? = null,
     /** Called once, after the first channel of a first visit is tuned and saved (#94): the host opens the guide. */
@@ -834,13 +836,20 @@ class LiveChannel(
                             lineup.collectIndexed { index, state ->
                                 // The first state is the one just chosen against: only a change looks again.
                                 val now = if (index == 0) null else choose(account)
-                                if (now != null) emit(account to now) else screen.value = noChannelState(state)
+                                if (now != null) emit(account to now) else screen.value = nothingOn(state)
                             }
                         }
                     }
                 }
             }.first()
     }
+
+    /**
+     * What shows while no channel can be tuned: the off-the-air card while the hours of operation have the TV off the
+     * air (#789, [KidsLockState.offAir]), else [noChannelState] for the first lineup's [lineup] state.
+     */
+    private suspend fun nothingOn(lineup: FirstLineupState): LiveState =
+        if (kidsLock?.first()?.offAir == true) LiveState.Ident(upNext = null) else noChannelState(lineup)
 
     /**
      * The saved channel, else the first of these with something on now (#375): the lowest-numbered unhidden channel

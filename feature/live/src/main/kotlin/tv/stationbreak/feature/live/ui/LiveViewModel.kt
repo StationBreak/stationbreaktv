@@ -28,7 +28,7 @@ import tv.stationbreak.core.domain.MediaServer
 import tv.stationbreak.core.domain.MediaServerError
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.details.ProgramDetailsCache
-import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockView
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.FirstLineup
 import tv.stationbreak.core.domain.lineup.GuideOpening
@@ -167,8 +167,8 @@ internal class LiveViewModel
         private val display: DisplayOutput,
         // Whether the first lineup is still being built: Stan stands by then, not the no-channels card.
         private val firstLineup: FirstLineup,
-        // Kids Mode (#789): the schedule and lineup already hide what it hides; live follows it to leave such a one.
-        private val kidsLock: KidsLock,
+        // Kids Mode or the hours (#789): the schedule and lineup already hide what it hides; live follows it.
+        private val kidsLock: KidsLockView,
     ) : ViewModel() {
         private val shown = MutableStateFlow<LiveState>(LiveState.Starting)
         val state: StateFlow<LiveState> = shown.asStateFlow()

@@ -1,6 +1,6 @@
 # ADR-0033: Hours of operation (Pro), domain only
 
-- **Status:** Accepted, domain and storage only: no screen, string or enforcement yet
+- **Status:** Accepted. Domain and storage; the guide and the player follow the schedule since the 2026-11-23 addendum
 - **Date:** 2026-11-21
 - **Decided by:** the owner ([#789](https://github.com/StationBreak/stationbreaktv/issues/789): hours of operation is a
   Pro schedule, per TV, PIN Kids mode and the levels are free) and Rincewind (the mechanism)
@@ -30,12 +30,12 @@
    Absent, damaged, newer-version or out-of-range input reads as no schedule, and never throws. The file is left alone
    until the viewer saves, so a newer version's data survives a downgrade until then.
 
-## The seam (not wired)
+## The seam (wired: see the 2026-11-23 enforcement addendum)
 
 `HoursOfOperation.audience()` is a `Flow<AudienceLevel>` for the UI and the planner. `AudienceLevel.cap` maps a level to
 the `KidsCap` that shows the same channels, so the Kids lock's filters (`KidsLockedChannelRepository`,
 `KidsLockedScheduleSource`) can take it later by reading the effective cap instead of `KidsLockState.cap`; Off Air has
-no cap and is shown by the UI as its own state. Nothing in the app binds or reads it yet.
+no cap and is shown by the UI as its own state. As first written, nothing in the app bound or read it.
 
 ## Not here
 
@@ -48,3 +48,23 @@ This record keeps the names of its date. Since [#1100](https://github.com/Statio
 **Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
 the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
 `kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).
+
+## Addendum (2026-11-23): enforcement ([#789](https://github.com/StationBreak/stationbreaktv/issues/789))
+
+The seam is wired. The two Kids lock filters and live TV no longer read the Kids lock alone: they read a `KidsLockView`
+(`KidsLock` is one), and the app binds `AudienceLockView`, whose state is the effective `HoursOfOperation.audience()`
+mapped back to a `KidsLockState`: a level with a cap is the lock on at that cap, Adult is the lock off, and Off Air is
+the lock on with `offAir` set, which `allows` no channel. Nothing new filters, so the lock-never-delete rule of
+ADR-0023 holds: channels are left out of the lists, not removed, and return when the period ends.
+
+- **The guide and schedule** (`KidsLockedChannelRepository`, `KidsLockedScheduleSource`) read it at each call, and the
+  lineup re-emits at the minute a period edge is crossed, because `audience()` looks again each minute.
+- **The player** uses the Kids lock's own mechanism (`followKidsLock` in `LiveChannel`): a playing channel the audience
+  no longer allows is left for the first allowed channel. In Off Air nothing is allowed, so playback stops and live TV
+  shows the existing off-the-air ident card (no new strings); a period ending, or the PIN, tunes again.
+- **The PIN** keeps overriding (decision 3) through the whole path, because `effectiveAudience` answers Adult for a lock
+  that is off with a PIN set: the filters then show everything, Off Air included. While Off Air shows and the lock is
+  on (the idle fallback), the grown-up reaches Settings through the guide's menu and turns the lock off with the PIN.
+- **Free** is unchanged: with Pro off, or no schedule, `audience()` is the lock's own level.
+
+Still not here: the bedtime card, holiday and sick days, and any change to the screens.
