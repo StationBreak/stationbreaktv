@@ -21,9 +21,10 @@
 left a large watch-together shelf with no home of its own, and a G-rated grown-up title could reach a kid channel on a
 weak signal.
 
-The rating ladder knows only US names. Every non-US rating already fails closed: that was the v1 decision in #104
-(2026-10-06), and it stays. #987 asked for a StationBreak-owned map seeded from MovieLabs `cmr-ratings`, if its licence
-allows.
+The rating ladder knows only US names. Every non-US rating failed closed: that was the v1 decision in #104
+(2026-10-06). #987 asked for a StationBreak-owned map seeded from MovieLabs `cmr-ratings`, if its licence allowed; it
+did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rules 6 and 7, and the 2026-11-23 addendum
+(4)).
 
 ## Decision
 
@@ -58,19 +59,39 @@ allows.
    show is a UX call left to the owner. A grown-up channel (`PoolPolicy.GrownUp`) drops exactly the kids tier
    (`GrownUpHold.dropsFromGrownUp`), so family, teen and adult titles keep airing on grown-up channels until family and
    teen channels exist. Nothing airs nowhere because of the holds.
-6. **The rating map is US-first.** `RatingMap.levelOf` (`core/engine`) maps a rating string to the shared ladder ALL, 7,
-   10, 13, 14, 16, 18, X (the same indices as the rules ladder's tiers) or to unknown, in the parse order of #987: unrated
-   spellings; clean (trim U+0020, ASCII upper case, en dash to hyphen, drop `Rated `); the US names whole, first (so
-   `TV-14` never reads as Tuvalu); a country prefix; a `/` list at its highest level (unknown if any part is); a bare
-   minimum age rounded up; anything else unknown. The owner-defined entries are in: `GP` = 10, `PG13` = PG-13, `XXX` =
-   X, and the ambiguous letters at their strictest (`C` and `M` are 16, `A` is 18). Every other country's names (`U`,
-   `12A`, `FSK 16`, `MA15+`, `AU PG`, country-prefixed strings such as `DE-12` or `US:PG-13`) and the mock-library
-   strings `U/A 13+`, `B-15`, `B`, `10AP` and `T` stay unknown, so adult.
-7. **The licence finding.** On 2026-11-20 the MovieLabs `cmr-ratings` repository had no LICENSE file, no README and no
-   licence header in its XML. Per #987's stop rule, nothing is copied, transcribed or derived from it, nor from the
-   Android TV ratings XML, Jellyfin, MediaPortal or TMDb. The country-prefix step is kept with an empty table registry,
-   so a licensed table can be added later; the AU PG override (#987) waits for that table. A test pins AU PG as unknown
-   today.
+6. **The rating map.** `RatingMap.levelOf` (`core/engine`) maps a rating string to the shared ladder ALL, 7, 10, 13, 14,
+   16, 18, X (the same indices as the rules ladder's tiers) or to unknown. The map was US-first under `kid-hold-6`; from
+   `kid-hold-10` (#987) it also reads non-US systems (rule 7). The parse order: unrated spellings; clean (trim U+0020,
+   ASCII upper case, en dash to hyphen, drop `Rated `); the US names whole, first (so `TV-14` never reads as Tuvalu);
+   a spelling that is neither a bare number nor a single letter, read without a prefix at the highest level any
+   country gives it (`SAM 13`, `C8`); a country prefix (`-`, `:` or `/`); a `/` list at its highest
+   level (unknown if any part is); a bare minimum age rounded up, **capped at Family** (level 2 at least: a bare age
+   names no system, so it is never kids, #1006); anything else unknown. The owner-defined entries are in: `GP` = 10,
+   `PG13` = PG-13, `XXX` = X, and the ambiguous letters at their strictest (`C` and `M` are 16, `A` is 18). The
+   mock-library strings `U/A 13+`, `B-15`, `B`, `10AP` and `T` stay unknown, so adult. Rules for every non-US entry:
+   - **Fail upward.** A rating's minimum age (its `contentAgeHint`) is rounded up to the next rung, never down.
+   - **Overrides.** AU `PG` is 10 (owner decision; the XML's 15 would make it adult). It is the only entry below its
+     age. Where the XML says 0 but the name says otherwise, the entry fails up to the US reading of the same name: NZ
+     `PGR` and SG `PG` are 10, NZ `AO` and ES `X` / `X-Rated` are X (Explicit). Canada's `E` / `Exempt` (news, sports,
+     talk) is not a classification, so it is unknown like `NR`. SG `R21` and AU `R` are 18, not Explicit.
+   - **Country prefix.** Only a code the XML lists for a system, followed by `-`, `:` or `/` (`DE-12`, `de:12`,
+     `KR/15`). A space is not a separator (`AU PG` is unknown). A single letter or a bare number needs a prefix: a
+     letter means different things in each country, and a bare number is a bare age. Two systems in one country take
+     the higher level for a shared spelling.
+   - **Stays unknown, so adult, because the XML does not define it:** UK BBFC (`U`, `12A`, `15`, `GB-15`); Germany's
+     FSK spellings (`FSK 16`, `DE-FSK 12`; only the DVB numbers such as `DE-12` map); Japan's Eirin (`JP-PG12`,
+     `JP-R15+`); Australia's film ratings (`MA15+`, `MA 15+`); a US-prefixed name (`US-PG`); a country written as a
+     name (`Germany: FSK 18`); Canada's Exempt; and a single letter with no country. No other source fills these.
+7. **The source and the licence.** The non-US table is transcribed from the Android TV ratings XML: AOSP
+   `platform/packages/apps/TV`, `ratings/res/xml/tv_content_rating_systems.xml` (with its string resources), at commit
+   `4e256ebdeb1333af4f2b9832d61078965e4a672f`. Both files are Apache-2.0 ("Copyright (C) 2015 The Android Open Source
+   Project"). The attribution is in the root `NOTICE`, the README and the header of `AndroidTvRatingSystems.kt`; as with
+   Media3 (ADR-0003) it is in the repository, not the APK. The table is data in `core/engine`
+   (`AndroidTvRatingSystems`, `CountryRatingTables`); the two US systems and the sub-ratings (D, L, S, V) are left out.
+   The earlier finding stands for the other sources: on 2026-11-20 MovieLabs `cmr-ratings` had no licence, so nothing is
+   copied from it; nothing is copied or derived from Jellyfin, MediaPortal or TMDb either. **This supersedes the #104
+   US-only v1 decision** for supported ratings; #104 stays closed and is not reopened. #104's fail-closed part is kept:
+   an unknown or unrated rating is adult under every tier and ceiling (rule 3).
 8. **Rule 4 changes under `kid-hold-6`, not under a new `formatVersion`.** `kid-hold-6` is an app version, like
    `kid-hold-5`; no rule file changes and `formatVersion` stays at 5. The rules-format reference evaluation
    (`PoolPolicy.Open`, which `rating.json` and the pool vectors hold, and which older apps and ports run) keeps rule 4
@@ -99,7 +120,8 @@ allows.
 - **ADR-0020** (the grown-up hold) keeps its policy table and the leftovers fallback. `grown-up-hold-5` drops the kids
   tier instead of "made for kids and within PG".
 - **#104** (US TV and MPAA only; unrated and unsupported systems blocked under a ceiling) is kept for unknown and
-  unrated. #987 widens what counts as supported, by the US spellings and bare ages above for now.
+  unrated. #987 widens what counts as supported: the US spellings, bare ages and, from `kid-hold-10`, the systems of the
+  Android TV ratings XML (rule 7). That supersedes #104's US-only scope; #104 is not reopened.
 - **Retired kid recipes** (#1044) keep the kids-only policy: a stored copy that migrates to a Custom channel is still
   a kid channel by the key in its `starter:` or `leftovers:` ID (ADR-0030 rule 2), so rule 5 applies to it at any number.
 - **#576** replaces the earlier proposal of a PG-13 family ceiling with unrated titles allowed.
@@ -248,6 +270,23 @@ cap (`ChannelCeilings`); with that cap as its ceiling it now also gets the tier 
 **Version.** `GrownUpHold.VERSION_NAME` is `grown-up-hold-9`; `kid-hold-9` does not change, since no kid rule did.
 `PersistedDays.HOLDS` follows, so every stored day is rebuilt once. Vectors: `grown-up-hold-9.json`, a delta of
 `customCeiling` rows (the older files are unedited).
+
+## Addendum 2026-11-23 (4): non-US ratings, `kid-hold-10` / `grown-up-hold-10` ([#987](https://github.com/StationBreak/stationbreaktv/issues/987))
+
+Rules 6 and 7 are rewritten in place above; the earlier text (US names only, the MovieLabs licence finding, an empty
+table registry, AU PG pinned as unknown) no longer holds. Owner decision, 2026-11-23: seed from the Apache-2.0 Android
+TV ratings XML, not MovieLabs; unknown and unrated stay adult; a bare age caps at Family.
+
+- `KidHold.VERSION_NAME` is `kid-hold-10` and `GrownUpHold.VERSION_NAME` is `grown-up-hold-10` (rule 9's `kid-hold-6` and
+  `grown-up-hold-5` are the earlier names). `PersistedDays.HOLDS` follows, so every stored day is rebuilt once.
+- Vectors: `kid-hold-10.json`, a delta (the older files are unedited and pinned by `FrozenHoldVectorsTest`). It
+  supersedes these rows of `kid-hold-6.json`: ratingMap `0`, `6`, `6+`, `7+` are level 2 (were 0, 1, 1, 1) and `DE-12`
+  is 3 (was unknown); the tier of "bare 6 with a kids genre" is family (was kids); `passesKidCeiling` of "bare 6 under
+  TV-Y7" is false (was true). `NonUsRatingVectors` (a hand-written table) holds the readable cases.
+- Effect on a synthetic library of about 25,000 titles: bare `6` and `6+` titles leave kids (to family, or to teen where
+  a family veto applies), and `DE-12` titles move from adult to teen. Nothing else moves toward a younger tier.
+- Cost, accepted: a rating the XML lacks (UK, FSK spellings, Eirin, AU film `MA15+`) stays adult on a real server. The
+  open acceptance item of #987, a re-run on the owner's server with counts, is the owner's.
 
 ## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
 
