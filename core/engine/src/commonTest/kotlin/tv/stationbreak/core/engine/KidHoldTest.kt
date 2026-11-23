@@ -414,18 +414,19 @@ class KidHoldTest {
     @Test
     fun theAnimatedFamilyListsAreFrozenUnderBothHoldVersions() {
         assertEquals("kid-hold-9", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-8", GrownUpHold.VERSION_NAME)
+        assertEquals("grown-up-hold-9", GrownUpHold.VERSION_NAME)
         assertEquals("animation", AnimatedFamilySignal.GENRE_ANIMATION)
         assertEquals("family", AnimatedFamilySignal.GENRE_FAMILY)
         assertEquals(setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved"), AnimatedFamilySignal.RATINGS)
         assertEquals(setOf("NR", "NOT RATED", "UNRATED"), AnimatedFamilySignal.UNRATED_SPELLINGS)
     }
 
-    // The grown-up hold follows kid-hold's predicate, so the two version names move together: a pinned pair.
+    // The grown-up hold follows kid-hold's predicate, so the two version names move together: a pinned pair. (#1108's
+    // grown-up-hold-9 moved alone: no kid-hold rule changed, a custom channel's tier limit did.)
     @Test
     fun theHoldVersionNamesMoveTogether() {
         assertEquals(
-            mapOf("kid-hold-9" to "grown-up-hold-8"),
+            mapOf("kid-hold-9" to "grown-up-hold-9"),
             mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
         )
     }
@@ -434,7 +435,7 @@ class KidHoldTest {
     @Test
     fun theGrownUpGateIsPinnedUnderBothHoldVersions() {
         assertEquals("kid-hold-9", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-8", GrownUpHold.VERSION_NAME)
+        assertEquals("grown-up-hold-9", GrownUpHold.VERSION_NAME)
         val animated = listOf("Animation", "Family")
         val drops =
             mapOf(

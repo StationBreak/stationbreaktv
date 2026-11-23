@@ -1,0 +1,28 @@
+{
+  "description": "A custom channel under a young ceiling follows its band's tier limit (grown-up-hold-9, #1108; docs/adr/0028-rating-tiers.md, addendum 2026-11-23): a delta on kid-hold-9.json that touches only 'customCeiling' rows, and every earlier file's rows still hold. Written by hand from the ADR text, not computed with an independent reference. Policy custom under a ceiling at or below PG (tier limit family) or at or below TV-14 (tier limit teen), by GrownUpHold.tierLimit: an item whose tier (RatingTier) is above the limit fails the channel, as it fails a built-in channel of that band (grown-up). Nothing else of the grown-up hold is taken: the kids tier is kept (an item in the kids tier is below the limit) and the Explicit and kids drops of policy grownUp do not apply (the ceiling and the limit already decide). A ceiling above TV-14, or none, has no limit, and policy open is the rules-format reference. Same encoding as the 'customCeiling' section of kid-hold-6.json, and 'genres' and 'tags' (missing lists are empty) on the item: shape movie, or episode of a known series with 'seriesRating'.",
+  "customCeiling": [
+    {"name": "plain PG movie, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "ceiling": "PG", "passes": true},
+    {"name": "PG horror movie, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": "PG", "passes": false},
+    {"name": "G horror movie, PG ceiling", "policy": "custom", "shape": "movie", "rating": "G", "genres": ["Horror"], "ceiling": "PG", "passes": false},
+    {"name": "PG movie with a gore tag, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "tags": ["gore"], "ceiling": "PG", "passes": false},
+    {"name": "PG movie with a family veto tag, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "tags": ["mass murder"], "ceiling": "PG", "passes": false},
+    {"name": "PG movie with an adult tag, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "tags": ["nudity"], "ceiling": "PG", "passes": false},
+    {"name": "PG movie with an Explicit tag, PG ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "tags": ["sexploitation"], "ceiling": "PG", "passes": false},
+    {"name": "kids-tier movie keeps airing, PG ceiling", "policy": "custom", "shape": "movie", "rating": "G", "genres": ["Animation", "Family"], "ceiling": "PG", "passes": true},
+    {"name": "Approved movie, PG ceiling", "policy": "custom", "shape": "movie", "rating": "Approved", "ceiling": "PG", "passes": false},
+    {"name": "PG-rated episode of a horror series, PG ceiling", "policy": "custom", "shape": "episode", "rating": "TV-PG", "seriesRating": "TV-PG", "genres": ["Horror"], "ceiling": "PG", "passes": false},
+    {"name": "TV-PG episode of a plain series, PG ceiling", "policy": "custom", "shape": "episode", "rating": "TV-PG", "seriesRating": "TV-PG", "ceiling": "PG", "passes": true},
+    {"name": "TV-14 horror movie, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "genres": ["Horror"], "ceiling": "TV-14", "passes": true},
+    {"name": "PG horror movie, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": "TV-14", "passes": true},
+    {"name": "TV-14 movie with a gore tag, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "tags": ["gore"], "ceiling": "TV-14", "passes": true},
+    {"name": "TV-14 movie with an adult tag, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "tags": ["nudity"], "ceiling": "TV-14", "passes": false},
+    {"name": "PG-13 movie with an adult genre, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "PG-13", "genres": ["Ecchi"], "ceiling": "TV-14", "passes": false},
+    {"name": "TV-14 movie with an Explicit tag, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "tags": ["porn"], "ceiling": "TV-14", "passes": false},
+    {"name": "TV-14 movie above the ceiling stays out", "policy": "custom", "shape": "movie", "rating": "R", "ceiling": "TV-14", "passes": false},
+    {"name": "R horror movie, R ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "R", "genres": ["Horror"], "ceiling": "R", "passes": true},
+    {"name": "R movie with an adult tag, R ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "R", "tags": ["nudity"], "ceiling": "R", "passes": true},
+    {"name": "PG horror movie, no ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": null, "passes": true},
+    {"name": "PG horror movie, PG ceiling, policy open is the reference", "policy": "open", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": "PG", "passes": true},
+    {"name": "PG horror movie, PG ceiling, policy grownUp", "policy": "grownUp", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": "PG", "passes": false}
+  ]
+}

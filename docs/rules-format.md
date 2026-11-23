@@ -2343,7 +2343,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-9`), `grownUpHold` (`grown-up-hold-8`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-9`), `grownUpHold` (`grown-up-hold-9`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2498,7 +2498,10 @@ Everything below is in this repository, under `docs/`:
   variant or a doubled space in a rating, a tab or no-break space around an Explicit rating (fail up), odd spaces and
   dash variants in genres and tags, and a blank rating, genre or tag as none in the no-metadata drop. `kid-hold-9` still
   passes `kid-hold-6.json`, `kid-hold-7.json` and `kid-hold-8.json` as above, except the one row `kid-hold-9.json`
-  supersedes (its `explicitRating` row `"\tX"` is now explicit).
+  supersedes (its `explicitRating` row `"\tX"` is now explicit). `grown-up-hold-9.json` (#1108, ADR-0028 addendum
+  2026-11-23) is a delta of `customCeiling` rows: a custom channel under a PG or TV-14 ceiling takes the tier limit of
+  that band (a PG-rated horror or gore title is out, a plain PG one is in), and one with no or a higher ceiling does not.
+  `kid-hold-9` is unchanged and still passes every earlier file.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 
