@@ -56,6 +56,11 @@ sealed interface ChangeRefusal {
 
     data object KidsBandOnly : ChangeRefusal
 
+    /** The number is below what the channel airs allows (#1097): [needs] is the lowest band it may use. */
+    data class BelowBand(
+        val needs: BandNeeded,
+    ) : ChangeRefusal
+
     /** The change reshapes the planner's lineup, which is a Pro feature (#793). */
     data object NeedsPro : ChangeRefusal
 

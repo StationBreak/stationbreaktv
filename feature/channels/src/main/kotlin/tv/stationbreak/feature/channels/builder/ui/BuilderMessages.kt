@@ -3,6 +3,7 @@ package tv.stationbreak.feature.channels.builder.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
@@ -10,6 +11,7 @@ import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderConfirm
 import tv.stationbreak.feature.channels.builder.BuilderMessage
 import tv.stationbreak.feature.channels.builder.BuilderMode
+import tv.stationbreak.feature.channels.ui.needsText
 
 // The words of what did not happen, and of the questions the builder asks.
 
@@ -22,6 +24,18 @@ internal fun messageText(
     when {
         message == BuilderMessage.KidsBand -> {
             stringResource(R.string.builder_kids_band, ChannelNumbers.kids.first, ChannelNumbers.kids.last)
+        }
+
+        message == BuilderMessage.NeedsFamily -> {
+            needsText(BandNeeded.Family)
+        }
+
+        message == BuilderMessage.NeedsTeen -> {
+            needsText(BandNeeded.Teen)
+        }
+
+        message == BuilderMessage.NeedsGeneral -> {
+            needsText(BandNeeded.General)
         }
 
         message == BuilderMessage.NumberTaken && holder != null && number != null -> {
@@ -51,6 +65,9 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.Reshuffled -> R.string.builder_saved
         BuilderMessage.CustomLimit -> R.string.pro_custom_limit_note
         BuilderMessage.NeedsPro -> R.string.builder_pro_needs
+        BuilderMessage.NeedsFamily -> R.string.channels_refused_needs_family
+        BuilderMessage.NeedsTeen -> R.string.channels_refused_needs_teen
+        BuilderMessage.NeedsGeneral -> R.string.channels_refused_needs_general
         BuilderMessage.KidsBand, BuilderMessage.NumberTaken -> R.string.builder_number_taken_pick
     }
 

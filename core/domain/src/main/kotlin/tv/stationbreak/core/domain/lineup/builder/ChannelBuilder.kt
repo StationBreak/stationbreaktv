@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.model.ChannelId
 
 /** Why a build was not made. Nothing changed. */
@@ -24,6 +25,11 @@ sealed interface BuildRefusal {
     data object KidsBandFull : BuildRefusal
 
     data object OutOfRange : BuildRefusal
+
+    /** The number is below what the channel airs allows (#1097): [needs] is the lowest band it may use. */
+    data class BelowBand(
+        val needs: BandNeeded,
+    ) : BuildRefusal
 
     /** The channel does not play in a shuffle, so a new seed would change nothing. */
     data object NotShuffle : BuildRefusal

@@ -301,13 +301,15 @@ object LineupPlanner {
         val infer = !lineup.viewerChoicesKnown && mode == PlannerSelection.Mode.Select
         val current = if (infer) withInferredChoices(lineup, p) else lineup
         val keepers = previousKeepers(current.channels, protectedStarters(current, p), p, newer)
-        // The numbers of a newer catalog first (catalog 8), so everything below sees a lineup on the new numbers.
-        val numbered =
+        // The numbers of a newer catalog first (catalog 8), so everything below sees a lineup on the new numbers; then
+        // the viewer's own channels below their band's floor move up, once (#1097).
+        val renumbered =
             if (newer) {
                 CatalogRenumbering.apply(current.channels, lineup.catalogVersion, p.catalog)
             } else {
                 current.channels
             }
+        val numbered = FloorMigration.apply(renumbered, p.catalog)
         val refreshed = numbered.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed
         val planned =

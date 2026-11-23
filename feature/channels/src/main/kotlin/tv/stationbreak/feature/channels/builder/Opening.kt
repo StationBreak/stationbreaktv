@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.builder
 
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -29,6 +30,14 @@ internal fun opening(
         OpenResult.Failed -> Opening.Failed(BuilderMessage.OpenFailed)
     }
 
+// The builder's line for a number below the lowest band [needs] a channel may use (#1097).
+private fun belowBandBuilderMessage(needs: BandNeeded): BuilderMessage =
+    when (needs) {
+        BandNeeded.Family -> BuilderMessage.NeedsFamily
+        BandNeeded.Teen -> BuilderMessage.NeedsTeen
+        BandNeeded.General -> BuilderMessage.NeedsGeneral
+    }
+
 /** The line for a build that did not make the channel; null for one that did. */
 internal fun messageOf(result: BuildResult): BuilderMessage? =
     when (result) {
@@ -51,6 +60,7 @@ internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
         BuildRefusal.KidsBandFull -> BuilderMessage.KidsBandFull
         BuildRefusal.OutOfRange -> BuilderMessage.OutOfRange
         BuildRefusal.KidsBand -> BuilderMessage.KidsBand
+        is BuildRefusal.BelowBand -> belowBandBuilderMessage(reason.needs)
         BuildRefusal.LastOn -> BuilderMessage.LastOn
         is BuildRefusal.NumberTaken -> BuilderMessage.NumberTaken
         BuildRefusal.CustomLimit -> BuilderMessage.CustomLimit

@@ -5,6 +5,7 @@ import tv.stationbreak.core.engine.Pool
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
 import tv.stationbreak.core.engine.lineup.ChannelCeilings
+import tv.stationbreak.core.engine.lineup.ChannelFloors
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.HouseholdSources
@@ -45,6 +46,8 @@ internal data class GateChannel(
     val key: String,
     val id: ChannelId,
     val number: Int?,
+    /** The lowest number the channel may have (`ChannelFloors.of`, #1097). */
+    val floor: Int,
     val leftovers: Boolean,
     val ceiling: String?,
     val policy: PoolPolicy,
@@ -110,7 +113,8 @@ internal object HouseholdViews {
             val items = epoch.cut(c.settings, pool.items, day.startMs)
             val policy = policyOf(source)
             val max = c.rules.maxRating
-            channels += GateChannel(c.recipe.key, c.id, c.number, false, max, policy, items, homed, pool.items)
+            val floor = ChannelFloors.of(source, planned.catalog)
+            channels += GateChannel(c.recipe.key, c.id, c.number, floor, false, max, policy, items, homed, pool.items)
         }
         claimed += withheld(planned, household)
         val ceilinged = { c: LineupChannel -> ChannelCeilings.of(c, planned.catalog) == null }
@@ -128,7 +132,9 @@ internal object HouseholdViews {
             if (channel.state == ChannelState.On) {
                 val key = "leftovers:${source.recipeKey}"
                 val id = channel.id
-                channels += GateChannel(key, id, channel.number, true, ceiling, policy, items, emptySet(), pool.items)
+                val floor = ChannelFloors.of(channel, planned.catalog)
+                val homed = emptySet<CanonicalId>()
+                channels += GateChannel(key, id, channel.number, floor, true, ceiling, policy, items, homed, pool.items)
             }
         }
         return HouseholdView(snapshot, channels, curated)

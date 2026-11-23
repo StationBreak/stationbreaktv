@@ -13,6 +13,7 @@ import org.junit.Test
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.TitleKind
+import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
@@ -211,6 +212,9 @@ class BuilderStepsTest {
                 mapOf(
                     BuildResult.Refused(BuildRefusal.KidsBandFull) to BuilderMessage.KidsBandFull,
                     BuildResult.Refused(BuildRefusal.KidsBand) to BuilderMessage.KidsBand,
+                    BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.Family)) to BuilderMessage.NeedsFamily,
+                    BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.Teen)) to BuilderMessage.NeedsTeen,
+                    BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.General)) to BuilderMessage.NeedsGeneral,
                     BuildResult.Refused(BuildRefusal.NoFreeNumber) to BuilderMessage.NoFreeNumber,
                     BuildResult.Refused(BuildRefusal.OutOfRange) to BuilderMessage.OutOfRange,
                     BuildResult.Refused(BuildRefusal.LastOn) to BuilderMessage.LastOn,

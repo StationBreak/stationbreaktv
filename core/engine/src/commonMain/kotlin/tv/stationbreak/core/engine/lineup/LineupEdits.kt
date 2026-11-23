@@ -53,7 +53,8 @@ sealed interface LineupEdit {
      * outside that band is refused. A given number may be one the catalog retired; only the automatic pick skips those.
      * [customLimit] is the most channels the viewer made ([viewerCustomCount]) the lineup may hold: one that already
      * holds that many refuses the add as [EditRefusal.CustomLimit], checked inside the caller's lock. Null is no limit.
-     * The engine only enforces the number it is given; what that number is belongs to the caller.
+     * The engine only enforces the number it is given; what that number is belongs to the caller. A number below the
+     * channel's floor ([ChannelFloors]) is refused as [EditRefusal.BelowBand].
      */
     data class AddCustom(
         override val id: ChannelId,
@@ -71,7 +72,9 @@ sealed interface LineupEdit {
      * Kids band when [kids], else in the custom band, worked out inside [LineupEdits.apply] like [AddCustom]'s; a
      * channel that already has a number in the requested side (the Kids band, or anywhere outside it) keeps that
      * number. A swap never changes the holder's kid status, so one that would take a kid holder out of the band is
-     * refused.
+     * refused. The new rules and number must keep the channel at or above its floor ([ChannelFloors]): raising a
+     * ceiling past the band the channel's number is in is refused as [EditRefusal.BelowBand], unless the edit moves it
+     * up too.
      */
     data class ReplaceCustom(
         override val id: ChannelId,
@@ -113,11 +116,16 @@ sealed interface EditRefusal {
     /** The channel has no number and none is free in its bands. */
     data object NoFreeNumber : EditRefusal
 
-    /**
-     * The number is outside [LineupEdits.MIN_NUMBER]..[LineupEdits.MAX_NUMBER], or it is below
-     * [KidStatus.AFTER_HOURS_FLOOR] for After Hours (#1078: the young bands promise their audience by number).
-     */
+    /** The number is outside [LineupEdits.MIN_NUMBER]..[LineupEdits.MAX_NUMBER]. */
     data object OutOfRange : EditRefusal
+
+    /**
+     * The number is below [ChannelFloors.of] for the channel (#1097, as #1078 for After Hours): [needs] is the lowest
+     * band whose numbers it may use, Family, Teen or General. A channel may move up a band, never down.
+     */
+    data class BelowBand(
+        val needs: Band,
+    ) : EditRefusal
 
     /** The edit is for a custom channel and this one is not. */
     data object NotCustom : EditRefusal
@@ -437,9 +445,9 @@ object LineupEdits {
             }
 
             else -> {
-                val refusal = newNumberRefusal(lineup, number, edit.kids)
                 val channel =
                     LineupChannel(edit.id, null, number, null, ChannelState.On, ChannelSource.Custom(edit.rules), nowMs)
+                val refusal = newNumberRefusal(lineup, channel, edit.kids, catalog)
                 if (refusal != null) {
                     refused(refusal)
                 } else {
@@ -449,19 +457,32 @@ object LineupEdits {
         }
     }
 
-    // Why [number] cannot be a new custom channel's: out of range, held, or not a kids number for a kids request.
+    // Why the number of [channel], new and custom, is not allowed: out of range, held, not a kids number for a kids
+    // request, or below the channel's floor.
     private fun newNumberRefusal(
         lineup: Lineup,
-        number: Int,
+        channel: LineupChannel,
         kids: Boolean,
+        catalog: StarterCatalogView,
     ): EditRefusal? {
+        val number = checkNotNull(channel.number)
         val holder = lineup.channels.firstOrNull { it.number == number }
         return when {
             number !in MIN_NUMBER..MAX_NUMBER -> EditRefusal.OutOfRange
             holder != null -> EditRefusal.NumberTaken(holder.id)
             kids && number !in Band.Kids.numbers -> EditRefusal.KidsBandOnly
-            else -> null
+            else -> belowFloor(channel, number, catalog)
         }
+    }
+
+    // The refusal when [number] is below the floor of [channel] (#1097), else null.
+    private fun belowFloor(
+        channel: LineupChannel,
+        number: Int,
+        catalog: StarterCatalogView,
+    ): EditRefusal? {
+        val needs = ChannelFloors.needs(channel, catalog)
+        return if (number < needs.numbers.first) EditRefusal.BelowBand(needs) else null
     }
 
     // The stored seed stays; the number moves by the rules of SetNumber, on a lineup that already has the new rules.
@@ -647,7 +668,7 @@ object LineupEdits {
         ownKidsMove: Boolean = false,
     ): EditOutcome {
         val holder = lineup.channels.firstOrNull { it.id != channel.id && it.number == number }
-        val refusal = numberRefusal(channel, number, holder, swapWith, ownKidsMove)
+        val refusal = numberRefusal(channel, number, holder, swapWith, ownKidsMove, catalog)
         return when {
             refusal != null -> refused(refusal)
             channel.number == number -> EditOutcome.Applied(lineup)
@@ -657,34 +678,25 @@ object LineupEdits {
     }
 
     // Why [channel] cannot take [number], held by [holder] (or free). Kids off is the owner's explicit switch
-    // (ReplaceCustom, [ownKidsMove]), never a renumber, and only a kid channel moves into the Kids band.
+    // (ReplaceCustom, [ownKidsMove]), never a renumber, and only a kid channel moves into the Kids band. A channel
+    // never goes below its floor (#1097); the edit of its own kids status is judged at the number it moves to.
+    @Suppress("LongParameterList") // The channel, its number and holder, the swap, the kind of move and the catalog.
     private fun numberRefusal(
         channel: LineupChannel,
         number: Int,
         holder: LineupChannel?,
         swapWith: ChannelId?,
         ownKidsMove: Boolean,
-    ): EditRefusal? =
-        when {
+        catalog: StarterCatalogView,
+    ): EditRefusal? {
+        val taken = holder?.takeIf { swapWith != it.id }?.let { EditRefusal.NumberTaken(it.id) }
+        return when {
             number !in MIN_NUMBER..MAX_NUMBER -> EditRefusal.OutOfRange
-            number < KidStatus.AFTER_HOURS_FLOOR && isAfterHoursStarter(channel) -> EditRefusal.OutOfRange
-            sendsAfterHoursDown(channel, holder, swapWith) -> EditRefusal.OutOfRange
-            ownKidsMove -> holder?.takeIf { swapWith != it.id }?.let { EditRefusal.NumberTaken(it.id) }
+            ownKidsMove -> belowFloor(channel.withNumber(number), number, catalog) ?: taken
             number in Band.Kids.numbers && !KidStatus.isKidChannel(channel) -> EditRefusal.KidsBandOnly
             leavesKids(channel, number) -> EditRefusal.KidsBandOnly
-            holder != null && swapWith != holder.id -> EditRefusal.NumberTaken(holder.id)
-            else -> null
+            else -> belowFloor(channel, number, catalog) ?: taken
         }
-
-    // Whether a swap would give After Hours, the [holder], the edited [channel]'s number below 100 (#1078).
-    private fun sendsAfterHoursDown(
-        channel: LineupChannel,
-        holder: LineupChannel?,
-        swapWith: ChannelId?,
-    ): Boolean {
-        val old = channel.number ?: return false
-        val swapsWithHolder = holder != null && swapWith == holder.id
-        return swapsWithHolder && old < KidStatus.AFTER_HOURS_FLOOR && isAfterHoursStarter(checkNotNull(holder))
     }
 
     // Whether [channel], a kid channel now, would not be one at [number] (a kid key stays kid at any number).
@@ -692,6 +704,20 @@ object LineupEdits {
         channel: LineupChannel,
         number: Int,
     ): Boolean = KidStatus.isKidChannel(channel) && !KidStatus.isKidChannel(channel.withNumber(number))
+
+    // Why the [holder] cannot take the edited channel's [old] number: a grown-up holder cannot go into the Kids band,
+    // and no holder goes below its floor (#1097; one message for a swap).
+    private fun holderRefusal(
+        holder: LineupChannel,
+        old: Int?,
+        holderIsKid: Boolean,
+        catalog: StarterCatalogView,
+    ): EditRefusal? =
+        when {
+            old == null -> null
+            old in Band.Kids.numbers && !holderIsKid -> EditRefusal.KidsBandOnly
+            else -> belowFloor(holder, old, catalog)
+        }
 
     // The holder takes the edited channel's old number, or one of its own bands' free ones if that had none.
     private fun swapped(
@@ -703,7 +729,7 @@ object LineupEdits {
     ): EditOutcome {
         val old = channel.number
         val holderIsKid = KidStatus.isKidChannel(holder)
-        if (old != null && old in Band.Kids.numbers && !holderIsKid) return refused(EditRefusal.KidsBandOnly)
+        holderRefusal(holder, old, holderIsKid, catalog)?.let { return refused(it) }
         val moved = channel.withNumber(number)
         // Looking for the holder's number: the edited channel already has the new one, the holder keeps its default.
         val others =

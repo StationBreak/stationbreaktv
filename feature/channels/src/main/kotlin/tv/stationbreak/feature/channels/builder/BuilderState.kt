@@ -151,6 +151,11 @@ internal sealed interface BuilderConfirm {
 internal enum class BuilderMessage {
     KidsBandFull,
     KidsBand,
+
+    /** The number is below the lowest band the channel may use (#1097): Family, Teen or Adult numbers and up. */
+    NeedsFamily,
+    NeedsTeen,
+    NeedsGeneral,
     NoFreeNumber,
     OutOfRange,
     LastOn,

@@ -258,15 +258,18 @@ class LineupEditsTest {
     fun afterHoursCannotMoveBelow100ByANumberOrASwap() {
         val afterHours = LineupIds.starter(AdultMark.AFTER_HOURS_KEY)
         val lineup = lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), starter("western", 310), custom("low", 60))
-        for (number in listOf(1, 40, 60, 80, 99)) {
-            assertEquals(EditRefusal.OutOfRange, refusal(lineup, LineupEdit.SetNumber(afterHours, number)), "$number")
+        val below = EditRefusal.BelowBand(Band.General)
+        for (number in listOf(40, 60, 80, 99)) {
+            assertEquals(below, refusal(lineup, LineupEdit.SetNumber(afterHours, number)), "$number")
         }
+        // Into the Kids band it is refused as not a kid channel, as any grown-up channel is.
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(afterHours, 1)))
         assertEquals(100, applied(lineup, LineupEdit.SetNumber(afterHours, 100)).byId(afterHours).number)
         // The channel at 60 asking for 504 would send After Hours to 60.
         val swap = LineupEdit.SetNumber(ChannelId("custom:low"), 504, swapWith = afterHours)
-        assertEquals(EditRefusal.OutOfRange, refusal(lineup, swap))
-        // A grown-up built-in may still move into 34 to 99; its band then holds it (Ceilings, #1078).
-        assertEquals(50, applied(lineup, LineupEdit.SetNumber(western, 50)).byId(western).number)
+        assertEquals(EditRefusal.BelowBand(Band.General), refusal(lineup, swap))
+        // A grown-up built-in cannot move into 34 to 99 either (#1097): its floor is its band's.
+        assertEquals(EditRefusal.BelowBand(Band.General), refusal(lineup, LineupEdit.SetNumber(western, 50)))
     }
 
     // The same guard through ClearNumber and ReplaceCustom, each with a swap (#1088).
@@ -276,12 +279,13 @@ class LineupEditsTest {
         // Western sits at 60 though its default is 310; After Hours holds 310. Clearing it would give After Hours 60.
         val cleared =
             lineupOf(starter("western", 310, override = 60), starter(AdultMark.AFTER_HOURS_KEY, 504, override = 310))
-        assertEquals(EditRefusal.OutOfRange, refusal(cleared, LineupEdit.ClearNumber(western, swapWith = afterHours)))
+        val below = EditRefusal.BelowBand(Band.General)
+        assertEquals(below, refusal(cleared, LineupEdit.ClearNumber(western, swapWith = afterHours)))
         // A custom channel at 60 saved at 504, After Hours' number, would send After Hours to 60.
         val mine = custom("low", 60)
         val replaced = lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), mine)
         val replace = LineupEdit.ReplaceCustom(mine.id, someRules, 504, swapWith = afterHours, kids = false)
-        assertEquals(EditRefusal.OutOfRange, refusal(replaced, replace))
+        assertEquals(below, refusal(replaced, replace))
         // Both stay refused with the swap named or not, and a swap at or above 100 still works.
         val high = custom("high", 700)
         val ok = LineupEdit.ReplaceCustom(high.id, someRules, 504, swapWith = afterHours, kids = false)

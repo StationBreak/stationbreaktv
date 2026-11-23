@@ -39,7 +39,7 @@ object ChannelCeilings {
 
     // A starter or leftovers channel, or a retired one: Custom but keeping its `starter:` or `leftovers:` ID (#1088),
     // as `KidStatus.isKidChannel` reads it.
-    private fun isBuiltIn(channel: LineupChannel): Boolean =
+    internal fun isBuiltIn(channel: LineupChannel): Boolean =
         when (channel.source) {
             is ChannelSource.Starter, is ChannelSource.Leftovers -> {
                 true

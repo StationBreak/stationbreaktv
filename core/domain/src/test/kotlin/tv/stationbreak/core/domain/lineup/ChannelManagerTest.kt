@@ -61,6 +61,16 @@ class ChannelManagerTest {
         }
 
     @Test
+    fun aNumberBelowTheChannelsFloorIsRefusedWithTheBandItNeeds() =
+        runBlocking<Unit> {
+            seed(lineup())
+
+            val result = manager.change(ACCOUNT, ChannelChange.SetNumber(LineupIds.starter("laughs"), 50))
+
+            assertEquals(ChangeResult.Refused(ChangeRefusal.BelowBand(BandNeeded.General)), result)
+        }
+
+    @Test
     fun aChangeIsDoneOrNotEditable() =
         runBlocking<Unit> {
             val laughs = ChannelChange.SwitchOff(LineupIds.starter("laughs"))

@@ -230,6 +230,8 @@ private fun EditRefusal.toRefusal(): ChangeRefusal =
 
         EditRefusal.KidsBandOnly -> ChangeRefusal.KidsBandOnly
 
+        is EditRefusal.BelowBand -> ChangeRefusal.BelowBand(BandNeeded.of(needs))
+
         is EditRefusal.NumberTaken -> ChangeRefusal.NumberTaken(holder)
 
         // The custom-channel edits are not reachable from a ChannelChange.

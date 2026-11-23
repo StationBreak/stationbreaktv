@@ -914,6 +914,7 @@ internal class ChannelsViewModel
             when (reason) {
                 is ChangeRefusal.NumberTaken -> swapPanel(m, closed, change, reason.holder)
                 ChangeRefusal.KidsBandOnly -> closed.copy(message = ChannelsMessage.KidsBand)
+                is ChangeRefusal.BelowBand -> closed.copy(message = belowBandMessage(reason.needs))
                 ChangeRefusal.LastOn -> closed.copy(message = ChannelsMessage.LastOn)
                 ChangeRefusal.NoFreeNumber -> closed.copy(message = ChannelsMessage.NoNumber)
                 else -> closed.copy(message = ChannelsMessage.Failed)
