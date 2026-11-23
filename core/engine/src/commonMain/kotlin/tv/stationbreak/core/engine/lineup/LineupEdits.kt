@@ -22,6 +22,12 @@ sealed interface LineupEdit {
         val on: Boolean,
     ) : LineupEdit
 
+    /**
+     * The viewer has been told of the channels the band-floor migration moved (#1097): the pending [Lineup.movedNotices]
+     * are cleared. A lineup-level edit, not a channel's; clearing none changes nothing.
+     */
+    data object AcknowledgeMoved : LineupEdit
+
     /** [confirmedOptIn] must be true to switch on an opt-in (adult) starter. */
     data class SwitchOn(
         override val id: ChannelId,
@@ -186,6 +192,7 @@ object LineupEdits {
         val outcome =
             when (edit) {
                 is LineupEdit.UseMyCollections -> EditOutcome.Applied(lineup.copy(useMyCollections = edit.on))
+                LineupEdit.AcknowledgeMoved -> EditOutcome.Applied(lineup.copy(movedNotices = emptyList()))
                 is LineupEdit.ChannelEdit -> applyChannelEdit(lineup, edit, nowMs, boundaryMs, catalog)
             }
         return if (outcome is EditOutcome.Applied) {

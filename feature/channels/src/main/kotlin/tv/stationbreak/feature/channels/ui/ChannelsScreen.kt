@@ -123,6 +123,9 @@ private fun Header(ui: ChannelsUi) {
         if (message != null && !(readOnly && message == ChannelsMessage.NotEditable)) {
             NoteLine(messageText(message), ChannelsTags.MESSAGE)
         }
+        ui.moved.forEach {
+            NoteLine(stringResource(R.string.channels_moved_note, it.name, it.from, it.to), ChannelsTags.MOVED)
+        }
         if (ui.choosing) NoteLine(stringResource(R.string.channels_choosing), ChannelsTags.CHOOSING)
         if (ui.gettingReady) NoteLine(stringResource(R.string.channels_getting_ready), ChannelsTags.GETTING_READY)
     }

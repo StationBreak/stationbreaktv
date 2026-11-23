@@ -128,6 +128,16 @@ enum class LineupAccess {
     ReadOnly,
 }
 
+/**
+ * A channel the band-floor migration moved (#1097), for the line that tells the viewer: the channel's own name as the
+ * lineup holds it (never a title) and its old and new numbers.
+ */
+data class MovedChannel(
+    val name: String,
+    val from: Int,
+    val to: Int,
+)
+
 /** How features change an account's channel lineup (spec 21). None of it throws, but for cancellation. */
 interface ChannelEditor {
     /** [account]'s lineup access, following the lineup. */
@@ -145,4 +155,12 @@ interface ChannelEditor {
      * Failed: something else failed (the plan, say), and nothing changed. It never throws, but for cancellation.
      */
     suspend fun reset(account: LibraryAccount): ResetResult
+
+    /**
+     * The channels moved to keep to their band's floor (#1097) that the viewer has not been told of, once: they are
+     * cleared from the lineup in the same step that reads them, so a second call is empty. Empty too while the lineup
+     * may not be written or none is held. Notices for channels no longer in the lineup are dropped. Never throws, but
+     * for cancellation.
+     */
+    suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel>
 }

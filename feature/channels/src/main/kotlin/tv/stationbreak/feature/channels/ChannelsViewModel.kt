@@ -35,6 +35,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.domain.lineup.MovedChannel
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleSource
 import tv.stationbreak.core.domain.lineup.builder.ChannelBuilder
@@ -142,6 +143,8 @@ internal class ChannelsViewModel
             /** The channel that holds the number a [ChannelsPanel.Swap] offers to take. */
             val holder: ChannelId? = null,
             val message: ChannelsMessage? = null,
+            /** The channels moved to their band's floor, told once on opening and cleared as they were read (#1097). */
+            val moved: List<MovedChannel> = emptyList(),
             val confirmingReset: Boolean = false,
             val choice: Int = 0,
             val picker: PickerState? = null,
@@ -237,6 +240,11 @@ internal class ChannelsViewModel
                 val account = library.activeAccount().filterNotNull().first()
                 change(generation) { it.copy(account = account) }
                 val reasons = launch { readReasons(generation) }
+                val moved =
+                    launch {
+                        val told = editor.takeMovedNotices(account)
+                        change(generation) { it.copy(moved = told) }
+                    }
                 val access =
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
@@ -277,6 +285,7 @@ internal class ChannelsViewModel
                     }
                 } finally {
                     pending?.cancel()
+                    moved.cancel()
                     ready.cancel()
                     access.cancel()
                     entitled.cancel()
@@ -597,6 +606,7 @@ internal class ChannelsViewModel
                 choosing = m.choosing,
                 panel = m.panel,
                 message = m.message,
+                moved = m.moved,
                 confirmingReset = m.confirmingReset,
                 choice = m.choice,
                 picker = m.picker,

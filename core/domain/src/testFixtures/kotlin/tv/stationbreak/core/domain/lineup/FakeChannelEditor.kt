@@ -26,6 +26,12 @@ class FakeChannelEditor(
     /** What [reset] answers next. */
     var resetResult: ResetResult = ResetResult.Chosen
 
+    /** What [takeMovedNotices] answers once; it is cleared by the call, as the real one clears the lineup's. */
+    var moved: List<MovedChannel> = emptyList()
+
+    /** How many times [takeMovedNotices] was called. */
+    var takes = 0
+
     fun setAccess(value: LineupAccess) {
         accessNow.value = value
     }
@@ -43,5 +49,10 @@ class FakeChannelEditor(
     override suspend fun reset(account: LibraryAccount): ResetResult {
         resets += account
         return resetResult
+    }
+
+    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> {
+        takes++
+        return moved.also { moved = emptyList() }
     }
 }

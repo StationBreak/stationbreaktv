@@ -79,6 +79,7 @@ import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HomeShows
 import tv.stationbreak.core.domain.lineup.HouseholdSetting
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.domain.lineup.MovedChannel
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.ResetResult
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
@@ -231,6 +232,8 @@ private class Lineup(
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
 
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
+
+    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> = emptyList()
 
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 

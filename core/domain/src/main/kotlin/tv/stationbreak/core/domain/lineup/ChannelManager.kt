@@ -167,6 +167,34 @@ class ChannelManager(
             }
         }
 
+    // The notices are read in the lock the clearing is made in: what is cleared is what is returned. With none pending
+    // the check refuses and nothing is written. A failed or refused save returns none, and the next visit tries again.
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> {
+        var seen: Lineup? = null
+        val saved =
+            try {
+                service.edit(account, LineupEdit.AcknowledgeMoved) {
+                    seen = it
+                    it.movedNotices.isNotEmpty()
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                service.reportEvent(LineupEvent.EditFailed)
+                null
+            }
+        val lineup = seen
+        return if (saved is Saved.Ok && lineup != null) movedChannels(lineup) else emptyList()
+    }
+
+    private fun movedChannels(lineup: Lineup): List<MovedChannel> {
+        val byId = lineup.channels.associateBy { it.id }
+        return lineup.movedNotices.mapNotNull { notice ->
+            byId[notice.id]?.let { MovedChannel(it.displayName(service.catalog), notice.from, notice.to) }
+        }
+    }
+
     // A choice that cannot be read is an expected failure here, as is none chosen: nothing is written, and the caller
     // may try again. So is a failure of the plan or the save itself: it is reported (ResetFailed) and is
     // [ResetResult.Failed]. That "nothing changed" holds because of LineupService.reset's order: all that can throw
