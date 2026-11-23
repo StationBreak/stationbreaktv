@@ -84,6 +84,11 @@ class BandFloorsTest {
     ) = LineupEdit.AddCustom(ChannelId("custom:$id"), rules, number, kids = false, customLimit = null)
 
     private val general = EditRefusal.BelowBand(Band.General)
+
+    private companion object {
+        const val DAY = 20_000L
+    }
+
     private val teen = EditRefusal.BelowBand(Band.Teen)
     private val family = EditRefusal.BelowBand(Band.Family)
 
@@ -237,7 +242,7 @@ class BandFloorsTest {
     }
 
     // The stored move.
-    private fun migrate(vararg channels: LineupChannel) = FloorMigration.apply(channels.toList(), catalog).channels
+    private fun migrate(vararg channels: LineupChannel) = FloorMigration.apply(channels.toList(), catalog, DAY).channels
 
     private fun List<LineupChannel>.numberOf(channel: LineupChannel) = first { it.id == channel.id }.number
 
@@ -258,7 +263,7 @@ class BandFloorsTest {
         val offenders = (1..4).map { custom("o$it", 60 + it) } + custom("pg", 40, "PG")
         val others = (101..110).map { custom("c$it", it) } + starter("western", 310, override = 111)
         val all = offenders + others
-        val once = FloorMigration.apply(all, catalog).channels
+        val once = FloorMigration.apply(all, catalog, DAY).channels
         assertEquals(all.size, once.size)
         assertEquals(all.map { it.id }, once.map { it.id })
         val numbers = once.mapNotNull { it.number }
@@ -266,7 +271,7 @@ class BandFloorsTest {
         assertEquals(false, 601 in numbers, "a retired number")
         for ((before, after) in all.zip(once)) assertEquals(true, after.number!! >= before.number!!, before.id.value)
         assertEquals(40, once.numberOf(offenders.last()), "a Family channel at 40 is not an offender")
-        assertEquals(once, FloorMigration.apply(once, catalog).channels, "a second run changes nothing")
+        assertEquals(once, FloorMigration.apply(once, catalog, DAY).channels, "a second run changes nothing")
     }
 
     // A built-in a viewer's number put below its band (#1078 allowed it) goes back to its default, and says so.
@@ -274,15 +279,15 @@ class BandFloorsTest {
     fun aBuiltInBelowItsBandGoesBackToItsDefaultNumber() {
         val western = starter("western", 310, override = 98)
         val teenOne = starter("teen", 70, override = 50)
-        val result = FloorMigration.apply(listOf(western, teenOne), catalog)
+        val result = FloorMigration.apply(listOf(western, teenOne), catalog, DAY)
         assertEquals(null, result.channels.first { it.id == western.id }.numberOverride)
         assertEquals(310, result.channels.first { it.id == western.id }.number)
         assertEquals(70, result.channels.first { it.id == teenOne.id }.number)
         assertEquals(
-            setOf(MovedNotice(western.id, 98, 310), MovedNotice(teenOne.id, 50, 70)),
+            setOf(MovedNotice(western.id, 98, 310, DAY), MovedNotice(teenOne.id, 50, 70, DAY)),
             result.notices.toSet(),
         )
-        val again = FloorMigration.apply(result.channels, catalog)
+        val again = FloorMigration.apply(result.channels, catalog, DAY)
         assertEquals(result.channels, again.channels)
         assertEquals(emptyList(), again.notices, "no second notice")
     }
@@ -291,7 +296,7 @@ class BandFloorsTest {
     fun aBuiltInWhoseDefaultIsHeldTakesTheFirstFreeNumberInItsBandAtOrAboveTheFloor() {
         val western = starter("western", 310, override = 50)
         val holder = custom("holder", 310)
-        val result = FloorMigration.apply(listOf(western, holder), catalog).channels
+        val result = FloorMigration.apply(listOf(western, holder), catalog, DAY).channels
         // Its own recipe band is 300-399: 310 is held, 300 is free.
         assertEquals(300, result.numberOf(western))
         assertEquals(310, result.numberOf(holder))
@@ -312,13 +317,13 @@ class BandFloorsTest {
         assertEquals(
             150,
             FloorMigration
-                .apply(listOf(retired), catalog)
+                .apply(listOf(retired), catalog, DAY)
                 .channels
                 .single()
                 .number,
         )
         val full = (100..199).filter { it != 150 }.map { custom("g$it", it) } + custom("holder", 150)
-        val moved = FloorMigration.apply(full + retired, catalog).channels.numberOf(retired)
+        val moved = FloorMigration.apply(full + retired, catalog, DAY).channels.numberOf(retired)
         assertEquals(600, moved)
     }
 
@@ -326,7 +331,7 @@ class BandFloorsTest {
     fun aChannelWhoseBandAndTheCustomRangeAreFullStillMovesUpAboveItsFloor() {
         val full = (67..99).map { custom("t$it", it, "TV-14") } + (600..899).map { custom("c$it", it) }
         val offender = custom("low", 40, "TV-14")
-        val moved = FloorMigration.apply(full + offender, catalog).channels.numberOf(offender)!!
+        val moved = FloorMigration.apply(full + offender, catalog, DAY).channels.numberOf(offender)!!
         assertEquals(true, moved >= 67 && moved != 100 && moved != 601, "$moved")
     }
 
@@ -352,7 +357,7 @@ class BandFloorsTest {
     fun aBandWithNoFreeNumberSendsTheChannelToTheCustomRange() {
         val full = (67..99).map { custom("t$it", it, "TV-14") }
         val offender = custom("low", 40, "TV-14")
-        val moved = FloorMigration.apply(full + offender, catalog).channels
+        val moved = FloorMigration.apply(full + offender, catalog, DAY).channels
         assertEquals(600, moved.numberOf(offender))
     }
 
@@ -362,7 +367,7 @@ class BandFloorsTest {
         val shelf = custom("shelf", null)
         val inBand = listOf(starter("family", 40, override = 50), starter("teen", 70))
         val unchanged = listOf(kid, shelf, starter(kidKey, 5)) + inBand
-        assertEquals(unchanged, FloorMigration.apply(unchanged, catalog).channels)
+        assertEquals(unchanged, FloorMigration.apply(unchanged, catalog, DAY).channels)
     }
 
     @Test
@@ -414,5 +419,73 @@ class BandFloorsTest {
         val day = nextDayStart(1_000L)
         val reset = LineupPlanner.plan(null, SERVER, USER, 0, library, NO_NAMES, 1_000L, day, plain, kept = listOf(low))
         assertEquals(600, reset.channels.first { it.id == low.id }.number)
+    }
+
+    @Test
+    fun aChannelThatStaysPutKeepsItsNumberHeldForTheOthers() {
+        // Adult at 67 finds nothing free from 100 up (all full), so it stays; the Teen one at 40 must not take 67.
+        val full = (100..999).map { custom("g$it", it) }
+        val stuck = custom("stuck", 67)
+        val teenCustom = custom("teen", 40, "TV-14")
+        val numbers = FloorMigration.apply(full + stuck + teenCustom, catalog, DAY).channels.mapNotNull { it.number }
+        assertEquals(numbers.size, numbers.toSet().size, "no number twice")
+        assertEquals(68, FloorMigration.apply(full + stuck + teenCustom, catalog, DAY).channels.numberOf(teenCustom))
+    }
+
+    @Test
+    fun aCustomOffenderDoesNotTakeABuiltInOffendersDefault() {
+        // The Adult custom at 40 is processed first and, with 600-899 and 100-319 full, would reach 320: the default
+        // the built-in (not in the catalog, at 50) is going back to.
+        val oldTimer = starter("oldtimer", 320, override = 50)
+        val adult = custom("adult", 40)
+        val full = (100..319).map { custom("g$it", it) } + (600..899).map { custom("c$it", it) }
+        val result = FloorMigration.apply(full + oldTimer + adult, catalog, DAY).channels
+        assertEquals(320, result.numberOf(oldTimer))
+        assertNotEquals(320, result.numberOf(adult))
+    }
+
+    private fun plannerSetup(): Triple<TestCatalog, tv.stationbreak.core.model.RuleSnapshot, Lineup> {
+        val keys = listOf("alpha" to 110, "bravo" to 120, "charlie" to 210, "delta" to 310, "echo" to 410)
+        val plain = TestCatalog(keys.map { (k, n) -> recipeOf(k, n) } + recipeOf("late", 520, optIn = true))
+        val library = libraryOf(keys.associate { it.first to 30 } + ("late" to 30))
+        return Triple(plain, library, planOf(null, library, plain))
+    }
+
+    // A notice lives KEEP_DAYS days: kept on the last of them, dropped the day after, and with it the file's v8.
+    @Test
+    fun aNoticeIsKeptForFourteenDaysAndThenDropped() {
+        val (plain, library, first) = plannerSetup()
+        val alpha = first.channel("alpha").id
+        val made = 100L
+        val stored = first.copy(movedNotices = listOf(MovedNotice(alpha, 50, 110, made)))
+
+        fun at(day: Long) = planOf(stored, library, plain, nowMs = day * DAY_MS + DAY_START_MS).movedNotices
+        assertEquals(1, at(made + MovedNotice.KEEP_DAYS).size, "the boundary day")
+        assertEquals(1, at(made).size, "a fresh one")
+        assertEquals(emptyList(), at(made + MovedNotice.KEEP_DAYS + 1), "the day after")
+    }
+
+    @Test
+    fun aResetKeepsThePendingNoticesOfTheChannelsItKeeps() {
+        val (plain, library, _) = plannerSetup()
+        val mine = custom("mine", 650)
+        val gone = ChannelId("custom:gone")
+        val notices = listOf(MovedNotice(mine.id, 50, 650, 0L), MovedNotice(gone, 40, 600, 0L))
+        val day = nextDayStart(1_000L)
+        val reset =
+            LineupPlanner.plan(
+                null,
+                SERVER,
+                USER,
+                0,
+                library,
+                NO_NAMES,
+                1_000L,
+                day,
+                plain,
+                kept = listOf(mine),
+                movedNotices = notices,
+            )
+        assertEquals(listOf(MovedNotice(mine.id, 50, 650, 0L)), reset.movedNotices)
     }
 }

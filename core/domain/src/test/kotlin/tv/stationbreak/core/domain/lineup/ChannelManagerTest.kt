@@ -78,8 +78,8 @@ class ChannelManagerTest {
         val renamed = base.channels.map { if (it.id == laughs) it.copy(nameOverride = "Mine") else it }
         val notices =
             listOf(
-                MovedNotice(LineupIds.starter("laughs"), 50, 110),
-                MovedNotice(LineupIds.starter("whodunit"), 60, 210),
+                MovedNotice(LineupIds.starter("laughs"), 50, 110, 20_000L),
+                MovedNotice(LineupIds.starter("whodunit"), 60, 210, 20_000L),
             )
         return base.copy(channels = renamed, movedNotices = notices)
     }

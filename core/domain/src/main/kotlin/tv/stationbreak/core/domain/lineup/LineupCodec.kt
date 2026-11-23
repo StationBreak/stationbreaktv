@@ -85,10 +85,13 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * lineup finalises (the next save writes 3 to 6 again), which bounds how long a TV holds a version-7 file.
  *
  * Version 8 (#1097) adds the optional top-level `moved` list, the channels the band-floor migration moved, each as
- * `{"id", "from", "to"}` (an ID and two numbers: no name or title), written only while the viewer has not been told
- * (the version of a file is the highest any feature in it needs, so a file with no notice is written as before). An
- * older build reads a version-8 file as [Decoded.NewerVersion]; a `moved` key in a file below version 8 makes it
- * [Decoded.Unreadable]. A notice for a channel no longer in the lineup is dropped on reading.
+ * `{"id", "from", "to", "day"}` (an ID, two numbers and the epoch day: no name or title), written only while the viewer
+ * has not been told (the version of a file is the highest any feature in it needs, so a file with no notice is
+ * written as before). An older build reads a version-8 file as [Decoded.NewerVersion]; a `moved` key in a file below
+ * version 8 makes it [Decoded.Unreadable]. The list is advice, so it is read leniently: an entry that does not read,
+ * or whose channel is no longer in the lineup, is dropped, and nothing in it can make the file unreadable. A notice
+ * ends when the viewer opens Channels, or [MovedNotice.KEEP_DAYS] days after it was made (every refresh drops the
+ * old ones), so a household that never opens Channels has a file back at its old version within that time.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key
@@ -211,7 +214,7 @@ internal object LineupCodec {
                 viewerChoicesKnown = if (lineup.viewerChoicesKnown) null else false,
                 curationBasis = lineup.curationBasis?.let { BasisV1.of(it, ids) },
                 repairs = if (repairs.isEmpty) null else RepairsCodec.encode(repairs),
-                moved = lineup.movedNotices.takeIf { it.isNotEmpty() }?.map { MovedV1(it.id.value, it.from, it.to) },
+                moved = lineup.movedNotices.takeIf { it.isNotEmpty() }?.let(MovedCodec::encode),
             )
         return json.encodeToString(FileV1.serializer(), file).encodeToByteArray()
     }
@@ -298,7 +301,7 @@ internal object LineupCodec {
                 useMyCollections = file.useMyCollections ?: true,
                 curationBasis = file.curationBasis?.basis(ids),
                 viewerChoicesKnown = !inferred && file.viewerChoicesKnown != false,
-                movedNotices = file.moved.orEmpty().mapNotNull { it.notice(ids) },
+                movedNotices = MovedCodec.decode(file.moved, ids),
             )
         val meta = file.meta?.refreshMeta ?: RefreshMeta()
         return if (lineup != null && !hasStrayField(file, meta, fileVersion, hasRepairs, rawAdded)) {
@@ -692,23 +695,8 @@ private class FileV1(
     val viewerChoicesKnown: Boolean? = null,
     val curationBasis: BasisV1? = null,
     val repairs: JsonElement? = null,
-    val moved: List<MovedV1>? = null,
+    val moved: JsonElement? = null,
 )
-
-// A channel the band-floor migration moved (#1097): its ID and the two numbers, never a name or title.
-@Serializable
-private class MovedV1(
-    val id: String,
-    val from: Int,
-    val to: Int,
-) {
-    /** The notice, when the channel is still in the lineup ([ids]) and the numbers are channel numbers. */
-    fun notice(ids: Set<ChannelId>): MovedNotice? {
-        val numbers = LineupEdits.MIN_NUMBER..LineupEdits.MAX_NUMBER
-        val channel = id.takeIf { it.isNotBlank() }?.let(::ChannelId)?.takeIf { it in ids }
-        return channel?.takeIf { from in numbers && to in numbers }?.let { MovedNotice(it, from, to) }
-    }
-}
 
 @Serializable
 private class BasisV1(
