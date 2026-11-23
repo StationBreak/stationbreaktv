@@ -260,6 +260,96 @@ class ProViewModelTest {
         }
 
     @Test
+    fun boughtBeforeTheStoreVerifies_isConfirming_withNoBuyOrRestore_untilProIsOwned() =
+        runTest {
+            store.purchaseVerifies = false
+            val rig = rig()
+            press(rig)
+            assertEquals(ProResult.Confirming, rig.now.result)
+            assertFalse(rig.now.owned)
+            assertFalse("no Buy or Restore while confirming", rig.now.actionable)
+            press(rig)
+            press(rig, down = true)
+            assertEquals("a second press started nothing", 1, store.purchases)
+            assertEquals(0, store.restores)
+
+            store.settle(true)
+            runCurrent()
+            assertTrue(rig.now.owned)
+            assertEquals(ProResult.Bought, rig.now.result)
+        }
+
+    @Test
+    fun confirmingEndsWhenTheViewerLeavesAndComesBack_soAStoreThatNeverConfirmsDoesNotStrandThem() =
+        runTest {
+            store.purchaseVerifies = false
+            val rig = rig()
+            press(rig)
+            assertFalse(rig.now.actionable)
+            rig.vm.open()
+            runCurrent()
+            assertTrue(rig.now.actionable)
+            assertNull(rig.now.result)
+        }
+
+    @Test
+    fun theAnswerMovingNullToFalseDuringAPurchase_doesNotLeaveItHeld() =
+        runTest {
+            val unknown = FakeStoreEntitlement(initial = null)
+            unknown.next = PurchaseOutcome.Pending
+            val hold = CompletableDeferred<Unit>()
+            unknown.purchaseHold = hold
+            val rig = rig(gate = unknown)
+            press(rig)
+            assertTrue(rig.now.busy)
+            unknown.settle(false)
+            runCurrent()
+            hold.complete(Unit)
+            runCurrent()
+            assertFalse(rig.now.busy)
+            assertFalse("the answer moved under the call: nothing to wait on", rig.now.held)
+            assertTrue(rig.now.canBuy)
+            assertNull("no stale Pending line", rig.now.result)
+        }
+
+    @Test
+    fun theAnswerMovingDuringAPurchase_thatReturnsPending_leavesNoStalePending_afterARefund() =
+        runTest {
+            val hold = CompletableDeferred<Unit>()
+            store.next = PurchaseOutcome.Pending
+            store.purchaseHold = hold
+            val rig = rig()
+            press(rig)
+            store.settle(true)
+            runCurrent()
+            hold.complete(Unit)
+            runCurrent()
+            assertFalse(rig.now.held)
+            assertNull(rig.now.result)
+            store.revoke()
+            runCurrent()
+            assertFalse(rig.now.held)
+            assertTrue(rig.now.canBuy)
+            assertNull("Pending does not come back with the refund", rig.now.result)
+        }
+
+    @Test
+    fun aHoldEndedByTheAnswerMoving_takesThePendingLineWithIt_evenWhenNotOwned() =
+        runTest {
+            val unknown = FakeStoreEntitlement(initial = null)
+            unknown.next = PurchaseOutcome.Pending
+            val rig = rig(gate = unknown)
+            press(rig)
+            assertTrue(rig.now.held)
+            assertEquals(ProResult.Pending, rig.now.result)
+            unknown.settle(false)
+            runCurrent()
+            assertFalse(rig.now.held)
+            assertNull("no Pending line under a live Buy", rig.now.result)
+            assertTrue(rig.now.canBuy)
+        }
+
+    @Test
     fun kidsMode_startsNoPurchase_andNoRestore() =
         runTest {
             kids.lock()

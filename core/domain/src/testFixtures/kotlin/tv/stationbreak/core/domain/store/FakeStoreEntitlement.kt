@@ -8,7 +8,8 @@ import kotlin.time.Instant
 
 /**
  * A [StoreEntitlement] for tests: [purchase] ends as [next], and the store's state follows what a real one would
- * report ([PurchaseOutcome.Purchased] and [PurchaseOutcome.AlreadyOwned] verify Pro, the rest change nothing).
+ * report ([PurchaseOutcome.Purchased] (unless [purchaseVerifies] is off) and [PurchaseOutcome.AlreadyOwned] verify
+ * Pro, the rest change nothing).
  * [revoke] is a refund seen in the purchase updates, and [owned] is what the account owns, read by [restore].
  * Open only because a test wraps [verified] to see when it is collected.
  */
@@ -37,6 +38,9 @@ open class FakeStoreEntitlement(
     /** What the next [purchase] ends as. */
     var next: PurchaseOutcome = PurchaseOutcome.Purchased
 
+    /** When false, a [PurchaseOutcome.Purchased] ends without verifying Pro: the store has not yet reported it. */
+    var purchaseVerifies: Boolean = true
+
     /** What the account owns at the store: the answer of the next [restore]. */
     var owned: Boolean = false
 
@@ -51,7 +55,8 @@ open class FakeStoreEntitlement(
         purchases++
         purchaseHold?.await()
         check(!purchaseThrows) { "store broke" }
-        if (next == PurchaseOutcome.Purchased || next == PurchaseOutcome.AlreadyOwned) {
+        val verifies = next == PurchaseOutcome.AlreadyOwned || (next == PurchaseOutcome.Purchased && purchaseVerifies)
+        if (verifies) {
             owned = true
             state.value = true
         }
