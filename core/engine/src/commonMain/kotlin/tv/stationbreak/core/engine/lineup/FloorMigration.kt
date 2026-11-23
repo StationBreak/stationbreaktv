@@ -31,7 +31,10 @@ data class MovedNotice(
             notices: List<MovedNotice>,
             ids: Set<ChannelId>,
             today: Long,
-        ): List<MovedNotice> = notices.filter { it.id in ids && it.day >= today - KEEP_DAYS }.map { it.copy(day = minOf(it.day, today)) }
+        ): List<MovedNotice> =
+            notices
+                .filter { it.id in ids && it.day >= today - KEEP_DAYS }
+                .map { it.copy(day = minOf(it.day, today)) }
     }
 }
 

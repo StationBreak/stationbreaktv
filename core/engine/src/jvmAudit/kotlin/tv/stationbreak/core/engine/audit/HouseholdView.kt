@@ -115,7 +115,8 @@ internal object HouseholdViews {
             val max = c.rules.maxRating
             channels += GateChannel(c.recipe.key, c.id, c.number, false, max, policy, items, homed, pool.items)
         }
-        for (channel in lineup.channels.filter { isOnCustom(it, day) }.sortedWith(compareBy({ it.number }, { it.id.value }))) {
+        val customs = lineup.channels.filter { isOnCustom(it, day) }
+        for (channel in customs.sortedWith(compareBy({ it.number }, { it.id.value }))) {
             val view = customView(channel, planned, day, epoch, policyOf) ?: continue
             view.items.mapTo(claimed) { it.id }
             channels += view
@@ -171,7 +172,8 @@ internal object HouseholdViews {
         val policy = policyOf(channel)
         val pool = PoolEvaluator.evaluate(rules, planned.snapshot, policy).items
         val items = epoch.cut(settings, pool, day.startMs)
-        return GateChannel(channel.id.value, channel.id, channel.number, false, ceiling, policy, items, emptySet(), pool)
+        val id = channel.id
+        return GateChannel(id.value, id, channel.number, false, ceiling, policy, items, emptySet(), pool)
     }
 
     // The catalog's recipe while the key is in it, as `LineupDays.leftoversSettings` has it.

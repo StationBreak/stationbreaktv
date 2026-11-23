@@ -32,7 +32,8 @@ class CustomYoungBandTest {
     private val teenExplicitTag = movie(idOf(8), rating = "TV-14", tags = listOf("softcore"))
     private val kidsFilm = movie(idOf(9), rating = "G", genres = listOf("Animation", "Family"))
     private val rated = movie(idOf(10), rating = "R")
-    private val everything = listOf(plain, pgHorror, pgGore, approved, unrated, teenHorror, teenAdultTag, teenExplicitTag)
+    private val everything =
+        listOf(plain, pgHorror, pgGore, approved, unrated, teenHorror, teenAdultTag, teenExplicitTag)
 
     private fun custom(
         number: Int,
@@ -67,7 +68,7 @@ class CustomYoungBandTest {
     @Test
     fun aCustomTv14ChannelKeepsTeenTitlesAndDropsAdultAndExplicitOnes() {
         val aired = airs(custom(70, "TV-14"))
-        assertEquals(setOf(1L, 2L, 3L, 6L, 9L), aired, "family and teen tiers; not Approved, unrated, adult or Explicit")
+        assertEquals(setOf(1L, 2L, 3L, 6L, 9L), aired, "family and teen tiers; not Approved, unrated or adult")
     }
 
     @Test

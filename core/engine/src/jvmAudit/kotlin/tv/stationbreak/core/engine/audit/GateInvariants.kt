@@ -267,9 +267,9 @@ internal object CeilingOracle {
 /**
  * The floor rule, read apart from `ChannelFloors` (as [CeilingOracle] reads the ceiling apart from the pool code): by
  * the channel's policy and, from the rating ladder alone, the rank of its ceiling. A kid channel may use any number; a
- * ceiling up to PG puts a channel at 34 or up, up to TV-14 at 67 or up; After Hours, a ceiling above that and no ceiling
- * at 100 or up. It is never above the floor `ChannelFloors` gives (a built-in is also held to its recipe's band), so a
- * channel below it is wrong whichever way `ChannelFloors` is wrong.
+ * ceiling up to PG puts a channel at 34 or up, up to TV-14 at 67 or up; After Hours, a ceiling above that and no
+ * ceiling at 100 or up. It is never above the floor `ChannelFloors` gives (a built-in is also held to its recipe's
+ * band), so a channel below it is wrong whichever way `ChannelFloors` is wrong.
  */
 internal object FloorOracle {
     private val PG_RANK = checkNotNull(RatingLadder.rankOf("PG"))

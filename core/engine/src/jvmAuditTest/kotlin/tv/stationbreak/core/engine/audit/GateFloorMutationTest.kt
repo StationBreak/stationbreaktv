@@ -15,6 +15,7 @@ import kotlin.test.assertTrue
  * broken on purpose in the real everything-on view ([Leaks]), and in the view of the custom case, whose channels the
  * real planner has moved up.
  */
+@Suppress("MagicNumber") // The floors are the numbers under test.
 class GateFloorMutationTest {
     private val leaks = Leaks()
     private val view = leaks.view
@@ -47,9 +48,10 @@ class GateFloorMutationTest {
         assertTrue(!floorBroken(customView), "no channel below its floor")
         val own = customView.channels.filter { it.key.startsWith("custom:") }
         assertEquals(4, own.size)
-        val byFloor = own.associate { FloorOracle.of(it) to it.number!! }
-        assertTrue(byFloor.getValue(100) >= 100 && byFloor.getValue(67) >= 67 && byFloor.getValue(34) >= 34, "$byFloor")
-        assertTrue(own.any { it.policy == PoolPolicy.KidsOnly && it.number == 20 }, "a PG channel below 34 is a Tots one")
+        val byFloor = own.associate { FloorOracle.of(it) to checkNotNull(it.number) }
+        for ((floor, number) in byFloor) assertTrue(number >= floor, "$byFloor")
+        val tots = own.any { it.policy == PoolPolicy.KidsOnly && it.number == 20 }
+        assertTrue(tots, "a PG channel below 34 is a Tots one")
     }
 
     // A weak `ChannelFloors` is one the planner's migration and edits trust: a custom channel is left below its floor,

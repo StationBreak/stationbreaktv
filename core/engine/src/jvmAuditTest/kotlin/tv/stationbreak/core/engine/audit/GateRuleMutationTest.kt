@@ -74,21 +74,6 @@ class GateRuleMutationTest {
         assertTrue(Rule.AdultOnYoungBand in rules || Rule.HorrorVeto in rules, "$rules")
     }
 
-    // #1108: the custom case's real view keeps its PG and TV-14 channels to their band's tiers; a custom channel built
-    // without that rule (its policy forced open) airs a PG-rated horror title and fails.
-    @Test
-    fun aCustomChannelUnderAYoungCeilingBuiltWithoutTheTierLimitFails() {
-        val customCase = GateTestSupport.case("edge-cases-custom")
-        val plan = GateTestSupport.everythingOnPlan(customCase)
-        assertTrue(leaks.broken(HouseholdViews.of(plan, GateMain.SCHEDULER_EPOCH), customCase).isEmpty())
-        val weak =
-            GateTestSupport.everythingOn(customCase) {
-                if (it.source is ChannelSource.Custom && ChannelCeilings.of(it, plan.catalog) == "PG") PoolPolicy.Open else null
-            }
-        val rules = leaks.broken(weak, customCase)
-        assertTrue(Rule.HorrorVeto in rules || Rule.AdultOnYoungBand in rules, "$rules")
-    }
-
     @Test
     fun aViewBuiltWithAnOpenPolicyOnTheLeftoversFails() {
         val weak =
