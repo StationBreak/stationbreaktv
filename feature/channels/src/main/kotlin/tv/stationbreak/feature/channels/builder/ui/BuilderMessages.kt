@@ -47,6 +47,8 @@ internal fun messageText(
         }
     }
 
+private const val NEEDS_BAND = "The needs-a-band lines are worded by needsText, which takes the band"
+
 @Suppress("CyclomaticComplexMethod") // One line per message, exhaustive so a new one cannot go unworded.
 private fun plainMessage(message: BuilderMessage): Int =
     when (message) {
@@ -65,9 +67,9 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.Reshuffled -> R.string.builder_saved
         BuilderMessage.CustomLimit -> R.string.pro_custom_limit_note
         BuilderMessage.NeedsPro -> R.string.builder_pro_needs
-        BuilderMessage.NeedsFamily -> R.string.channels_refused_needs_family
-        BuilderMessage.NeedsTeen -> R.string.channels_refused_needs_teen
-        BuilderMessage.NeedsGeneral -> R.string.channels_refused_needs_general
+        BuilderMessage.NeedsFamily -> error(NEEDS_BAND)
+        BuilderMessage.NeedsTeen -> error(NEEDS_BAND)
+        BuilderMessage.NeedsGeneral -> error(NEEDS_BAND)
         BuilderMessage.KidsBand, BuilderMessage.NumberTaken -> R.string.builder_number_taken_pick
     }
 

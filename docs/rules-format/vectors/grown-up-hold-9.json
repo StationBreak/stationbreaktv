@@ -18,7 +18,7 @@
     {"name": "TV-14 movie with an adult tag, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "tags": ["nudity"], "ceiling": "TV-14", "passes": false},
     {"name": "PG-13 movie with an adult genre, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "PG-13", "genres": ["Ecchi"], "ceiling": "TV-14", "passes": false},
     {"name": "TV-14 movie with an Explicit tag, TV-14 ceiling", "policy": "custom", "shape": "movie", "rating": "TV-14", "tags": ["porn"], "ceiling": "TV-14", "passes": false},
-    {"name": "TV-14 movie above the ceiling stays out", "policy": "custom", "shape": "movie", "rating": "R", "ceiling": "TV-14", "passes": false},
+    {"name": "R movie above the TV-14 ceiling stays out", "policy": "custom", "shape": "movie", "rating": "R", "ceiling": "TV-14", "passes": false},
     {"name": "R horror movie, R ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "R", "genres": ["Horror"], "ceiling": "R", "passes": true},
     {"name": "R movie with an adult tag, R ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "R", "tags": ["nudity"], "ceiling": "R", "passes": true},
     {"name": "PG horror movie, no ceiling has no limit", "policy": "custom", "shape": "movie", "rating": "PG", "genres": ["Horror"], "ceiling": null, "passes": true},

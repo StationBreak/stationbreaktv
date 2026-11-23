@@ -330,7 +330,14 @@ object LineupPlanner {
                 current.channels
             }
         val today = MovedNotice.dayOf(p.nowMs)
-        val floored = FloorMigration.apply(renumbered, p.catalog, today)
+        // A newer catalog that still waits renumbers later: those channels keep their numbers until it does (#1115).
+        val waiting =
+            if (p.catalog.version > lineup.catalogVersion && !newer) {
+                CatalogRenumbering.pending(current.channels, lineup.catalogVersion, p.catalog)
+            } else {
+                emptySet()
+            }
+        val floored = FloorMigration.apply(renumbered, p.catalog, today, waiting)
         val numbered = floored.channels
         val refreshed = numbered.map { refreshed(backToBack(it), p, newer, it.id in keepers) }
         val withNew = if (newer) refreshed + added(refreshed, p) else refreshed

@@ -115,13 +115,21 @@ internal enum class ChannelsMessage {
     DefaultNumberTaken,
 }
 
+/** The one of [family], [teen] and [general] this need names (#1097): the list's and the builder's lines use it. */
+internal fun <T> BandNeeded.pick(
+    family: T,
+    teen: T,
+    general: T,
+): T =
+    when (this) {
+        BandNeeded.Family -> family
+        BandNeeded.Teen -> teen
+        BandNeeded.General -> general
+    }
+
 /** The line for a number below the lowest band [needs] a channel may use (#1097). */
 internal fun belowBandMessage(needs: BandNeeded): ChannelsMessage =
-    when (needs) {
-        BandNeeded.Family -> ChannelsMessage.NeedsFamily
-        BandNeeded.Teen -> ChannelsMessage.NeedsTeen
-        BandNeeded.General -> ChannelsMessage.NeedsGeneral
-    }
+    needs.pick(ChannelsMessage.NeedsFamily, ChannelsMessage.NeedsTeen, ChannelsMessage.NeedsGeneral)
 
 /** Where the focus is, by identity, so it follows a row that moves group. */
 internal sealed interface ChannelsFocus {

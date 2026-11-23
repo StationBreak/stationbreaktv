@@ -30,35 +30,49 @@ internal object CatalogRenumbering {
         fromVersion: Int,
         catalog: StarterCatalogView,
     ): List<LineupChannel> {
-        // Only the moves to catalog 8, 12 and 13 renumber. A stored default can differ from the catalog's for another
-        // reason (a number a viewer's channel held when it was chosen), and that stays.
-        val first = StarterCatalog.YOUNG_BANDS_VERSION
-        val atTheMove = fromVersion < first && catalog.version >= first
+        val moving = movingAt(channels, fromVersion, catalog)
+        val oldKids = if (atTheMove(fromVersion, catalog)) oldKidCustoms(channels) else emptyList()
+        return if (moving.isEmpty() && oldKids.isEmpty()) channels else renumbered(channels, catalog, moving, oldKids)
+    }
+
+    /**
+     * The starter and leftovers channels [apply] would renumber for [catalog] from [fromVersion] (#1115): the ones a
+     * refresh that waits for the catalog (for a full collection pass) leaves on their old numbers. The floor work
+     * ([FloorMigration]) leaves them alone until then, so a number it picks cannot outlast the catalog's.
+     */
+    fun pending(
+        channels: List<LineupChannel>,
+        fromVersion: Int,
+        catalog: StarterCatalogView,
+    ): Set<ChannelId> = movingAt(channels, fromVersion, catalog).mapTo(HashSet()) { it.first.id }
+
+    private fun movingAt(
+        channels: List<LineupChannel>,
+        fromVersion: Int,
+        catalog: StarterCatalogView,
+    ): List<Triple<LineupChannel, Int, Band>> {
         // Catalog 12 moves the two holiday channels into the seasonal band: only the seasonal recipes move then.
         val seasonal = StarterCatalog.SEASONAL_VERSION
         val atSeasonal = fromVersion < seasonal && catalog.version >= seasonal
         // Catalog 13 moves Oddly Funny from Premium to General.
         val oddly = StarterCatalog.ODDLY_FUNNY_VERSION
         val atOddlyFunny = fromVersion < oddly && catalog.version >= oddly
-        val moving =
-            when {
-                atTheMove -> {
-                    movingChannels(channels, catalog, withLeftovers = true) { true }
-                }
+        return when {
+            atTheMove(fromVersion, catalog) -> {
+                movingChannels(channels, catalog, withLeftovers = true) { true }
+            }
 
-                atSeasonal || atOddlyFunny -> {
-                    movingChannels(channels, catalog, withLeftovers = false) {
-                        (atSeasonal && it.band == Band.Seasonal) ||
-                            (atOddlyFunny && it.key == StarterCatalog.ODDLY_FUNNY_KEY)
-                    }
-                }
-
-                else -> {
-                    emptyList()
+            atSeasonal || atOddlyFunny -> {
+                movingChannels(channels, catalog, withLeftovers = false) {
+                    (atSeasonal && it.band == Band.Seasonal) ||
+                        (atOddlyFunny && it.key == StarterCatalog.ODDLY_FUNNY_KEY)
                 }
             }
-        val oldKids = if (atTheMove) oldKidCustoms(channels) else emptyList()
-        return if (moving.isEmpty() && oldKids.isEmpty()) channels else renumbered(channels, catalog, moving, oldKids)
+
+            else -> {
+                emptyList()
+            }
+        }
     }
 
     private fun renumbered(
@@ -171,4 +185,14 @@ internal object CatalogRenumbering {
         } else {
             channel.copy(defaultNumber = number)
         }
+}
+
+// Only the moves to catalog 8, 12 and 13 renumber. A stored default can differ from the catalog's for another
+// reason (a number a viewer's channel held when it was chosen), and that stays.
+private fun atTheMove(
+    fromVersion: Int,
+    catalog: StarterCatalogView,
+): Boolean {
+    val first = StarterCatalog.YOUNG_BANDS_VERSION
+    return fromVersion < first && catalog.version >= first
 }
