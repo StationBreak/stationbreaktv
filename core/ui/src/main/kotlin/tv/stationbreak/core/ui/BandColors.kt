@@ -7,7 +7,8 @@ import androidx.compose.ui.graphics.Color
  * The accents of the number bands (DESIGN.md "Band colours"): Tots green, Kids blue, Teens violet, and the neutral
  * stroke grey for Grown-ups, which has no accent of its own. None is orange, red or yellow, which mean focus, now and
  * status. They are for shapes only (a stripe, a dot, a rule), 3:1 or better on the page, a card and a sheet, and always
- * sit next to the band's name; text keeps the usual secondary and primary colours. `GuideColorsTest` holds the contrast.
+ * sit next to the band's name; text keeps the usual secondary and primary colours. `GuideColorsTest` holds the
+ * contrast.
  */
 class BandColors(
     val tots: Color,

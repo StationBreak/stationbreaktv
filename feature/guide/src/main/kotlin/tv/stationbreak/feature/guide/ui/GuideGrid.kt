@@ -89,8 +89,8 @@ private val TileRadius = 2.dp
 private val MarkerWidth = 2.dp
 private val MarkerInset = 3.dp
 
-// The channel tile's number band (#1100): a 3 dp stripe at its very edge, which ends where the marker's inset begins, and a
-// 2 dp rule centred on the gap above the tile where a band starts.
+// The channel tile's number band (#1100): a 3 dp stripe at its very edge, which ends where the marker's inset begins,
+// and a 2 dp rule centred on the gap above the tile where a band starts.
 private val BandStripeWidth = 3.dp
 private val DividerHeight = 2.dp
 private val LabelGap = 6.dp

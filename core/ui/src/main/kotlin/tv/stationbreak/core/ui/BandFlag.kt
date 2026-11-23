@@ -27,6 +27,7 @@ private val DotGap = 6.dp
  * [textColor] in [style] (the flag style of the screen), never the accent: the accent is a shape. Not focusable and it
  * sets no semantics: the caller decides how a screen reader hears it, so the name is said once.
  */
+@Suppress("LongParameterList") // One band's name and range, its two colours, the flag style and a modifier.
 @Composable
 fun BandFlag(
     name: String,
