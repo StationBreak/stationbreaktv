@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -16,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,6 +25,9 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.NumberBand
+import tv.stationbreak.core.ui.BandColors
+import tv.stationbreak.core.ui.BandFlag
 import tv.stationbreak.core.ui.BroadcastType
 import tv.stationbreak.feature.channels.ChannelGroup
 import tv.stationbreak.feature.channels.R
@@ -65,6 +70,48 @@ internal fun HeadingLine(
             color = ChannelsPalette.secondary,
         )
     }
+}
+
+/** The accent of [band] in these colours. */
+internal fun BandColors.of(band: NumberBand): Color =
+    when (band) {
+        NumberBand.Tots -> tots
+        NumberBand.Kids -> kids
+        NumberBand.Teens -> teens
+        NumberBand.GrownUps -> grownUps
+    }
+
+private fun bandName(band: NumberBand): Int =
+    when (band) {
+        NumberBand.Tots -> R.string.band_tots
+        NumberBand.Kids -> R.string.band_kids
+        NumberBand.Teens -> R.string.band_teens
+        NumberBand.GrownUps -> R.string.band_grownups
+    }
+
+/**
+ * A number band's flag within a group (DESIGN.md "Band colours"): a dot in the band's accent, then its name and range
+ * in the teletype, "TOTS · 1-33". Not focusable; a heading for a screen reader, which hears the same words.
+ */
+@Composable
+internal fun BandLine(
+    group: ChannelGroup,
+    band: NumberBand,
+) {
+    BandFlag(
+        name = stringResource(bandName(band)),
+        first = band.numbers.first,
+        last = band.last,
+        accent = ChannelsPalette.band.of(band),
+        textColor = ChannelsPalette.secondary,
+        style = flagStyle(),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 6.dp, bottom = 2.dp)
+                .testTag(ChannelsTags.bandFlag(group.name, band))
+                .semantics(mergeDescendants = true) { heading() },
+    )
 }
 
 /** Space Mono Bold, 10sp, +13%: the flag of DESIGN.md's Typography. */

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.ui
 
+import tv.stationbreak.core.domain.lineup.NumberBand
 import tv.stationbreak.core.model.ChannelId
 
 /** Test tags for the channel screen, public so `app`'s instrumented tests can find its parts. */
@@ -73,6 +74,12 @@ object ChannelsTags {
     const val HEADING_ON = "channels:heading:on"
     const val HEADING_SHELF = "channels:heading:shelf"
     const val HEADING_OFF = "channels:heading:off"
+
+    /** The flag that opens a number band within a group of the list. */
+    fun bandFlag(
+        group: String,
+        band: NumberBand,
+    ) = "channels:band:$group:$band"
 
     /** The state at the end of the "Use my collections" row: On or Off. */
     const val HOUSEHOLD_STATE = "channels:household:state"
