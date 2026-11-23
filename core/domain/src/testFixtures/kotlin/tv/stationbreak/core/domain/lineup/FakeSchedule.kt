@@ -81,6 +81,8 @@ class FakeSchedule : ScheduleSource {
         var ceilingRank: Int? = null,
         /** The catalog recipe key of a starter or leftovers channel, null for any other. */
         var recipeKey: String? = null,
+        /** The lowest number the channel may have (`ChannelFloors`). */
+        var floor: Int = 1,
     )
 
     val channels = linkedMapOf<ChannelId, Entry>()
@@ -124,7 +126,7 @@ class FakeSchedule : ScheduleSource {
         id: ChannelId,
         e: Entry,
         at: Long,
-    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank, e.recipeKey)
+    ) = ChannelAiring(id, e.number, e.name, Instant.fromEpochMilliseconds(dayStart(e, at)), e.hidden, e.ceilingRank, e.recipeKey, e.floor)
 
     private fun dayStart(
         e: Entry,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup
 
+import tv.stationbreak.core.engine.lineup.ChannelFloors
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.KidStatus
@@ -43,6 +44,7 @@ internal fun LineupChannel.summary(
     shelfReason = shownShelfReason(nowMs),
     recipeKey = source.recipeKey(),
     viewerMade = isViewerCustom(),
+    floor = ChannelFloors.of(this, catalog),
 )
 
 // The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source

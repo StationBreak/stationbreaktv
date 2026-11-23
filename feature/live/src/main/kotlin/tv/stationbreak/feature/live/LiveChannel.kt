@@ -894,7 +894,7 @@ private suspend fun followKidsLock(
 ) {
     lock?.collect { state ->
         val now = playing()
-        if (now != null && !state.allows(now.number)) hidden()
+        if (now != null && !state.allows(now.number, now.floor)) hidden()
     }
 }
 

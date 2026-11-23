@@ -8,6 +8,10 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.LineupStore
 import tv.stationbreak.core.domain.StoredBytes
+import tv.stationbreak.core.domain.kids.FakeKidsLock
+import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
+import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
@@ -117,6 +121,48 @@ class ChannelManagerTest {
 
             assertEquals(listOf(60), manager.takeMovedNotices(ACCOUNT).map { it.from })
             assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+        }
+
+    // #1108: a stored lineup is shown as it is until the first refresh saves the moved one; Family Mode hides a channel
+    // below its floor in that window, and for good when the save fails.
+    @Test
+    fun familyModeHidesAStoredChannelBelowItsFloorBeforeAnyRefreshAndWhenTheSaveFails() =
+        runBlocking<Unit> {
+            fun own(
+                name: String,
+                number: Int,
+                ceiling: String?,
+            ) = LineupChannel(
+                ChannelId("custom:$name"),
+                null,
+                number,
+                null,
+                ChannelState.On,
+                ChannelSource.Custom(rules("Mine", Source.Genre("Comedy")).copy(maxRating = ceiling)),
+                5L,
+            )
+            val adult = own("adult", 40, null)
+            val teens = own("teens", 41, "TV-14")
+            val placed = own("placed", 42, "PG")
+            seed(lineup(ChannelState.On, adult, teens, placed))
+            val lock = FakeKidsLock()
+            val locked = KidsLockedChannelRepository(service, lock)
+            service.loaded(ACCOUNT)
+
+            suspend fun shown() =
+                locked
+                    .channels(ACCOUNT)
+                    .first()
+                    .mapNotNull { it.number }
+                    .sorted()
+            assertEquals(listOf(40, 41, 42, 110, 210), shown(), "lock off shows everything")
+            for (cap in listOf(KidsCap.Family, KidsCap.Teen)) {
+                lock.lock(cap)
+                assertEquals(listOf(42), shown(), "$cap before any refresh")
+            }
+            store.inner.failWrites = true
+            service.refresh(ACCOUNT, LIBRARIES)
+            assertEquals(listOf(42), shown(), "the save failed: the stored lineup stays, and stays hidden")
         }
 
     @Test

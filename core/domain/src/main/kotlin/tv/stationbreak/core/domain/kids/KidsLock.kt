@@ -36,9 +36,14 @@ data class KidsLockState(
 ) {
     /**
      * Whether a channel numbered [number] can be seen and tuned: every channel while the lock is off; while it is on,
-     * only one numbered 1 to the cap. A channel with no number is hidden then.
+     * only one numbered 1 to the cap. A channel with no number is hidden then. [floor] is the lowest number the channel
+     * may have (`ChannelFloors`, #1097): one numbered below it is hidden too, so a stored lineup not yet moved up (an
+     * Adult channel at 40) never shows in a young band. A caller with no channel leaves it at 1.
      */
-    fun allows(number: Int?): Boolean = !enabled || (number != null && number in 1..cap.upTo)
+    fun allows(
+        number: Int?,
+        floor: Int = 1,
+    ): Boolean = !enabled || (number != null && number >= floor && number in 1..cap.upTo)
 }
 
 /**

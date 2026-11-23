@@ -79,6 +79,8 @@ data class ChannelAiring(
     val hidden: HiddenReason?,
     val ceilingRank: Int? = null,
     val recipeKey: String? = null,
+    /** The lowest number the channel may have (`ChannelFloors`, #1097), for Kids Mode: 1 when not given. */
+    val floor: Int = 1,
 ) {
     companion object {
         /** The [ceilingRank] of PG and TV-PG: the top kid-safe tier. */

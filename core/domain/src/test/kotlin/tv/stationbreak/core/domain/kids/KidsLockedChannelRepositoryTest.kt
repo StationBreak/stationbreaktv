@@ -130,4 +130,21 @@ class KidsLockedChannelRepositoryTest {
             val first = withTimeoutOrNull(60_000) { wrapped.activeChannels().first() }
             assertEquals(null, first)
         }
+
+    @Test
+    fun aChannelBelowItsFloorIsHiddenWhateverItsNumberAndShownWithTheLockOff() =
+        runTest {
+            val adult = summary(40).copy(id = ChannelId("adult"), floor = 100)
+            val teens = summary(40).copy(id = ChannelId("teens"), floor = 67)
+            val placed = summary(41).copy(floor = 34)
+            lineup.flow.value = listOf(adult, teens, placed)
+            assertEquals(listOf(40, 40, 41), shown())
+            for (cap in listOf(KidsCap.Family, KidsCap.Teen)) {
+                lock.lock(cap)
+                assertEquals(listOf(41), shown(), "$cap")
+                assertEquals(listOf(41), shown(lists = locked.channels(account)), "$cap")
+            }
+            lock.unlock()
+            assertEquals(listOf(40, 40, 41), shown())
+        }
 }
