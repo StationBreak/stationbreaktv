@@ -52,7 +52,7 @@ internal fun LibrariesRoot(
     val keys = remember { FocusRequester() }
     LaunchedEffect(keys) { keys.requestFocus() }
     val done by rememberUpdatedState(onDone)
-    val actions = remember(viewModel) { LibrariesActions(viewModel) { done() } }
+    val actions = remember(viewModel) { ListActions(viewModel::move, viewModel::select) { done() } }
     LibrariesSettingsScreen(
         state = state,
         pictureHole = pictureHole,
@@ -62,34 +62,4 @@ internal fun LibrariesRoot(
                 .onKeyEvent { listScreenKey(it, actions::pad) }
                 .focusable(),
     )
-}
-
-/** What a key does. Back finishes the screen once: a key that follows it (a fast double Back) is ignored. */
-internal class LibrariesActions(
-    private val vm: LibrariesSettingsViewModel,
-    private val onDone: () -> Unit,
-) {
-    private var finished = false
-
-    fun pad(pad: Pad) {
-        if (finished) return
-        when (pad) {
-            Pad.Up -> {
-                vm.move(up = true)
-            }
-
-            Pad.Down -> {
-                vm.move(up = false)
-            }
-
-            Pad.Select -> {
-                vm.select()
-            }
-
-            Pad.Back -> {
-                finished = true
-                onDone()
-            }
-        }
-    }
 }

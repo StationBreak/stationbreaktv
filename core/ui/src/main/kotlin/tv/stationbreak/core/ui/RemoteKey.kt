@@ -10,6 +10,9 @@ enum class RemoteKey { Up, Down, Left, Right, Select, Back }
 /** Every direction, for a screen where each one moves something. */
 val ALL_DIRECTIONS: Set<RemoteKey> = setOf(RemoteKey.Up, RemoteKey.Down, RemoteKey.Left, RemoteKey.Right)
 
+/** Up and Down only, for a list screen where Left and Right are kept but do nothing. */
+val UP_DOWN: Set<RemoteKey> = setOf(RemoteKey.Up, RemoteKey.Down)
+
 /** The remote key [key] is, or null for one a screen leaves alone (the media keys, Menu). */
 fun remoteKeyOf(key: Key): RemoteKey? =
     when (key) {
@@ -46,3 +49,15 @@ fun remoteKeyToAct(
         else -> which.takeIf { down && which in pads }
     }
 }
+
+/**
+ * The one pad a screen acts on for a key event, or null when the event is only kept: [remoteKeyToAct] with [pads] as
+ * the directions that count, [ALL_DIRECTIONS] by default and [UP_DOWN] for a list screen. Every screen's key handler
+ * calls this; do not declare another.
+ */
+fun padToAct(
+    key: Key,
+    type: KeyEventType,
+    repeatCount: Int,
+    pads: Set<RemoteKey> = ALL_DIRECTIONS,
+): RemoteKey? = remoteKeyToAct(key, type, repeatCount, pads)

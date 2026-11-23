@@ -42,6 +42,7 @@ import tv.stationbreak.core.ui.KeyHintPair
 import tv.stationbreak.core.ui.KeyHintRow
 import tv.stationbreak.core.ui.LeftSheet
 import tv.stationbreak.core.ui.LocalPanelColors
+import tv.stationbreak.core.ui.RemoteKey
 import tv.stationbreak.core.ui.SheetMeasures
 import tv.stationbreak.core.ui.guideProse
 import tv.stationbreak.core.ui.guideText
@@ -112,26 +113,30 @@ internal class SignOutActions(
 ) {
     private var finished = false
 
-    fun pad(pad: Pad) {
+    fun pad(pad: RemoteKey) {
         if (finished) return
         val stay =
             when (pad) {
-                Pad.Up -> {
+                RemoteKey.Up -> {
                     vm.move(up = true)
                     false
                 }
 
-                Pad.Down -> {
+                RemoteKey.Down -> {
                     vm.move(up = false)
                     false
                 }
 
-                Pad.Select -> {
+                RemoteKey.Select -> {
                     vm.select()
                 }
 
-                Pad.Back -> {
+                RemoteKey.Back -> {
                     vm.back()
+                }
+
+                RemoteKey.Left, RemoteKey.Right -> {
+                    false
                 }
             }
         if (stay) {
