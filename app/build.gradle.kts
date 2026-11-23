@@ -2,6 +2,12 @@
 
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
+import org.gradle.api.attributes.Attribute
+import org.gradle.api.file.FileCollection
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.process.CommandLineArgumentProvider
 import tv.stationbreak.buildlogic.ProUnlockPolicy
 import tv.stationbreak.buildlogic.ReleaseVersion
 
@@ -74,7 +80,7 @@ androidComponents {
         val distribution = variant.productFlavors.firstOrNull { it.first == "distribution" }?.second
         // Whether Pro is baked unlocked (#793, ADR-0023): ProUnlockPolicy in build-logic. It fails the build for a store
         // release baked unlocked; the GitHub release is the one deliberate exception (Q-BIZ-1, #119). See di/ProModule
-        // and the testAmazonRelease and testGithubRelease guards.
+        // and the testAmazonRelease and testGithub guards.
         val proUnlocked = ProUnlockPolicy.unlocked(variant.buildType, distribution)
         variant.buildConfigFields?.put(
             "PRO_UNLOCKED",
@@ -104,6 +110,28 @@ androidComponents {
                 it.versionName.set(releaseVersion.name)
             }
         }
+    }
+}
+
+// The GitHub release's runtime classpath, handed to ProGithubUnlockTest (#1072): the unit-test classpath is not what
+// ships, so the "no Amazon SDK" scan reads this one. Only the github release unit test gets it; every other variant
+// scans its own classpath, and the Amazon guard (ProReleaseGuardTest) reads BuildConfig only, so it is unchanged.
+class GithubShippedClasspath(
+    @get:InputFiles @get:PathSensitive(PathSensitivity.NONE) val files: FileCollection,
+) : CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String> = listOf("-Dstationbreak.shippedClasspath=${files.files.joinToString(File.pathSeparator)}")
+}
+
+androidComponents.onVariants(androidComponents.selector().withName("githubRelease")) { variant ->
+    // The variant's own runtime configuration: a plain configuration lookup cannot choose between the flavors. Each
+    // library arrives as its classes jar, so the scan reads the same bytes the APK is built from.
+    val shipped =
+        variant.runtimeConfiguration.incoming
+            .artifactView {
+                attributes.attribute(Attribute.of("artifactType", String::class.java), "android-classes-jar")
+            }.files
+    tasks.withType<Test>().matching { it.name == "testGithubReleaseUnitTest" }.configureEach {
+        jvmArgumentProviders.add(GithubShippedClasspath(shipped))
     }
 }
 

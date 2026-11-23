@@ -58,6 +58,7 @@ import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.PersistedDays
 import tv.stationbreak.core.domain.lineup.ProLockedChannelRepository
 import tv.stationbreak.core.domain.lineup.ProLockedHoldings
+import tv.stationbreak.core.domain.lineup.ProLockedIdentities
 import tv.stationbreak.core.domain.lineup.ProLockedIds
 import tv.stationbreak.core.domain.lineup.ProLockedProperties
 import tv.stationbreak.core.domain.lineup.ProLockedScheduleSource
@@ -332,7 +333,10 @@ internal object LineupModule {
      * recipe, rules and lookups, so the box and the sheet word a channel the same way.
      */
     @Provides
-    fun channelIdentities(properties: BuiltInChannelProperties): ChannelIdentityReader = properties
+    fun channelIdentities(
+        properties: BuiltInChannelProperties,
+        locked: ProLockedIds,
+    ): ChannelIdentityReader = ProLockedIdentities(properties, locked)
 
     /**
      * What a channel holds today (#757), for the guide's channel box and the properties sheet: one reader, so the two

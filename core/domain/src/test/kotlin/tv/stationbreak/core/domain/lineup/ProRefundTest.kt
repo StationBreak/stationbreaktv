@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import tv.stationbreak.core.domain.FakeProEntitlement
@@ -362,6 +363,30 @@ class ProRefundTest {
 
             assertEquals(null, reader.read(six, NOON))
             assertEquals(sheetOf(id(1)), reader.read(id(1), NOON))
+        }
+
+    @Test
+    fun theIdentitiesOfALockedCustomAreLeftOut_whileFree() =
+        runBlocking<Unit> {
+            seed()
+            library.useAccount(ACCOUNT)
+
+            fun identity(n: Int) = ChannelIdentity(ChannelKind.Custom, false, null, "Personality $n", null)
+            val everyone = (1..total).associate { id(it) to identity(it) }
+            val all =
+                object : ChannelIdentityReader {
+                    override fun identities() = flowOf(everyone)
+                }
+            val reader = ProLockedIdentities(all, ProLockedIds(pro, library, service))
+            val six = id(FreeTier.CUSTOM_CHANNELS + 1)
+            assertEquals(everyone, reader.identities().first())
+
+            pro.set(false)
+
+            val shown = reader.identities().first()
+            assertEquals(null, shown[six])
+            assertEquals(identity(1), shown[id(1)])
+            assertEquals((1..FreeTier.CUSTOM_CHANNELS).map(::id).toSet(), shown.keys)
         }
 
     private class AiringsOnly(
