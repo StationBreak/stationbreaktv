@@ -17,7 +17,8 @@ import kotlin.time.Instant
 /**
  * The channels a free lineup keeps but does not air or edit (ADR-0023, #99): the viewer's own custom channels beyond
  * the [FreeTier.CUSTOM_CHANNELS] with the lowest IDs, whatever state they are in. Nothing is stored: it is a rule over
- * the lineup, so a refund locks the extras, buying Pro again unlocks them untouched, and no channel is ever deleted.
+ * the lineup, so a refund, or an offline grace that ran out (#1065), locks the extras, buying Pro again unlocks them
+ * untouched, and no channel is ever deleted.
  * The rank is the ID because it is the one thing of a custom channel that never changes: the lineup is re-sorted by
  * number at every plan, the number is the viewer's to change, and a channel's `onSince` moves each time it is switched
  * on. A custom ID is random, so the five that stay are a fixed but arbitrary set, not the first five made; the
@@ -55,17 +56,18 @@ class ProLockedChannelRepository(
 }
 
 /**
- * The IDs of the active account's locked custom channels, read from [channels] (the whole lineup, not a filtered
- * view). Empty while Pro is on, with no active account, or with no lineup yet.
+ * The IDs of the active account's locked custom channels, ranked over [lineups]' loaded lineup (the whole lineup, not a
+ * filtered view) with no channel list built (#1065). Empty while Pro is on, with no active account, or with no lineup
+ * yet.
  */
 class ProLockedIds(
     private val pro: ProEntitlement,
     private val library: LibraryRepository,
-    private val channels: ChannelRepository,
+    private val lineups: LineupService,
 ) {
     suspend fun now(): Set<ChannelId> {
         val account = if (pro.pro.value) null else library.activeAccount().first()
-        return if (account == null) emptySet() else channels.channels(account).first().lockedIds()
+        return if (account == null) emptySet() else lineups.lockedCustomIds(account)
     }
 }
 

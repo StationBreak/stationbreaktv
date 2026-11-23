@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import kotlin.time.Instant
 
 /** The Pro cache on a real DataStore in a temporary folder, reopened to read back what reached the disk. */
 @Suppress("InjectDispatcher") // Real files on the real IO dispatcher, as the app's cache uses.
@@ -53,6 +54,19 @@ class DataStoreProCacheTest {
 
             open().write(false)
             assertFalse(open().read())
+        }
+
+    @Test
+    fun theVerifiedTimeSurvivesARelaunch_andIsNoneWhenNothingOrACorruptFileIsKept() =
+        runBlocking {
+            assertNull(open().readVerifiedAt())
+
+            val at = Instant.fromEpochMilliseconds(1_800_000_000_123)
+            open().writeVerifiedAt(at)
+            assertEquals(at, open().readVerifiedAt())
+
+            corrupt(DataStoreProCache.FILE_NAME)
+            assertNull("a garbled time is none", open().readVerifiedAt())
         }
 
     @Test

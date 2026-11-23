@@ -23,8 +23,17 @@ must stay free of any billing code.
 2. **One port, `StoreEntitlement`.** `verified` (true, false, or null before the store has answered), `purchase()` and
    `restore()`. A purchase ends as `Purchased`, `AlreadyOwned`, `Cancelled`, `Failed` or `Pending`; only the first two
    verify Pro. The port carries no receipt, user ID or token, and nothing logs one.
-3. **A boolean cache.** The last verified answer is kept in a DataStore file of its own (`noBackupFilesDir`, never backed
-   up), so a TV that starts offline keeps Pro. A verified false clears it and beats it. A start before the store has
+3. **A cache with a 30-day grace.** The last verified answer, and the time the store last said true, are kept in a
+   DataStore file of its own (`noBackupFilesDir`, never backed up), so a TV that starts offline keeps Pro for 30 days
+   after that time ([#1065](https://github.com/StationBreak/stationbreaktv/issues/1065); it replaces "never
+   expires"). On day 29 it still grants; from day 30 it does not, and the TV is free until the store next answers true.
+   A lapse is not a refund: nothing is reset or deleted, the customs beyond the five lowest IDs pause (7), and the
+   store's next true answer brings Pro and them back. The store is rechecked whenever the TV is online: the adapter
+   asks at start and each resume (6), a true answer renews the time, and a process that stays up renews it daily while
+   the answer stands. A cache that owns but has no readable time (one written before this rule, or a garbled value) is
+   taken as verified at the first start after it, so an upgrade never locks a paying viewer out, and a time in the
+   future (a clock set back) counts as now, so the grace is never longer than 30 days. A verified false clears the
+   cache and beats it. A start before the store has
    answered trusts the cache only when the refund record (7) reads as not owed: an owed or unknown refund beats a
    cached owned, so a kill between writing the one and clearing the other, or a refund file that is corrupt or cannot
    be read, never grants Pro offline ([#1067](https://github.com/StationBreak/stationbreaktv/issues/1067)). It is a convenience, not a proof: someone who
@@ -78,7 +87,9 @@ must stay free of any billing code.
    - the gates are asked again inside the lineup's lock, on the lineup the change would write, and the refund's reset
      asks again there just before it saves, so a refund or a purchase that lands while a change waits for the lock is
      not missed ([#1063](https://github.com/StationBreak/stationbreaktv/issues/1063));
-   - nothing is deleted, and buying Pro again unlocks them untouched, with no lineup-file change.
+   - nothing is deleted, and buying Pro again, or the store's next true answer after a lapse of the offline grace (3),
+     unlocks them untouched, with no lineup-file change. The locked IDs are read from the loaded lineup, with no channel
+     list built, so a free-mode schedule call does not rebuild one ([#1065](https://github.com/StationBreak/stationbreaktv/issues/1065)).
 
 ## Open: the Appstore SDK
 

@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.store
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlin.time.Instant
 
 /**
  * A [StoreEntitlement] for tests: [purchase] ends as [next], and the store's state follows what a real one would
@@ -93,6 +94,15 @@ class InMemoryProCache(
     }
 
     @Volatile private var handled: Set<String> = emptySet()
+
+    /** When the owned answer was last verified true; a test sets it to make an old (or missing) stamp. */
+    @Volatile var verifiedAt: Instant? = null
+
+    override suspend fun readVerifiedAt(): Instant? = verifiedAt
+
+    override suspend fun writeVerifiedAt(at: Instant) {
+        verifiedAt = at
+    }
 
     override suspend fun readRefundPending(): Boolean? = refundPending
 

@@ -18,6 +18,7 @@ import tv.stationbreak.core.domain.store.StoreEntitlement
 import tv.stationbreak.data.settings.pro.DataStoreProCache
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.time.Clock
 
 /**
  * Whether StationBreak Pro is unlocked (#793, #99, ADR-0032): the build's `PRO_UNLOCKED` (see app/build.gradle.kts) OR
@@ -39,7 +40,7 @@ internal object ProModule {
         store: StoreEntitlement,
         cache: ProCache,
         @AppScope scope: CoroutineScope,
-    ): ProEntitlement = StoreBackedPro(BuildConfig.PRO_UNLOCKED, store, cache, scope)
+    ): ProEntitlement = StoreBackedPro(BuildConfig.PRO_UNLOCKED, store, cache, scope, Clock.System)
 }
 
 /** Starts [ProRevocation] on the app scope: starters return to defaults when the store verifies a refund. */

@@ -9,12 +9,21 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 /** "Build unlock OR store entitlement" (#99): every outcome the store can give, and what a refund does. */
 class StoreBackedProTest {
@@ -296,5 +305,149 @@ class StoreBackedProTest {
 
     private companion object {
         const val TIMEOUT_MS = 10_000L
+        val START: Instant = Instant.fromEpochSeconds(1_800_000_000)
     }
+
+    // The 30-day offline grace (#1065). A clock that moves with the test's virtual time.
+    private fun TestScope.clock() =
+        object : Clock {
+            override fun now(): Instant = START + testScheduler.currentTime.milliseconds
+        }
+
+    private fun TestScope.started(
+        clock: Clock = clock(),
+        offline: FakeStoreEntitlement = FakeStoreEntitlement(),
+    ) = StoreBackedPro(false, offline, cache, backgroundScope + UnconfinedTestDispatcher(testScheduler), clock)
+
+    private suspend fun cachedOwnedVerified(
+        ago: Duration,
+        clock: Clock,
+    ) {
+        cache.write(true)
+        cache.writeVerifiedAt(clock.now() - ago)
+    }
+
+    @Test
+    fun theOfflineCacheGrantsOnDay29AndNotOnDay30OrDay31() =
+        runTest {
+            val clock = clock()
+            for ((ago, expected) in listOf(29.days to true, 30.days to false, 31.days to false)) {
+                cache.write(true)
+                cache.writeVerifiedAt(clock.now() - ago)
+                assertEquals(expected, started(clock).pro.value, "verified $ago ago")
+            }
+        }
+
+    @Test
+    fun aCachedProLapsesInTheSessionOnTheThirtiethDay_andIsNotARefund() =
+        runTest {
+            val clock = clock()
+            cachedOwnedVerified(1.days, clock)
+            val pro = started(clock)
+            assertTrue(pro.pro.value)
+
+            advanceTimeBy(28.days)
+            runCurrent()
+            assertTrue(pro.pro.value, "day 29 of the grace")
+
+            advanceTimeBy(1.days)
+            runCurrent()
+            assertFalse(pro.pro.value, "30 days after the verified answer")
+            assertFalse(pro.revoked.value, "a lapse is not a refund")
+            assertEquals(false, cache.readRefundPending())
+            assertTrue(cache.read(), "the owned answer is kept, so the next true answer is no surprise")
+        }
+
+    @Test
+    fun theStoreIsRecheckedWhenOnline_andItsTrueAnswerRenewsTheTime() =
+        runTest {
+            val clock = clock()
+            cachedOwnedVerified(29.days, clock)
+            val offline = FakeStoreEntitlement()
+            val pro = started(clock, offline)
+            advanceTimeBy(2.days)
+            runCurrent()
+            assertFalse(pro.pro.value, "offline past the grace")
+
+            offline.settle(true)
+
+            assertTrue(pro.pro.value, "the store answered true when the TV came online")
+            assertEquals(clock.now(), cache.verifiedAt)
+        }
+
+    @Test
+    fun aProcessThatStaysUpRenewsTheTimeWhileTheStoreStandsAtTrue() =
+        runTest {
+            val clock = clock()
+            val store = FakeStoreEntitlement(initial = true)
+            val pro = started(clock, store)
+            advanceTimeBy(40.days)
+            runCurrent()
+
+            assertTrue(pro.pro.value)
+            val renewed = cache.verifiedAt
+            assertTrue(renewed != null && clock.now() - renewed < 1.days + 1.milliseconds, "renewed daily: $renewed")
+            assertTrue(restarted().pro.value, "a start offline after it is inside the grace")
+        }
+
+    @Test
+    fun aLapsedViewerWhoIsThenRefundedIsRefunded() =
+        runTest {
+            val clock = clock()
+            cachedOwnedVerified(31.days, clock)
+            val offline = FakeStoreEntitlement()
+            val pro = started(clock, offline)
+            assertFalse(pro.pro.value)
+
+            offline.revoke()
+
+            assertTrue(pro.revoked.value, "it held Pro in the cache before the grace ended")
+            assertEquals(true, cache.readRefundPending())
+        }
+
+    @Test
+    fun aCachedOwnedWithNoReadableTimeIsVerifiedAtTheFirstStart_notLockedOut() =
+        runTest {
+            val clock = clock()
+            cache.write(true)
+            assertNull(cache.verifiedAt)
+
+            val pro = started(clock)
+
+            assertTrue(pro.pro.value, "a viewer who verified before the grace existed keeps Pro")
+            assertEquals(clock.now(), cache.verifiedAt, "and the 30 days run from here")
+            advanceTimeBy(30.days)
+            runCurrent()
+            assertFalse(pro.pro.value)
+        }
+
+    @Test
+    fun aTimeInTheFutureIsNoLongerThanTheGrace() =
+        runTest {
+            val clock = clock()
+            cache.write(true)
+            cache.writeVerifiedAt(clock.now() + 400.days)
+
+            val pro = started(clock)
+            assertTrue(pro.pro.value)
+
+            advanceTimeBy(30.days)
+            runCurrent()
+            assertFalse(pro.pro.value, "a clock set back does not buy more than 30 days")
+        }
+
+    @Test
+    fun aVerifiedFalseStillBeatsAnUnexpiredCache() =
+        runTest {
+            val clock = clock()
+            cachedOwnedVerified(1.days, clock)
+            val offline = FakeStoreEntitlement()
+            val pro = started(clock, offline)
+            assertTrue(pro.pro.value)
+
+            offline.revoke()
+
+            assertFalse(pro.pro.value)
+            assertTrue(pro.revoked.value)
+        }
 }
