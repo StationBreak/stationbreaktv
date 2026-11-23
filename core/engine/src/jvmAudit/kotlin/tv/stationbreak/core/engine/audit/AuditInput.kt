@@ -30,10 +30,15 @@ internal class Viewer(
     val needsSecondDay: Boolean get() = hiddenThenOn.isNotEmpty() || keptThenOn > 0
 }
 
-/** A custom channel: a [name] for the report and its [rules] (the rules format). */
+/**
+ * A custom channel: a [name] for the report and its [rules] (the rules format), and the [number] the viewer gave it, or
+ * null for the next free custom number. The number is never read from a snapshot file: a gate case sets it in code, to
+ * start a channel below its floor and leave the planner to move it.
+ */
 internal class CustomChannel(
     val name: String,
     val rules: ChannelRules,
+    val number: Int? = null,
 )
 
 /** What [AuditSnapshotCodec.read] found. */

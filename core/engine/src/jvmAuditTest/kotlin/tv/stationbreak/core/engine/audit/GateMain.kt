@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine.audit
 
+import tv.stationbreak.core.engine.rules
+import tv.stationbreak.core.rules.Source
 import tv.stationbreak.core.scheduler.EpochPool
 import tv.stationbreak.core.scheduler.Epochs
 import java.io.File
@@ -23,6 +25,17 @@ internal object GateMain {
             EpochPool.build(settings, items, Epochs.epochNumber(settings, dayStartMs))
         }
 
+    // The viewer's own channels of the custom case (#1108), given numbers a planner from before the band floors may
+    // have stored: the adult and the teen one start below their floors (100, 67) and the planner moves them up; the
+    // PG one is in the Kids band (34-66) and stays; the last is below 34, which makes it a Tots channel by number.
+    private val CUSTOMS: List<CustomChannel> =
+        listOf(
+            CustomChannel("Invented adult mix", rules(listOf(Source.Genre("Crime"))), number = 40),
+            CustomChannel("Invented teen mix", rules(listOf(Source.Genre("Drama")), maxRating = "TV-14"), number = 50),
+            CustomChannel("Invented family mix", rules(listOf(Source.Genre("Family")), maxRating = "PG"), number = 36),
+            CustomChannel("Invented tots mix", rules(listOf(Source.Genre("Kids")), maxRating = "PG"), number = 20),
+        )
+
     /** The cases of the frozen fixtures the repository holds. A fixture file may serve more than one case. */
     val CASES: List<GateCase> =
         listOf(
@@ -35,6 +48,7 @@ internal object GateMain {
                 leftoverCapHours = LEFTOVER_CAP_EDGE,
                 kidsHomes = true,
             ),
+            GateCase("edge-cases-custom", "edge-cases.json", leftoverCapHours = LEFTOVER_CAP_EDGE, customs = CUSTOMS),
         )
 
     // The pinned leftover hours per fixture (soft warnings): a little over what the goldens hold today.

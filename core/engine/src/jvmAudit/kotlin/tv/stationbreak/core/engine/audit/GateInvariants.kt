@@ -160,15 +160,15 @@ internal object GateInvariants {
         return if (kept) emptyList() else listOf(Violation(Rule.BandPromise, pass, channel.key, "number $number"))
     }
 
-    // #1097: a channel never sits below the floor `ChannelFloors` gives it, so no channel is in a lower band than its
-    // content allows.
+    // #1097: a channel never sits below the floor its content allows, as [FloorOracle] reads it (not `ChannelFloors`).
     private fun belowFloor(
         pass: String,
         channel: GateChannel,
     ): List<Violation> {
         val number = channel.number ?: return emptyList()
-        return if (number < channel.floor) {
-            listOf(Violation(Rule.BelowFloor, pass, channel.key, "number $number below ${channel.floor}"))
+        val floor = FloorOracle.of(channel)
+        return if (number < floor) {
+            listOf(Violation(Rule.BelowFloor, pass, channel.key, "number $number below $floor"))
         } else {
             emptyList()
         }
@@ -261,5 +261,28 @@ internal object CeilingOracle {
         val ranks = rated.map { RatingLadder.rankOf(it) }
         val allUnder = limit != null && ranks.isNotEmpty() && ranks.all { it != null && it <= limit }
         return channel.ceiling == null || allUnder
+    }
+}
+
+/**
+ * The floor rule, read apart from `ChannelFloors` (as [CeilingOracle] reads the ceiling apart from the pool code): by
+ * the channel's policy and, from the rating ladder alone, the rank of its ceiling. A kid channel may use any number; a
+ * ceiling up to PG puts a channel at 34 or up, up to TV-14 at 67 or up; After Hours, a ceiling above that and no ceiling
+ * at 100 or up. It is never above the floor `ChannelFloors` gives (a built-in is also held to its recipe's band), so a
+ * channel below it is wrong whichever way `ChannelFloors` is wrong.
+ */
+internal object FloorOracle {
+    private val PG_RANK = checkNotNull(RatingLadder.rankOf("PG"))
+    private val TV14_RANK = checkNotNull(RatingLadder.rankOf("TV-14"))
+
+    fun of(channel: GateChannel): Int {
+        val rank = channel.ceiling?.let { RatingLadder.rankOf(it) }
+        return when {
+            channel.policy == PoolPolicy.KidsOnly -> Band.Kids.numbers.first
+            channel.policy == PoolPolicy.ExplicitOnly || rank == null -> Band.General.numbers.first
+            rank <= PG_RANK -> Band.Family.numbers.first
+            rank <= TV14_RANK -> Band.Teen.numbers.first
+            else -> Band.General.numbers.first
+        }
     }
 }
