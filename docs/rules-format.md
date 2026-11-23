@@ -2015,7 +2015,11 @@ adult. The level is the rating's minimum age rounded up to the next rung (`kid-h
 spelling, in its `ratingMap` rows). A rating that table lacks (`U`, `12A`, `FSK 16`, `MA15+`, a single letter without a
 country, and the like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json`
 and `kid-hold-10.json`). A client that matches StationBreak's tiers uses that table, not one of its own, and reports the
-hold names `kid-hold-10` and `grown-up-hold-10`. This ladder and its rule 4 are unchanged by it, with
+hold names `kid-hold-10` and `grown-up-hold-10`. Who reads that level: the tier of a title and a kid channel's
+ceiling (the app's kid channel uses the level in place of rule 4). Every other ceiling, on a grown-up or custom
+channel (a PG Kids-band or TV-14 Teens-band channel, or a channel's own `maxRating`), is rule 4 on this ladder alone,
+so a non-US rating has no rank there and fails it, even when its level is below the ceiling (`DE-12` under TV-14).
+This ladder and its rule 4 are unchanged by it, with
 one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated under a ceiling on every channel it builds
 (it fails every ceiling, like `NR` and `Passed`). The file format, `formatVersion` and the vectors of this document keep
 `Approved` on rank 0; a client that matches StationBreak's channels from `kid-hold-6` applies the narrowing as well

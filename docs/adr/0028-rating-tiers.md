@@ -30,7 +30,8 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
 
 1. **Four exclusive tiers.** Every title is in exactly one of kids, family, teen and adult (`RatingTier.of` in
    `core/engine`). A rejection only moves a title up a band, never down:
-   - **Kids:** a kid rating (level ALL or 7: `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV`, a bare age up to 7) and
+   - **Kids:** a kid rating (level ALL or 7: `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV`, and from `kid-hold-10` a
+     country-prefixed rating at that level such as `DE-6` or `KR-ALL`; a bare age is never a kid rating, rule 6) and
      made-for-kids evidence (`KidHold.isMadeForKids`): a kids genre or kid studio on the item or its series (the
      `kid-hold-4` lists, unchanged), the animated-family signal (unchanged), or a kids tag (the kids-genre spellings as
      tags) next to the kid rating. G alone is not enough. A TMDb "kids" keyword never counts alone. A children's rating
@@ -82,6 +83,18 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
      FSK spellings (`FSK 16`, `DE-FSK 12`; only the DVB numbers such as `DE-12` map); Japan's Eirin (`JP-PG12`,
      `JP-R15+`); Australia's film ratings (`MA15+`, `MA 15+`); a US-prefixed name (`US-PG`); a country written as a
      name (`Germany: FSK 18`); Canada's Exempt; and a single letter with no country. No other source fills these.
+   - **One prefix rule for the level and the explicit check.** `RatingMap.isExplicit` takes a two-letter prefix off
+     with the same rule (`-`, `:` or `/`, spaces allowed around it), so `GB/R18`, `DE/X18+` and `GB - R18` are
+     Explicit; a `/` list such as `TV-14/TV-MA` is read as a list, as before (fail up).
+   - **Who reads the level, and who does not (`kid-hold-10`).** The map decides a title's tier (`RatingTier.of`) and a
+     kid channel's ceiling (`KidHold.passesKidCeiling`, which a kid channel uses in place of the ceiling check). So a
+     non-US rating moves a title between the tiers, decides whether a kid channel takes it, and decides whether a
+     grown-up pool drops it as kids or Explicit. **The ceiling of every other channel does not read it:** a grown-up
+     or custom channel with a ceiling (a Kids-band PG, a Teens-band TV-14, a custom channel's maximum rating) checks
+     `passesCeiling` / `RatingEligibility`, rules-format rule 4, on the US ladder only, where a non-US rating has no
+     rank and fails. So a `DE-12` title is teen tier but airs on no ceilinged channel, and an `AU-PG` title is family
+     tier but airs on no Kids-band channel; both air on a grown-up channel with no ceiling. Routing those ceilings
+     through the map is a separate change with its own review.
 7. **The source and the licence.** The non-US table is transcribed from the Android TV ratings XML: AOSP
    `platform/packages/apps/TV`, `ratings/res/xml/tv_content_rating_systems.xml` (with its string resources), at commit
    `4e256ebdeb1333af4f2b9832d61078965e4a672f`. Both files are Apache-2.0 ("Copyright (C) 2015 The Android Open Source

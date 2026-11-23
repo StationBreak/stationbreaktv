@@ -53,6 +53,11 @@ up. Coverage is partial: the UK's `12A` or `15`, German `FSK 16`, Japan's Eirin 
 recognised. A rating the app does not recognise is treated as adult, the same as no rating. A bare age such as `6` is
 treated as family at most, never as a Tots title, because it names no rating system.
 
+For now those ratings decide which audience a title belongs to and which Tots channels can take it, but not a channel's
+maximum rating. The Kids and Teens channels, and any channel with a maximum rating you set, still check that limit
+against US ratings only, so a title rated `DE-12` or `AU-PG` does not air on them. It can still air on a grown-up
+channel with no maximum rating.
+
 The explicit rule reads the same metadata. A file with no metadata at all can't be told apart from a test clip, so it
 is not treated as explicit: it stays off the Tots, Kids and Teens channels and out of Odds & Ends, but a grown-up
 channel that picks it by its library or collection can still air it. An episode whose series the app hasn't read is

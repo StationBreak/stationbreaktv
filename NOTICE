@@ -9,7 +9,8 @@ This product includes material derived from the Android Open Source Project:
   Licensed under the Apache License, Version 2.0 (the "License"). You may obtain a copy of the License at
   https://www.apache.org/licenses/LICENSE-2.0
   Source: https://android.googlesource.com/platform/packages/apps/TV/+/4e256ebdeb1333af4f2b9832d61078965e4a672f/ratings/
-  (ratings/res/xml/tv_content_rating_systems.xml and ratings/res/values/rating_system_strings.xml)
-  Modified: the non-US rating systems (country codes, rating names and content age hints) are transcribed into a fixed
-  rating table, core/engine/src/commonMain/kotlin/tv/stationbreak/core/engine/AndroidTvRatingSystems.kt (#987). The
-  upstream repository has no NOTICE file of its own.
+  (ratings/res/xml/tv_content_rating_systems.xml, blob 361393f5728921ff08c73b0e65224b70a478fba8, and
+  ratings/res/values/rating_system_strings.xml, blob 9922cb1cd6652de5205ec7eab4a4007891a6024e)
+  Derived: fixed rating table. The non-US rating systems (country codes, rating names and content age hints) are
+  transcribed into core/engine/src/commonMain/kotlin/tv/stationbreak/core/engine/AndroidTvRatingSystems.kt (#987),
+  which carries this notice below its package line. The upstream repository has no NOTICE file of its own.

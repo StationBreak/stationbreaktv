@@ -81,7 +81,6 @@ object RatingMap {
 
     private const val LEVEL_X = 7
     private const val FAMILY_LEVEL = 2
-    private const val COUNTRY_PREFIX = 3
     private const val RATED = "RATED "
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
 
@@ -90,10 +89,10 @@ object RatingMap {
 
     /**
      * Whether [raw] is a rating of the Explicit tier (`kid-hold-8`, #1078): level 7, or in [EXPLICIT] once cleaned as
-     * [levelOf] cleans it, as it is or with a two-letter country prefix (`GB-`, `AU:`) taken off. Since `kid-hold-9`
-     * (#1088) a tab, no-break space or other white space counts as a space here, so `"\tNC-17"` is Explicit (fail up).
-     * A combined rating (split on `/`, as [levelOf] splits a list) is Explicit when any part is: `R/NC-17`,
-     * `GB-R18/AU-X18+`.
+     * [levelOf] cleans it, as it is or with a two-letter country prefix taken off (`GB-`, `AU:`, and since
+     * `kid-hold-10` `DE/` and `GB - `: the prefix rule of [levelOf]). Since `kid-hold-9` (#1088) a tab, no-break space
+     * or other white space counts as a space here, so `"\tNC-17"` is Explicit (fail up). A combined rating (split on
+     * `/`, as [levelOf] splits a list) is Explicit when any part is: `R/NC-17`, `GB-R18/AU-X18+`.
      */
     fun isExplicit(raw: String?): Boolean {
         val key = raw?.let { clean(it, anySpace = true) } ?: return false
@@ -120,10 +119,8 @@ object RatingMap {
         }
 
     // [key] without a leading two-letter country code and its `-` or `:`, or [key] itself when it has none.
-    private fun withoutCountry(key: String): String {
-        val coded = key.length > COUNTRY_PREFIX && key[0] in 'A'..'Z' && key[1] in 'A'..'Z'
-        return if (coded && (key[2] == '-' || key[2] == ':')) key.substring(COUNTRY_PREFIX).trim(' ') else key
-    }
+    // Since kid-hold-10 the prefix rule of the level ([CountryRatingTables.countryPrefix]): `-`, `:` or `/` (fail up).
+    private fun withoutCountry(key: String): String = CountryRatingTables.countryPrefix(key)?.second ?: key
 
     private fun clean(
         raw: String,

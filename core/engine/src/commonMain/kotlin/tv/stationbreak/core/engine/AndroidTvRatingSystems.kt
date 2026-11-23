@@ -1,13 +1,35 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.engine
 
+// Copyright (C) 2015 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+// the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+//
+// Source: https://android.googlesource.com/platform/packages/apps/TV/+/4e256ebdeb1333af4f2b9832d61078965e4a672f/ratings/
+// (res/xml/tv_content_rating_systems.xml, blob 361393f5728921ff08c73b0e65224b70a478fba8, and
+// res/values/rating_system_strings.xml, blob 9922cb1cd6652de5205ec7eab4a4007891a6024e).
+// Derived: fixed rating table. Names upper-cased, the rating ID's suffix added as a second spelling, the US systems,
+// the sub-ratings and the duplicate DTMB block left out. See NOTICE. (This block sits below the package line because
+// the project's SPDX header rule rewrites everything above it.)
+
 /**
- * The non-US rating systems of the Android TV ratings XML (#987, Apache-2.0, see the file header), as the XML has them:
- * per system its ISO 3166 country codes, and per rating its `contentAgeHint` and its spellings (the XML title, then
- * the suffix of the rating's ID when it differs, both upper-cased). Data only: [CountryRatingTables] turns the hints
- * into ladder levels and holds the StationBreak overrides. The US systems are left out (the US ladder reads them, [RatingMap]
- * step 3), so are the sub-ratings (D, L, S, V). A rating the XML does not have is not here; do not add one from
- * another source (#987: no MovieLabs, Jellyfin, MediaPortal or TMDb tables). Frozen under `KidHold.VERSION_NAME`.
+ * The non-US rating systems of the Android TV ratings XML (#987, Apache-2.0, see the notice above), as the XML has
+ * them: per system its ISO 3166 country codes, and per rating its `contentAgeHint` and its spellings (the XML title,
+ * then the suffix of the rating's ID when it differs, both upper-cased). Data only: [CountryRatingTables] turns the
+ * hints into ladder levels and holds the StationBreak overrides. The US systems are left out (the US ladder reads them,
+ * [RatingMap] step 3), so are the sub-ratings (D, L, S, V). A rating the XML does not have is not here; do not add one
+ * from another source (#987: no MovieLabs, Jellyfin, MediaPortal or TMDb tables). Frozen under `KidHold.VERSION_NAME`.
+ *
+ * Checked against the XML (blob 361393f5728921ff08c73b0e65224b70a478fba8): the rows were generated from the XML by a
+ * reader outside the repository, and on 2026-11-23 a second reader, also outside it, re-fetched both files and compared
+ * every (country, spelling) entry's age hint here with the XML's `contentAgeHint`. 500 entries, 0 mismatches. Both
+ * readers parse the XML with a standard XML parser, resolve `@string/` titles from the strings file, and take a
+ * rating ID's suffix after its system name. The overrides above or below a hint are code ([CountryRatingTables]),
+ * not data, so this table holds the XML's hints unchanged.
  */
 internal object AndroidTvRatingSystems {
     /** One rating: the XML's `contentAgeHint` and its spellings. */

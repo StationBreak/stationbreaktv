@@ -30,6 +30,7 @@ internal object CountryRatingTables {
     private val AGE_CEILINGS = intArrayOf(0, 7, 10, 13, 14, 17)
     private const val LEVEL_18 = 6
     private const val MAX_AGE_DIGITS = 2
+    private const val COUNTRY_CODE_LENGTH = 2
 
     /**
      * Country code to spelling to level: the age hint rounded up to the next level ([ageRung]), or the override. A
@@ -73,10 +74,20 @@ internal object CountryRatingTables {
      * The level of a cleaned [key] with a country prefix: a code, then `-`, `:` or `/`, then a spelling of that
      * country's table (`DE-12`, `KR: 15`, `NL/16`), or null.
      */
-    fun countryLevel(key: String): Int? {
+    fun countryLevel(key: String): Int? = countryPrefix(key)?.let { (code, rest) -> TABLES[code]?.get(rest) }
+
+    /**
+     * The country prefix of a cleaned [key] and the rest: two letters `A` to `Z`, spaces allowed around the
+     * separator, then the first `-`, `:` or `/` (`DE-12`, `GB: R18`, `AU/X18+`), or null. The one prefix rule of
+     * [RatingMap]: both the level ([countryLevel]) and the explicit check read a prefix with it.
+     */
+    fun countryPrefix(key: String): Pair<String, String>? {
         val cut = key.indexOfFirst { it == '-' || it == ':' || it == '/' }
         if (cut <= 0) return null
-        return TABLES[key.substring(0, cut).trim(' ')]?.get(key.substring(cut + 1).trim(' '))
+        val code = key.substring(0, cut).trim(' ')
+        val rest = key.substring(cut + 1).trim(' ')
+        val isCode = code.length == COUNTRY_CODE_LENGTH && code.all { it in 'A'..'Z' }
+        return if (isCode && rest.isNotEmpty()) code to rest else null
     }
 
     /** Whether [key] is a minimum age: one or two digits, with or without a `+`. */

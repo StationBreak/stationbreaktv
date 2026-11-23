@@ -195,6 +195,20 @@ class AndroidTvRatingsTest {
         assertEquals(5, RatingMap.levelOf("PG-13/R"))
     }
 
+    // LOW 2 of the #987 review: one prefix rule for the level and the explicit check, so a `/` prefix fails up too.
+    @Test
+    fun everyCountrySeparatorAlsoReadsAnExplicitRating() {
+        for (rating in listOf("GB/R18", "DE/X18+", "AU/X18+", "de:r18", "GB - R18", "gb / r18", "NZ/AO", "ES/X")) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertEquals(RatingTier.Explicit, RatingTier.of(kidsMovie(rating), null), rating)
+        }
+        for (rating in listOf("TV-14/TV-MA", "PG-13/R", "DE/18", "TV-MA", "R/TV-MA")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
+        }
+        assertEquals(6, RatingMap.levelOf("TV-14/TV-MA"))
+        assertEquals(7, RatingMap.levelOf("NZ/AO"))
+    }
+
     @Test
     fun aCombinedCountryRatingTakesItsHighestPart() {
         assertEquals(5, RatingMap.levelOf("NL-12/NL-16"))
