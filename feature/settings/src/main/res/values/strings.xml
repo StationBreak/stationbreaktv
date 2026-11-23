@@ -62,7 +62,7 @@
     <string name="settings_pro_restore">Restore purchases</string>
     <string name="settings_pro_owned">You have StationBreak Pro. Everything it adds is on.</string>
     <string name="settings_pro_working">Asking the store…</string>
-    <string name="settings_pro_kids">Kids Mode is on.</string>
+    <string name="settings_pro_kids">Family Mode is on.</string>
     <string name="settings_pro_bought">Thank you. Pro is on.</string>
     <string name="settings_pro_already_owned">You already own Pro. It is on now.</string>
     <string name="settings_pro_cancelled">Nothing was bought.</string>

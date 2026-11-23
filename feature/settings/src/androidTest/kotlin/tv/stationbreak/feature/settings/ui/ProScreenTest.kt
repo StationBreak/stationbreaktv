@@ -34,7 +34,7 @@ import java.util.concurrent.Executors
 
 /**
  * The Pro screen (#99) over real key events: Buy and Restore with their words, the price as the store gave it, Pro
- * owned (no Buy), Kids Mode (no action), and the GitHub build's Support page (the address as text, no Buy).
+ * owned (no Buy), Family Mode (no action), and the GitHub build's Support page (the address as text, no Buy).
  */
 @RunWith(AndroidJUnit4::class)
 class ProScreenTest {
@@ -124,7 +124,7 @@ class ProScreenTest {
         kids.lock()
         show()
         until { exists(SettingsTags.PRO_STATUS) }
-        compose.onNodeWithTag(SettingsTags.PRO_STATUS, useUnmergedTree = true).assertTextEquals("Kids Mode is on.")
+        compose.onNodeWithTag(SettingsTags.PRO_STATUS, useUnmergedTree = true).assertTextEquals("Family Mode is on.")
         assertEquals(false, exists(SettingsTags.PRO_BUY))
     }
 

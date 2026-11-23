@@ -35,7 +35,7 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Kids Mode", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Family Mode", "Library", "Account", "Privacy"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
@@ -75,7 +75,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.ScreenFit to (RowKind.Choice to "Screen fit"),
                 SettingsRow.ChannelChange to (RowKind.Choice to "When changing channel"),
                 SettingsRow.VolumeLevelling to (RowKind.Choice to "Even out volume"),
-                SettingsRow.KidsMode to (RowKind.Action to "Kids Mode"),
+                SettingsRow.KidsMode to (RowKind.Action to "Family Mode"),
                 SettingsRow.ChangePin to (RowKind.Action to "Change PIN"),
                 SettingsRow.Hours to (RowKind.Link to "Hours of operation"),
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
@@ -168,16 +168,30 @@ class GuideSettingsRowsTest {
     }
 
     @Test
+    fun eachCapHasALineSayingWhichChannelsItEnables_matchingItsRange() {
+        val lines =
+            mapOf(
+                KidsCap.Kids to "guide_kids_cap_tots_channels",
+                KidsCap.Family to "guide_kids_cap_kids_channels",
+                KidsCap.Teen to "guide_kids_cap_teens_channels",
+            )
+        assertEquals(KidsCap.entries.toSet(), lines.keys)
+        for ((cap, key) in lines) {
+            assertTrue("$key says 1 to ${cap.upTo}", checkNotNull(strings[key]).startsWith("Channels 1 to ${cap.upTo}"))
+        }
+    }
+
+    @Test
     fun kidsModeShowsOnOrOffWithItsCap_andSaysItWithoutTheDot() {
         fun on(cap: KidsCap) = SettingsValues(kidsOn = true, kidsCap = cap)
 
-        assertEquals("On \u00b7 up to Kids", kidsValue(on(KidsCap.Kids)))
-        assertEquals("On \u00b7 up to Family", kidsValue(on(KidsCap.Family)))
-        assertEquals("On \u00b7 up to Teen", kidsValue(on(KidsCap.Teen)))
-        assertEquals("Off \u00b7 Kids", kidsValue(SettingsValues()))
-        assertEquals("Off \u00b7 Teen", kidsValue(SettingsValues(kidsCap = KidsCap.Teen)))
-        assertEquals("On, up to Family", kidsValue(on(KidsCap.Family), spoken = true))
-        assertEquals("Off, cap Kids", kidsValue(SettingsValues(), spoken = true))
+        assertEquals("On \u00b7 up to Tots", kidsValue(on(KidsCap.Kids)))
+        assertEquals("On \u00b7 up to Kids", kidsValue(on(KidsCap.Family)))
+        assertEquals("On \u00b7 up to Teens", kidsValue(on(KidsCap.Teen)))
+        assertEquals("Off \u00b7 Tots", kidsValue(SettingsValues()))
+        assertEquals("Off \u00b7 Teens", kidsValue(SettingsValues(kidsCap = KidsCap.Teen)))
+        assertEquals("On, up to Kids", kidsValue(on(KidsCap.Family), spoken = true))
+        assertEquals("Off, cap Tots", kidsValue(SettingsValues(), spoken = true))
         assertEquals(R.string.guide_kids_unknown, kidsModeShown(SettingsValues(kidsKnown = false)).format)
     }
 
@@ -210,7 +224,7 @@ class GuideSettingsRowsTest {
         for (row in inert) {
             assertEquals(listOf("Back Close"), settingsHintOf(row, on).map { "${text(it.key)} ${text(it.action)}" })
         }
-        assertEquals("Turn off Kids Mode first", text(R.string.guide_kids_locked))
+        assertEquals("Turn off Family Mode first", text(R.string.guide_kids_locked))
     }
 
     @Test

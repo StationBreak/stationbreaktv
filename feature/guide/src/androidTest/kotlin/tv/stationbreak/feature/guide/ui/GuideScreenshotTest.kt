@@ -312,7 +312,7 @@ class GuideScreenshotTest {
             focusTheChannelColumn()
             press(Key.DirectionUp)
             awaitTagLine(FRAME_KIDS_PERSONALITY)
-            assertEquals("KIDS · UP TO TV-Y7", text(GuideTags.CHANNEL_PANEL_TAG + 0))
+            assertEquals("TOTS · UP TO TV-Y7", text(GuideTags.CHANNEL_PANEL_TAG + 0))
             assertEquals("BUILT-IN", text(GuideTags.CHANNEL_PANEL_TAG + 1))
             shoot("$CHANNEL_BOX_FRAME-kids$suffix.png")
             press(Key.DirectionUp)

@@ -52,8 +52,8 @@
     <string name="channel_tag_builtin">Built-in</string>
     <string name="channel_tag_custom">Custom</string>
     <string name="channel_tag_leftovers">Everything else</string>
-    <string name="channel_tag_kids">Kids \u00B7 up to %1$s</string>
-    <string name="channel_tag_kids_plain">Kids</string>
+    <string name="channel_tag_kids">Tots \u00B7 up to %1$s</string>
+    <string name="channel_tag_kids_plain">Tots</string>
     <!-- What a channel plays: the sheet's "What it plays" rows, and the box's tag line for a channel with no
          personality (its first row, as "Label: values"). -->
     <string name="channel_plays_leftovers">Plays whatever nothing else does</string>
