@@ -153,32 +153,36 @@
     <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
     <!-- Kids Mode (#789): its section flag, its row and the row that changes its PIN. The row's value is On or Off. -->
-    <string name="guide_settings_group_kids">Kids Mode</string>
-    <string name="guide_settings_kids_mode">Kids Mode</string>
+    <string name="guide_settings_group_kids">Family Mode</string>
+    <string name="guide_settings_kids_mode">Family Mode</string>
     <string name="guide_kids_off">Off</string>
     <string name="guide_kids_on">On</string>
     <string name="guide_kids_unknown">&#8230;</string>
-    <!-- The cap (#993): how far up the channel numbers Kids Mode reaches. Kids is 1 to 33, Family 1 to 66, Teen 1 to 99. -->
-    <string name="guide_kids_cap_kids">Kids</string>
-    <string name="guide_kids_cap_family">Family</string>
-    <string name="guide_kids_cap_teen">Teen</string>
-    <!-- The Kids Mode row's value with its cap, as drawn and as a screen reader says it. -->
+    <!-- The cap (#993): how far up the channel numbers Family Mode reaches. Tots is 1 to 33, Kids 1 to 66, Teens 1 to 99. -->
+    <string name="guide_kids_cap_kids">Tots</string>
+    <string name="guide_kids_cap_family">Kids</string>
+    <string name="guide_kids_cap_teen">Teens</string>
+    <!-- Which channels each cap enables; the caps are cumulative, so Kids includes Tots and Teens includes both. -->
+    <string name="guide_kids_cap_tots_channels">Channels 1 to 33.</string>
+    <string name="guide_kids_cap_kids_channels">Channels 1 to 66: Tots and Kids.</string>
+    <string name="guide_kids_cap_teens_channels">Channels 1 to 99: Tots, Kids and Teens.</string>
+    <!-- The Family Mode row's value with its cap, as drawn and as a screen reader says it. -->
     <string name="guide_kids_on_cap">On &#183; up to %1$s</string>
     <string name="guide_kids_off_cap">Off &#183; %1$s</string>
     <string name="guide_kids_on_cap_spoken">On, up to %1$s</string>
     <string name="guide_kids_off_cap_spoken">Off, cap %1$s</string>
     <string name="guide_settings_change_pin">Change PIN</string>
-    <!-- The one line under each Settings row that Kids Mode switches off, and under the menu's About and Channels rows. -->
-    <string name="guide_kids_locked">Turn off Kids Mode first</string>
-    <!-- What OK does on the Kids Mode row, in the Settings sheet's hint row. -->
+    <!-- The one line under each Settings row that Family Mode switches off, and under the menu's About and Channels rows. -->
+    <string name="guide_kids_locked">Turn off Family Mode first</string>
+    <!-- What OK does on the Family Mode row, in the Settings sheet's hint row. -->
     <string name="guide_hint_kids_set_pin">Set a PIN</string>
     <string name="guide_hint_kids_turn_on">Turn on</string>
     <string name="guide_hint_kids_turn_off">Turn off</string>
     <!-- The PIN pad over the Settings sheet: its title for each job, and what it asks for at each step. -->
     <string name="guide_pin_title_set">Set a PIN</string>
-    <string name="guide_pin_title_turn_off">Turn off Kids Mode</string>
+    <string name="guide_pin_title_turn_off">Turn off Family Mode</string>
     <string name="guide_pin_title_change">Change PIN</string>
-    <string name="guide_pin_title_cap">Change the Kids Mode cap</string>
+    <string name="guide_pin_title_cap">Change the Family Mode cap</string>
     <string name="guide_pin_prompt_current">Enter your PIN</string>
     <string name="guide_pin_prompt_new">Choose a 4-digit PIN</string>
     <string name="guide_pin_prompt_confirm">Enter it again to confirm</string>
@@ -207,7 +211,7 @@
     <string name="guide_reset_status_waiting">Waiting for an administrator to approve.</string>
     <!-- Said by a screen reader as the code arrives: %1$s is the code with a space between its digits. -->
     <string name="guide_reset_code_spoken">Code %1$s. %2$s</string>
-    <string name="guide_reset_done">Done. The PIN is cleared and Kids Mode is off.</string>
+    <string name="guide_reset_done">Done. The PIN is cleared and Family Mode is off.</string>
     <string name="guide_reset_no_server">This TV is not signed in to a server.</string>
     <string name="guide_reset_not_administrator">That user is not an administrator. Nothing changed. Press OK for a new code.</string>
     <string name="guide_reset_expired">The code ran out. Press OK for a new one.</string>
@@ -229,8 +233,8 @@
     <string name="guide_hours_title_edit">Edit a period</string>
     <!-- What the screen says without Pro, or with Pro and no PIN set. -->
     <string name="guide_hours_pro_required">Hours of operation is a Pro feature.</string>
-    <string name="guide_hours_needs_pin">Set a PIN first. A grown-up needs it to override the hours. Kids Mode in Settings sets one.</string>
-    <string name="guide_hours_empty">No hours set. The TV follows Kids Mode only.</string>
+    <string name="guide_hours_needs_pin">Set a PIN first. A grown-up needs it to override the hours. Family Mode in Settings sets one.</string>
+    <string name="guide_hours_empty">No hours set. The TV follows Family Mode only.</string>
     <string name="guide_hours_pin_note">The PIN overrides the hours: enter the PIN and the TV is grown-up until it locks again.</string>
     <string name="guide_hours_overlap_note">Where periods overlap, the strictest one applies.</string>
     <string name="guide_hours_add">Add a period</string>
@@ -241,9 +245,9 @@
     <!-- Said by a screen reader for a period: %1$s the period as above, %2$s its level. -->
     <string name="guide_hours_period_spoken">%1$s, %2$s</string>
     <string name="guide_hours_level_adult">Adult</string>
-    <string name="guide_hours_level_teen">Teen</string>
-    <string name="guide_hours_level_family">Family</string>
-    <string name="guide_hours_level_kids">Kids</string>
+    <string name="guide_hours_level_teen">Teens</string>
+    <string name="guide_hours_level_family">Kids</string>
+    <string name="guide_hours_level_kids">Tots</string>
     <string name="guide_hours_level_off_air">Off Air</string>
     <string name="guide_hours_field_day">Day</string>
     <string name="guide_hours_field_from">From</string>

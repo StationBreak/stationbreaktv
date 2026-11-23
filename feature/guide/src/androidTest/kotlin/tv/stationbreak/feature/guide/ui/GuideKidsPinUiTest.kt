@@ -21,7 +21,7 @@ import tv.stationbreak.core.ui.GuideColors
 import tv.stationbreak.core.ui.ProvideGuideColors
 
 /**
- * Kids Mode's screens (#789) on their own, without the guide behind them: the reset of a forgotten PIN (its code and
+ * Family Mode's screens (#789) on their own, without the guide behind them: the reset of a forgotten PIN (its code and
  * its status line), the PIN pad (dots, never digits; the key under the D-pad as the selected one; the notice) and the
  * Settings sheet with the lock on (rows that could undo it are inert, with the reason under them). Compiled in CI's
  * emulator job; the key paths are the unit tests'.
@@ -69,7 +69,7 @@ class GuideKidsPinUiTest {
     @Test
     fun theCapPadIsTitledForTheCap_andAsksForTheCurrentPin() {
         show { GuideKidsPin(PinEntry.start(PinPurpose.Cap, KidsCap.Family)) }
-        compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Change the Kids Mode cap")
+        compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Change the Family Mode cap")
         compose.onNodeWithTag(GuideTags.KIDS_PIN).assertContentDescriptionEquals("Enter your PIN. 5. 0 of 4 digits")
     }
 
@@ -78,8 +78,8 @@ class GuideKidsPinUiTest {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true, kidsCap = KidsCap.Family)
         show { GuideSettingsSheet(on, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Family")
-        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Kids Mode, On, up to Family")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Kids")
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Family Mode, On, up to Kids")
     }
 
     @Test
@@ -121,7 +121,7 @@ class GuideKidsPinUiTest {
         show { GuideKidsPinReset(PinReset(PinRecovery.Done)) }
         compose
             .onNodeWithTag(GuideTags.KIDS_RESET_STATUS)
-            .assertTextEquals("Done. The PIN is cleared and Kids Mode is off.")
+            .assertTextEquals("Done. The PIN is cleared and Family Mode is off.")
     }
 
     @Test
@@ -137,12 +137,12 @@ class GuideKidsPinUiTest {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         show { GuideSettingsSheet(on, SettingsRow.Libraries, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Kids")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Tots")
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             compose
                 .onNodeWithTag(GuideTags.settingsRow(row))
                 .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Disabled))
-            compose.onNodeWithTag(GuideTags.settingsLocked(row)).assertTextEquals("Turn off Kids Mode first")
+            compose.onNodeWithTag(GuideTags.settingsLocked(row)).assertTextEquals("Turn off Family Mode first")
         }
         compose.onNodeWithTag(GuideTags.SETTINGS_CHANGE_PIN).assertDoesNotExist()
         compose
@@ -155,7 +155,7 @@ class GuideKidsPinUiTest {
         val off = SettingsValues(kidsPinSet = true)
         show { GuideSettingsSheet(off, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off \u00b7 Kids")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off \u00b7 Tots")
         compose.onNodeWithTag(GuideTags.SETTINGS_CHANGE_PIN).assertIsNotSelected()
         compose.onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Libraries)).assertDoesNotExist()
     }

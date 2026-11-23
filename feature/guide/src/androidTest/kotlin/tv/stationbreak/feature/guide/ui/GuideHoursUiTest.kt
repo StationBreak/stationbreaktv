@@ -71,7 +71,7 @@ class GuideHoursUiTest {
     @Test
     fun anEmptyScheduleSaysNoHours_andTheAddRowHasTheFocus() {
         show { GuideHours(HoursScreen(), pro) }
-        compose.onNodeWithTag(HoursTags.EMPTY).assertTextEquals("No hours set. The TV follows Kids Mode only.")
+        compose.onNodeWithTag(HoursTags.EMPTY).assertTextEquals("No hours set. The TV follows Family Mode only.")
         compose.onNodeWithTag(HoursTags.ADD).assertIsSelected().assertContentDescriptionEquals("Add a period")
         compose.onNodeWithTag(HoursTags.PIN_NOTE).assertExists()
     }
@@ -81,7 +81,7 @@ class GuideHoursUiTest {
         val values = pro.copy(hours = HoursSchedule(listOf(night, morning)))
         show { GuideHours(HoursScreen(focus = 1), values) }
         // Sorted by day: Monday first, then Friday night, which ends the next day.
-        compose.onNodeWithTag(HoursTags.period(0)).assertIsNotSelected().assert(description("Kids"))
+        compose.onNodeWithTag(HoursTags.period(0)).assertIsNotSelected().assert(description("Tots"))
         compose
             .onNodeWithTag(HoursTags.period(1))
             .assertIsSelected()
@@ -149,6 +149,8 @@ class GuideHoursUiTest {
     @Test
     fun theSettingsRowSaysKidsModeIsOn() {
         show { GuideSettingsSheet(pro.copy(kidsOn = true), SettingsRow.Hours, SyncNowState.Idle) }
-        compose.onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Hours)).assertTextEquals("Turn off Kids Mode first")
+        compose
+            .onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Hours))
+            .assertTextEquals("Turn off Family Mode first")
     }
 }
