@@ -109,8 +109,12 @@ object StarterCatalog : StarterCatalogView {
      * erotic movie, so a custom copy of it keeps most of its reach; the starter itself airs every Explicit title
      * (`PoolPolicy.ExplicitOnly`). Its fingerprint changes; its key, number, band and opt-in flag are kept, and every
      * other entry is as it was at 13. No rules format change.
+     *
+     * Version 15 (#1103): the band names reach the leftovers channels. Keys, numbers, ceilings and stored ids are
+     * unchanged; only the names move, to Tots' (33, key `kids-odds-and-ends`), Kids' (66) and Teens' (99) Odds & Ends.
+     * No fingerprint, hold or rules format change.
      */
-    const val VERSION = 14
+    const val VERSION = 15
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
@@ -133,22 +137,22 @@ object StarterCatalog : StarterCatalogView {
         listOf(
             LeftoversRecipe(
                 key = "kids-odds-and-ends",
-                name = "Kids' Odds & Ends",
-                personality = "Whatever the other kids' channels didn't take, still safe to watch.",
+                name = "Tots' Odds & Ends",
+                personality = "Whatever the other Tots' channels didn't take, still safe to watch.",
                 number = 33,
                 maxRating = "PG",
             ),
             LeftoversRecipe(
                 key = "family-odds-and-ends",
-                name = "Family Odds & Ends",
-                personality = "Whatever the other family channels didn't take, still fine for everyone.",
+                name = "Kids' Odds & Ends",
+                personality = "Whatever the other Kids' channels didn't take, still fine for everyone.",
                 number = 66,
                 maxRating = "PG",
             ),
             LeftoversRecipe(
                 key = "teen-odds-and-ends",
-                name = "Teen Odds & Ends",
-                personality = "Whatever the other teen channels didn't take, nothing past PG-13.",
+                name = "Teens' Odds & Ends",
+                personality = "Whatever the other Teens' channels didn't take, nothing past PG-13.",
                 number = 99,
                 maxRating = "TV-14",
             ),
