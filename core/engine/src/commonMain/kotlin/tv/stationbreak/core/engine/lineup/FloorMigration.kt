@@ -54,7 +54,9 @@ data class MovedNotice(
  * exception is a built-in returning to its own default, which may be a retired number. Idempotent:
  * once moved, no offender remains, so a second run changes nothing and notes nothing. It runs on every refresh, so a
  * lineup written by a build before the rule is brought in line the first time this one plans it. Each move is noted
- * ([MovedNotice]) with the day it was made.
+ * ([MovedNotice]) with the day it was made. A channel in [waiting] (one `CatalogRenumbering` will move when the newer
+ * catalog is taken, #1115) is left alone: its floor is the new catalog's, its number the old one's, and a number
+ * picked in between would stay as the viewer's own and keep it off the catalog's number.
  */
 internal object FloorMigration {
     /** The channels after the move and what it moved. */
@@ -67,10 +69,11 @@ internal object FloorMigration {
         channels: List<LineupChannel>,
         catalog: StarterCatalogView,
         day: Long,
+        waiting: Set<ChannelId> = emptySet(),
     ): Result {
         val offenders =
             channels
-                .filter { isBelowFloor(it, catalog) }
+                .filter { it.id !in waiting && isBelowFloor(it, catalog) }
                 // The viewer's own channels first: they never take a built-in's default (reserved below), so what
                 // they leave is free for a built-in to return to.
                 .sortedWith(compareBy({ ChannelCeilings.isBuiltIn(it) }, { it.number }, { it.id.value }))
