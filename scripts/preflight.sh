@@ -110,6 +110,7 @@ script_tests() {
   bash .github/scripts/osv-issues.test.sh
   bash .github/scripts/verification-guard.test.sh
   bash .github/scripts/device-proof-guard.test.sh
+  bash .github/scripts/store-secrets-guard.test.sh
   bash .github/scripts/instrumented-infra.test.sh
   bash .github/scripts/release-scope.test.sh
   bash scripts/guard-tree.test.sh
@@ -131,6 +132,7 @@ verification_guard() {
   if [ "$status" -eq 0 ]; then
     bash .github/scripts/verification-guard.sh "$tree" || status=1
     bash .github/scripts/device-proof-guard.sh "$tree" || status=1
+    bash .github/scripts/store-secrets-guard.sh "$tree" || status=1
   fi
   rm -rf "$tree"
   return "$status"

@@ -2,6 +2,7 @@
 
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
+import tv.stationbreak.buildlogic.ProUnlockPolicy
 import tv.stationbreak.buildlogic.ReleaseVersion
 
 plugins {
@@ -54,20 +55,6 @@ val crashReportUrl: String =
 val profileBuildTypes: Set<String> =
     setOf("nonMinifiedRelease", "benchmarkRelease", "nonMinifiedBenchmark", "benchmarkBenchmark")
 
-// Whether StationBreak Pro is unlocked, by (build type, flavor) (#793). Debug and benchmark builds keep it open, so
-// dogfood and device runs see no gate. The store (amazon) release ships closed, and so does any pair not listed. The
-// GitHub release ships with Pro fully unlocked (Q-BIZ-1, #119): it is GPL and has no store billing. See di/ProModule and
-// the testAmazonRelease and testGithubRelease guards.
-val proUnlockedByVariant: Map<Pair<String, String?>, Boolean> =
-    mapOf(
-        ("debug" to "amazon") to true,
-        ("debug" to "github") to true,
-        ("benchmark" to "amazon") to true,
-        ("benchmark" to "github") to true,
-        ("release" to "amazon") to false,
-        ("release" to "github") to true,
-    )
-
 // AGP builds unit tests for the debug variants only. The manifest tests (BackupRulesTest) must also see the release and
 // benchmark manifests, because only the benchmark one may carry the exported PlaybackTestActivity (spec 13). The flavors
 // share every source set and dependency, so the github benchmark manifest stands for the amazon one: that one alone is
@@ -85,12 +72,10 @@ androidComponents {
     // use for it.
     onVariants { variant ->
         val distribution = variant.productFlavors.firstOrNull { it.first == "distribution" }?.second
-        val proUnlocked = proUnlockedByVariant[(variant.buildType ?: "release") to distribution] ?: false
-        // The store release must ship with the gates closed (#793): fail the build, not just a test. The GitHub release
-        // is the one deliberate exception (Q-BIZ-1, #119).
-        if (variant.buildType == "release" && distribution != "github" && proUnlocked) {
-            throw GradleException("PRO_UNLOCKED must be false in a store release build (${variant.name})")
-        }
+        // Whether Pro is baked unlocked (#793, ADR-0023): ProUnlockPolicy in build-logic. It fails the build for a store
+        // release baked unlocked; the GitHub release is the one deliberate exception (Q-BIZ-1, #119). See di/ProModule
+        // and the testAmazonRelease and testGithubRelease guards.
+        val proUnlocked = ProUnlockPolicy.unlocked(variant.buildType, distribution)
         variant.buildConfigFields?.put(
             "PRO_UNLOCKED",
             BuildConfigField("boolean", proUnlocked, "StationBreak Pro unlocked (#793); see app/build.gradle.kts"),
