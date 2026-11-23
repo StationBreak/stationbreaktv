@@ -4,9 +4,11 @@ package tv.stationbreak.feature.guide
 import androidx.compose.runtime.Immutable
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.AiringBlock
+import tv.stationbreak.core.domain.lineup.NumberBand
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ProgramInfo
 import tv.stationbreak.core.domain.lineup.ScheduleWindow
+import tv.stationbreak.core.domain.lineup.bandOf
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.schedule.ScheduleItemKind
@@ -46,7 +48,8 @@ internal data class GuideCell(
 
 /**
  * One channel's row, in channel-number order. [markKey] is the recipe key of a starter or leftovers channel (its logo's
- * name), null for any other; [initials] are the channel mark's letters, worked out over the whole model.
+ * name), null for any other; [initials] are the channel mark's letters, worked out over the whole model. [band] is the
+ * number band of [number], worked out once with the row, for the tile's stripe and the panel's flag.
  */
 @Immutable
 internal data class GuideRow(
@@ -56,7 +59,9 @@ internal data class GuideRow(
     val cells: List<GuideCell>,
     val markKey: String? = null,
     val initials: String = "",
-)
+) {
+    val band: NumberBand? = bandOf(number)
+}
 
 /**
  * The grid the guide draws (spec 17): [rows] from [originMs] (the current half hour) to [endMs] (the end of the last

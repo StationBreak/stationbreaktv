@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -41,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
+import tv.stationbreak.core.domain.lineup.bandOf
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.ui.LocalGuideColors
 import tv.stationbreak.core.ui.ProgramCopy
@@ -60,6 +63,7 @@ private val ProgressHeight = 2.dp
 private val ProgressRadius = 1.dp
 private val LineGap = 3.dp
 private val MetaGap = 8.dp
+private val BandGap = 10.dp
 
 // The description takes every whole line the height left over holds (four to six on the reference panel): a text that
 // ends in an ellipsis reads better than one clipped mid-line.
@@ -215,6 +219,11 @@ private fun PanelLines(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            // The band's flag, so the number says what it is for (#1100). It is spoken once, here, with the line.
+            bandOf(details.channelNumber)?.let {
+                Spacer(Modifier.width(BandGap))
+                PanelBandFlag(it, colors)
+            }
         }
     }
     Slot(PanelSlot.Title) {

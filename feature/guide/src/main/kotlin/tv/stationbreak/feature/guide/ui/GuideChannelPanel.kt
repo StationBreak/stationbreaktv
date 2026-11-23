@@ -55,6 +55,7 @@ private val LargeMarkHeight = 56.dp
 private val MarkGap = 12.dp
 private val SlotGap = 6.dp
 private val HoldingsGap = 2.dp
+private val BandGap = 10.dp
 
 private const val TAG_LINE_SP = 13
 private const val TAG_LINE_LINES = 2
@@ -140,12 +141,18 @@ private fun IdentityBlock(
         ChannelMark(shown.markKey, shown.initials, Modifier.size(LargeMarkWidth, LargeMarkHeight))
         Spacer(Modifier.width(MarkGap))
         Column {
-            Text(
-                text = stringResource(R.string.guide_channel_number, shown.number).uppercase(),
-                style = guideFigures(SMALL_SP.sp, FontWeight.Normal),
-                color = colors.textSecondary,
-                maxLines = 1,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.guide_channel_number, shown.number).uppercase(),
+                    style = guideFigures(SMALL_SP.sp, FontWeight.Normal),
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                )
+                shown.band?.let {
+                    Spacer(Modifier.width(BandGap))
+                    PanelBandFlag(it, colors)
+                }
+            }
             Text(
                 text = shown.name,
                 modifier = Modifier.testTag(GuideTags.CHANNEL_PANEL_NAME),
