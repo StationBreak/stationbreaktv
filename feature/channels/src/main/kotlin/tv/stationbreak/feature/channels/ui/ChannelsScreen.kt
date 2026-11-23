@@ -183,13 +183,15 @@ private fun messageText(message: ChannelsMessage): String =
         }
     }
 
+private const val NEEDS_BAND = "The needs-a-band lines are worded by needsText, which takes the band"
+
 @Suppress("CyclomaticComplexMethod") // One line per message, exhaustive so a new one cannot go unworded.
 private fun messageRes(message: ChannelsMessage): Int =
     when (message) {
         ChannelsMessage.KidsBand -> R.string.channels_refused_kids_band
-        ChannelsMessage.NeedsFamily -> R.string.channels_refused_needs_family
-        ChannelsMessage.NeedsTeen -> R.string.channels_refused_needs_teen
-        ChannelsMessage.NeedsGeneral -> R.string.channels_refused_needs_general
+        ChannelsMessage.NeedsFamily -> error(NEEDS_BAND)
+        ChannelsMessage.NeedsTeen -> error(NEEDS_BAND)
+        ChannelsMessage.NeedsGeneral -> error(NEEDS_BAND)
         ChannelsMessage.LastOn -> R.string.channels_refused_last_on
         ChannelsMessage.NoNumber -> R.string.channels_refused_no_number
         ChannelsMessage.NotEditable -> R.string.channels_not_editable

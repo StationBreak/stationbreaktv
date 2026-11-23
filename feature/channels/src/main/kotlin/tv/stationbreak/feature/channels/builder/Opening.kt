@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.OpenResult
+import tv.stationbreak.feature.channels.pick
 
 /** What opening a channel for the builder came to: its draft, or the line that says why it did not open. */
 internal sealed interface Opening {
@@ -32,11 +33,7 @@ internal fun opening(
 
 // The builder's line for a number below the lowest band [needs] a channel may use (#1097).
 private fun belowBandBuilderMessage(needs: BandNeeded): BuilderMessage =
-    when (needs) {
-        BandNeeded.Family -> BuilderMessage.NeedsFamily
-        BandNeeded.Teen -> BuilderMessage.NeedsTeen
-        BandNeeded.General -> BuilderMessage.NeedsGeneral
-    }
+    needs.pick(BuilderMessage.NeedsFamily, BuilderMessage.NeedsTeen, BuilderMessage.NeedsGeneral)
 
 /** The line for a build that did not make the channel; null for one that did. */
 internal fun messageOf(result: BuildResult): BuilderMessage? =
