@@ -3,9 +3,11 @@ package tv.stationbreak.data.settings.hours
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +57,13 @@ class DataStoreHoursStore internal constructor(
         internal fun dataStore(
             scope: CoroutineScope,
             file: () -> File,
-        ): DataStore<Preferences> = PreferenceDataStoreFactory.create(scope = scope, produceFile = file)
+        ): DataStore<Preferences> =
+            PreferenceDataStoreFactory.create(
+                // A file DataStore cannot parse reads as no schedule, and the viewer's next save replaces it.
+                corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+                scope = scope,
+                produceFile = file,
+            )
 
         @Suppress("InjectDispatcher") // A process-wide root, as the other stores': nothing to inject into.
         private fun defaultScope() = CoroutineScope(Dispatchers.IO + SupervisorJob())

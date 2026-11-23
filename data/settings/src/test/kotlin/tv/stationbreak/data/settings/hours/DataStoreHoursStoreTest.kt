@@ -62,6 +62,24 @@ class DataStoreHoursStoreTest {
         }
 
     @Test
+    fun aSaveReplacesADamagedFile() =
+        runBlocking {
+            file().writeBytes(byteArrayOf(1, 2, 3, 42, -1))
+            open().save(schedule)
+            assertEquals(schedule, open().schedule.first())
+        }
+
+    @Test
+    fun readingAValidFileDoesNotWipeIt() =
+        runBlocking {
+            open().save(schedule)
+            val reopened = open()
+            assertEquals(schedule, reopened.schedule.first())
+            assertEquals(schedule, reopened.schedule.first())
+            assertEquals(schedule, open().schedule.first())
+        }
+
+    @Test
     fun aNewerVersionReadsAsNoSchedule_andASaveReplacesIt() =
         runBlocking {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
