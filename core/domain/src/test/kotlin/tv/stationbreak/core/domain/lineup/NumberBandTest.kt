@@ -15,6 +15,11 @@ class NumberBandTest {
     }
 
     @Test
+    fun onlyGrownUpsIsOpenEnded() {
+        assertEquals(listOf<Int?>(33, 66, 99, null), NumberBand.entries.map { it.last })
+    }
+
+    @Test
     fun everyBoundaryLandsInItsBand() {
         assertEquals(NumberBand.Tots, bandOf(1))
         assertEquals(NumberBand.Tots, bandOf(33))

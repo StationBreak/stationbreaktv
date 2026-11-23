@@ -23,6 +23,10 @@ enum class NumberBand(
     Kids(Band.Family.numbers),
     Teens(Band.Teen.numbers),
     GrownUps(Band.General.numbers.first..Int.MAX_VALUE),
+    ;
+
+    /** The band's last number, or null for the open-ended one ([GrownUps]: 100 and up). */
+    val last: Int? get() = numbers.last.takeIf { it != Int.MAX_VALUE }
 }
 
 /** The band [number] is in, or null when it has none: no number, or one below 1. */
