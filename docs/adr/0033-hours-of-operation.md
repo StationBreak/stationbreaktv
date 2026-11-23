@@ -40,3 +40,11 @@ no cap and is shown by the UI as its own state. Nothing in the app binds or read
 ## Not here
 
 The bedtime card, holiday and sick days, every screen and string, and the enforcement in the player and guide.
+
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+1 to 99 setting is called **Family Mode** (it was Kids Mode), and its bands are **Tots** (1 to 33, was the Kids band),
+**Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
+the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
+`kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).

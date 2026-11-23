@@ -93,3 +93,11 @@ release builds with a stand-in that owns nothing, so it stays free.
 - The GitHub APK has no billing class, string or dependency; a release check can prove it.
 - The screen for buying, the nag and the restore button are a later change; they call `StoreEntitlement` through a port.
 - Every outcome is tested against `FakeStoreEntitlement`, with no SDK.
+
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+1 to 99 setting is called **Family Mode** (it was Kids Mode), and its bands are **Tots** (1 to 33, was the Kids band),
+**Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
+the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
+`kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).

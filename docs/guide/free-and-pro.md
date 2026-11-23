@@ -9,8 +9,8 @@ change your lineup, and a few conveniences for parents. Pro comes after the free
   every channel, including built-in channels that aren't in your lineup right now.
 - Up to **5 channels of your own**. Deleting one is always free.
 - **Use my collections**, choosing your libraries, and any kind of Jellyfin server.
-- The kids rules in [Mature content and kids](mature-content.md): kids channels hold back anything that isn't made for
-  kids, and **After Hours** never turns up by itself. Kids mode with a PIN, the Kids, Family and Teen levels, and the
+- The kids rules in [Mature content and kids](mature-content.md): Tots channels hold back anything that isn't made for
+  kids, and **After Hours** never turns up by itself. Family Mode with a PIN, its Tots, Kids and Teens levels, and the
   fall-back to the restricted mode after the TV sits idle will be free too. Keeping children safe isn't a paid feature.
 
 ## What Pro adds
@@ -39,7 +39,7 @@ what Pro adds and the price the store gives, with **Buy Pro** and **Restore purc
 second TV with the same Amazon account). Until then Settings shows nothing about Pro. When you choose something that is part of Pro, such as switching a
 built-in channel off, a note says it is part of Pro. With the store connected the note has **See Pro**, which opens the
 same screen; without it the note only has **OK**, with no Buy and no promise of when. Nothing is ever refused without
-that note. Nothing pops up by itself, and the Pro screen is never reached in Kids Mode.
+that note. Nothing pops up by itself, and the Pro screen is never reached in Family Mode.
 
 The GitHub download of StationBreak is open source, and it has Pro unlocked. Its **Settings → Support StationBreak**
 page shows where to help the project, and it never nags.

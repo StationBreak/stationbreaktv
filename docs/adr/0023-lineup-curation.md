@@ -560,3 +560,11 @@ shows only to viewers who can switch channels on (Pro); free viewers can't switc
 Owner decision ([#1002](https://github.com/StationBreak/stationbreaktv/issues/1002)): `PLANNER_PICKS` stays 48. Catalog 8
 made Odds & Ends four always-on channels (33, 66, 99, 199) that cost no seat, so the free on-set is 48 + 4 = 52 and
 `LineupDefaults.CAP` is 52. Earlier sections that say 50 describe the lineup before catalog 8; their measurements stand.
+
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+1 to 99 setting is called **Family Mode** (it was Kids Mode), and its bands are **Tots** (1 to 33, was the Kids band),
+**Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
+the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
+`kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).

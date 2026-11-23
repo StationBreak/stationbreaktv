@@ -14,8 +14,9 @@ How to set StationBreak up and what it does. StationBreak plays your own Jellyfi
 | [Reverse proxies](reverse-proxy.md) | Serving Jellyfin under a path such as `/jellyfin`, and what the app expects |
 | [Certificates and http](certificates.md) | Plain http at home, Let's Encrypt, and self-signed certificates |
 | [Channels](channels.md) | The built-in channels, switching channels on and off, numbers, and building your own |
-| [Mature content and kids](mature-content.md) | What the app filters, what it relies on, and where the real lock is |
+| [Mature content and kids](mature-content.md) | What the app filters, Family Mode and the Tots, Kids and Teens bands, and where the real lock is |
 | [Free and Pro](free-and-pro.md) | What's free, what Pro adds, and what a refund does |
+| [Glossary](glossary.md) | Family Mode and the Tots, Kids and Teens bands, and the names they replace |
 | [FAQ](faq.md) | Short answers to common questions |
 
 ## Privacy and support

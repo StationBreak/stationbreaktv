@@ -383,3 +383,10 @@ own version to close:
   later version.
 - **Other code points that render as nothing in some fonts** but are not in R, such as U+16FE4 (Khitan small script
   filler), and code points that a later Unicode version makes default-ignorable.
+
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+channels once called kids channels are the **Tots** channels (1 to 33), the 1 to 99 setting is **Family Mode** (it was
+Kids Mode), and the 34 to 66 band is **Kids**. The kid hold keeps its name (`kid-hold-*`), as do `kidsOnly` and stored
+values. See the [glossary](../guide/glossary.md).

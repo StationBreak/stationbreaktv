@@ -2015,6 +2015,11 @@ one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated un
 `Approved` on rank 0; a client that matches StationBreak's channels from `kid-hold-6` applies the narrowing as well
 (the `customCeiling` cases of `kid-hold-6.json`).
 
+**Naming (November 2026).** The audience tiers above (kids, family, teen, adult) are *rating* tiers of a title and keep
+those names, and so do the `kid-hold-*` and `grown-up-hold-*` names and files. They are not the three channel-number
+bands of the app's Family Mode, which are called Tots (1 to 33), Kids (34 to 66) and Teens (67 to 99), and which the
+rules format does not know about. See the [glossary](guide/glossary.md).
+
 **Fail closed.** Under a ceiling, an item is allowed **only if** it has a rank at or below the ceiling's rank. An item
 with no rating, a blank rating (one or more spaces; the empty string counts as no rating), `NR`, `Unrated`, or any rating
 that is not on the ladder (for example a British or German rating such as `FSK 16`) is **not** allowed. An episode is held

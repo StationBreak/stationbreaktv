@@ -284,3 +284,10 @@ safety. Mixed app versions can disagree on a kid channel during an update (A-VER
 Kids' Odds & Ends. Kid channels get fuller. The trade is that a kid channel can air an episode whose own rating is
 higher than the series': the owner accepts that the series rating speaks for its episodes.
 
+## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
+
+This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the
+1 to 99 setting is called **Family Mode** (it was Kids Mode), and its bands are **Tots** (1 to 33, was the Kids band),
+**Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
+the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
+`kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).

@@ -53,10 +53,11 @@ Choose **New channel**. Three steps:
 A preview shows what would air. **Save and watch** tunes to the new channel. To change it later, select it in
 **Channels** and choose **Edit**, or delete it there.
 
-## Kids channels
+## Tots channels
 
-Kids channels show only titles made for kids and rated within the kids limit. Unrated titles are left out. This holds
-whatever the channel's sources say: the builder lists what it skipped ("Not made for kids", "Rated above the kids
+Tots channels (numbers 1 to 33) show only titles made for kids and rated within the Tots limit. Unrated titles are left out. This holds
+whatever the channel's sources say: the builder lists what it skipped ("Not made for kids", "Rated above the Tots
 limit").
 
-Turn on **Kids channel** in the builder to make your own. Kids channels use their own band of numbers.
+Turn on **Tots channel** in the builder to make your own. Tots channels use their own band of numbers. The words for
+the bands and for Family Mode are in the [glossary](glossary.md).

@@ -20,24 +20,24 @@ channel isn't on, for example that nothing in your libraries fits it.
 The app reads the libraries again by itself. To read them now, choose **Settings → Update library** in the guide. Some
 lineup changes start with the next day's schedule at 6 AM.
 
-**How do I turn Kids Mode on, or off?**
-In the guide, open the menu and choose **Settings → Kids Mode**. The first time it asks you to choose a 4-digit PIN;
+**How do I turn Family Mode on, or off?**
+In the guide, open the menu and choose **Settings → Family Mode**. The first time it asks you to choose a 4-digit PIN;
 after that it turns on at once, and turning it off needs the PIN. While it is on, Channels, Libraries, Update library and
-Sign out stay shut until you turn it off. See [Mature content and Kids Mode](mature-content.md#turning-it-on-and-off).
+Sign out stay shut until you turn it off. See [Mature content and Family Mode](mature-content.md#turning-it-on-and-off).
 
-**I forgot my Kids Mode PIN.**
+**I forgot my Family Mode PIN.**
 On the PIN pad, choose **Forgot PIN?**. The TV shows a code: a server administrator approves it with Quick Connect in
-Jellyfin, and the PIN is cleared and Kids Mode turned off. See
+Jellyfin, and the PIN is cleared and Family Mode turned off. See
 [If you forget the PIN](mature-content.md#if-you-forget-the-pin).
 
-**Can I set hours for when the TV is kids-only or off the air?**
+**Can I set hours for when the TV is limited to Tots, Kids or Teens, or off the air?**
 That is hours of operation. The **Hours of operation** row in Settings appears with StationBreak Pro. It needs a PIN first, and the PIN always
 overrides the hours. For now the screen keeps your schedule and the TV does not yet follow it. See
 [Hours of operation](mature-content.md#hours-of-operation-pro).
 
-**Can Kids Mode show more than the kids channels?**
-Yes. On the **Kids Mode** row in Settings, press Left or Right to choose how far it reaches: Kids (channels 1 to 33),
-Family (1 to 66) or Teen (1 to 99). While Kids Mode is on, changing it asks for the PIN. See
+**Can Family Mode show more than the Tots channels?**
+Yes. On the **Family Mode** row in Settings, press Left or Right to choose how far it reaches: Tots (channels 1 to 33),
+Kids (1 to 66) or Teens (1 to 99). While Family Mode is on, changing it asks for the PIN. See
 [Choosing how far it reaches](mature-content.md#choosing-how-far-it-reaches).
 
 **How do I sign out, or change server?**
