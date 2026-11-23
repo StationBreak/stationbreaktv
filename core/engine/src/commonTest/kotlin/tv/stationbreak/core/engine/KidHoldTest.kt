@@ -421,8 +421,8 @@ class KidHoldTest {
         assertEquals(setOf("NR", "NOT RATED", "UNRATED"), AnimatedFamilySignal.UNRATED_SPELLINGS)
     }
 
-    // The two version names are pinned as a pair. They do not always move together: #1108's grown-up-hold-9 moved alone
-    // (no kid-hold rule changed, a custom channel's tier limit did), so a bump of one is a deliberate edit of this pair.
+    // The two version names are pinned as a pair. They do not always move together: #1108's grown-up-hold-9 moved
+    // alone (no kid-hold rule changed, a custom channel's tier limit did), so a bump of one edits this pair on purpose.
     @Test
     fun theCurrentHoldVersionNamesArePinnedAsAPair() {
         assertEquals(

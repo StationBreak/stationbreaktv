@@ -46,13 +46,6 @@ internal object CatalogRenumbering {
         catalog: StarterCatalogView,
     ): Set<ChannelId> = movingAt(channels, fromVersion, catalog).mapTo(HashSet()) { it.first.id }
 
-    // Only the moves to catalog 8, 12 and 13 renumber. A stored default can differ from the catalog's for another
-    // reason (a number a viewer's channel held when it was chosen), and that stays.
-    private fun atTheMove(
-        fromVersion: Int,
-        catalog: StarterCatalogView,
-    ): Boolean = fromVersion < StarterCatalog.YOUNG_BANDS_VERSION && catalog.version >= StarterCatalog.YOUNG_BANDS_VERSION
-
     private fun movingAt(
         channels: List<LineupChannel>,
         fromVersion: Int,
@@ -192,4 +185,14 @@ internal object CatalogRenumbering {
         } else {
             channel.copy(defaultNumber = number)
         }
+}
+
+// Only the moves to catalog 8, 12 and 13 renumber. A stored default can differ from the catalog's for another
+// reason (a number a viewer's channel held when it was chosen), and that stays.
+private fun atTheMove(
+    fromVersion: Int,
+    catalog: StarterCatalogView,
+): Boolean {
+    val first = StarterCatalog.YOUNG_BANDS_VERSION
+    return fromVersion < first && catalog.version >= first
 }

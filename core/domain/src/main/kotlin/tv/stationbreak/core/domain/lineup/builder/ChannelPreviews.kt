@@ -95,7 +95,8 @@ sealed interface ChannelPreview {
 interface ChannelPreviews {
     /**
      * The channel [draft] would air from [at]: the next [NEXT] items laid out by the same `buildDay`, the pool's size
-     * and runtime, and the picks its hold leaves out (the kids hold, or the tier limit of a PG or TV-14 ceiling). [editing] says which flow the preview is of, as the caller
+     * and runtime, and the picks its hold leaves out (the kids hold, or the tier limit of a PG or TV-14 ceiling).
+     * [editing] says which flow the preview is of, as the caller
      * will save it: the custom channel being edited (`ChannelBuilder.save` with that id), or null for a new channel
      * (`ChannelBuilder.create`). The rules are written as that flow writes them, at the same version. An edit reads
      * kept settings from the stored rules of [editing], a new channel from the rules of its [ChannelDraft.origin]; with

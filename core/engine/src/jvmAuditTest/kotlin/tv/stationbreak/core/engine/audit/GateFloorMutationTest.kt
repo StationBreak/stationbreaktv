@@ -74,13 +74,14 @@ class GateFloorMutationTest {
     // it). A weak `ChannelFloors` leaves it at 40; an oracle that read the ceiling alone (34) would pass that.
     @Test
     fun anAfterHoursCopyWithAPgCeilingFailsBelow100WhateverChannelFloorsSays() {
-        val copy = CustomChannel("Invented adult copy", AdultMark.marked(rules(listOf(Source.Genre("Crime")), maxRating = "PG")), 40)
+        val marked = AdultMark.marked(rules(listOf(Source.Genre("Crime")), maxRating = "PG"))
+        val copy = CustomChannel("Invented adult copy", marked, 40)
         val case = GateCase("adult-copy", "edge-cases.json", customs = listOf(copy))
         val adultView = GateTestSupport.everythingOn(case)
         val own = adultView.channels.single { it.key.startsWith("custom:") }
         assertTrue(own.adultMark, "the view carries the mark")
         assertEquals(100, FloorOracle.of(own))
-        assertTrue(own.number!! >= 100, "the real planner moved the copy up: ${own.number}")
+        assertTrue(checkNotNull(own.number) >= 100, "the real planner moved the copy up: ${own.number}")
         assertTrue(Rule.BelowFloor !in leaks.broken(adultView, case), "the real view is clean")
         val left = swapped(adultView, own.key) { it.numbered(40) }
         assertTrue(Rule.BelowFloor in leaks.broken(left, case), "the copy left at 40 fails")
