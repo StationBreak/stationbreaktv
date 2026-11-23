@@ -11,8 +11,8 @@ import tv.stationbreak.core.engine.lineup.Band
  * - [Tots] is [Band.Kids] (1 to 33)
  * - [Kids] is [Band.Family] (34 to 66)
  * - [Teens] is [Band.Teen] (67 to 99)
- * - [GrownUps] is every number from [Band.General] up, so the general, drama, genre, world, premium, seasonal and any
- *   custom number (100 and up). "Grown-ups" is a proposed label, one string in each feature.
+ * - [Adults] is every number from [Band.General] up, so the general, drama, genre, world, premium, seasonal and any
+ *   custom number (100 and up). "Adults" is the owner's label, one string in each feature.
  *
  * Use [bandOf] to classify a number.
  */
@@ -22,10 +22,10 @@ enum class NumberBand(
     Tots(Band.Kids.numbers),
     Kids(Band.Family.numbers),
     Teens(Band.Teen.numbers),
-    GrownUps(Band.General.numbers.first..Int.MAX_VALUE),
+    Adults(Band.General.numbers.first..Int.MAX_VALUE),
     ;
 
-    /** The band's last number, or null for the open-ended one ([GrownUps]: 100 and up). */
+    /** The band's last number, or null for the open-ended one ([Adults]: 100 and up). */
     val last: Int? get() = numbers.last.takeIf { it != Int.MAX_VALUE }
 }
 

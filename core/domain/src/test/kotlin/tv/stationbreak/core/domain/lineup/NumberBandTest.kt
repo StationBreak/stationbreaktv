@@ -11,11 +11,11 @@ class NumberBandTest {
         assertEquals(1..33, NumberBand.Tots.numbers)
         assertEquals(34..66, NumberBand.Kids.numbers)
         assertEquals(67..99, NumberBand.Teens.numbers)
-        assertEquals(100, NumberBand.GrownUps.numbers.first)
+        assertEquals(100, NumberBand.Adults.numbers.first)
     }
 
     @Test
-    fun onlyGrownUpsIsOpenEnded() {
+    fun onlyAdultsIsOpenEnded() {
         assertEquals(listOf<Int?>(33, 66, 99, null), NumberBand.entries.map { it.last })
     }
 
@@ -27,11 +27,11 @@ class NumberBandTest {
         assertEquals(NumberBand.Kids, bandOf(66))
         assertEquals(NumberBand.Teens, bandOf(67))
         assertEquals(NumberBand.Teens, bandOf(99))
-        assertEquals(NumberBand.GrownUps, bandOf(100))
-        assertEquals(NumberBand.GrownUps, bandOf(599))
-        assertEquals(NumberBand.GrownUps, bandOf(600))
-        assertEquals(NumberBand.GrownUps, bandOf(999))
-        assertEquals(NumberBand.GrownUps, bandOf(Int.MAX_VALUE))
+        assertEquals(NumberBand.Adults, bandOf(100))
+        assertEquals(NumberBand.Adults, bandOf(599))
+        assertEquals(NumberBand.Adults, bandOf(600))
+        assertEquals(NumberBand.Adults, bandOf(999))
+        assertEquals(NumberBand.Adults, bandOf(Int.MAX_VALUE))
     }
 
     @Test

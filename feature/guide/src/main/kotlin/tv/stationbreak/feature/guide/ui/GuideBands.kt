@@ -19,22 +19,22 @@ internal fun BandColors.of(band: NumberBand): Color =
         NumberBand.Tots -> tots
         NumberBand.Kids -> kids
         NumberBand.Teens -> teens
-        NumberBand.GrownUps -> grownUps
+        NumberBand.Adults -> adults
     }
 
 /**
- * The stripe on a channel tile's left edge: the band's accent, or none for Grown-ups, which has no accent of its own
- * (most of a lineup is Grown-ups, and a neutral stripe on every tile would only be noise).
+ * The stripe on a channel tile's left edge: the band's accent, or none for Adults, which has no accent of its own
+ * (most of a lineup is Adults, and a neutral stripe on every tile would only be noise).
  */
 internal fun stripeOf(
     band: NumberBand?,
     colors: GuideColors,
-): Color? = band?.takeIf { it != NumberBand.GrownUps }?.let { colors.band.of(it) }
+): Color? = band?.takeIf { it != NumberBand.Adults }?.let { colors.band.of(it) }
 
 /**
  * The band that starts at the row at [index], when a divider goes between it and the row above: the two are both in
  * the window that starts at [firstVisibleRow] (the first visible row has none above it) and their bands differ. The
- * divider is the band's accent, so a row with no band starts none. Grown-ups starts one in the neutral stroke colour.
+ * divider is the band's accent, so a row with no band starts none. Adults starts one in the neutral stroke colour.
  */
 internal fun dividerBandAt(
     rows: List<GuideRow>,
@@ -53,7 +53,7 @@ private fun bandName(band: NumberBand): String =
             NumberBand.Tots -> R.string.band_tots
             NumberBand.Kids -> R.string.band_kids
             NumberBand.Teens -> R.string.band_teens
-            NumberBand.GrownUps -> R.string.band_grownups
+            NumberBand.Adults -> R.string.band_adults
         },
     )
 

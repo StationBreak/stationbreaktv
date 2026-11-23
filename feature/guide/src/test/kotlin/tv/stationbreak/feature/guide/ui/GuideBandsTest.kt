@@ -15,7 +15,7 @@ class GuideBandsTest {
     @Test
     fun aRowKnowsItsBandFromItsNumber() {
         val bands = rows(33, 34, 67, 100).map { it.band }
-        assertEquals(listOf(NumberBand.Tots, NumberBand.Kids, NumberBand.Teens, NumberBand.GrownUps), bands)
+        assertEquals(listOf(NumberBand.Tots, NumberBand.Kids, NumberBand.Teens, NumberBand.Adults), bands)
         assertNull(rows(0).single().band)
     }
 
@@ -24,7 +24,7 @@ class GuideBandsTest {
         val all = rows(32, 33, 34, 35, 66, 67, 99, 100)
         val starts = all.indices.map { dividerBandAt(all, it, firstVisibleRow = 0) }
         assertEquals(
-            listOf(null, null, NumberBand.Kids, null, null, NumberBand.Teens, null, NumberBand.GrownUps),
+            listOf(null, null, NumberBand.Kids, null, null, NumberBand.Teens, null, NumberBand.Adults),
             starts,
         )
     }
@@ -44,14 +44,14 @@ class GuideBandsTest {
     }
 
     @Test
-    fun grownUpsHasNoStripeAndTheYoungBandsTakeTheirAccent() {
+    fun adultsHasNoStripeAndTheYoungBandsTakeTheirAccent() {
         for (colors in listOf(GuideColors.Dark, GuideColors.Light)) {
-            assertNull(stripeOf(NumberBand.GrownUps, colors))
+            assertNull(stripeOf(NumberBand.Adults, colors))
             assertNull(stripeOf(null, colors))
             assertEquals(colors.band.tots, stripeOf(NumberBand.Tots, colors))
             assertEquals(colors.band.kids, stripeOf(NumberBand.Kids, colors))
             assertEquals(colors.band.teens, stripeOf(NumberBand.Teens, colors))
-            assertEquals(colors.band.grownUps, colors.band.of(NumberBand.GrownUps))
+            assertEquals(colors.band.adults, colors.band.of(NumberBand.Adults))
         }
     }
 }

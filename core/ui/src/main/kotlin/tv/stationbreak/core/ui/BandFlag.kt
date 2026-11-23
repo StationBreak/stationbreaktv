@@ -23,7 +23,7 @@ private val DotGap = 6.dp
 
 /**
  * A number band's teletype flag (DESIGN.md "Band colours"): a small dot in the band's [accent], then the band [name] in
- * capitals and its range, "TOTS · 1-33"; [last] is null for the open-ended band, "GROWN-UPS · 100+". The text is
+ * capitals and its range, "TOTS · 1-33"; [last] is null for the open-ended band, "ADULTS · 100+". The text is
  * [textColor] in [style] (the flag style of the screen), never the accent: the accent is a shape. Not focusable and it
  * sets no semantics: the caller decides how a screen reader hears it, so the name is said once.
  */

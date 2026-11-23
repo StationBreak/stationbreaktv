@@ -8,10 +8,10 @@ idents (#1100). The 1-99 safety setting is Family Mode. The bands are:
 | Tots | 1-33 | `Band.Kids` | green |
 | Kids | 34-66 | `Band.Family` | blue |
 | Teens | 67-99 | `Band.Teen` | violet |
-| Grown-ups | 100 and up | every other number | none (the neutral stroke colour) |
+| Adults | 100 and up | every other number | none (the neutral stroke colour) |
 
-"Grown-ups" is our proposed label. It is one string in each of `feature/guide` and `feature/channels`
-(`band_grownups`). Code names and stored values do not change. The classifier is `NumberBand` and `bandOf(number)` in
+"Adults" is the owner's label (#1100). It is one string in each of `feature/guide` and `feature/channels`
+(`band_adults`). Code names and stored values do not change. The classifier is `NumberBand` and `bandOf(number)` in
 `core:domain` (`lineup/NumberBand.kt`); its ranges come from the engine's `Band`, so no screen keeps the numbers. A
 null number, or one below 1, has no band.
 
@@ -21,7 +21,7 @@ null number, or one below 1, has no band.
 2. Never orange, red or yellow. Orange is focus and now (the Spark Rule); red and yellow read as status.
 3. 3:1 or better on the page, a card and a sheet, in Dark and Light (`GuideColorsTest`, `ChannelsPaletteTest`).
 4. The accent always sits next to the band's name. A stripe alone is never the only signal.
-5. Grown-ups draws no stripe (most of a lineup is Grown-ups); its flag dot and its divider are the neutral stroke colour.
+5. Adults draws no stripe (most of a lineup is Adults); its flag dot and its divider are the neutral stroke colour.
 6. Flags use the teletype at 10sp, +13%, as every flag. Nothing under 10sp.
 
 Colours (`core:ui` `BandColors`): Dark #6FCF97, #5AB0E8, #A98BE8; Light #2E8B57, #1F6FB5, #6B4FB8.
@@ -51,7 +51,7 @@ No rows are added and no row height, focus or paging maths changes. On each chan
 
 Inside each group (On the air, More channels, Switched off), a band flag opens each run of numbered rows in one band.
 Rows with no number get no flag and sit after the numbered ones. Each row has a 3dp stripe of its band's accent inside
-its focus ring (none for Grown-ups). The flag is a heading for a screen reader and is not focusable; scrolling up to
+its focus ring (none for Adults). The flag is a heading for a screen reader and is not focusable; scrolling up to
 the first row under a heading and a flag keeps both in view.
 
 ```
@@ -62,6 +62,6 @@ the first row under a heading and a flag keeps both in view.
  ▌ 21  [mark] Channel name
  ● KIDS · 34-66
  ▌ 36  [mark] Channel name
- ● GROWN-UPS · 100+
+ ● ADULTS · 100+
    104 [mark] Channel name
 ```

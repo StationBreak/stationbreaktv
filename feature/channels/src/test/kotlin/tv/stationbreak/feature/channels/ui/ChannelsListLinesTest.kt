@@ -50,7 +50,7 @@ class ChannelsListLinesTest {
                 "B:Teens",
                 "67",
                 "99",
-                "B:GrownUps",
+                "B:Adults",
                 "100",
                 "650",
             ),
@@ -61,7 +61,7 @@ class ChannelsListLinesTest {
     @Test
     fun aRowWithNoNumberGetsNoFlagAndSitsAfterTheNumberedOnes() {
         val lines = linesOf(listOf(row(40), row(120), row(null), row(null)))
-        assertEquals(listOf("H:On", "B:Kids", "40", "B:GrownUps", "120", "none", "none"), shape(lines))
+        assertEquals(listOf("H:On", "B:Kids", "40", "B:Adults", "120", "none", "none"), shape(lines))
     }
 
     @Test
@@ -74,7 +74,7 @@ class ChannelsListLinesTest {
     fun eachGroupOpensItsOwnBandsAgainWithKeysThatDoNotClash() {
         val lines = linesOf(listOf(row(5), row(100), row(7, ChannelGroup.Shelf), row(9, ChannelGroup.Off)))
         assertEquals(
-            listOf("H:On", "B:Tots", "5", "B:GrownUps", "100", "H:Shelf", "B:Tots", "7", "H:Off", "B:Tots", "9"),
+            listOf("H:On", "B:Tots", "5", "B:Adults", "100", "H:Shelf", "B:Tots", "7", "H:Off", "B:Tots", "9"),
             shape(lines),
         )
         val bandKeys = lines.filterIsInstance<Line.Band>().map { "band:${it.group}:${it.band}" }

@@ -109,7 +109,7 @@ private fun RowLine(
     val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
-    val stripe = bandOf(row.number)?.takeIf { it != NumberBand.GrownUps }?.let { ChannelsPalette.band.of(it) }
+    val stripe = bandOf(row.number)?.takeIf { it != NumberBand.Adults }?.let { ChannelsPalette.band.of(it) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -166,7 +166,7 @@ private fun RowLine(
 
 /**
  * A [STRIPE_WIDTH] stripe of the band's accent on a row's left edge, inside the 3 dp focus ring (which is drawn over
- * it), with a little room above and below. Decoration only: it has no semantics, and Grown-ups has none.
+ * it), with a little room above and below. Decoration only: it has no semantics, and Adults has none.
  */
 private fun Modifier.bandStripe(color: Color?): Modifier =
     if (color == null) {

@@ -255,7 +255,7 @@ class GuideColorsTest {
     fun theBandAccentsHoldThreeToOneAndAreNeitherWarmNorFocus() {
         for ((name, c) in listOf("dark" to GuideColors.Dark, "light" to GuideColors.Light)) {
             val b = c.band
-            val accents = listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "grown-ups" to b.grownUps)
+            val accents = listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "adults" to b.adults)
             for ((band, color) in accents) {
                 assertContrast(3.0, color, c.page, "$name $band on the page", c.page)
                 assertContrast(3.0, color, c.card, "$name $band on a card", c.page)
@@ -266,7 +266,7 @@ class GuideColorsTest {
             for (color in listOf(b.kids, b.teens)) {
                 assertTrue("$name $color leans blue", color.blue > color.red && color.blue > color.green)
             }
-            assertEquals("$name grown-ups is the neutral stroke", c.textSupporting, b.grownUps)
+            assertEquals("$name adults is the neutral stroke", c.textSupporting, b.adults)
             assertEquals(4, accents.map { it.second }.toSet().size)
             assertSame(b, c.panel.band)
         }

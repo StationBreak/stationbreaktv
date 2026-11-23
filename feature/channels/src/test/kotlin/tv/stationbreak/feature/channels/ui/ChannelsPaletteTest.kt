@@ -56,7 +56,7 @@ class ChannelsPaletteTest {
     fun theBandAccentsShowOnTheGroundInEveryTheme() {
         for ((theme, panel) in panels) {
             val b = panel.band
-            val accents = listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "grown-ups" to b.grownUps)
+            val accents = listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "adults" to b.adults)
             for ((band, color) in accents) {
                 val r = ratio(color, panel.ground)
                 assertTrue("$band in $theme is $r, needs 3", r >= 3.0)

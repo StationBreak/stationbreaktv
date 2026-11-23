@@ -262,10 +262,10 @@
     <string name="channel_props_hint_return">Return to Channels</string>
     <string name="channel_props_hint_return_guide">Return to the guide</string>
 
-    <!-- The number bands of Family Mode (#1100). "Grown-ups" is a proposed label, so it is one string here and in the
+    <!-- The number bands of Family Mode (#1100). "Adults" is the owner's label, one string here and in the
          guide feature. The range and the flag around the name ("TOTS · 1-33") are core:ui's `BandFlag`. -->
     <string name="band_tots">Tots</string>
     <string name="band_kids">Kids</string>
     <string name="band_teens">Teens</string>
-    <string name="band_grownups">Grown-ups</string>
+    <string name="band_adults">Adults</string>
 </resources>

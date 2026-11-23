@@ -78,7 +78,7 @@ internal fun BandColors.of(band: NumberBand): Color =
         NumberBand.Tots -> tots
         NumberBand.Kids -> kids
         NumberBand.Teens -> teens
-        NumberBand.GrownUps -> grownUps
+        NumberBand.Adults -> adults
     }
 
 private fun bandName(band: NumberBand): Int =
@@ -86,7 +86,7 @@ private fun bandName(band: NumberBand): Int =
         NumberBand.Tots -> R.string.band_tots
         NumberBand.Kids -> R.string.band_kids
         NumberBand.Teens -> R.string.band_teens
-        NumberBand.GrownUps -> R.string.band_grownups
+        NumberBand.Adults -> R.string.band_adults
     }
 
 /**
