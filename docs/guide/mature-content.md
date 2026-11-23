@@ -152,7 +152,12 @@ Hours of operation is a weekly schedule for this TV: a list of periods, each wit
 The levels are the ones Family Mode uses (Tots, Kids, Teens), plus **Adult** and **Off Air**. It is part of Pro and each
 TV keeps its own schedule. An empty schedule means no hours: the TV behaves as it does without them.
 
-**Note:** for now this screen only keeps your schedule. The TV does not yet change what it shows by it.
+The TV follows the schedule. While a period is on, the guide, the channel numbers and live TV show only what that
+level allows (Tots up to channel 33, Kids up to 66, Teens up to 99, Adult everything), and if Family Mode is on as well,
+the stricter of the two applies. If you are watching a channel that the period no longer allows, the TV moves to the
+first allowed channel at once, and a period's edge is noticed within a minute. In an **Off Air** period nothing plays: the
+TV shows Stan asleep with **Off the air** on the screen until the period ends. Channels are only hidden, never removed, so they all come back
+when the period is over. The TV's own clock and time zone decide, so there is nothing to adjust for daylight saving time.
 
 Open the guide's menu, choose **Settings**, then **Hours of operation**. The row appears with StationBreak Pro; without
 Pro it is not there. It needs a PIN first (set one with **Family Mode**, as above), so a grown-up can
@@ -168,8 +173,9 @@ always override the hours. While Family Mode is on, the row does nothing and say
 - **Overlaps.** Periods may overlap. Where they do, the strictest level applies, with Off Air the strictest, then Tots,
   Kids, Teens and Adult.
 
-The PIN overrides the hours: enter the PIN to turn Family Mode off and the TV is grown-up until Family Mode comes back on,
-for example after the 2 hours without a key press described above.
+The PIN overrides the hours, even in an Off Air period: enter the PIN to turn Family Mode off and the TV is grown-up
+until Family Mode comes back on, for example after the 2 hours without a key press described above. During Off Air,
+press Back, then Menu, then Settings to reach Family Mode.
 
 If Pro goes away (for example after a refund) your schedule is kept, but it is switched off and can't be changed until
 Pro is back.

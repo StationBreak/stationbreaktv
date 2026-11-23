@@ -8,16 +8,19 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import tv.stationbreak.core.domain.ProEntitlement
+import tv.stationbreak.core.domain.hours.AudienceLockView
 import tv.stationbreak.core.domain.hours.HoursOfOperation
 import tv.stationbreak.core.domain.hours.HoursStore
 import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockView
 import tv.stationbreak.data.settings.hours.DataStoreHoursStore
 import javax.inject.Singleton
 
 /**
  * Hours of operation (#789, ADR-0033): this TV's schedule file (one DataStore file of its own, one per process as
  * DataStore requires) and the feature over it, behind the Pro gate and the Kids lock's PIN. The Settings sheet's
- * hours screen reads and edits it; nothing enforces it yet (the player and the guide are a later item).
+ * hours screen reads and edits it. It is enforced through [KidsLockView]: the lineup and schedule filters and live TV
+ * read the effective audience (the period and the lock, the PIN overriding) where they used to read the lock alone.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -35,4 +38,9 @@ internal object HoursModule {
         pro: ProEntitlement,
         lock: KidsLock,
     ): HoursOfOperation = HoursOfOperation(store, pro, lock)
+
+    /** What the filters and live TV read to decide what is seen and tuned: the hours' effective audience (ADR-0033). */
+    @Provides
+    @Singleton
+    fun lockView(hours: HoursOfOperation): KidsLockView = AudienceLockView(hours)
 }

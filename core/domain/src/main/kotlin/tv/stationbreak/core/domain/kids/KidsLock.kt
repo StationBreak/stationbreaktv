@@ -33,23 +33,36 @@ const val NO_FLOOR = 1
 
 /**
  * What the Kids Mode lock is now: whether it is [enabled], its [cap], and whether a PIN is set ([pinSet]). It never
- * carries the PIN or anything derived from it.
+ * carries the PIN or anything derived from it. [offAir] is only ever set by the hours of operation (#789, ADR-0033):
+ * the TV is off the air, so the lock is on and allows no channel at all; the stored lock never has it.
  */
 data class KidsLockState(
     val enabled: Boolean,
     val cap: KidsCap,
     val pinSet: Boolean,
+    val offAir: Boolean = false,
 ) {
     /**
      * Whether a channel numbered [number] can be seen and tuned: every channel while the lock is off; while it is on,
-     * only one numbered 1 to the cap. A channel with no number is hidden then. [floor] is the lowest number the channel
-     * may have (`ChannelFloors`, #1097): one numbered below it is hidden too, so a stored lineup not yet moved up (an
-     * Adult channel at 40) never shows in a young band. A caller with no channel passes [NO_FLOOR].
+     * only one numbered 1 to the cap. A channel with no number is hidden then, and every channel while [offAir].
+     * [floor] is the lowest number the channel may have (`ChannelFloors`, #1097): one numbered below it is hidden too,
+     * so a stored lineup not yet moved up (an Adult channel at 40) never shows in a young band. A caller with no
+     * channel passes [NO_FLOOR].
      */
     fun allows(
         number: Int?,
         floor: Int,
-    ): Boolean = !enabled || (number != null && number >= floor && number in 1..cap.upTo)
+    ): Boolean = !offAir && (!enabled || (number != null && number >= floor && number in 1..cap.upTo))
+}
+
+/**
+ * What decides which channels are seen and tuned (#789): the lock's state, as the lineup and schedule filters and live
+ * TV read it. The lock itself is one; with the hours of operation the app reads the effective audience instead
+ * (`AudienceLockView`), so a period's level is enforced through the same filters.
+ */
+interface KidsLockView {
+    /** What is allowed now, and each change of it. Nothing is emitted until it has been read. */
+    val state: Flow<KidsLockState>
 }
 
 /**
@@ -103,9 +116,9 @@ sealed interface PinSetup : PinResult
  * It is a cabinet lock, not a security boundary: it stops casual leaving of Kids Mode. A forgotten PIN is cleared only
  * by clearing the app's data. The PIN never appears in a log, a state or a result.
  */
-interface KidsLock {
+interface KidsLock : KidsLockView {
     /** The lock as it is now, and each change of it. Nothing is emitted until the stored lock has been read. */
-    val state: Flow<KidsLockState>
+    override val state: Flow<KidsLockState>
 
     /**
      * Sets the first PIN ([newPin], four digits). [PinResult.AlreadySet] when one is set, and when the lock is on with

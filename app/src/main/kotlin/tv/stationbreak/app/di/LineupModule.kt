@@ -34,7 +34,7 @@ import tv.stationbreak.core.domain.ServerSettings
 import tv.stationbreak.core.domain.SessionRepository
 import tv.stationbreak.core.domain.StayCurrentRequests
 import tv.stationbreak.core.domain.getOrNull
-import tv.stationbreak.core.domain.kids.KidsLock
+import tv.stationbreak.core.domain.kids.KidsLockView
 import tv.stationbreak.core.domain.kids.KidsLockedChannelRepository
 import tv.stationbreak.core.domain.kids.KidsLockedScheduleSource
 import tv.stationbreak.core.domain.lineup.BuildProbes
@@ -190,7 +190,7 @@ internal object LineupModule {
     @Provides
     fun channelRepository(
         service: LineupService,
-        lock: KidsLock,
+        lock: KidsLockView,
         pro: ProEntitlement,
     ): ChannelRepository = KidsLockedChannelRepository(ProLockedChannelRepository(service, pro), lock)
 
@@ -417,7 +417,7 @@ internal object LineupModule {
     @Provides
     fun scheduleSource(
         source: BuiltInScheduleSource,
-        lock: KidsLock,
+        lock: KidsLockView,
         locked: ProLockedIds,
     ): ScheduleSource = ProLockedScheduleSource(KidsLockedScheduleSource(source, lock), locked)
 
