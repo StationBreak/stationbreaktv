@@ -30,7 +30,7 @@ What the copy describes is the free V1: the planner's lineup and up to 5 custom 
 Limit 1,200 characters. Fire TV shows only the first 200, so the point comes first. This draft is 357 characters; the first 200 end at "browse a program guide. B", so they carry the whole idea.
 
 ```text
-Turn your own Jellyfin library into live TV. Your shows and films play on a schedule across themed channels, the way cable does: tune in to whatever is on, flip channels, and browse a program guide. Build up to 5 channels of your own. Kids channels show only titles rated for kids. Needs your own Jellyfin server, version 12.0 or later. No ads, no tracking.
+Turn your own Jellyfin library into live TV. Your shows and films play on a schedule across themed channels, the way cable does: tune in to whatever is on, flip channels, and browse a program guide. Build up to 5 channels of your own. Tots channels show only titles rated for kids. Needs your own Jellyfin server, version 12.0 or later. No ads, no tracking.
 ```
 
 ### Long description
@@ -50,7 +50,7 @@ What you can do:
 - Choose audio tracks, subtitles and the version of a title while you watch.
 - Even out loud and quiet programs with volume levelling.
 - Build up to 5 channels of your own from libraries, collections, tags, genres, or shows and films you pick, played in shuffle, rotation or in order.
-- Give kids their own channels. Kids channels show only titles made for kids and rated within the kids limit; unrated titles are left out.
+- Give kids their own channels. Tots channels show only titles made for kids and rated within the Tots limit; unrated titles are left out.
 
 What you need:
 - A Jellyfin media server, version 12.0 or later, with your own media on it. StationBreak has no content of its own.
@@ -72,7 +72,7 @@ Amazon asks for three to five, one per line.
 ```text
 Your own Jellyfin library, played as live TV channels with a program guide
 Pause, go back to the start of the show, and skip ahead
-Build up to 5 channels of your own; kids channels show only titles rated for kids
+Build up to 5 channels of your own; Tots channels show only titles rated for kids
 Audio, subtitle and version choice, and volume levelling
 No ads, no tracking: the app talks only to your server (crash reports are off unless you turn them on)
 ```
