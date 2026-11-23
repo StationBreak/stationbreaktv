@@ -51,6 +51,18 @@ class ChannelsPaletteTest {
         }
     }
 
+    // The band stripe and dot are shapes: 3:1 on the ground, in every theme.
+    @Test
+    fun theBandAccentsShowOnTheGroundInEveryTheme() {
+        for ((theme, panel) in panels) {
+            val b = panel.band
+            for ((band, color) in listOf("tots" to b.tots, "kids" to b.kids, "teens" to b.teens, "grown-ups" to b.grownUps)) {
+                val r = ratio(color, panel.ground)
+                assertTrue("$band in $theme is $r, needs 3", r >= 3.0)
+            }
+        }
+    }
+
     @Test
     fun theDimmedRowIsStillDimmerThanTheRest() {
         for ((theme, panel) in panels) {
