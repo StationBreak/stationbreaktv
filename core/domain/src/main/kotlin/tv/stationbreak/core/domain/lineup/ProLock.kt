@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
@@ -83,6 +84,21 @@ class ProLockedHoldings(
         id: ChannelId,
         at: Instant,
     ): ChannelHoldings? = if (id in locked.now()) null else delegate.read(id, at)
+}
+
+/**
+ * Who each channel is while Pro may be locked (#1072): [delegate]'s map without a locked custom channel, so a guide
+ * left open across a refund cannot read its personality or plays row. The locked set is read afresh for each map.
+ */
+class ProLockedIdentities(
+    private val delegate: ChannelIdentityReader,
+    private val locked: ProLockedIds,
+) : ChannelIdentityReader {
+    override fun identities(): Flow<Map<ChannelId, ChannelIdentity>> =
+        delegate.identities().map { all ->
+            val out = locked.now()
+            if (out.isEmpty()) all else all.filterKeys { it !in out }
+        }
 }
 
 /**

@@ -91,6 +91,15 @@ must stay free of any billing code.
      unlocks them untouched, with no lineup-file change. The locked IDs are read from the loaded lineup, with no channel
      list built, so a free-mode schedule call does not rebuild one ([#1065](https://github.com/StationBreak/stationbreaktv/issues/1065)).
 
+## Accepted costs ([#1072](https://github.com/StationBreak/stationbreaktv/issues/1072))
+
+- While a refund is owed, or the refund record is unknown and the store says false, each start or sign-in does one
+  lineup read, and the set of handled accounts grows until a purchase clears it.
+- A free TV that never held Pro, has a corrupt refund file and a lineup file from before version 3 (only pre-release
+  installs carry one) can have its starters with inferred marks returned to defaults when the store first answers
+  false. Telling that TV from a refunded one needs a stored "ever held Pro" field or a mark that says inferred, which
+  is a lineup-format decision, so it is left for that decision.
+
 ## Open: the Appstore SDK
 
 `com.amazon.device:amazon-appstore-sdk` (3.0.9 on Maven Central) is licensed under Amazon's Program Materials License,

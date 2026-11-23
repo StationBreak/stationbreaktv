@@ -23,9 +23,12 @@ class ProGithubUnlockTest {
 
     // No Amazon SDK on the GitHub runtime classpath (#1063). It reads what each jar holds, not its path, because a
     // transformed AAR's path no longer names its group. True today; it guards the day the Appstore SDK is linked.
+    // The githubRelease unit test is given githubReleaseRuntimeClasspath, what ships (app/build.gradle.kts, #1072); the
+    // other github variants, which have no such property, scan their own unit-test classpath.
     @Test
     fun theGithubRuntimeClasspathHoldsNoAmazonDeviceArtifact() {
-        val entries = System.getProperty("java.class.path").split(File.pathSeparator).map(::File)
+        val shipped = System.getProperty("stationbreak.shippedClasspath")
+        val entries = (shipped ?: System.getProperty("java.class.path")).split(File.pathSeparator).map(::File)
         // The scan sees inside jars: the Kotlin standard library is found the same way an SDK would be.
         assertTrue("the scan reads jar contents", entries.any { it.holds("kotlin/") })
         val amazon = entries.filter { it.holds("com/amazon/device/") }.map { it.name }
