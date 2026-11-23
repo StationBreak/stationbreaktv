@@ -1,0 +1,15 @@
+StationBreak
+Copyright the StationBreak contributors. Licensed under GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+(see LICENSE).
+
+This product includes material derived from the Android Open Source Project:
+
+  Android TV app, rating systems
+  Copyright (C) 2015 The Android Open Source Project
+  Licensed under the Apache License, Version 2.0 (the "License"). You may obtain a copy of the License at
+  https://www.apache.org/licenses/LICENSE-2.0
+  Source: https://android.googlesource.com/platform/packages/apps/TV/+/4e256ebdeb1333af4f2b9832d61078965e4a672f/ratings/
+  (ratings/res/xml/tv_content_rating_systems.xml and ratings/res/values/rating_system_strings.xml)
+  Modified: the non-US rating systems (country codes, rating names and content age hints) are transcribed into a fixed
+  rating table, core/engine/src/commonMain/kotlin/tv/stationbreak/core/engine/AndroidTvRatingSystems.kt (#987). The
+  upstream repository has no NOTICE file of its own.

@@ -2004,12 +2004,13 @@ looking a string up:
 
 Jellyfin also understands strings this format does not: a country prefix such as `US:PG-13`, a leading `Rated `, a plain
 number such as `13` or `16+`, and a list such as `TV-14/TV-MA`. They have no rank here, so they are blocked under a ceiling.
-That is on purpose: this format fails closed. Non-US rating systems (`U`, `12A`, `FSK 16`, `MA15+` and the like) are
-unknown, which means adult, until StationBreak ships licensed per-country tables
-([#987](https://github.com/StationBreak/stationbreaktv/issues/987)); a client must not map them itself in the meantime.
+That is on purpose: this format fails closed, and a non-US rating has no rank on this ladder.
 The app's audience tiers (kids, family, teen, adult; outside this format) read ratings through their own US-first map,
-which also reads `Rated `, `/` lists and bare minimum ages, and still treats every non-US name as unknown
-([ADR-0028](adr/0028-rating-tiers.md), vector `kid-hold-6.json`). This ladder and its rule 4 are unchanged by it, with
+which also reads `Rated `, `/` lists and bare minimum ages (capped at family), and from `kid-hold-10`
+([#987](https://github.com/StationBreak/stationbreaktv/issues/987)) the non-US systems of the Android TV ratings XML
+(`DE-12`, `KR-15`, `BR-L`; Apache-2.0, see `NOTICE`). A rating that table lacks (`U`, `12A`, `FSK 16`, `MA15+` and the
+like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json` and
+`kid-hold-10.json`). A client that matches StationBreak's tiers uses that table, not one of its own. This ladder and its rule 4 are unchanged by it, with
 one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated under a ceiling on every channel it builds
 (it fails every ceiling, like `NR` and `Passed`). The file format, `formatVersion` and the vectors of this document keep
 `Approved` on rank 0; a client that matches StationBreak's channels from `kid-hold-6` applies the narrowing as well
@@ -2343,7 +2344,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-9`), `grownUpHold` (`grown-up-hold-9`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-10`), `grownUpHold` (`grown-up-hold-10`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2501,7 +2502,10 @@ Everything below is in this repository, under `docs/`:
   supersedes (its `explicitRating` row `"\tX"` is now explicit). `grown-up-hold-9.json` (#1108, ADR-0028 addendum
   2026-11-23) is a delta of `customCeiling` rows: a custom channel under a PG or TV-14 ceiling takes the tier limit of
   that band (a PG-rated horror or gore title is out, a plain PG one is in), and one with no or a higher ceiling does not.
-  `kid-hold-9` is unchanged and still passes every earlier file.
+  `kid-hold-9` is unchanged and still passes every earlier file. `kid-hold-10.json` (#987, `kid-hold-10` /
+  `grown-up-hold-10`) is a delta of the non-US ratings of the Android TV ratings XML (Apache-2.0, see `NOTICE`): every
+  spelling of its country tables with its level, the overrides, the rows that stay unknown, and a bare age capped at
+  Family. Its description names the earlier rows it supersedes (the bare ages `0`, `6`, `6+`, `7+` and `DE-12`).
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

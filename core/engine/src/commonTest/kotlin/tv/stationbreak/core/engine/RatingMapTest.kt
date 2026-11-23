@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** The US-first rating map (ADR-0028, #987). The full table of cases is in `kid-hold-6.json`. */
+/** The rating map (ADR-0028, #987). The full table of cases is in `kid-hold-6.json` and `kid-hold-10.json`. */
 class RatingMapTest {
     // TV and PG are also ISO country codes (Tuvalu, Papua New Guinea): the US names are read first, whole.
     @Test
@@ -17,12 +17,13 @@ class RatingMapTest {
         assertEquals(3, RatingMap.levelOf("PG-13"))
     }
 
-    // #987 maps AU PG to 10 once a licensed Australian table lands. Until then it is unknown, so adult.
+    // kid-hold-10 (#987): AU PG is 10 (the override, AndroidTvRatingsTest). A space is not a country separator, so
+    // `AU PG` stays unknown, so adult.
     @Test
-    fun auPgIsUnknownUntilALicensedTableLands() {
+    fun auPgIsTenWithACountrySeparator() {
         assertNull(RatingMap.levelOf("AU PG"))
-        assertNull(RatingMap.levelOf("AU-PG"))
-        assertNull(RatingMap.levelOf("AU:PG"))
+        assertEquals(2, RatingMap.levelOf("AU-PG"))
+        assertEquals(2, RatingMap.levelOf("AU:PG"))
     }
 
     @Test

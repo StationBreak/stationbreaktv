@@ -19,10 +19,11 @@ import tv.stationbreak.core.model.RuleSeries
  * or only white space, a tab or no-break space included) is none in [hasNoMetadata].
  * `grown-up-hold-9` (#1108) moves alone: kid-hold-9 stays. A custom channel under a young ceiling follows the tier
  * limit of its band ([tierLimit]), as a built-in channel of that band does (ADR-0028 addendum 2026-11-23).
+ * `grown-up-hold-10` moves with `kid-hold-10` (#987): the same gate, on the tiers of the non-US rating table.
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-9"
+    const val VERSION_NAME = "grown-up-hold-10"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take
