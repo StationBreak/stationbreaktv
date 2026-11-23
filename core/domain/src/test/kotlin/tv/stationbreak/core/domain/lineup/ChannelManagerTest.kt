@@ -36,6 +36,7 @@ class ChannelManagerTest {
     private val service = LineupService(store, library, clock, { 0 }, { events += it }, TestCatalog)
     private val events = mutableListOf<LineupEvent>()
     private var chosen: Set<ItemId>? = LIBRARIES
+    private val today = MovedNotice.dayOf(NOON.toEpochMilliseconds())
     private val manager = ChannelManager(service, FakeProEntitlement(), IGNORED_SWITCH_ONS) { chosen }
 
     private fun lineup(
@@ -78,8 +79,8 @@ class ChannelManagerTest {
         val renamed = base.channels.map { if (it.id == laughs) it.copy(nameOverride = "Mine") else it }
         val notices =
             listOf(
-                MovedNotice(LineupIds.starter("laughs"), 50, 110, 20_000L),
-                MovedNotice(LineupIds.starter("whodunit"), 60, 210, 20_000L),
+                MovedNotice(LineupIds.starter("laughs"), 50, 110, today),
+                MovedNotice(LineupIds.starter("whodunit"), 60, 210, today),
             )
         return base.copy(channels = renamed, movedNotices = notices)
     }
@@ -101,6 +102,21 @@ class ChannelManagerTest {
             assertTrue("\"moved\"" !in after.decodeToString(), "the file is written without the key")
             val read = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(after))
             assertEquals(LineupCodec.BASE_VERSION, read.fileVersion)
+        }
+
+    // Dropped, as the planner drops it: a notice older than its keep time (or from the future, which is today's) is
+    // not told late.
+    @Test
+    fun anExpiredNoticeIsNotToldAndAFutureOneIs() =
+        runBlocking<Unit> {
+            val base = withNotices()
+            val laughs = LineupIds.starter("laughs")
+            val old = MovedNotice(laughs, 50, 110, today - MovedNotice.KEEP_DAYS - 1)
+            val future = MovedNotice(LineupIds.starter("whodunit"), 60, 210, Long.MAX_VALUE)
+            seed(base.copy(movedNotices = listOf(old, future)))
+
+            assertEquals(listOf(60), manager.takeMovedNotices(ACCOUNT).map { it.from })
+            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
         }
 
     @Test

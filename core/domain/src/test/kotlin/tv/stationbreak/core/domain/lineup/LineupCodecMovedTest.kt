@@ -3,6 +3,7 @@ package tv.stationbreak.core.domain.lineup
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -80,6 +81,32 @@ class LineupCodecMovedTest {
         val bytes = LineupCodec.encode(base.copy(movedNotices = kept))
         assertEquals(LineupCodec.BASE_VERSION, loaded(bytes).fileVersion)
         assertEquals(1, MovedNotice.live(listOf(old), setOf(laughs), today - 1).size, "the last day it is kept")
+    }
+
+    // `"moved": null` is the same as no key: readable, no notice, at a version below 8 and at 8 alike.
+    @Test
+    fun aNullMovedIsReadableAtEveryVersionAndHoldsNoNotice() {
+        val tree = Json.parseToJsonElement(LineupCodec.encode(base).decodeToString()).jsonObject
+        for (version in listOf(LineupCodec.BASE_VERSION, LineupCodec.MOVED_VERSION - 1, LineupCodec.MOVED_VERSION)) {
+            val file = JsonObject(tree + ("moved" to JsonNull) + ("version" to JsonPrimitive(version)))
+            val read = loaded(file.toString().encodeToByteArray())
+            assertEquals(emptyList(), read.lineup.movedNotices, "version $version")
+            assertEquals(version, read.fileVersion, "version $version")
+        }
+    }
+
+    // A notice dated after today (a clock set ahead, a hand-edited file) is made today; it still ends KEEP_DAYS on.
+    @Test
+    fun aNoticeFromTheFutureCountsAsMadeToday() {
+        val today = 20_000L
+        for (day in listOf(today + 1, today + 400, 4_000_000_000_000L, Long.MAX_VALUE)) {
+            val kept = MovedNotice.live(listOf(MovedNotice(laughs, 50, 110, day)), setOf(laughs), today)
+            assertEquals(listOf(MovedNotice(laughs, 50, 110, today)), kept, "day $day")
+            val later = MovedNotice.live(kept, setOf(laughs), today + MovedNotice.KEEP_DAYS + 1)
+            assertEquals(emptyList(), later, "day $day ends 14 days after it was made")
+        }
+        val past = MovedNotice.live(listOf(MovedNotice(laughs, 50, 110, Long.MIN_VALUE)), setOf(laughs), today)
+        assertEquals(emptyList(), past, "a huge negative day is old, not live")
     }
 
     private fun withMoved(raw: String): ByteArray {

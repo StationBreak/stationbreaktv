@@ -17,6 +17,7 @@ import tv.stationbreak.core.engine.lineup.EditRefusal
 import tv.stationbreak.core.engine.lineup.Lineup
 import tv.stationbreak.core.engine.lineup.LineupChannel
 import tv.stationbreak.core.engine.lineup.LineupEdit
+import tv.stationbreak.core.engine.lineup.MovedNotice
 import tv.stationbreak.core.engine.lineup.isViewerCustom
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.ItemId
@@ -190,7 +191,8 @@ class ChannelManager(
 
     private fun movedChannels(lineup: Lineup): List<MovedChannel> {
         val byId = lineup.channels.associateBy { it.id }
-        return lineup.movedNotices.mapNotNull { notice ->
+        val live = MovedNotice.live(lineup.movedNotices, byId.keys, MovedNotice.dayOf(service.nowMs()))
+        return live.mapNotNull { notice ->
             byId[notice.id]?.let { MovedChannel(it.displayName(service.catalog), notice.from, notice.to) }
         }
     }

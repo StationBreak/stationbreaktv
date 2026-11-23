@@ -426,9 +426,8 @@ object LineupEdits {
         kids: Boolean,
         catalog: StarterCatalogView = StarterCatalog,
     ): List<Int> {
-        val used = lineup.channels.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
         val range = if (kids) Band.Kids.numbers else LineupDefaults.CUSTOM_NUMBERS
-        return range.filter { it !in used && it !in catalog.retiredNumbers }
+        return FreeNumbers.free(range.asSequence(), FreeNumbers.usedBy(lineup.channels), catalog).toList()
     }
 
     private fun addCustom(
@@ -771,7 +770,7 @@ object LineupEdits {
 }
 
 // Finding the number a channel takes when it has none.
-private object FreeNumbers {
+internal object FreeNumbers {
     // Where a grown-up channel looks for a number once its own band is full.
     private val ANY_GROWN_UP = Band.General.numbers.first..LineupEdits.MAX_NUMBER
 
@@ -783,14 +782,25 @@ private object FreeNumbers {
         isKid: Boolean,
         catalog: StarterCatalogView,
     ): Int? {
-        val used = channels.flatMap { listOfNotNull(it.defaultNumber, it.numberOverride) } + catalog.retiredNumbers
+        val used = usedBy(channels)
         val ranges =
             when {
                 isKid -> listOf(Band.Kids.numbers)
                 else -> listOfNotNull(bandOf(channel, catalog), ANY_GROWN_UP)
             }
-        return ranges.asSequence().flatMap { it.asSequence() }.firstOrNull { it !in used }
+        return free(ranges.asSequence().flatMap { it.asSequence() }, used, catalog).firstOrNull()
     }
+
+    /** The numbers [channels] hold, as a default or an override. */
+    fun usedBy(channels: List<LineupChannel>): Set<Int> =
+        channels.flatMapTo(HashSet()) { listOfNotNull(it.defaultNumber, it.numberOverride) }
+
+    /** The numbers of [range] not in [used] and not retired by [catalog], in order: the one free-number rule. */
+    fun free(
+        range: Sequence<Int>,
+        used: Set<Int>,
+        catalog: StarterCatalogView,
+    ): Sequence<Int> = range.filter { it !in used && it !in catalog.retiredNumbers }
 
     private fun bandOf(
         channel: LineupChannel,
