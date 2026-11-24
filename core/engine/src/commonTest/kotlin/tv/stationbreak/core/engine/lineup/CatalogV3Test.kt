@@ -19,6 +19,7 @@ import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CatalogV3Test {
@@ -132,7 +133,7 @@ class CatalogV3Test {
     @Test
     fun theFormatPromisesAreWhereTheyShouldBe() {
         val matinee = recipe("rainy-day-matinee")
-        assertEquals(FormatPromise.Films, matinee.theme?.format)
+        assertNull(matinee.theme?.format, "no format bonus: it would out-home the Popcorn and Toons channels (#1002)")
         assertEquals(FilterKind.Movie, matinee.filters?.kind)
         for (key in listOf("laugh-track", "satire-desk")) {
             val r = recipe(key)
@@ -142,7 +143,7 @@ class CatalogV3Test {
             assertTrue("Animation" in r.filters?.notGenres.orEmpty(), key)
         }
         val promised = v3.filter { it.theme?.format != null }.map { it.key }.toSet()
-        assertEquals(setOf("rainy-day-matinee", "laugh-track", "satire-desk"), promised)
+        assertEquals(setOf("laugh-track", "satire-desk"), promised)
     }
 
     @Test
