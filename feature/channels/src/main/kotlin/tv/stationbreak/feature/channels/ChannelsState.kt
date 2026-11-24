@@ -25,6 +25,8 @@ internal data class ChannelRow(
     val optIn: Boolean,
     /** Why an On channel has nothing to air today; null for the others and for a channel that has something. */
     val reason: HiddenReason?,
+    /** When an On channel with [reason] `EmptyToday` starts (the day start it was switched on for); null otherwise. */
+    val startsAtMs: Long? = null,
     /** Why a shelved channel is not on, or why one on today leaves at the next day start; null for the others. */
     val shelfReason: ShelfReason? = null,
     /** The viewer chose this number, so "Default number" shows. */

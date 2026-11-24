@@ -152,7 +152,7 @@ internal fun Status(
                     } else if (hidden == null) {
                         stringResource(R.string.channel_props_status_showing)
                     } else {
-                        stringResource(R.string.channel_props_status_hidden, stringResource(reasonText(hidden)))
+                        stringResource(R.string.channel_props_status_hidden, reasonTextOf(row, hidden))
                     }
             }
 

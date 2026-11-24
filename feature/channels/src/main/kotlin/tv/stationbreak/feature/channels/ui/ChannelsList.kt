@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -37,6 +38,7 @@ import tv.stationbreak.core.domain.lineup.NumberBand
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.domain.lineup.bandOf
 import tv.stationbreak.core.ui.LocalGuideColors
+import tv.stationbreak.core.ui.ProgramText
 import tv.stationbreak.core.ui.keepVisible
 import tv.stationbreak.core.ui.mark.ChannelMark
 import tv.stationbreak.core.ui.mark.LocalMarkCache
@@ -48,6 +50,7 @@ import tv.stationbreak.feature.channels.ChannelRow
 import tv.stationbreak.feature.channels.ChannelsFocus
 import tv.stationbreak.feature.channels.ChannelsUi
 import tv.stationbreak.feature.channels.R
+import java.time.ZoneId
 
 @Composable
 internal fun ChannelList(
@@ -235,6 +238,19 @@ internal fun labelsOf(row: ChannelRow): String =
     ).map { stringResource(it) }
         .joinToString(", ")
         .let { if (it.isEmpty()) it else "($it)" }
+
+@Composable
+internal fun reasonTextOf(
+    row: ChannelRow,
+    reason: HiddenReason,
+): String {
+    val at = row.startsAtMs
+    if (reason != HiddenReason.EmptyToday || at == null) return stringResource(reasonText(reason))
+    val is24h =
+        android.text.format.DateFormat
+            .is24HourFormat(LocalContext.current)
+    return stringResource(R.string.channels_reason_starts_at, ProgramText.time(at, ZoneId.systemDefault(), is24h))
+}
 
 internal fun reasonText(reason: HiddenReason): Int =
     when (reason) {

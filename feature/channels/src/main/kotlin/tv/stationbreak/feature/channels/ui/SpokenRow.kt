@@ -45,7 +45,7 @@ internal fun reasonOf(row: ChannelRow): String? =
     if (row.gettingReady) {
         stringResource(R.string.channels_row_getting_ready)
     } else {
-        row.reason?.let { stringResource(reasonText(it)) }
+        row.reason?.let { reasonTextOf(row, it) }
     }
 
 /** What a screen reader says for [row]: the same words the row's own node carries. */

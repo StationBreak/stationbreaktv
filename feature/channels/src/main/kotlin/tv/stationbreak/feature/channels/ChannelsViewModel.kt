@@ -625,7 +625,8 @@ internal class ChannelsViewModel
                 proOffered = m.proOffered,
             )
 
-        private fun rowsOf(m: Model): List<ChannelRow> = channelRows(m.channels, m.reasons, m.gettingReady)
+        private fun rowsOf(m: Model): List<ChannelRow> =
+            channelRows(m.channels, m.reasons, m.gettingReady, clock.now().toEpochMilliseconds())
 
         /** Focus to the row above or below; the "Use my collections" switch is the first stop and Reset the last. */
         fun move(up: Boolean) {
