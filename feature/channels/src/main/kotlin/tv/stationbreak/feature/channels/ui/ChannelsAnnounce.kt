@@ -118,7 +118,7 @@ internal fun speechOf(
 
         is Announced.Household -> {
             Speech(
-                householdSpoken(),
+                householdSpoken(ui.changesStartAtMs),
                 stringResource(if (announced.on) R.string.channels_switch_on else R.string.channels_switch_off),
             )
         }

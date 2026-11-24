@@ -12,10 +12,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.LineupAccess
+import tv.stationbreak.core.ui.ProgramText
+import java.time.ZoneId
 
 /** The "Use my collections" switch at the top of the Channels list (spec 23). */
 class ChannelsHouseholdTest {
     private val trio = listOf(summary(A, 5), summary(B, 7), summary(C, 9))
+
+    @Test
+    fun theHintCarriesTheDayStartTheRulesGive() =
+        channelsTest(trio) { rig ->
+            // A day start of 05:30 (not the usual 06:00): the hint's time is the rules', never a fixed one.
+            val dayStart = 5 * 3_600_000L + 30 * 60_000L
+            rig.household.changesAt.value = dayStart
+            rig.open(this)
+            runCurrent()
+            assertEquals(dayStart, rig.ui.changesStartAtMs)
+            assertEquals("5:30 AM", ProgramText.time(dayStart, ZoneId.of("UTC"), is24h = false))
+        }
 
     @Test
     fun theToggleShowsTheStoredValueAndSendsTheChange() =

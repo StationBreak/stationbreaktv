@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -128,6 +129,7 @@ internal class ChannelsViewModel
             val rows: List<ChannelRow> = emptyList(),
             val access: LineupAccess = LineupAccess.Loading,
             val useMyCollections: Boolean = true,
+            val changesStartAtMs: Long? = null,
             /** The entitlement and the custom-channel cap, as last seen (#793). */
             val isPro: Boolean = false,
             /** The store is available, so Pro is on offer (#99). */
@@ -257,9 +259,10 @@ internal class ChannelsViewModel
                     }
                 val flag =
                     launch {
-                        household.useMyCollections(account).collect { on ->
-                            change(generation) { it.copy(useMyCollections = on) }
-                        }
+                        combine(household.useMyCollections(account), household.changesStartAt(account), ::Pair)
+                            .collect { (on, at) ->
+                                change(generation) { it.copy(useMyCollections = on, changesStartAtMs = at) }
+                            }
                     }
                 var pending: Job? = reasons
                 var first = true
@@ -614,6 +617,7 @@ internal class ChannelsViewModel
                 builder = m.builder,
                 gettingReady = m.wantBuilder != null,
                 useMyCollections = m.householdWant ?: m.useMyCollections,
+                changesStartAtMs = m.changesStartAtMs,
                 isPro = m.isPro,
                 // A cap not known yet counts as no cap; the builder itself waits for the answer (#805).
                 canAddCustom = m.canAddCustom != false,

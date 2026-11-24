@@ -1596,6 +1596,14 @@ class LineupService internal constructor(
         }.map { held -> held?.lineup?.useMyCollections ?: true }.distinctUntilChanged()
     }
 
+    override fun changesStartAt(account: LibraryAccount): Flow<Long> {
+        val owner = ownerOf(account) ?: return flow { emit(nextBoundary(null, nowMs())) }
+        return flow {
+            loaded(account)
+            emitAll(entryOf(owner).state)
+        }.map { held -> nextBoundary(held?.lineup, nowMs()) }.distinctUntilChanged()
+    }
+
     /**
      * [FirstLineup.firstLineup]: the active account's lineup, settled once [Revisioned.firstChoiceMade]. An account
      * whose IDs are not IDs never has a lineup, so there is nothing to wait for: settled.

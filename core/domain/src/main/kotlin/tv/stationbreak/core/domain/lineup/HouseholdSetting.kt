@@ -11,4 +11,7 @@ interface HouseholdSetting {
      * setting; it starts to apply at the next day boundary.
      */
     fun useMyCollections(account: LibraryAccount): Flow<Boolean>
+
+    /** When a change of the flag starts to apply: the next broadcast-day start (epoch milliseconds), from the rules. */
+    fun changesStartAt(account: LibraryAccount): Flow<Long>
 }

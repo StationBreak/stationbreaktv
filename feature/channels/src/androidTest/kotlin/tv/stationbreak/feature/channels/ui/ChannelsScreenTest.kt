@@ -222,6 +222,7 @@ private class Lineup(
     HouseholdSetting {
     val list = MutableStateFlow(initial)
     val household = MutableStateFlow(true)
+    val changesAt = MutableStateFlow(6 * 3_600_000L)
     val changes = CopyOnWriteArrayList<ChannelChange>()
 
     val resets = AtomicInteger()
@@ -234,6 +235,8 @@ private class Lineup(
     override fun activeChannels(): Flow<List<ChannelSummary>> = list
 
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = household
+
+    override fun changesStartAt(account: LibraryAccount): Flow<Long> = changesAt
 
     override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> = emptyList()
 

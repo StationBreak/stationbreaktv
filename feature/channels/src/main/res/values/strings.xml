@@ -46,7 +46,7 @@
     <string name="channels_libraries_unavailable">Your library choices can\'t be read right now. Nothing was changed.</string>
     <string name="channels_use_my_collections">Use my collections</string>
     <!-- Provisional copy, for the design partner to settle. -->
-    <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start at 6 AM.</string>
+    <string name="channels_use_my_collections_hint">Built-in channels can use collections you made. Changes start at %1$s tomorrow.</string>
     <!-- A permanent line under the list (#785): said whatever the number of channels on, with no number in it. -->
     <string name="channels_heads_up">The more channels you switch on, the longer the guide takes to get ready.</string>
     <string name="channels_shelf_empty">Nothing in your libraries fits this channel yet</string>
