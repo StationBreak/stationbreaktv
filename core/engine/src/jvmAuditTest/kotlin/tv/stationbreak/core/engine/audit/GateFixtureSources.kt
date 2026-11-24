@@ -103,7 +103,8 @@ internal object GateFixtureSources {
         b.shows(16, listOf("Animation", "Kids"), "TV-Y", 11, listOf("kids"), 2, 6, 2008)
         b.films(10, listOf("Family", "Adventure"), "PG", minutes = 96, firstYear = 1999)
         b.films(8, listOf("Comedy", "Romance"), "PG-13", firstYear = 2001)
-        for (rating in listOf("DE-6", "DE-12", "DE-16", "DE-18", "6", "ZZ-invented")) {
+        val ratings = listOf("DE-6", "DE-12", "DE-16", "DE-18", "6", "AU-PG", "GP", "PG13", "Rated PG", "SG-PG13")
+        for (rating in ratings + "ZZ-invented") {
             b.shows(4, listOf("Animation", "Kids"), rating, 11, listOf("kids"), 2, 6, 2014)
             b.films(3, listOf("Family"), rating, minutes = 90, firstYear = 2015)
         }

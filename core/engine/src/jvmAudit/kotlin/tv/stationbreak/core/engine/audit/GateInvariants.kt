@@ -263,15 +263,39 @@ internal object CeilingOracle {
         return channel.ceiling == null || allUnder
     }
 
-    // A rating's rank on the ladder: its US name, else (#1123) the oracle's own reading of a country-prefixed age or an
-    // all-ages word. It does not call `RatingMap`. An age takes the lowest rank whose age is at least it, and a bare
-    // age is Family (rank 2) at least; anything else is unknown (null), which fails closed.
+    // A rating's rank on the ladder: its US name (a leading `Rated ` allowed), else (#1123) the oracle's own reading of
+    // a country-prefixed age or an all-ages word, else (#1124) its own short list of the other spellings the pool
+    // admits under a ceiling (NAMED). It does not call `RatingMap`. An age takes the lowest rank whose age is at least
+    // it, and a bare age is Family (rank 2) at least; anything else is unknown (null), which fails closed.
     private val AGE = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(\d{1,2})\+?""")
     private val ALL_AGES = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(?:ALL|ALL AGES)""")
     private val RANK_AGES = listOf(0, 7, 10, 13, 14, 16, 18)
     private const val FAMILY_RANK = 2
 
-    internal fun rankOf(raw: String?): Int? = RatingLadder.rankOf(raw) ?: raw?.trim()?.uppercase()?.let(::countryRank)
+    private val NAMED =
+        mapOf(
+            "GP" to 2,
+            "PG13" to 3,
+            "AU-PG" to 2,
+            "SG-PG" to 2,
+            "SG-PG13" to 3,
+            "NZ-PGR" to 2,
+            "SAM 13" to 3,
+            "C8" to 2,
+            "C" to 5,
+            "M" to 5,
+            "A" to 6,
+        )
+
+    internal fun rankOf(raw: String?): Int? =
+        RatingLadder.rankOf(raw) ?: raw
+            ?.trim()
+            ?.uppercase()
+            ?.removePrefix("RATED ")
+            ?.trim()
+            ?.let(::namedRank)
+
+    private fun namedRank(key: String): Int? = RatingLadder.rankOf(key) ?: NAMED[key] ?: countryRank(key)
 
     private fun countryRank(key: String): Int? =
         if (ALL_AGES.matches(key)) {

@@ -74,7 +74,7 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
    - **Overrides.** AU `PG` is 10 (owner decision; the XML's 15 would make it adult). It is the only entry below its
      age. Where the XML says 0 but the name says otherwise, the entry fails up to the US reading of the same name: NZ
      `PGR` and SG `PG` are 10, NZ `AO` and ES `X` / `X-Rated` are X (Explicit). Canada's `E` / `Exempt` (news, sports,
-     talk) is not a classification, so it is unknown like `NR`. SG `R21` and AU `R` are 18, not Explicit.
+     talk) is not a classification, so it is unknown like `NR`. SG `R21` and AU `R` were 18 under `kid-hold-10` and are Explicit since `kid-hold-11` (addendum 5).
    - **Country prefix.** Only a code the XML lists for a system, followed by `-`, `:` or `/` (`DE-12`, `de:12`,
      `KR/15`). A space is not a separator (`AU PG` is unknown). A single letter or a bare number needs a prefix: a
      letter means different things in each country, and a bare number is a bare age. Two systems in one country take
@@ -310,8 +310,11 @@ non-US titles under-used. Now one shared reading serves both:
   effective rating and the series' rating to pass, an episode whose series is missing fails, a movie is judged on its own
   rating. A rating with no level (unknown, unrated, none) fails every ceiling, and `Approved` still fails (kid-hold-6).
   Fail closed is unchanged. `Open` stays the rules-format reference and reads the US ladder alone. The kid ceiling
-  (`passesKidCeiling`) is untouched. `GateInvariants`' ceiling oracle does not call `RatingMap` (#1123) and still agrees,
-  because it reads a country age on its own and treats any other country spelling as unknown (it can only be stricter).
+  (`passesKidCeiling`) is untouched. `GateInvariants`' ceiling oracle does not call `RatingMap` (#1123, #1124): it reads US
+  names, a country age, an all-ages word and its own short list of the other spellings the pool admits (`AU-PG`, `GP`,
+  `PG13`, `SG-PG13`, `NZ-PGR`, `Rated PG`, `SAM 13`, `C8`, `M`, `A`), and treats any other spelling as unknown. It is
+  ANDed with the pool check, so it can only be stricter: on a real library a title with a spelling outside its list
+  that the pool rightly airs is reported as a ceiling violation (a false alarm, never a leak); extend its list then.
 - Also read this way now, where the ladder did not: the aliases `GP` (as PG) and `PG13` (as PG-13), a dash variant or a
   doubled space in a US name (the tidy of kid-hold-9) and a bare age (family at least). They already set the tier; now
   they also pass a ceiling at their level. Nothing airs above its level: a title never passes a ceiling its level exceeds.
@@ -323,7 +326,7 @@ non-US titles under-used. Now one shared reading serves both:
   delta (the older files are unedited and pinned by `FrozenHoldVectorsTest`, now including `kid-hold-10.json`). It
   supersedes these rows of `kid-hold-10.json`: ratingMap `AU-R`, `JP-19`, `JP-19+`, `JP-20`, `JP-20+`, `KR-19`, `KR-19+`,
   `SG-R21`, `R21` are level 7 (were 6) and explicitRating `SG-R21`, `KR-19`, `JP-20` are true.
-- Effect: on the gate's non-US fixture (`DE-6`, `DE-12`, `DE-16`, `DE-18`, bare `6` and an unknown spelling) a PG
+- Effect: on the gate's non-US fixture (`DE-6`, `DE-12`, `DE-16`, `DE-18`, bare `6`, `AU-PG`, `GP`, `PG13`, `Rated PG`, `SG-PG13` and an unknown spelling) a PG
   Kids-band channel gains the titles whose level is 2 or below (bare `6`), the Odds & Ends pools of the Kids and Teens
   bands take non-US titles within their ceilings, and `DE-12` can air under TV-14 and PG-13 but not PG. No title airs
   above its ceiling; the unknown spelling airs under none.
