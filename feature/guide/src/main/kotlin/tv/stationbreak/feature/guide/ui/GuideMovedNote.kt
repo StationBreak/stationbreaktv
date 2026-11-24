@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.guide.ui
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
@@ -43,8 +45,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -248,14 +248,12 @@ private fun OkButton(onClick: () -> Unit) {
         modifier =
             Modifier
                 .testTag(GuideTags.MOVED_OK)
-                .semantics(mergeDescendants = true) {
-                    role = Role.Button
-                    selected = true
-                    onClick {
-                        onClick()
-                        true
-                    }
-                }.widthIn(min = OkMinWidth)
+                // clickable answers a touch or pointer click and gives a screen reader its click action, both through
+                // the one dismissal. It takes no D-pad focus (the sheet's root holds the keys), so there is one stop.
+                .focusProperties { canFocus = false }
+                .clickable(role = Role.Button, onClick = onClick)
+                .semantics(mergeDescendants = true) { selected = true }
+                .widthIn(min = OkMinWidth)
                 .heightIn(min = RowMinHeight)
                 .panelFocus(true)
                 .padding(horizontal = SheetMeasures.RowTextPadding)
