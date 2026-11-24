@@ -31,6 +31,25 @@ class CeilingOracleTest {
         for ((raw, rank) in expected) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
     }
 
+    // #1124: the spellings the pool admits under a ceiling that are not a country age, read from the oracle's own list.
+    @Test
+    fun readsTheOtherSpellingsThePoolAdmits() {
+        val expected =
+            mapOf(
+                "AU-PG" to family,
+                "GP" to family,
+                "PG13" to thirteen,
+                "SG-PG13" to thirteen,
+                "NZ-PGR" to family,
+                "Rated PG" to family,
+                "SAM 13" to thirteen,
+                "C8" to family,
+                "M" to sixteen,
+                "A" to eighteen,
+            )
+        for ((raw, rank) in expected) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
+    }
+
     @Test
     fun aBareAgeIsFamilyAtLeast() {
         for ((raw, rank) in mapOf("6" to family, "12+" to thirteen)) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
@@ -38,7 +57,8 @@ class CeilingOracleTest {
 
     @Test
     fun anUnknownStringHasNoRank() {
-        val unknown = listOf("ZZ-invented", "DE-", "DE-six", "", "  ", "12 12", "DE-6/DE-12")
+        val unknown =
+            listOf("ZZ-invented", "DE-", "DE-six", "", "  ", "12 12", "DE-6/DE-12", "AU PG", "US-PG", "Rated", "FSK 16")
         for (raw in unknown) assertNull(CeilingOracle.rankOf(raw), raw)
         assertNull(CeilingOracle.rankOf(null))
     }

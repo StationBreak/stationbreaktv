@@ -18,7 +18,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * reads past them (fail up). The holds tidy genre and tag names fully. `kid-hold-9` (#1088) has all of this
  * (`kid-hold-9.json`). `kid-hold-10` (#987, `kid-hold-10.json`) fills the country tables from the XML
  * ([CountryRatingTables], with its overrides), reads a spelling of them that needs no prefix, reads the parts of a
- * list as a whole rating is read, and caps a bare age at Family.
+ * list as a whole rating is read, and caps a bare age at Family. `kid-hold-11` (#1124) reads AU `R`, SG `R21`, KR `19`
+ * and JP `19` and `20` as level 7 (Explicit), and the grown-up and custom ceilings read this level (`CeilingCheck`).
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
  * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
