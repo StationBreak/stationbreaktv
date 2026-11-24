@@ -122,7 +122,7 @@ androidComponents {
 }
 
 // The root NOTICE (Apache-2.0 attribution for the Android TV ratings table, #987) ships in every APK as
-// assets/licenses/NOTICE, next to the Apache-2.0 text in src/main/assets/licenses (#1129). The root file stays the one copy.
+// assets/notices/NOTICE, next to the Apache-2.0 text in src/main/assets/notices (#1129). The root file stays the one copy.
 abstract class StageNotice : DefaultTask() {
     @get:InputFile
     abstract val notice: RegularFileProperty
@@ -136,7 +136,7 @@ abstract class StageNotice : DefaultTask() {
             out
                 .get()
                 .asFile
-                .resolve("licenses")
+                .resolve("notices")
                 .apply { mkdirs() }
         notice.get().asFile.copyTo(dir.resolve("NOTICE"), overwrite = true)
     }
@@ -152,11 +152,11 @@ abstract class VerifyNotice : DefaultTask() {
 
     @TaskAction
     fun verify() {
-        val licenses = assets.get().asFile.resolve("licenses")
-        check(licenses.resolve("NOTICE").readText() == notice.get().asFile.readText()) {
-            "assets/licenses/NOTICE is missing or differs from the root NOTICE"
+        val notices = assets.get().asFile.resolve("notices")
+        check(notices.resolve("NOTICE").readText() == notice.get().asFile.readText()) {
+            "assets/notices/NOTICE is missing or differs from the root NOTICE"
         }
-        check("Apache License" in licenses.resolve("Apache-2.0.txt").readText()) { "assets/licenses/Apache-2.0.txt is missing" }
+        check("Apache License" in notices.resolve("Apache-2.0.txt").readText()) { "assets/notices/Apache-2.0.txt is missing" }
     }
 }
 
