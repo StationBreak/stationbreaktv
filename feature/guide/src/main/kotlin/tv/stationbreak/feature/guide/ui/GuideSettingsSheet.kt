@@ -82,16 +82,18 @@ private const val INERT_ALPHA = 0.55f
 /**
  * The guide's Settings sheet (DESIGN.md "Sheet and Rows"): a [LeftSheet] over the dimmed guide, in the place of the
  * menu sheet that opened it. Its title, then its rows under teletype section flags (PICTURE, PLAYBACK, LIBRARY,
- * ACCOUNT), then the hint row for the [row] under the D-pad, pinned at the bottom while the rows scroll (and fade at an
- * edge with more beyond it) when a large font needs more room than there is.
+ * ACCOUNT), then the help well for the [row] under the D-pad (its explainer, or its locked note) and the hint row for
+ * it, pinned at the bottom while the rows scroll (and fade at an edge with more beyond it) when a large font needs more
+ * room than there is.
  *
  * Every row is a label on the left and what it holds on the right: a choice row its value (from [values]) and a dot
  * for each of its values, the chosen one filled; a link a chevron; an action an OK key cap. The row under the D-pad
  * has the guide family's drawn ring ([panelFocus]); nothing scales. Under Update library a quiet line says how [sync]
  * stands.
  *
- * A screen reader is told one thing at a time, by one live region, the sheet's root: the focused row and its value,
- * and on Update library the line under it too. Nothing else in the sheet is a live region, so a change is said once.
+ * A screen reader is told one thing at a time, by one live region, the sheet's root: the focused row, its value and its
+ * explainer, and on Update library the line under it too. Nothing else in the sheet is a live region, so a change is
+ * said once.
  */
 @Composable
 internal fun GuideSettingsSheet(
@@ -102,7 +104,8 @@ internal fun GuideSettingsSheet(
 ) {
     val colors = LocalPanelColors.current
     val status = syncStatusText(sync)
-    val spoken = spokenOf(row, values, status)
+    val help = settingsHelpOf(row, values)
+    val spoken = spokenOf(row, values, status, help)
     val scroll = rememberScrollState()
     LeftSheet(
         SheetMeasures.Width,
@@ -147,22 +150,30 @@ internal fun GuideSettingsSheet(
             }
         }
         Spacer(Modifier.height(SheetHintGap))
+        HelpWell(help)
+        Spacer(Modifier.height(SheetHintGap))
         SettingsHint(row, values)
     }
 }
 
-// What a screen reader is told for the focused row: its label, a choice's value, and the Update library line.
+// What a screen reader is told for the focused row: its label, a choice's value, the Update library line, and the
+// row's explainer (the help well is hidden from it, so this is where it is said). A locked row says its locked note.
 @Composable
 private fun spokenOf(
     row: SettingsRow,
     values: SettingsValues,
     status: String?,
+    help: SettingsHelp?,
 ): String {
     val label = stringResource(row.labelFor(values))
     val value = valueText(row, values, spoken = true)
     val locked = stringResource(R.string.guide_kids_locked).takeIf { row.isInert(values) }
     val said = locked ?: status?.takeIf { row == SettingsRow.SyncNow } ?: value
-    return said?.let { stringResource(R.string.guide_settings_spoken, label, it) } ?: label
+    val explainer = help?.takeUnless { it.locked }?.let { helpText(it) }
+    return when {
+        said != null && explainer != null -> stringResource(R.string.guide_settings_spoken_help, label, said, explainer)
+        else -> (said ?: explainer)?.let { stringResource(R.string.guide_settings_spoken, label, it) } ?: label
+    }
 }
 
 // The line under Update library, in the device's own time format, or null when there is nothing to say.

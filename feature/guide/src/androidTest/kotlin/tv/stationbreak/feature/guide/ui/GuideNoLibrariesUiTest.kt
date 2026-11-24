@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -375,12 +376,18 @@ class GuideNoLibrariesUiTest {
         fun liveNodes() = compose.onAllNodes(live, useUnmergedTree = true).fetchSemanticsNodes()
         assertEquals(1, liveNodes().size)
         assertEquals(GuideTags.SETTINGS_SHEET, liveNodes().single().config.getOrNull(SemanticsProperties.TestTag))
-        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Appearance, Dark")
+        compose
+            .onNodeWithTag(
+                GuideTags.SETTINGS_SHEET,
+            ).assertContentDescriptionEquals("Appearance, Dark. Dark for a dim room, Light for a bright one.")
 
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.waitUntil(TIMEOUT_MS) {
             runCatching {
-                compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Appearance, Light")
+                compose
+                    .onNodeWithTag(
+                        GuideTags.SETTINGS_SHEET,
+                    ).assertContentDescriptionEquals("Appearance, Light. Dark for a dim room, Light for a bright one.")
             }.isSuccess
         }
 
@@ -390,7 +397,10 @@ class GuideNoLibrariesUiTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.SETTINGS_SYNC_STATUS).fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Update library, Updating…")
+        compose
+            .onNodeWithTag(
+                GuideTags.SETTINGS_SHEET,
+            ).assertContentDescriptionContains("Update library, Updating…. Looks for new and changed titles.")
         val why = "the Update library line is not a second live region"
         assertEquals(why, 1, liveNodes().size)
     }

@@ -79,7 +79,10 @@ class GuideKidsPinUiTest {
         show { GuideSettingsSheet(on, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
         compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Kids")
-        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals("Family Mode, On, up to Kids")
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals(
+            "Family Mode, On, up to Kids. Channels 1 to 66: Tots and Kids. Only these channels play. " +
+                "Everything above stays hidden until the PIN turns Family Mode off.",
+        )
     }
 
     @Test

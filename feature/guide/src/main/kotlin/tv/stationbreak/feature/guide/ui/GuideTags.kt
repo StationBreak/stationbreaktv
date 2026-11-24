@@ -78,6 +78,9 @@ object GuideTags {
     const val SETTINGS_TITLE = "guide:settings:title"
     const val SETTINGS_HINT = "guide:settings:hint"
 
+    /** The help well above the Settings sheet's hint row: the focused row's explainer, or its locked note (#1105). */
+    const val SETTINGS_HELP = "guide:settings:help"
+
     /** The Settings sheet's choice rows: Appearance, Screen fit, When changing channel and Even out volume (#498). */
     const val SETTINGS_APPEARANCE = "guide:settings:appearance"
     const val SETTINGS_SCREEN_FIT = "guide:settings:screenFit"
@@ -102,6 +105,9 @@ object GuideTags {
     /** The Kids Mode PIN pad over the Settings sheet: its sheet, title, prompt, dots, notice and hint row. */
     const val KIDS_PIN = "guide:kidsPin"
     const val KIDS_PIN_TITLE = "guide:kidsPin:title"
+
+    /** The line under a cap pad's title saying which channels the cap being set keeps. */
+    const val KIDS_PIN_CAP_LINE = "guide:kidsPin:capLine"
     const val KIDS_PIN_PROMPT = "guide:kidsPin:prompt"
     const val KIDS_PIN_DOTS = "guide:kidsPin:dots"
     const val KIDS_PIN_NOTICE = "guide:kidsPin:notice"

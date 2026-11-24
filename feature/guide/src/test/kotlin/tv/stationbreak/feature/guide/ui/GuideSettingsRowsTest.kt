@@ -169,15 +169,9 @@ class GuideSettingsRowsTest {
 
     @Test
     fun eachCapHasALineSayingWhichChannelsItEnables_matchingItsRange() {
-        val lines =
-            mapOf(
-                KidsCap.Kids to "guide_kids_cap_tots_channels",
-                KidsCap.Family to "guide_kids_cap_kids_channels",
-                KidsCap.Teen to "guide_kids_cap_teens_channels",
-            )
-        assertEquals(KidsCap.entries.toSet(), lines.keys)
-        for ((cap, key) in lines) {
-            assertTrue("$key says 1 to ${cap.upTo}", checkNotNull(strings[key]).startsWith("Channels 1 to ${cap.upTo}"))
+        for (cap in KidsCap.entries) {
+            val line = text(kidsCapChannels(cap))
+            assertTrue("$line says 1 to ${cap.upTo}", line.startsWith("Channels 1 to ${cap.upTo}"))
         }
     }
 
@@ -232,5 +226,86 @@ class GuideSettingsRowsTest {
         assertEquals("Settings", text(R.string.guide_settings_button))
         assertEquals("›", text(R.string.guide_settings_chevron))
         assertEquals("%1\$s, %2\$s", text(R.string.guide_settings_spoken))
+    }
+
+    // The words the help well shows for a row, as the sheet resolves them: a lead line, then the text, with the app's
+    // name where the text takes one.
+    private fun helpWords(
+        row: SettingsRow,
+        values: SettingsValues,
+        appName: String = "StationBreak",
+    ): String? =
+        settingsHelpOf(row, values)?.let { help ->
+            val body = text(help.text).replace("%1\$s", appName)
+            help.lead?.let { "${text(it)} $body" } ?: body
+        }
+
+    @Test
+    fun everyRowHasAnExplainer_andTheyAreAllDifferent() {
+        val values = SettingsValues(pro = true, storeAvailable = true, crashReportsAvailable = true, kidsPinSet = true)
+        val said = SettingsRow.entries.map { checkNotNull(helpWords(it, values)) { "${it.name} is silent" } }
+        assertEquals(said.size, said.toSet().size)
+    }
+
+    @Test
+    fun noExplainerNamesAWayRoundFamilyModeOrAPriceATrialOrWhenItArrives() {
+        val banned = listOf("forgot", "grown-up", "switch", "price", "trial", "free", "soon", "later", "coming")
+        val all = strings.filterKeys { it.startsWith("guide_help_") }.values
+        assertEquals(14, all.size)
+        for (words in all) {
+            for (word in banned) assertTrue("$words has $word", !words.lowercase().contains(word))
+        }
+    }
+
+    @Test
+    fun theProductNameComesFromTheAppNameNotTheStrings() {
+        val named = SettingsRow.entries.filter { settingsHelpOf(it, SettingsValues())?.named == true }
+        assertEquals(listOf(SettingsRow.SyncNow, SettingsRow.Pro, SettingsRow.CrashReports), named)
+        for (row in named) {
+            assertTrue(text(checkNotNull(settingsHelpOf(row, SettingsValues())).text).contains("%1\$s"))
+        }
+        val pro = "Pro adds more ways to change your lineup."
+        assertEquals("StationBreak $pro", helpWords(SettingsRow.Pro, SettingsValues()))
+        assertEquals("Test TV $pro", helpWords(SettingsRow.Pro, SettingsValues(), "Test TV"))
+    }
+
+    @Test
+    fun theSupportBuildsProRowSaysWhatSupportDoes() {
+        val github = SettingsValues(offer = ProOffer.Support("https://example.test/support"))
+        val said = "Shows how to support StationBreak. It changes nothing in the app."
+        assertEquals(said, helpWords(SettingsRow.Pro, github))
+    }
+
+    @Test
+    fun aRowFamilyModeHasLockedShowsItsLockedNoteInTheWell_andNoExplainerIsSpoken() {
+        val on = SettingsValues(kidsOn = true, kidsPinSet = true)
+        for (row in SettingsRow.entries.filter { it.isInert(on) }) {
+            val help = checkNotNull(settingsHelpOf(row, on))
+            assertTrue(row.name, help.locked)
+            assertEquals("Turn off Family Mode first", helpWords(row, on))
+        }
+        // The rows that stay the viewer's keep their explainers.
+        assertEquals("Dark for a dim room, Light for a bright one.", helpWords(SettingsRow.Appearance, on))
+        assertEquals(false, checkNotNull(settingsHelpOf(SettingsRow.Appearance, on)).locked)
+    }
+
+    @Test
+    fun familyModesExplainerFollowsTheCapChosen_andIsSilentUntilTheLockIsRead() {
+        fun said(cap: KidsCap) = checkNotNull(helpWords(SettingsRow.KidsMode, SettingsValues(kidsCap = cap)))
+        assertTrue(said(KidsCap.Kids).startsWith("Channels 1 to 33. "))
+        assertTrue(said(KidsCap.Family).startsWith("Channels 1 to 66: Tots and Kids. "))
+        assertTrue(said(KidsCap.Teen).startsWith("Channels 1 to 99: Tots, Kids and Teens. "))
+        assertTrue(said(KidsCap.Teen).endsWith("Changing it, or turning it off, needs your PIN."))
+        val on = SettingsValues(kidsOn = true, kidsCap = KidsCap.Family)
+        val said =
+            "Channels 1 to 66: Tots and Kids. Only these channels play. " +
+                "Everything above stays hidden until the PIN turns Family Mode off."
+        assertEquals(said, helpWords(SettingsRow.KidsMode, on))
+        assertNull(settingsHelpOf(SettingsRow.KidsMode, SettingsValues(kidsOn = true, kidsKnown = false)))
+    }
+
+    @Test
+    fun aRowWithAnExplainerIsSpokenAsLabelValueExplainer() {
+        assertEquals("%1\$s, %2\$s. %3\$s", text(R.string.guide_settings_spoken_help))
     }
 }
