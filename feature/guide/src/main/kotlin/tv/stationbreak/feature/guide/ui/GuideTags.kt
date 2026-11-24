@@ -73,6 +73,19 @@ object GuideTags {
     /** The Settings row of the menu sheet: opens the Settings sheet in its place. */
     const val SETTINGS_BUTTON = "guide:settingsButton"
 
+    /** The moved-channel note (#1107): its sheet, title, reason, list, OK and hint row. */
+    const val MOVED_NOTE = "guide:movedNote"
+    const val MOVED_TITLE = "guide:movedNote:title"
+    const val MOVED_REASON = "guide:movedNote:reason"
+    const val MOVED_LIST = "guide:movedNote:list"
+    const val MOVED_OK = "guide:movedNote:ok"
+    const val MOVED_HINT = "guide:movedNote:hint"
+
+    /** The prefixes of the moved-channel note's row, name and numbers; the row's index (by new number) follows. */
+    const val MOVED_ROW = "guide:movedNote:row:"
+    const val MOVED_NAME = "guide:movedNote:name:"
+    const val MOVED_NUMBERS = "guide:movedNote:numbers:"
+
     /** The Settings sheet (its scrim and sheet), its title, and its hint row. */
     const val SETTINGS_SHEET = "guide:settings"
     const val SETTINGS_TITLE = "guide:settings:title"

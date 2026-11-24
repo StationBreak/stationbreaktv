@@ -34,7 +34,6 @@
     <string name="channels_refused_needs_family">Kids channels start at channel %1$d. Please use a channel in a higher tier.</string>
     <string name="channels_refused_needs_teen">Teens channels start at channel %1$d. Please use a channel in a higher tier.</string>
     <string name="channels_refused_needs_general">Channels %1$d-%2$d are reserved for Family Mode stations. Please use a channel in a higher tier.</string>
-    <string name="channels_moved_note">%1$s moved from channel %2$d to %3$d.</string>
     <string name="channels_refused_last_on">Keep at least one channel on.</string>
     <string name="channels_refused_number_taken">That number is taken.</string>
     <string name="channels_refused_no_number">There is no free number for this channel.</string>

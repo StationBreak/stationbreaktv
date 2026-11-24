@@ -5,7 +5,8 @@ import tv.stationbreak.core.model.ChannelId
 
 /**
  * A channel [FloorMigration] moved from [from] to [to] on epoch day [day] (#1097), kept in the lineup until the viewer
- * has been told, or for [KEEP_DAYS] days: a notice never keeps the lineup file at the version that holds it for good.
+ * has dismissed the note about it, or for [KEEP_DAYS] days: a notice never keeps the lineup file at the version that
+ * holds it for good.
  */
 data class MovedNotice(
     val id: ChannelId,
@@ -14,8 +15,8 @@ data class MovedNotice(
     val day: Long,
 ) {
     companion object {
-        /** How many days a notice is kept when the viewer does not open Channels. */
-        const val KEEP_DAYS = 14L
+        /** How many days a notice is kept when the viewer does not see the guide with Family Mode off. */
+        const val KEEP_DAYS = 60L
 
         private const val DAY_MS = 86_400_000L
 

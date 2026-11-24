@@ -22,9 +22,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.SyncNow
 import tv.stationbreak.core.domain.SyncNowState
@@ -39,11 +41,13 @@ import tv.stationbreak.core.domain.kids.KidsLockState
 import tv.stationbreak.core.domain.kids.KidsPinRecovery
 import tv.stationbreak.core.domain.kids.PinRecovery
 import tv.stationbreak.core.domain.kids.PinResult
+import tv.stationbreak.core.domain.lineup.ChannelEditor
 import tv.stationbreak.core.domain.lineup.ChannelHoldings
 import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelIdentity
 import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.MovedChannel
 import tv.stationbreak.core.domain.lineup.PlayKey
 import tv.stationbreak.core.domain.lineup.PlayingAiring
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
@@ -121,6 +125,10 @@ internal class GuideViewModel
         val offer: ProOffer = ProOffer.Store,
         /** Whether the store can be bought from (#99): off, the Pro row is not on the sheet. */
         val storeAvailable: StateFlow<Boolean> = MutableStateFlow(false),
+        /** The channels moved to their band's floor that the viewer has not been told of (#1107): a read only. */
+        private val peekMoved: suspend () -> List<MovedChannel> = { emptyList() },
+        /** The viewer has dismissed the moved-channel note (#1107): true once it is saved, false and still pending. */
+        private val acknowledgeMoved: suspend () -> Boolean = { true },
     ) : ViewModel() {
         @Inject
         constructor(
@@ -140,6 +148,8 @@ internal class GuideViewModel
             entitlement: ProEntitlement,
             offer: ProOffer,
             store: StoreEntitlement,
+            library: LibraryRepository,
+            editor: ChannelEditor,
         ) : this(
             schedule,
             details,
@@ -160,6 +170,14 @@ internal class GuideViewModel
             hours::edit,
             offer,
             store.available,
+            {
+                library
+                    .activeAccount()
+                    .first()
+                    ?.let { editor.peekMovedNotices(it) }
+                    .orEmpty()
+            },
+            { library.activeAccount().first()?.let { editor.acknowledgeMoved(it) } ?: true },
         )
 
         private val shownSnapshot = MutableStateFlow(GuideSnapshot.Closed)
@@ -168,6 +186,7 @@ internal class GuideViewModel
         private val shownPanel = MutableStateFlow<CellDetails?>(null)
         private val shownHoldings = MutableStateFlow<ShownHoldings?>(null)
         private val shownIdentities = MutableStateFlow<Map<ChannelId, ChannelIdentity>>(emptyMap())
+        private val shownMoved = MutableStateFlow<List<MovedChannel>>(emptyList())
         private val eventChannel = Channel<GuideEvent>(Channel.BUFFERED)
 
         /** The grid and its focus, always consistent with each other. */
@@ -191,6 +210,23 @@ internal class GuideViewModel
          * read; each map the reader gives replaces the last whole, and a read that fails keeps the last.
          */
         internal val channelIdentities: StateFlow<Map<ChannelId, ChannelIdentity>> = shownIdentities.asStateFlow()
+
+        /**
+         * The moved-channel note's rows (#1107), by new number, while the note is to be shown: read when the guide
+         * opens, and only with Family Mode off (it is a grown-up's message, and shows the first time the guide opens
+         * with the lock off). A read only: nothing is cleared until [movedDismissed]. Empty otherwise.
+         */
+        val movedNote: StateFlow<List<MovedChannel>> = shownMoved.asStateFlow()
+
+        /**
+         * The viewer dismissed the note (OK, Select or Back): it goes at once, and its acknowledgement is saved. A save
+         * that fails leaves the notices pending, so the next time the guide opens it is shown again.
+         */
+        fun movedDismissed() {
+            if (shownMoved.value.isEmpty()) return
+            shownMoved.value = emptyList()
+            CoroutineScope(dispatcher + SupervisorJob(root)).launch { acknowledgeMoved() }
+        }
 
         /** Where Sync now stands, for the line beside the Settings panel's row (spec 26, Part 5). */
         val syncNowState: StateFlow<SyncNowState> = sync.state
@@ -300,6 +336,7 @@ internal class GuideViewModel
 
         // How the sheet was opened when Select on Exit made Back leave regardless (see [selectOnMenu]); null otherwise.
         private var openerBeforeExit: Boolean? = null
+        private var movedJob: Job? = null
         private var loadJob: Job? = null
         private var loadId = 0
         private var firstWindowMs = NO_MEASURE
@@ -324,7 +361,21 @@ internal class GuideViewModel
                 currentChannel = current
                 this.playing = playing?.takeIf { it.channel == current }
                 startWork(newSession())
+                startMovedNote()
             }
+        }
+
+        // The note of channels moved to their band's floor (#1107): decided once per opening, when the lock has been
+        // read. With Family Mode on it waits for a later opening; with it off the notices are read, not cleared.
+        // Under [lock]. A reload of the grid does not start it again, nor end it.
+        private fun startMovedNote() {
+            movedJob?.cancel()
+            shownMoved.value = emptyList()
+            movedJob =
+                CoroutineScope(dispatcher + SupervisorJob(root)).launch {
+                    val lock = shownKids.first { it != null }
+                    if (lock?.enabled == false) shownMoved.value = peekMoved()
+                }
         }
 
         // What a session runs, at an open and again at each reload (which starts a fresh session): the first read,
@@ -453,7 +504,11 @@ internal class GuideViewModel
 
         /** Closes the guide and stops everything its session was doing. */
         fun close() {
-            synchronized(lock) { endSession() }
+            synchronized(lock) {
+                movedJob?.cancel()
+                shownMoved.value = emptyList()
+                endSession()
+            }
         }
 
         /**

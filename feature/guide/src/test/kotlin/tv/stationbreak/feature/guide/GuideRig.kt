@@ -25,6 +25,7 @@ import tv.stationbreak.core.domain.lineup.ChannelHoldingsReader
 import tv.stationbreak.core.domain.lineup.ChannelIdentityReader
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FakeChannelEditor
 import tv.stationbreak.core.domain.lineup.FakeSchedule
 import tv.stationbreak.core.domain.lineup.ScheduleBuild
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.CH5
@@ -122,6 +123,10 @@ open class GuideRig {
     /** The lock the guide is built over: [kidsLock], unless a test swaps in one that has not been read yet. */
     internal var kidsForGuide: KidsLock = kidsLock
 
+    /** The moved-channel note's pending notices and their acknowledgement (#1107), as the lineup holds them. */
+    internal val movedEditor = FakeChannelEditor()
+    private val movedAccount = LibraryAccount(ServerId("srv1"), UserId("u1"))
+
     /** Sync now as the guide's Settings panel starts it (spec 26); idle by default. */
     internal val syncNow = FakeSyncNow()
 
@@ -203,6 +208,8 @@ open class GuideRig {
             holdings = holdings,
             identities = identities,
             kids = kidsForGuide,
+            peekMoved = { movedEditor.peekMovedNotices(movedAccount) },
+            acknowledgeMoved = { movedEditor.acknowledgeMoved(movedAccount) },
         )
     }
 

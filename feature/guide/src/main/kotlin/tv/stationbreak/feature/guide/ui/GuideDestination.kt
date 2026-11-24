@@ -291,7 +291,11 @@ internal fun GuideRoot(
     val librariesShown = settings?.librariesShown == true
     val signOutShown = settings?.signOutShown == true
     val proShown = settings?.proShown == true
-    val cover = GuideCover(managing, propertiesOf != null, librariesShown, signOutShown || proShown)
+    // The note of moved channels (#1107): read when the guide opens, and only with Family Mode off. It has the keys
+    // while it shows, over the guide.
+    val moved by viewModel.movedNote.collectAsStateWithLifecycle()
+    val movedShown = moved.isNotEmpty()
+    val cover = GuideCover(managing, propertiesOf != null, librariesShown, signOutShown || proShown, movedShown)
     // The Libraries screen hides the guide as channel management does, so the clock and the lineup reloads stop
     // under it (a reload no one can see is wasted work on a slow TV) and start again when it closes.
     DisposableEffect(viewModel, librariesShown) {
@@ -381,6 +385,7 @@ internal fun GuideRoot(
                             propertiesOf != null,
                             open?.librariesShown == true,
                             open?.signOutShown == true || open?.proShown == true,
+                            viewModel.movedNote.value.isNotEmpty(),
                         )
                     if (!now.covered) {
                         viewModel.channelsOpened()
@@ -513,6 +518,13 @@ internal fun GuideRoot(
                 settings = settings?.proDone()
             }
         }
+        if (movedShown) {
+            GuideMovedNote(moved, onDone = {
+                // As for the slots: the key focus comes back first, then the note goes and its dismissal is saved.
+                runCatching { keys.requestFocus() }
+                viewModel.movedDismissed()
+            })
+        }
     }
 }
 
@@ -533,18 +545,20 @@ internal fun LibrariesBackdrop(
 }
 
 /**
- * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]), or Settings,
- * Libraries or the sign-out question ([settings], from the Settings sheet). Any of them has the keys, and the guide
- * stays composed under it ([covered]); channel management and Settings, Libraries hide the guide ([hidden]), while the
- * properties sheet and the sign-out question are drawn over it.
+ * What covers the guide: channel management ([managing]), a channel's properties sheet ([properties]), Settings,
+ * Libraries or the sign-out question ([settings], from the Settings sheet), or the note of moved channels
+ * ([movedNote], #1107). Any of them has the keys, and the guide stays composed under it ([covered]); channel
+ * management and Settings, Libraries hide the guide ([hidden]), while the properties sheet, the sign-out question and
+ * the note are drawn over it.
  */
 private class GuideCover(
     managing: Boolean,
     properties: Boolean,
     libraries: Boolean,
     signOut: Boolean,
+    movedNote: Boolean,
 ) {
-    val covered = managing || properties || libraries || signOut
+    val covered = managing || properties || libraries || signOut || movedNote
     val hidden = managing || libraries
 }
 

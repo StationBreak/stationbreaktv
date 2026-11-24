@@ -91,36 +91,82 @@ class ChannelManagerTest {
 
     private suspend fun stored(): ByteArray = assertIs<StoredBytes.Present>(store.inner.load(ACCOUNT)).bytes
 
+    // The manager of a new session over the same file: what a restart is.
+    private fun restarted(): ChannelManager =
+        ChannelManager(
+            LineupService(store, library, clock, { 0 }, { events += it }, TestCatalog),
+            FakeProEntitlement(),
+            IGNORED_SWITCH_ONS,
+        ) { chosen }
+
     @Test
-    fun movedNoticesAreTakenOnceAndClearedFromTheFile() =
+    fun peekingTwiceTellsTheSameAndWritesNothingThenAcknowledgingClearsTheFile() =
         runBlocking<Unit> {
             seed(withNotices())
-            assertTrue("\"moved\"" in stored().decodeToString())
-
-            val first = manager.takeMovedNotices(ACCOUNT)
+            val before = stored()
+            val saves = store.calls.count { it == "save" }
 
             val told = listOf(MovedChannel("Mine", 50, 110), MovedChannel("Whodunit", 60, 210))
-            assertEquals(told, first.sortedBy { it.from })
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "never shown twice")
+            assertEquals(told, manager.peekMovedNotices(ACCOUNT))
+            assertEquals(told, manager.peekMovedNotices(ACCOUNT), "a glance clears nothing")
+            assertContentEquals(before, stored())
+            assertEquals(saves, store.calls.count { it == "save" })
+
+            assertTrue(manager.acknowledgeMoved(ACCOUNT))
+            assertEquals(emptyList(), manager.peekMovedNotices(ACCOUNT), "gone once dismissed")
             val after = stored()
             assertTrue("\"moved\"" !in after.decodeToString(), "the file is written without the key")
             val read = assertIs<LineupCodec.Decoded.Loaded>(LineupCodec.decode(after))
             assertEquals(LineupCodec.BASE_VERSION, read.fileVersion)
+            assertTrue(manager.acknowledgeMoved(ACCOUNT), "nothing pending counts as told")
+            assertEquals(emptyList(), restarted().peekMovedNotices(ACCOUNT), "and gone after a restart")
+        }
+
+    // A restart is a new service reading the same file: a note that was shown but never dismissed shows again.
+    @Test
+    fun aNoteNotDismissedIsStillPendingAfterARestart() =
+        runBlocking<Unit> {
+            seed(withNotices())
+            assertEquals(2, manager.peekMovedNotices(ACCOUNT).size)
+
+            assertEquals(2, restarted().peekMovedNotices(ACCOUNT).size, "killed while it showed")
+        }
+
+    @Test
+    fun severalMovedChannelsComeByNewNumber() =
+        runBlocking<Unit> {
+            val base = withNotices()
+            val unordered =
+                listOf(
+                    MovedNotice(LineupIds.starter("whodunit"), 60, 210, today),
+                    MovedNotice(LineupIds.starter("laughs"), 50, 110, today),
+                )
+            seed(base.copy(movedNotices = unordered))
+
+            assertEquals(listOf(110, 210), manager.peekMovedNotices(ACCOUNT).map { it.to })
         }
 
     // Dropped, as the planner drops it: a notice older than its keep time (or from the future, which is today's) is
-    // not told late.
+    // not told late. Sixty days (#1107): kept on the sixtieth, gone on the sixty-first.
     @Test
     fun anExpiredNoticeIsNotToldAndAFutureOneIs() =
         runBlocking<Unit> {
             val base = withNotices()
             val laughs = LineupIds.starter("laughs")
-            val old = MovedNotice(laughs, 50, 110, today - MovedNotice.KEEP_DAYS - 1)
+            val old = MovedNotice(laughs, 50, 110, today - 61)
             val future = MovedNotice(LineupIds.starter("whodunit"), 60, 210, Long.MAX_VALUE)
             seed(base.copy(movedNotices = listOf(old, future)))
 
-            assertEquals(listOf(60), manager.takeMovedNotices(ACCOUNT).map { it.from })
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+            assertEquals(listOf(60), manager.peekMovedNotices(ACCOUNT).map { it.from })
+        }
+
+    @Test
+    fun aNoticeSixtyDaysOldIsStillTold() =
+        runBlocking<Unit> {
+            val laughs = LineupIds.starter("laughs")
+            seed(withNotices().copy(movedNotices = listOf(MovedNotice(laughs, 50, 110, today - 60))))
+
+            assertEquals(listOf(50), manager.peekMovedNotices(ACCOUNT).map { it.from }, "the sixtieth day")
         }
 
     // #1108: a stored lineup is shown as it is until the first refresh saves the moved one; Family Mode hides a channel
@@ -166,37 +212,46 @@ class ChannelManagerTest {
         }
 
     @Test
-    fun takingWithNoNoticesWritesNothing() =
+    fun acknowledgingWithNoNoticesWritesNothing() =
         runBlocking<Unit> {
             seed(lineup())
             val before = stored()
             val saves = store.calls.count { it == "save" }
 
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+            assertEquals(emptyList(), manager.peekMovedNotices(ACCOUNT))
+            assertTrue(manager.acknowledgeMoved(ACCOUNT))
 
             assertContentEquals(before, stored())
             assertEquals(saves, store.calls.count { it == "save" })
         }
 
     @Test
-    fun aNoticeForAChannelThatIsGoneIsNotTold() =
+    fun aNoticeForAChannelThatIsGoneIsNotToldAndStillClears() =
         runBlocking<Unit> {
             val base = withNotices()
             val gone = base.copy(channels = base.channels.filter { it.id != LineupIds.starter("whodunit") })
             seed(gone)
-            assertEquals(listOf("Mine"), manager.takeMovedNotices(ACCOUNT).map { it.name })
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT))
+            assertEquals(listOf("Mine"), manager.peekMovedNotices(ACCOUNT).map { it.name })
+            assertTrue(manager.acknowledgeMoved(ACCOUNT))
+            assertEquals(emptyList(), manager.peekMovedNotices(ACCOUNT))
         }
 
+    // A failed save keeps the note pending: it was not dismissed, so the next showing tells it.
     @Test
-    fun aLineupThatMayNotBeWrittenKeepsItsNotices() =
+    fun aFailedAcknowledgementKeepsTheNoticesPending() =
         runBlocking<Unit> {
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "no lineup")
+            assertEquals(emptyList(), manager.peekMovedNotices(ACCOUNT), "no lineup")
+            assertEquals(false, manager.acknowledgeMoved(ACCOUNT), "no lineup to write")
             seed(withNotices())
             store.inner.failWrites = true
-            assertEquals(emptyList(), manager.takeMovedNotices(ACCOUNT), "the save failed, so it is not told")
+            assertEquals(false, manager.acknowledgeMoved(ACCOUNT), "the save failed")
+            // The service stops offering a file it could not write until it reads it again: a new session does.
             store.inner.failWrites = false
-            assertEquals(2, manager.takeMovedNotices(ACCOUNT).size, "the next visit tells it")
+            val next = restarted()
+            assertEquals(2, next.peekMovedNotices(ACCOUNT).size, "still pending: the file was not changed")
+            assertTrue(next.acknowledgeMoved(ACCOUNT), "the next dismissal saves")
+            assertEquals(emptyList(), next.peekMovedNotices(ACCOUNT))
+            assertEquals(emptyList(), restarted().peekMovedNotices(ACCOUNT))
         }
 
     @Test

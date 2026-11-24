@@ -6,7 +6,6 @@ import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.ChannelProperties
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.LineupAccess
-import tv.stationbreak.core.domain.lineup.MovedChannel
 import tv.stationbreak.core.domain.lineup.ShelfReason
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.builder.BuilderMode
@@ -162,8 +161,6 @@ internal data class ChannelsUi(
     val choosing: Boolean,
     val panel: ChannelsPanel?,
     val message: ChannelsMessage?,
-    /** The channels moved to their band's floor, one line each under the title, told once (#1097). */
-    val moved: List<MovedChannel> = emptyList(),
     val confirmingReset: Boolean,
     /** Which choice of the open panel (or of the reset question) is focused; see [choicesOf]. */
     val choice: Int = 0,
