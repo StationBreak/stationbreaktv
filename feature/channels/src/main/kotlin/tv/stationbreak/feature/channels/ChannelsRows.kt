@@ -14,6 +14,7 @@ internal fun channelRows(
     channels: List<ChannelSummary>,
     reasons: Map<ChannelId, HiddenReason?>,
     gettingReady: Set<ChannelId> = emptySet(),
+    nowMs: Long = 0L,
 ): List<ChannelRow> =
     channels
         .sortedWith(compareBy<ChannelSummary>({ groupOf(it) }, { it.number ?: Int.MAX_VALUE }))
@@ -31,6 +32,11 @@ internal fun channelRows(
                 optIn = c.optIn,
                 reason = if (group == ChannelGroup.On && !waiting) reasons[c.id] else null,
                 // A switched-off row never explains a shelf; an On row's is the leave the planner set.
+                // A planner switch-on for the next day start is empty until then: it says when, not "nothing today".
+                startsAtMs =
+                    c.onSince.toEpochMilliseconds().takeIf {
+                        it > nowMs && reasons[c.id] == HiddenReason.EmptyToday && group == ChannelGroup.On && !waiting
+                    },
                 shelfReason = if (group == ChannelGroup.Off) null else c.shelfReason,
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
                 gettingReady = waiting,
