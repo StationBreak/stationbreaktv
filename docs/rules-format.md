@@ -2013,15 +2013,21 @@ systems of the Android TV ratings XML (Apache-2.0, see `NOTICE`) when a country 
 10), 3 (11 to 13), 4 (14), 5 (15 to 17), 6 (18 and up), 7 Explicit; a rating the map does not know has no level and is
 adult. The level is the rating's minimum age rounded up to the next rung, except Australian PG, read as PG
 (level 2; ADR-0028 rule 6 lists the overrides) (`kid-hold-10.json` holds the level of every
-spelling, in its `ratingMap` rows). A rating that table lacks (`U`, `12A`, `FSK 16`, `MA15+`, a single letter without a
-country, and the like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json`
-and `kid-hold-10.json`). A client that matches StationBreak's tiers uses that table, not one of its own, and reports the
-hold names `kid-hold-12` and `grown-up-hold-12`. Who reads that level: the tier of a title, a kid channel's
+spelling, in its `ratingMap` rows). Since `kid-hold-13` (#987) the table also holds the ratings of the BBFC, FSK, Eirin
+and Australia, read from each board's published definition (`GB-12A`, `12A`, `FSK-12`, `FSK 16`, `ab 6`, `JP-PG12`,
+`R15+`, `MA15+`; vectors `kid-hold-13.json`), a country can be written out (`United Kingdom:R18`, `Germany:FSK 12`) and
+`US:` or `US-` reads the rest on the US ladder; a bare all-ages word (`U`, `ALL`, `GA`, `ATP`, `UNIVERSAL`) is level 2
+like a bare age. A rating that table lacks (`GB-12PG`, `FSK-7`, `AU-MA16+`, a single letter without a
+country, and the like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json`,
+`kid-hold-10.json` and `kid-hold-13.json`). A client that matches StationBreak's tiers uses that table, not one of its own, and reports the
+hold names `kid-hold-13` and `grown-up-hold-13`. Who reads that level: the tier of a title, a kid channel's
 ceiling (the app's kid channel uses the level in place of rule 4), and, since `grown-up-hold-11` (#1124), every
 ceiling of a grown-up or custom channel (a PG Kids-band or TV-14 Teens-band channel, or a channel's own `maxRating`):
 rule 4 with the level of each rating in place of its rank on this ladder, so `DE-12` (level 3) passes TV-14 and fails
 PG, and a rating with no level fails every ceiling. A US name has the same number as a level and as a rank. AU `R`, SG
-`R21`, KR `19`, JP `19` and `20` and, since `kid-hold-12`, TH `19` are level 7, Explicit (`kid-hold-11.json`, `kid-hold-12.json`). A
+`R21` and, since `kid-hold-12`, TH `19` are level 7, Explicit (`kid-hold-11.json`, `kid-hold-12.json`); KR `19` and JP
+`19` and `20` were too, and are level 6 (adult) again since `kid-hold-13`. The explicit check reads the same prefix as the level (a code, `UK`, a country name, `FSK`), so
+`United Kingdom:R18` and `Australia:X18+` are Explicit. A
 country code and a space (`SG R21`, `AU R`) is read as Explicit for the tier, though its level stays unknown. A channel under the rules-format
 reference policy (`open`, the vectors of this document) reads this ladder alone. This ladder and its rule 4 are
 unchanged by it, with one app-side narrowing: from `kid-hold-6` the app reads `Approved` as unrated under a ceiling on every channel it builds
@@ -2357,7 +2363,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-12`), `grownUpHold` (`grown-up-hold-12`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-13`), `grownUpHold` (`grown-up-hold-13`),
   `curation` (`curation-1`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2525,6 +2531,10 @@ Everything below is in this repository, under `docs/`:
   rows of `kid-hold-10.json` it supersedes (`AU-R`, `JP-19`, `JP-19+`, `JP-20`, `JP-20+`, `KR-19`, `KR-19+`, `SG-R21` and
   `R21`). `kid-hold-12.json` (#1128, `kid-hold-12` / `grown-up-hold-12`) is a delta of the Explicit spellings: TH `19` and `19+`
   are level 7, and a country code with a space (`SG R21`, `AU R`) is Explicit. It supersedes the rows `TH-19` and `TH-19+` of `kid-hold-10.json` and `TH-19` of `kid-hold-11.json`.
+  `kid-hold-13.json` (#987, `kid-hold-13` / `grown-up-hold-13`) is a delta of the board ratings (BBFC, FSK, Eirin,
+  Australia, Singapore), the bare all-ages cap, the one prefix rule of the level and the explicit check (country names,
+  `UK`, `FSK`, `US:`) and the reversal of KR `19` and JP `19` and `20` to Adult. Its description names every row of
+  earlier files it supersedes.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

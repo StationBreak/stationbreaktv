@@ -49,18 +49,24 @@ rated wrongly is treated as rated.
 
 Ratings from other countries count when the server gives them with a country code, such as `DE-12` or `AU-PG`, and
 the country's board is one the app knows (it uses the Android TV ratings list). Each is read at its minimum age, rounded
-up, except Australian PG, which is read as PG. Coverage is partial: the UK's `12A` or `15`, German `FSK 16`, Japan's Eirin ratings and Australian `MA15+` are not
-recognised. A rating the app does not recognise is treated as adult, the same as no rating. A bare age such as `6` is
-treated as family at most, never as a Tots title, because it names no rating system.
+up, except Australian PG, which is read as PG. The app also knows the ratings of the UK's BBFC (`GB-12A`, `UK:15`, a bare
+`12A`), Germany's FSK (`FSK-12`, `FSK 16`, `ab 6`, `DE:FSK 16`), Japan's Eirin (`JP-PG12`, `R15+`) and Australia
+(`MA15+`, `MA 15+`), each read from the board's own published definition, and a country written out (`United Kingdom:12A`,
+`Germany:FSK 12`). When two tiers meet it reads the older one: `12A` is read as 13 and `15` as 16. A rating the app does
+not recognise is treated as adult, the same as no rating. A bare age such as `6`, and a bare all-ages word (`U`, `ALL`,
+`GA`, `ATP`, `UNIVERSAL`) with no country or board named, is treated as family at most, never as a Tots title, because it
+names no rating system.
 
 Those ratings decide which audience a title belongs to, which Tots channels can take it, and whether it fits a
 channel's maximum rating. The Kids and Teens channels, and any channel with a maximum rating you set, read a title's
 rating at the same level the app uses for its audience, so a title rated `DE-12` airs on a Teens channel (maximum
 `TV-14`) and `AU-PG` airs on a Kids channel (maximum `PG`). Each rating is held to the level of its minimum age, rounded
 up: `DE-12` is read as 13, so it does not air under a `PG` maximum. A rating the app does not recognise fails every
-maximum rating, the same as no rating. The adult-only labels Australian `R`, Singapore `R21`, Korean `19` and Japanese
-`19` and `20`, and Thai `19`, are Explicit, also when written with a space (`SG R21`, `AU R`). They never air on a Tots, Kids or Teens
-channel or on a starter grown-up channel. A custom channel with no maximum rating can still air them.
+maximum rating, the same as no rating. The adult-only labels Australian `R`, `R18+` and `X18+`, Singapore `R21`, British
+`R18`, Japanese `R18+` and Thai `19` are Explicit, also when written with a space (`SG R21`, `AU R`) or with the country
+named in full (`United Kingdom:R18`, `Australia:X18+`). They never air on a Tots, Kids or Teens channel or on a starter
+grown-up channel. A custom channel with no maximum rating can still air them. Korean `19` and Japanese `19` and `20` are
+mainstream adult ratings: adult, not Explicit.
 
 The explicit rule reads the same metadata. A file with no metadata at all can't be told apart from a test clip, so it
 is not treated as explicit: it stays off the Tots, Kids and Teens channels and out of Odds & Ends, but a grown-up

@@ -13,14 +13,13 @@ internal object CountryRatingTables {
      * contradicts: NZ PGR (parental guidance) and SG PG are 10, not the XML's 0; NZ AO (adults only) is explicit like
      * the `AO` alias, not 0; ES X (X-Rated) is explicit, not 18. `kid-hold-11` (#1124): the adult-only labels AU R, SG
      * R21, KR 19 and JP 19 and 20 are explicit (level 7), not 18 (owner call, reversible). `kid-hold-12` (#1128): TH 19
-     is explicit too, so every adult-only label is level 7.
+     * is explicit too. `kid-hold-13` (#987): KR 19 and JP 19 and 20 are mainstream adult ratings and read 18 again
+     * (Adult, no override); AU R, SG R21 and TH 19 stay explicit. [BoardRatings] adds the boards the XML lacks.
      */
     @Suppress("MagicNumber")
     private val OVERRIDES: Map<String, Map<String, Int>> =
         mapOf(
             "AU" to mapOf("PG" to 2, "R" to 7),
-            "JP" to mapOf("19" to 7, "20" to 7),
-            "KR" to mapOf("19" to 7),
             "TH" to mapOf("19" to 7),
             "NZ" to mapOf("PGR" to 2, "AO" to 7),
             "SG" to mapOf("PG" to 2, "R21" to 7),
@@ -56,18 +55,25 @@ internal object CountryRatingTables {
                     }
                 }
             }
+            for ((system, ratings) in BoardRatings.BY_SYSTEM) {
+                val table = getOrPut(system) { HashMap() }
+                for ((name, level) in ratings) for (key in spellingsOf(name)) table[key] = level
+            }
         }
 
     /**
      * The spellings of [TABLES] that need no country prefix, at the highest level of any country that has them: not a
-     * bare number (an age, which [RatingMap] caps at Family) and not a single letter (`P`, `C`, `L` mean different
-     * things in each country).
+     * bare number (an age, which [RatingMap] caps at Family), not a single letter (`P`, `C`, `L` mean different
+     * things in each country), and not a name that is Explicit on its own ([RatingMap.EXPLICIT]: `R18`, `R18+`,
+     * `X18+`), whose level stays unknown, as before `kid-hold-13`.
      */
     private val UNPREFIXED: Map<String, Int> =
         buildMap {
             for (table in TABLES.values) {
                 for ((key, level) in table) {
-                    if (key.length > 1 && !isAge(key)) put(key, maxOf(get(key) ?: level, level))
+                    if (key.length > 1 && !isAge(key) && key !in RatingMap.EXPLICIT) {
+                        put(key, maxOf(get(key) ?: level, level))
+                    }
                 }
             }
         }
@@ -82,17 +88,19 @@ internal object CountryRatingTables {
     fun countryLevel(key: String): Int? = countryPrefix(key)?.let { (code, rest) -> TABLES[code]?.get(rest) }
 
     /**
-     * The country prefix of a cleaned [key] and the rest: two letters `A` to `Z`, spaces allowed around the
-     * separator, then the first `-`, `:` or `/` (`DE-12`, `GB: R18`, `AU/X18+`), or null. The one prefix rule of
-     * [RatingMap]: both the level ([countryLevel]) and the explicit check read a prefix with it.
+     * The system prefix of a cleaned [key] and the rest: a system, spaces allowed around the separator, then the first
+     * `-`, `:` or `/` (`DE-12`, `GB: R18`, `AU/X18+`, `United Kingdom:R18`, `FSK-12`), or null. A system is two letters
+     * `A` to `Z`, `UK` (GB), the name of a country of the XML, or `FSK` (`kid-hold-13`, #987; [BoardRatings.PREFIXES]).
+     * The one prefix rule of [RatingMap]: both the level ([countryLevel]) and the explicit check read a prefix with it.
      */
     fun countryPrefix(key: String): Pair<String, String>? {
         val cut = key.indexOfFirst { it == '-' || it == ':' || it == '/' }
         if (cut <= 0) return null
-        val code = key.substring(0, cut).trim(' ')
+        val prefix = key.substring(0, cut).trim(' ')
         val rest = key.substring(cut + 1).trim(' ')
-        val isCode = code.length == COUNTRY_CODE_LENGTH && code.all { it in 'A'..'Z' }
-        return if (isCode && rest.isNotEmpty()) code to rest else null
+        val isCode = prefix.length == COUNTRY_CODE_LENGTH && prefix.all { it in 'A'..'Z' }
+        val system = BoardRatings.PREFIXES[prefix] ?: prefix.takeIf { isCode }
+        return if (system != null && rest.isNotEmpty()) system to rest else null
     }
 
     /** Whether [key] is a minimum age: one or two digits, with or without a `+`. */

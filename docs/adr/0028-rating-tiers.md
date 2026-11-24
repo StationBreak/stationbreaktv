@@ -79,7 +79,8 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
      `KR/15`). A space is not a separator (`AU PG` is unknown). A single letter or a bare number needs a prefix: a
      letter means different things in each country, and a bare number is a bare age. Two systems in one country take
      the higher level for a shared spelling.
-   - **Stays unknown, so adult, because the XML does not define it:** UK BBFC (`U`, `12A`, `15`, `GB-15`); Germany's
+   - **Superseded by `kid-hold-13` (addendum 2026-11-24 (7)):** the board ratings of the UK, Germany, Japan and
+     Australia now map. Before it, the following stayed unknown, so adult, because the XML does not define it: UK BBFC (`U`, `12A`, `15`, `GB-15`); Germany's
      FSK spellings (`FSK 16`, `DE-FSK 12`; only the DVB numbers such as `DE-12` map); Japan's Eirin (`JP-PG12`,
      `JP-R15+`); Australia's film ratings (`MA15+`, `MA 15+`); a US-prefixed name (`US-PG`); a country written as a
      name (`Germany: FSK 18`); Canada's Exempt; and a single letter with no country. No other source fills these.
@@ -356,3 +357,37 @@ This record keeps the names of its date. Since [#1100](https://github.com/Statio
 **Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
 the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
 `kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).
+
+## Addendum 2026-11-24 (7): board ratings the XML lacks, bare all-ages words, one Explicit prefix rule, `kid-hold-13` / `grown-up-hold-13` ([#987](https://github.com/StationBreak/stationbreaktv/issues/987))
+
+Owner decisions, 2026-11-24, final. The Android TV XML was a starting point, not the whole map: StationBreak's own table
+now covers more ratings. This lifts the 2026-11-23 line "no other source fills these". No table is copied from
+Jellyfin, MediaPortal, TMDb or any other project: each tier below is read from the board's published definition
+(`BoardRatings`, with the sources in its comment).
+
+- **The boards** (levels as ADR rule 6: ALL, 7, 10, 13, 14, 16, 18, X; in-between ratings round up).
+  - BBFC, prefix `GB`, `UK`, `United Kingdom` or `Great Britain`, and `12A` bare: `U` ALL, `PG` 10, `12A` and `12` 13,
+    `15` 16, `18` 18, `R18` X.
+  - FSK, prefix `FSK`, `DE`, `Germany` or `Deutschland`, and `FSK n`, `FSKn`, `ab n` bare: only the five official values
+    `0` ALL, `6` 7, `12` 13, `16` 16 and `18` 18, and `Keine Jugendfreigabe` 18. `FSK-7` is unknown. `DE-0` is ALL.
+  - Eirin, `JP` or `Japan`: `G` ALL, `PG12` 13, `R15+` (also `R15`, `R-15`, `R 15+`) 16, `R18+` X.
+  - Australia: `G` ALL, `PG` 10 (the override), `M` and `MA15+` (also `MA15`, `MA 15+`) 16, `R18+`, `R` and `X18+`
+    (also `X18`, `X 18+`) X. Singapore `R21` is X.
+  - An optional `US:` or `US-` prefix reads the rest on the US ladder.
+- **Fail up where two tiers meet** (reversible calls): `12A`, FSK 12 and Eirin PG12 are 13, not 10; AU `M` is 16, not 14;
+  BBFC 15 is 16. A label a board does not define (`GB-12PG`, `JP-PG15`, `AU-MA16+`, `FSK-7`) is unknown, so adult.
+- **Bare all-ages words are Family at most.** `U`, `ALL`, `GA`, `ATP` and `UNIVERSAL` with no system read as level 2,
+  like a bare age (#1006); with a system (`GB-U`, `KR-ALL`, `BR-GA`) they keep their level.
+- **One prefix rule for the level and the Explicit check.** A system is a two-letter code, `UK` (GB), a country name of
+  the XML (United Kingdom, Great Britain, Germany, Deutschland, Japan, Australia, Singapore and the rest of
+  `BoardRatings.PREFIXES`) or `FSK`, then `-`, `:` or `/`. This fixes a bug: `isExplicit` took a two-letter code only, so
+  `United Kingdom:R18`, `Australia:X18+`, `Australia:R18+` and `Japan:R18+` were not Explicit and could air outside After
+  Hours. `ExplicitPrefixInvariantTest` now covers every country name. A bare `R18`, `R18+` or `X18+` is Explicit by name
+  and keeps its unknown level, as before.
+- **KR `19`, JP `19` and `20` are Adult again** (owner reversal of addendum (5): mainstream adult ratings, not
+  Explicit). They are level 6. Korea's Restricted Screening is Explicit; AU `R`, SG `R21` and TH `19` stay Explicit.
+- Versions: `kid-hold-13` and `grown-up-hold-13`, so every stored day is rebuilt once. Vectors: `kid-hold-13.json`, a
+  delta (`kid-hold-12.json` is now pinned by `FrozenHoldVectorsTest`). Its description names the rows of earlier files it
+  supersedes. The gate oracle (`CeilingOracle`) reads these spellings on its own, from its own list, not from `RatingMap`.
+- Effect, on the gate's synthetic non-US fixture, extended with these spellings: the hard-fail invariants hold (no title
+  above its ceiling, no rating of 15 or older in a young band, no Explicit title outside After Hours).
