@@ -213,6 +213,64 @@ git tag v0.9.0-rc.2
 if notes v0.9.0-rc.2 >/dev/null 2>&1; then rc=0; else rc=$?; fi
 check "a tag with MAJOR 0 is accepted" "0" "$rc"
 
+# The base is the highest earlier tag of any stage, ordered by semantic version. Each case gets its own repository.
+scenario() { # <name>; leaves the shell in a new repository with one commit
+  mkdir "$work/$1"
+  cd "$work/$1"
+  git init -q .
+  git config user.email t@example.test
+  git config user.name t
+  git config commit.gpgsign false
+  git config tag.gpgsign false
+  n=0
+  commit "chore: root"
+}
+tagged() { # <tag> <subject>: a commit with that subject, tagged
+  commit "$2"
+  git tag "$1"
+}
+scenario s1
+tagged v1.0.0-beta.1 "fix: in beta one"
+tagged v1.0.0-beta.2 "fix: in beta two"
+check "beta.2 starts at beta.1" "### Fixes
+
+- in beta two ($(sha))" "$(notes v1.0.0-beta.2)"
+scenario s2
+tagged v1.0.0-alpha.1 "fix: in alpha"
+tagged v1.0.0-beta.1 "fix: in beta"
+check "beta.1 starts at the alpha" "### Fixes
+
+- in beta ($(sha))" "$(notes v1.0.0-beta.1)"
+scenario s3
+tagged v1.0.0-alpha.1 "fix: a"
+tagged v1.0.0-beta.1 "fix: b"
+tagged v1.0.0-rc.1 "fix: c"
+tagged v1.0.0 "fix: in final"
+check "a final starts at its own last rc" "### Fixes
+
+- in final ($(sha))" "$(notes v1.0.0)"
+scenario s4
+tagged v1.0.0 "fix: one oh"
+tagged v1.1.0-beta.1 "fix: b1"
+tagged v1.0.1 "fix: patch"
+tagged v1.1.0-beta.2 "fix: b2"
+b2="$(sha)"
+check "a lower final does not outrank an earlier beta of the next version" "### Fixes
+
+- b2 ($b2)
+- patch ($(git rev-parse --short=7 HEAD~1))" "$(notes v1.1.0-beta.2)"
+tagged v1.1.0-alpha.9 "fix: a9"
+tagged v1.1.0-rc.1 "fix: r1"
+git tag junk-1 && git tag v9.9.9-rc1 && git tag vendor-x
+check "alpha.9 < beta.2 < rc.1, and junk tags are ignored" "### Fixes
+
+- r1 ($(sha))" "$(notes v1.1.0-rc.1 | head -n 3)"
+scenario s5
+git tag v1.0.0-beta.1
+git tag vendor-x
+check "no earlier release tag: first release" "First release." "$(notes v1.0.0-beta.1)"
+cd "$repo"
+
 # A shallow clone can't give the right range.
 git clone -q --no-local --depth 1 "file://$repo" "$work/shallow"
 cd "$work/shallow"
