@@ -264,13 +264,22 @@ internal object CeilingOracle {
     }
 
     // A rating's rank on the ladder: its US name (a leading `Rated ` allowed), else (#1123) the oracle's own reading of
-    // a country-prefixed age or an all-ages word, else (#1124) its own short list of the other spellings the pool
-    // admits under a ceiling (NAMED). It does not call `RatingMap`. An age takes the lowest rank whose age is at least
-    // it, and a bare age is Family (rank 2) at least; anything else is unknown (null), which fails closed.
-    private val AGE = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(\d{1,2})\+?""")
-    private val ALL_AGES = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(?:ALL|ALL AGES)""")
+    // a system-prefixed age or an all-ages word, else (#1124) its own short list of the other spellings the pool admits
+    // under a ceiling (NAMED), else (#987) the oracle's own list of the boards' labels (BOARDS: BBFC, FSK, Eirin,
+    // Australia, Singapore) read after a prefix (a two-letter code, UK or a country name, FSK, `US:` for the US
+    // ladder). It does not call `RatingMap`. An age takes the lowest rank whose age is at least it, and a bare age or a
+    // bare all-ages word is Family (rank 2) at least; anything else is unknown (null), which fails closed.
+    private val PREFIX =
+        Regex(
+            """^(?:[A-Z]{2}|UNITED KINGDOM|GREAT BRITAIN|GERMANY|DEUTSCHLAND|JAPAN|AUSTRALIA|SINGAPORE|FSK)""" +
+                """\s*[-:/]\s*""",
+        )
+    private val AGE = Regex("""(\d{1,2})\+?""")
+    private val FSK_WORDED = Regex("""(?:FSK[ -]?|AB )(0|6|12|16|18)""")
+    private val FSK_AGES = setOf("0", "6", "12", "16", "18")
     private val RANK_AGES = listOf(0, 7, 10, 13, 14, 16, 18)
     private const val FAMILY_RANK = 2
+    private const val EXPLICIT_RANK = 7
 
     private val NAMED =
         mapOf(
@@ -287,6 +296,61 @@ internal object CeilingOracle {
             "A" to 6,
         )
 
+    // The all-ages words that carry no system: Family at most. With a prefix they are the lowest rank.
+    private val BARE_ALL_AGES = setOf("U", "ALL", "GA", "ATP", "UNIVERSAL")
+
+    // The boards' labels (after a prefix), by rank; the second set is the ones read with no prefix as well.
+    private val BOARDS =
+        mapOf(
+            "U" to 0,
+            "G" to 0,
+            "ALL" to 0,
+            "ALL AGES" to 0,
+            "PG" to FAMILY_RANK,
+            "12A" to 3,
+            "PG12" to 3,
+            "PG 12" to 3,
+            "R15+" to 5,
+            "R 15+" to 5,
+            "R15" to 5,
+            "R-15" to 5,
+            "M" to 5,
+            "MA" to 5,
+            "MA15+" to 5,
+            "MA 15+" to 5,
+            "MA15" to 5,
+            "M18" to 6,
+            "KEINE JUGENDFREIGABE" to 6,
+            "R" to EXPLICIT_RANK,
+            "R18" to EXPLICIT_RANK,
+            "R18+" to EXPLICIT_RANK,
+            "R 18+" to EXPLICIT_RANK,
+            "X18" to EXPLICIT_RANK,
+            "X18+" to EXPLICIT_RANK,
+            "X 18+" to EXPLICIT_RANK,
+            "R21" to EXPLICIT_RANK,
+        )
+    private val BARE_BOARDS =
+        setOf(
+            "ALL AGES",
+            "12A",
+            "PG12",
+            "PG 12",
+            "R15+",
+            "R 15+",
+            "R15",
+            "R-15",
+            "MA15+",
+            "MA 15+",
+            "MA15",
+            "X18",
+            "X18+",
+            "X 18+",
+            "R18",
+            "R18+",
+            "KEINE JUGENDFREIGABE",
+        )
+
     internal fun rankOf(raw: String?): Int? =
         RatingLadder.rankOf(raw) ?: raw
             ?.trim()
@@ -297,14 +361,42 @@ internal object CeilingOracle {
 
     private fun namedRank(key: String): Int? = RatingLadder.rankOf(key) ?: NAMED[key] ?: countryRank(key)
 
-    private fun countryRank(key: String): Int? =
-        if (ALL_AGES.matches(key)) {
-            0
-        } else {
-            AGE.matchEntire(key)?.groupValues?.get(1)?.toInt()?.let { age ->
-                val rank = RANK_AGES.indexOfFirst { age <= it }.let { if (it < 0) RANK_AGES.size else it }
-                if (key.first().isDigit()) maxOf(rank, FAMILY_RANK) else rank
+    private fun countryRank(key: String): Int? {
+        val prefix = PREFIX.find(key)
+        val rest = prefix?.let { key.substring(it.range.last + 1) } ?: key
+        val system = prefix?.value?.trimEnd(' ', '-', ':', '/')
+        return when {
+            rest.isEmpty() -> {
+                null
             }
+
+            system == "US" -> {
+                RatingLadder.rankOf(rest)
+            }
+
+            system == null && rest in BARE_ALL_AGES -> {
+                FAMILY_RANK
+            }
+
+            system == "FSK" -> {
+                if (rest in FSK_AGES) ageRank(rest, bare = false) else null
+            }
+
+            else -> {
+                BOARDS[rest]?.takeIf { system != null || rest in BARE_BOARDS }
+                    ?: FSK_WORDED.matchEntire(rest)?.let { ageRank(it.groupValues[1], bare = false) }
+                    ?: ageRank(rest, bare = system == null)
+            }
+        }
+    }
+
+    private fun ageRank(
+        text: String,
+        bare: Boolean,
+    ): Int? =
+        AGE.matchEntire(text)?.groupValues?.get(1)?.toInt()?.let { age ->
+            val rank = RANK_AGES.indexOfFirst { age <= it }.let { if (it < 0) RANK_AGES.size else it }
+            if (bare) maxOf(rank, FAMILY_RANK) else rank
         }
 }
 

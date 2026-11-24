@@ -15,6 +15,7 @@ class CeilingOracleTest {
     private val fourteen = 4
     private val sixteen = 5
     private val eighteen = 6
+    private val explicit = 7
 
     @Test
     fun readsCountryAgesAndAllAgesWordsOnTheLadder() {
@@ -50,6 +51,46 @@ class CeilingOracleTest {
         for ((raw, rank) in expected) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
     }
 
+    // #987: the boards' labels, read from the oracle's own list, with the prefixes the engine reads.
+    @Test
+    fun readsTheBoardRatingsAfterAPrefix() {
+        val expected =
+            mapOf(
+                "GB-U" to all,
+                "UK:U" to all,
+                "United Kingdom:12A" to thirteen,
+                "12A" to thirteen,
+                "GB-15" to sixteen,
+                "FSK-0" to all,
+                "FSK-12" to thirteen,
+                "FSK 16" to sixteen,
+                "ab 6" to seven,
+                "DE:FSK 16" to sixteen,
+                "Germany:FSK 18" to eighteen,
+                "Keine Jugendfreigabe" to eighteen,
+                "JP-G" to all,
+                "Japan:PG12" to thirteen,
+                "R 15+" to sixteen,
+                "AU-M" to sixteen,
+                "MA 15+" to sixteen,
+                "Australia:MA15+" to sixteen,
+                "AU-R" to explicit,
+                "Australia:X18+" to explicit,
+                "Singapore:R21" to explicit,
+                "GB-R18" to explicit,
+                "US:PG" to family,
+                "US-R" to sixteen,
+            )
+        for ((raw, rank) in expected) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
+    }
+
+    @Test
+    fun aBareAllAgesWordIsFamilyAtMost() {
+        for (word in listOf("U", "ALL", "GA", "ATP", "UNIVERSAL")) {
+            assertEquals(family, CeilingOracle.rankOf(word), word)
+        }
+    }
+
     @Test
     fun aBareAgeIsFamilyAtLeast() {
         for ((raw, rank) in mapOf("6" to family, "12+" to thirteen)) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
@@ -58,7 +99,24 @@ class CeilingOracleTest {
     @Test
     fun anUnknownStringHasNoRank() {
         val unknown =
-            listOf("ZZ-invented", "DE-", "DE-six", "", "  ", "12 12", "DE-6/DE-12", "AU PG", "US-PG", "Rated", "FSK 16")
+            listOf(
+                "ZZ-invented",
+                "DE-",
+                "DE-six",
+                "",
+                "  ",
+                "12 12",
+                "DE-6/DE-12",
+                "AU PG",
+                "Rated",
+                "FSK-7",
+                "UK:",
+                "GB-12PG",
+                "JP-PG15",
+                "AU-MA16+",
+                "ab",
+                "FSK",
+            )
         for (raw in unknown) assertNull(CeilingOracle.rankOf(raw), raw)
         assertNull(CeilingOracle.rankOf(null))
     }

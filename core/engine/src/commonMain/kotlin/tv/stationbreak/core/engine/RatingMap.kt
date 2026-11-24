@@ -21,13 +21,18 @@ import tv.stationbreak.core.rules.RatingLadder
  * list as a whole rating is read, and caps a bare age at Family. `kid-hold-11` (#1124) reads AU `R`, SG `R21`, KR `19`
  * and JP `19` and `20` as level 7 (Explicit), and the grown-up and custom ceilings read this level (`CeilingCheck`).
  * `kid-hold-12` (#1128) reads TH `19` as level 7 too, and [isExplicit] reads a country code followed by a space
- * (`SG R21`, `AU R`) as the hyphen spelling (the level of such a spelling stays unknown).
+ * (`SG R21`, `AU R`) as the hyphen spelling (the level of such a spelling stays unknown). `kid-hold-13` (#987) adds
+ * the boards of [BoardRatings] (BBFC, FSK, Eirin, Australia, Singapore), caps a bare all-ages word (`U`, `ALL`, `GA`,
+ * `ATP`, `UNIVERSAL`) at Family, reads KR `19` and JP `19` and `20` as level 6 (Adult) again, and reads one prefix
+ * rule everywhere: a two-letter code, `UK`, a country name or `FSK`, then `-`, `:` or `/` ([isExplicit] too, so
+ * `United Kingdom:R18` is Explicit); a `US:` or `US-` prefix reads the rest on the US ladder.
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
  * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
  * (3) The whole string against the US names ([ALIASES], then `RatingLadder.normalise`, descriptor suffixes included),
- * so `TV-14` never reads as a country code; then a spelling that needs no prefix (`SAM 13`, `PG-12`). (4) A country
- * prefix (`DE-12`, `de:12`, `NL/16`), looked up in [CountryRatingTables]; the table has no `TV`, `PG` or `US` code.
+ * so `TV-14` never reads as a country code; then a spelling that needs no prefix (`SAM 13`, `PG-12`). (4) A system
+ * prefix (`DE-12`, `de:12`, `NL/16`, `Germany:FSK 12`), looked up in [CountryRatingTables]; the table has no `TV`, `PG`
+ * or `US` code.
  * (5) A list split on `/` takes its highest level, each part read as steps 3, 4 and 6 read a rating, and is unknown if
  * any part is. (6) A bare minimum age (`6`, `12+`) rounds up to the next level, and is Family at least (#1006).
  * (7) Anything else is unknown.
@@ -35,6 +40,12 @@ import tv.stationbreak.core.rules.RatingLadder
 object RatingMap {
     /** The shared ladder, lowest first: index 0 is `ALL`, 7 is `X`. Kid levels are 0 and 1, family up to 2. */
     val LEVELS: List<String> = listOf("ALL", "7", "10", "13", "14", "16", "18", "X")
+
+    /**
+     * The all-ages words with no system in them (`kid-hold-13`, #987): level Family at most, like a bare age (#1006).
+     * With a system (`GB-U`, `KR-ALL`) they keep their level.
+     */
+    private val ALL_AGES_WORDS: Set<String> = setOf("U", "ALL", "GA", "ATP", "UNIVERSAL")
 
     /** The spellings that mean unrated, after cleaning. `Approved` is unrated here, unlike on the rules ladder. */
     val UNRATED: Set<String> = setOf("NR", "NOT RATED", "UNRATED", "PASSED", "APPROVED")
@@ -84,6 +95,7 @@ object RatingMap {
 
     private const val LEVEL_X = 7
     private const val FAMILY_LEVEL = 2
+    private const val US = "US"
     private const val CODE_AND_SPACE = 3
     private const val RATED = "RATED "
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
@@ -153,10 +165,13 @@ object RatingMap {
 
     private fun usLevel(key: String): Int? = ALIASES[key] ?: if (key == "APPROVED") null else RatingLadder.rankOf(key)
 
-    // Steps 3 and 4: the US names whole, then a spelling that needs no prefix, then a country prefix.
+    // Steps 3 and 4: the US names whole, a bare all-ages word (Family at most), then a spelling that needs no prefix,
+    // then a system prefix; a `US:` or `US-` prefix reads the rest on the US ladder.
     private fun namedLevel(key: String): Int? {
         val tables = CountryRatingTables
+        if (key in ALL_AGES_WORDS) return FAMILY_LEVEL
         return usLevel(key) ?: tables.unprefixed(key) ?: tables.countryLevel(key)
+            ?: tables.countryPrefix(key)?.takeIf { it.first == US }?.let { usLevel(it.second) }
     }
 
     private fun listLevel(key: String): Int? {

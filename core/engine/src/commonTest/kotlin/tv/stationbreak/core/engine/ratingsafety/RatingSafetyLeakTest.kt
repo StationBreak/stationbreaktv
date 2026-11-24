@@ -225,6 +225,9 @@ class RatingSafetyLeakTest {
     // kids, 258 family and 912 teen (episodes whose own rating is Explicit, which fails up past the series' rating).
     // kid-hold-10 (#987) moves 1378 titles: the bare ages 6 and 6+ cap at Family, so their 697 kids go 328 to family
     // and 369 to teen (a family veto, which the kids tier ignored), and DE-12 is the XML's DVB 12: 681 adult to teen.
+    // kid-hold-13 (#987) moves 1632 titles, every one down from adult: the BBFC `U` (bare, Family at most) 265 to
+    // family and `12A` 1367 to teen. `FSK 16`, `MA15+` and `gb/15` read 16 and stay adult; no rating of 15 or older
+    // moves.
     @Test
     fun theSyntheticLibraryTierCounts() {
         val counts = library.items.groupingBy { tierOf(it) }.eachCount()
@@ -235,9 +238,9 @@ class RatingSafetyLeakTest {
         val EXPECTED_COUNTS =
             mapOf(
                 RatingTier.Kids to 2100,
-                RatingTier.Family to 2009,
-                RatingTier.Teen to 7738,
-                RatingTier.Adult to 28169,
+                RatingTier.Family to 2274,
+                RatingTier.Teen to 9105,
+                RatingTier.Adult to 26537,
                 RatingTier.Explicit to 17712,
             )
     }

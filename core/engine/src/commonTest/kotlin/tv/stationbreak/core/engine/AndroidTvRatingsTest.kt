@@ -31,14 +31,12 @@ class AndroidTvRatingsTest {
 
     // The StationBreak decisions on top of the XML (CountryRatingTables' overrides): the AU PG override is the one
     // rating below its hint (owner decision, #987); the others fail up from a hint the rating's own name contradicts,
-    // and the adult-only labels (hint 18 or more) are Explicit (#1124).
+    // and the adult-only labels AU R, SG R21 and TH 19 are Explicit (#1124, #1128). KR 19 and JP 19 and 20 are Adult
+    // (#987).
     private val overrides: Map<String, Int?> =
         mapOf(
             "AU-PG" to 2,
             "AU-R" to 7,
-            "JP-19" to 7,
-            "JP-20" to 7,
-            "KR-19" to 7,
             "SG-R21" to 7,
             "TH-19" to 7,
             "NZ-PGR" to 2,
@@ -139,7 +137,7 @@ class AndroidTvRatingsTest {
 
     @Test
     fun theAdultOnlyLabelsAreExplicit() {
-        for (rating in listOf("AU-R", "SG-R21", "KR-19", "JP-19", "JP-20", "TH-19")) {
+        for (rating in listOf("AU-R", "SG-R21", "TH-19")) {
             assertEquals(7, RatingMap.levelOf(rating), rating)
             assertTrue(RatingMap.isExplicit(rating), rating)
             assertEquals(RatingTier.Explicit, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
@@ -150,16 +148,30 @@ class AndroidTvRatingsTest {
         }
     }
 
+    // #987: KR 19 and JP 19 and 20 are mainstream adult ratings: Adult (level 6), not Explicit.
+    @Test
+    fun theMainstreamAdultLabelsAreAdultNotExplicit() {
+        for (rating in listOf("KR-19", "JP-19", "JP-20", "JP-19+", "KR 19")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
+            assertEquals(RatingTier.Adult, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
+        }
+        assertEquals(6, RatingMap.levelOf("KR-19"))
+        assertEquals(6, RatingMap.levelOf("JP-20"))
+        assertTrue(RatingMap.isExplicit("KR-Restricted Screening"))
+    }
+
     // #1128: the same labels with a space after the country code are Explicit too (their level stays unknown, which
     // fails every ceiling), and the spellings that are not adult-only are not.
     @Test
     fun theSpacedAdultOnlyLabelsAreExplicit() {
-        val spaced = listOf("AU R", "SG R21", "KR 19", "JP 19", "JP 20", "TH 19", "au r", "Rated SG R21", "PG/AU R")
+        val spaced = listOf("AU R", "SG R21", "TH 19", "au r", "Rated SG R21", "PG/AU R")
         for (rating in spaced) {
             assertTrue(RatingMap.isExplicit(rating), rating)
             assertEquals(RatingTier.Explicit, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
         }
-        for (rating in listOf("AU PG", "AU M", "SG M18", "KR 15", "JP 18", "TH 18", "US R", "TV MA")) {
+        val notAdultOnly =
+            listOf("AU PG", "AU M", "SG M18", "KR 15", "KR 19", "JP 19", "JP 20", "TH 18", "US R", "TV MA")
+        for (rating in notAdultOnly) {
             assertFalse(RatingMap.isExplicit(rating), rating)
         }
         assertEquals(null, RatingMap.levelOf("SG R21"))
@@ -207,9 +219,8 @@ class AndroidTvRatingsTest {
                 "E",
                 "DE-NR",
                 "XX-12",
-                "DE-12A",
                 "DE-6/XX",
-            ) + MOCK_UNKNOWNS + MOVIELABS_ONLY
+            ) + MOCK_UNKNOWNS + STILL_UNKNOWN
         val items = unknown.mapIndexed { index, rating -> kidsMovie(rating, index + 1) }
         val library = snapshot(items = items)
         for (entry in items) {
@@ -234,10 +245,10 @@ class AndroidTvRatingsTest {
         assertEquals(3, RatingMap.levelOf("SG-PG13"))
     }
 
-    // The XML is the only source: a rating MovieLabs or another table has and the XML lacks stays unknown (#987).
+    // A rating that neither the XML nor a board's own definition has stays unknown (#987): no other table fills it.
     @Test
-    fun aRatingOutsideTheXmlStaysUnknown() {
-        for (rating in MOVIELABS_ONLY) assertNull(RatingMap.levelOf(rating), rating)
+    fun aRatingNoBoardDefinesStaysUnknown() {
+        for (rating in STILL_UNKNOWN) assertNull(RatingMap.levelOf(rating), rating)
     }
 
     // TV and PG are country codes too (Tuvalu, Papua New Guinea): the table has neither, and US names read first.
@@ -287,7 +298,8 @@ class AndroidTvRatingsTest {
         assertEquals(5, RatingMap.levelOf("NL-12/NL-16"))
         assertEquals(6, RatingMap.levelOf("DE-6/DE-18"))
         assertEquals(4, RatingMap.levelOf("BR-14/TV-PG"))
-        assertNull(RatingMap.levelOf("DE-6/GB-U"))
+        assertEquals(1, RatingMap.levelOf("DE-6/GB-U"))
+        assertNull(RatingMap.levelOf("DE-6/GB-12PG"))
     }
 
     // An unprefixed spelling found in more than one country takes the highest level; a single letter, a bare number
@@ -296,7 +308,8 @@ class AndroidTvRatingsTest {
     fun anUnprefixedSpellingIsUnambiguousOrTakesItsHighest() {
         assertEquals(3, RatingMap.levelOf("SAM 13"))
         assertEquals(3, RatingMap.levelOf("SAM13"))
-        assertEquals(0, RatingMap.levelOf("GA"))
+        assertEquals(2, RatingMap.levelOf("GA")) // a bare all-ages word is Family at most (#987)
+        assertEquals(0, RatingMap.levelOf("BR-GA"))
         assertEquals(3, RatingMap.levelOf("PG-12"))
         assertEquals(5, RatingMap.levelOf("NC16"))
         assertEquals(7, RatingMap.levelOf("X-Rated"))
@@ -320,20 +333,7 @@ class AndroidTvRatingsTest {
         /** The mock-library strings of the 2026-11-20 run that no system identifies (#987), besides the PG13 alias. */
         val MOCK_UNKNOWNS = listOf("U/A 13+", "B-15", "B", "10AP", "T")
 
-        /** Ratings of other tables (MovieLabs, BBFC, FSK, Eirin, ACB film) that the Android TV XML does not have. */
-        val MOVIELABS_ONLY =
-            listOf(
-                "GB-12A",
-                "GB-15",
-                "gb/15",
-                "12A",
-                "U",
-                "FSK 16",
-                "DE-FSK 12",
-                "JP-PG12",
-                "JP-R15+",
-                "AU-MA15+",
-                "MA 15+",
-            )
+        /** Spellings no board defines, so they stay unknown (#987): a made-up tier, a code with nothing after it. */
+        val STILL_UNKNOWN = listOf("GB-12PG", "FSK-7", "JP-PG15", "AU-MA16+", "UK:", "FSK", "ab", "ab 7", "DE-12A")
     }
 }

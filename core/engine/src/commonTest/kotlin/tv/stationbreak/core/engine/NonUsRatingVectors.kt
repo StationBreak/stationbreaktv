@@ -102,7 +102,7 @@ class NonUsRatingVectors {
         check("NL", "NL-6" to 1, "NL-9" to 2, "NL-12" to 3, "NL-14" to 4, "NL-16" to 5, "NL-18" to 6)
         check("CN and JP", "CN-6" to 1, "CN-18" to 6, "JP-6" to 1, "JP-12" to 3, "JP-15" to 5, "JP-18" to 6)
         // The adult-only labels are Explicit (#1124).
-        check("JP adult-only", "JP-19" to 7, "JP-20" to 7)
+        check("JP adult", "JP-19" to 6, "JP-20" to 6)
     }
 
     @Test
@@ -121,7 +121,7 @@ class NonUsRatingVectors {
             "ES-X-RATED" to 7,
         )
         check("FR", "FR-U" to 0, "FR-UNIVERSAL" to 0, "FR-10" to 2, "FR-12" to 3, "FR-16" to 5, "FR-18" to 6)
-        check("KR", "KR-ALL" to 0, "KR-7" to 1, "KR-12" to 3, "KR-15" to 5, "KR-19" to 7)
+        check("KR", "KR-ALL" to 0, "KR-7" to 1, "KR-12" to 3, "KR-15" to 5, "KR-19" to 6)
         // NZ PGR and AO have a hint of 0 in the XML; their names say otherwise, so they fail upward.
         check("NZ", "NZ-G" to 0, "NZ-PGR" to 2, "NZ-AO" to 7, "NZ-16" to 5)
         check("SG", "SG-G" to 0, "SG-PG" to 2, "SG-PG13" to 3, "SG-NC16" to 5, "SG-M18" to 6, "SG-R21" to 7)
@@ -139,45 +139,29 @@ class NonUsRatingVectors {
         }
     }
 
-    // Ratings of the issue's ladder that the Android TV XML does not define. Under the 2026-11-23 decision they stay
-    // unknown, so adult (issue-987-report.md, "What stays unknown"). Do not fill these from another source.
+    // Ratings no board defines stay unknown, so adult (#987). Single letters mean something different in each country,
+    // so they need a country prefix.
     @Test
-    fun ratingsTheXmlLacksStayUnknown() {
+    fun ratingsNoBoardDefinesStayUnknown() {
         for (
         rating in
         listOf(
-            // UK (BBFC)
-            "U",
-            "12A",
-            "GB-15",
-            "gb/15",
-            "GB-U",
-            "GB-12A",
-            // Germany's FSK spellings (only the DVB numbers map)
-            "FSK 16",
-            "DE-FSK 12",
-            "FSK 0",
-            // Japan's Eirin, Australia's film ratings
-            "JP-PG12",
-            "JP-R15+",
-            "MA15+",
-            "AU-MA15+",
-            "MA 15+",
-            // A US-prefixed name, a country name, a space as the separator
-            "US-PG",
-            "Germany: FSK 18",
+            "GB-12PG",
+            "FSK-7",
+            "JP-PG15",
+            "AU-MA16+",
+            "UK:",
+            "FSK",
+            "ab",
             "AU PG",
-            // Single letters mean something different in each country, so they need a country prefix
             "P",
             "L",
             "E",
             "T",
             "B",
-            // The mock-library strings
             "U/A 13+",
             "B-15",
             "10AP",
-            // Unrated spellings and blanks
             "NR",
             "Not Rated",
             "Unrated",
@@ -217,7 +201,8 @@ class NonUsRatingVectors {
             "lists",
             "DE-12/DE-16" to 5,
             "PG-13/R" to 5,
-            "DE-12/FSK 16" to null,
+            "DE-12/FSK 16" to 5,
+            "DE-12/FSK-7" to null,
             "AU-PG/AU-R" to 7,
         )
     }
@@ -226,8 +211,8 @@ class NonUsRatingVectors {
     fun anUnprefixedSpellingThatNoOneElseSharesReadsAsItsCountryDoes() {
         check(
             "unprefixed",
-            "ATP" to 0,
-            "UNIVERSAL" to 0,
+            "ATP" to 2,
+            "UNIVERSAL" to 2,
             "C8" to 2,
             "PGR" to 2,
             "SAM 13" to 3,

@@ -108,8 +108,71 @@ internal object GateFixtureSources {
             b.shows(4, listOf("Animation", "Kids"), rating, 11, listOf("kids"), 2, 6, 2014)
             b.films(3, listOf("Family"), rating, minutes = 90, firstYear = 2015)
         }
+        // #987: the board ratings (BBFC, FSK, Eirin, Australia, Singapore) in their spellings, one series and one film
+        // each; the Explicit ones may air on After Hours alone, and no rating of 15 or older may reach a young band.
+        for (rating in BOARD_RATINGS + EXPLICIT_BOARD_RATINGS) {
+            b.shows(1, listOf("Animation", "Kids"), rating, 11, listOf("kids"), 1, 2, 2016)
+            b.films(1, listOf("Family"), rating, minutes = 92, firstYear = 2017)
+        }
         return AuditInput(unrated(b.build()), null)
     }
+
+    private val BOARD_RATINGS =
+        listOf(
+            "U",
+            "ALL",
+            "GA",
+            "ATP",
+            "UNIVERSAL",
+            "GB-U",
+            "UK:U",
+            "GB-PG",
+            "12A",
+            "GB-12A",
+            "GB-15",
+            "UK:15",
+            "FSK-0",
+            "FSK 6",
+            "ab 6",
+            "FSK-12",
+            "FSK 16",
+            "Germany:FSK 16",
+            "DE:FSK 16",
+            "DE-0",
+            "Keine Jugendfreigabe",
+            "JP-G",
+            "Japan:G",
+            "JP-PG12",
+            "PG12",
+            "JP-R15+",
+            "R15+",
+            "Australia:G",
+            "AU-M",
+            "MA 15+",
+            "AU-MA15+",
+            "KR-19",
+            "JP-19",
+            "JP-20",
+            "FSK-7",
+            "GB-12PG",
+            "US:PG",
+            "US:R",
+        )
+
+    // Explicit by name: only After Hours may air them (#1078), including the full country names (#987).
+    private val EXPLICIT_BOARD_RATINGS =
+        listOf(
+            "GB-R18",
+            "UK:R18",
+            "United Kingdom:R18",
+            "AU-X18+",
+            "Australia:X18+",
+            "Australia:R18+",
+            "Japan:R18+",
+            "AU-R",
+            "SG-R21",
+            "Singapore:R21",
+        )
 
     // The builder's "" rating is what a series spec holds for no rating; the file stores it as none.
     private fun unrated(snapshot: RuleSnapshot): RuleSnapshot =

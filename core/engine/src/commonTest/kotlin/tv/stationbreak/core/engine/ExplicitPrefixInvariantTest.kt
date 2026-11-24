@@ -2,6 +2,7 @@
 package tv.stationbreak.core.engine
 
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -58,6 +59,28 @@ class ExplicitPrefixInvariantTest {
             for (prefix in listOf("GB ", "au ", "NZ  ")) {
                 assertTrue(RatingMap.isExplicit(prefix + entry), "[$prefix$entry]")
             }
+        }
+    }
+
+    // #987: the explicit check reads the prefix rule of the map: UK, a country name, FSK, and `US:` too.
+    @Test
+    fun anExplicitRatingWithACountryNamePrefixIsExplicit() {
+        val names = BoardRatings.PREFIXES.filterValues { it != BoardRatings.FSK }.keys
+        for (entry in listOf("R18", "R18+", "X18+", "R-18", "NC-17", "X")) {
+            for (name in names) {
+                for (separator in listOf("-", ":", "/", " : ", "- ")) {
+                    val title = name.lowercase().replaceFirstChar { it.uppercase() }
+                    for (spelling in listOf(name, name.lowercase(), title)) {
+                        assertTrue(RatingMap.isExplicit(spelling + separator + entry), "[$spelling$separator$entry]")
+                    }
+                }
+            }
+        }
+        for (rating in listOf("United Kingdom:R18", "Australia:X18+", "Japan:R18+", "Australia:R18+", "Germany:R18")) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+        }
+        for (rating in listOf("United Kingdom:18", "Australia:MA15+", "Japan:R15+", "Germany:FSK 18", "FSK-18")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
         }
     }
 

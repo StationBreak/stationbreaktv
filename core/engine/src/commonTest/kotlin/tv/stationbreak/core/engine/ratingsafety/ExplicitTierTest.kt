@@ -209,9 +209,10 @@ class ExplicitTierTest {
             assertEquals(7, RatingMap.levelOf(rating), rating)
         }
         assertEquals(6, RatingMap.levelOf("NC-17"), "NC-17 keeps its level; it is Explicit by the list")
-        for (rating in listOf("R18", "GB-R18", "R18+", "X18+", "NC17")) {
+        for (rating in listOf("R18", "R18+", "X18+", "NC17")) {
             assertEquals(null, RatingMap.levelOf(rating), rating)
         }
+        assertEquals(7, RatingMap.levelOf("GB-R18"), "kid-hold-13: BBFC R18 is level 7 with its prefix (#987)")
         for (rating in explicitRatings) assertTrue(RatingMap.isExplicit(rating), rating)
         for (rating in listOf(null, "", "R", "TV-MA", "18", "TV-14", "PG-13", "R15+", "MA15+", "GB-15", "NC", "17")) {
             assertFalse(RatingMap.isExplicit(rating), "[$rating]")
