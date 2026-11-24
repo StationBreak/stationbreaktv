@@ -1,12 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuildConfigField
 import com.android.build.api.variant.HostTestBuilder
+import org.gradle.api.DefaultTask
 import org.gradle.api.attributes.Attribute
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileCollection
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
 import org.gradle.process.CommandLineArgumentProvider
 import tv.stationbreak.buildlogic.ProUnlockPolicy
 import tv.stationbreak.buildlogic.ReleaseVersion
@@ -111,6 +119,59 @@ androidComponents {
             }
         }
     }
+}
+
+// The root NOTICE (Apache-2.0 attribution for the Android TV ratings table, #987) ships in every APK as
+// assets/notices/NOTICE, next to the Apache-2.0 text in src/main/assets/notices (#1129). The root file stays the one copy.
+abstract class StageNotice : DefaultTask() {
+    @get:InputFile
+    abstract val notice: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val out: DirectoryProperty
+
+    @TaskAction
+    fun stage() {
+        val dir =
+            out
+                .get()
+                .asFile
+                .resolve("notices")
+                .apply { mkdirs() }
+        notice.get().asFile.copyTo(dir.resolve("NOTICE"), overwrite = true)
+    }
+}
+
+// Fails the build when a variant's merged assets lack the NOTICE or the Apache-2.0 text it points to.
+abstract class VerifyNotice : DefaultTask() {
+    @get:InputDirectory
+    abstract val assets: DirectoryProperty
+
+    @get:InputFile
+    abstract val notice: RegularFileProperty
+
+    @TaskAction
+    fun verify() {
+        val notices = assets.get().asFile.resolve("notices")
+        check(notices.resolve("NOTICE").readText() == notice.get().asFile.readText()) {
+            "assets/notices/NOTICE is missing or differs from the root NOTICE"
+        }
+        check("Apache License" in notices.resolve("Apache-2.0.txt").readText()) { "assets/notices/Apache-2.0.txt is missing" }
+    }
+}
+
+val rootNotice = rootProject.layout.projectDirectory.file("NOTICE")
+androidComponents.onVariants { variant ->
+    val cap = variant.name.replaceFirstChar { it.uppercase() }
+    val stage = tasks.register<StageNotice>("stage${cap}Notice") { notice.set(rootNotice) }
+    variant.sources.assets?.addGeneratedSourceDirectory(stage, StageNotice::out)
+    val verify =
+        tasks.register<VerifyNotice>("verify${cap}Notice") {
+            assets.set(variant.artifacts.get(SingleArtifact.ASSETS))
+            notice.set(rootNotice)
+        }
+    // The two variants that ship (amazon store build, github release); the rest share the same source sets.
+    if (variant.name == "amazonRelease" || variant.name == "githubRelease") tasks.named("check") { dependsOn(verify) }
 }
 
 // The GitHub release's runtime classpath, handed to ProGithubUnlockTest (#1072): the unit-test classpath is not what
