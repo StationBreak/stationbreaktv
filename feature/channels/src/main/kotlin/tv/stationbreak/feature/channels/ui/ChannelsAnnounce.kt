@@ -170,7 +170,7 @@ private fun question(
         }
 
         pick.asking == Asking.Pro && panel is ChannelsPanel.NeedsPro -> {
-            stringResource(proNeedText(panel.need))
+            proNeedText(panel.need)
         }
 
         else -> {

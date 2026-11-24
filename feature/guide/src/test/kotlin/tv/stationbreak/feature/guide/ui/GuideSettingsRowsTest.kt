@@ -53,10 +53,20 @@ class GuideSettingsRowsTest {
     }
 
     @Test
+    fun hoursOfOperationStaysHiddenForAFreeViewer_whateverTheStoreOrTheOffer() {
+        // A screen, not a refused action (#1076): a free viewer gets no Pro row on every Settings sheet.
+        assertEquals(false, SettingsRow.Hours.isShown(SettingsValues(storeAvailable = true)))
+        assertEquals(
+            false,
+            SettingsRow.Hours.isShown(SettingsValues(offer = ProOffer.Support("https://example.test/support"))),
+        )
+    }
+
+    @Test
     fun theProRowIsOnTheSheetOnlyWithAStoreOrASupportPage_andSaysSupportInABuildWithNoStore() {
         // The Amazon release before its adapter: the store is not available, so there is no Pro row at all.
         assertEquals(false, SettingsRow.Pro.isShown(SettingsValues()))
-        // An owner whose adapter is offline still sees "You have StationBreak Pro".
+        // An owner whose adapter is offline still sees "You have Pro".
         assertEquals(true, SettingsRow.Pro.isShown(SettingsValues(pro = true)))
         val store = SettingsValues(storeAvailable = true)
         assertEquals(true, SettingsRow.Pro.isShown(store))

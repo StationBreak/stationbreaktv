@@ -48,19 +48,19 @@
     <string name="settings_sign_out_failed">Something went wrong. Try again.</string>
     <!-- The question's hint row: a key name and Choose are core:ui's; once the server could not be told, OK goes on. -->
     <string name="settings_hint_go_on">Go on</string>
-    <!-- The Pro purchase screen (#99). Draft copy for the owner's approval. -->
+    <!-- The Pro purchase screen (#99). Its title says StationBreak Pro, so the lines below say Pro (#1076). -->
     <string name="settings_pro_title">StationBreak Pro</string>
     <string name="settings_pro_intro">One purchase, yours to keep. Pro adds:</string>
     <string name="settings_pro_adds_channels">Switching built-in channels on and off, hiding and renumbering them</string>
     <string name="settings_pro_adds_reset">Resetting your lineup to the one StationBreak builds</string>
     <string name="settings_pro_adds_custom">More than 5 channels of your own, and copying After Hours</string>
-    <string name="settings_pro_adds_hours">Hours of operation for parents</string>
+    <!-- Hours of operation for parents is not listed here: re-add it when hours of operation ships (#1076). -->
     <!-- The store's own words for the price, never built here: %1$s is whatever the store says. -->
     <string name="settings_pro_price">%1$s, one time</string>
     <string name="settings_pro_price_unknown">The store hasn\'t given a price yet.</string>
     <string name="settings_pro_buy">Buy Pro</string>
     <string name="settings_pro_restore">Restore purchases</string>
-    <string name="settings_pro_owned">You have StationBreak Pro. Everything it adds is on.</string>
+    <string name="settings_pro_owned">You have Pro. Everything it adds is on.</string>
     <string name="settings_pro_working">Asking the store…</string>
     <string name="settings_pro_kids">Family Mode is on.</string>
     <string name="settings_pro_bought">Thank you. Pro is on.</string>

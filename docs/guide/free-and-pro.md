@@ -1,7 +1,7 @@
 # Free and Pro
 
-StationBreak is a free app you can use every day without paying. **Pro** is a one-time purchase that adds the ways to
-change your lineup, and a few conveniences for parents. Pro comes after the free app is out, and it is not on sale yet.
+StationBreak is a free app you can use every day without paying. **StationBreak Pro** is a one-time purchase that adds the ways
+to change your lineup, and a few conveniences for parents. Pro comes after the free app is out, and it is not on sale yet.
 
 ## What's free
 

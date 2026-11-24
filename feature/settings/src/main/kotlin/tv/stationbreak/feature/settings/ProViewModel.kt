@@ -48,7 +48,7 @@ internal enum class ProResult {
  * What the purchase screen shows: the [offer] of this build, whether Pro is [owned] (then there is no Buy), the store's
  * [price] as it words it (null while it has none), the action under the D-pad, whether a store call is [busy], what the
  * last one came to ([result]), whether the store left a purchase [held] (Buy stays off until its answer changes), and
- * whether Kids Mode is [locked] (no purchase is started then).
+ * whether Family Mode is [locked] (no purchase is started then).
  */
 internal data class ProState(
     val offer: ProOffer = ProOffer.Store,
@@ -61,7 +61,7 @@ internal data class ProState(
     val locked: Boolean = true,
 ) {
     /**
-     * Buy and Restore are offered: a store build, Pro not yet owned, Kids Mode off, and no success waiting on the
+     * Buy and Restore are offered: a store build, Pro not yet owned, Family Mode off, and no success waiting on the
      * store ([ProResult.Confirming]: a second press would only be told the store already has it).
      */
     val actionable: Boolean
@@ -106,7 +106,7 @@ internal class ProViewModel
         // A hold ends with the Pending line it explains; anything else said stays.
         private fun Local.release() = copy(held = false, result = result.takeUnless { it == ProResult.Pending })
 
-        // Kids Mode counts as on until the stored lock has been read.
+        // Family Mode counts as on until the stored lock has been read.
         private val kidsOn = kids.state.map { it.enabled }.onStart { emit(true) }
 
         val state: StateFlow<ProState> =
@@ -150,7 +150,7 @@ internal class ProViewModel
             local.update { it.copy(focus = if (up && !it.held) ProChoice.Buy else ProChoice.Restore) }
         }
 
-        /** OK: starts the focused action, once; nothing while a call runs, with Pro owned, or with Kids Mode on. */
+        /** OK: starts the focused action, once; nothing while a call runs, with Pro owned, or with Family Mode on. */
         fun select() {
             if (!state.value.actionable) return
             var choice: ProChoice? = null

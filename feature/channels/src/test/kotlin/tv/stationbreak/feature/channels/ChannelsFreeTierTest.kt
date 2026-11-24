@@ -268,7 +268,7 @@ class ChannelsFreeTierTest {
         }
 
     @Test
-    fun aDomainRefusalForProIsNeverWordedAsPro() =
+    fun proLostBetweenTheChoiceAndTheChange_showsTheProNote_notTheGenericFailure() =
         channelsTest(lineup) { rig ->
             rig.editor.changeResult = ChangeResult.Refused(ChangeRefusal.NeedsPro)
             openRow(rig, A)
@@ -276,11 +276,12 @@ class ChannelsFreeTierTest {
             rig.pick(Choice.SwitchOff)
             runCurrent()
 
-            assertEquals(ChannelsMessage.Failed, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+            assertNull(rig.ui.message)
         }
 
     @Test
-    fun aDomainResetRefusalForProIsNeverWordedAsPro() =
+    fun proLostWhileAResetRan_showsTheProNote_notTheGenericFailure() =
         channelsTest(lineup) { rig ->
             rig.editor.resetResult = ResetResult.NeedsPro
             rig.open(this)
@@ -288,7 +289,8 @@ class ChannelsFreeTierTest {
             rig.vm.reset()
             runCurrent()
 
-            assertEquals(ChannelsMessage.Failed, rig.ui.message)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reset), rig.ui.panel)
+            assertNull(rig.ui.message)
         }
 
     @Test

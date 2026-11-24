@@ -5,7 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import tv.stationbreak.core.domain.FreeTier
 import java.io.File
+import java.util.Locale
 
 /**
  * "Coming soon" is never said, and Pro is named only where a free viewer reaches for something that is part of it
@@ -62,6 +64,17 @@ class FreeTierCopyTest {
         assertFalse(strings.values.any { it.contains("coming soon", ignoreCase = true) })
     }
 
+    // The copy rule (#1076): a note shows alone on its screen, so it is the first mention and says StationBreak Pro;
+    // See Pro sits beside a note that already said it, so it stays short.
+    @Test
+    fun everyNoteSaysStationBreakPro_andTheButtonBesideItSaysPro() {
+        (proPrompt - "channels_action_see_pro").forEach {
+            assertTrue(it, strings.getValue(it).contains("StationBreak Pro"))
+            assertFalse(it, Regex("""(?<!StationBreak )\bPro\b""").containsMatchIn(strings.getValue(it)))
+        }
+        assertEquals("See Pro", strings["channels_action_see_pro"])
+    }
+
     @Test
     fun theFreeShelfLinesDoNotOfferToSwitchOn() {
         assertEquals("Fits, but your lineup is full", strings["channels_shelf_below_cap_free"])
@@ -71,7 +84,11 @@ class FreeTierCopyTest {
 
     @Test
     fun theCustomLimitNoteSaysWhatFreeHoldsAndThatMoreIsPro() {
-        val note = "Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro."
-        assertEquals(note, strings["pro_custom_limit_note"])
+        val note =
+            "Free includes 5 custom channels. Delete some of yours to make room. More is part of StationBreak Pro."
+        // The allowance is a format argument, read from the constant that enforces it.
+        val format = strings.getValue("pro_custom_limit_note")
+        assertEquals(note, String.format(Locale.ROOT, format, FreeTier.CUSTOM_CHANNELS))
+        assertEquals(5, FreeTier.CUSTOM_CHANNELS)
     }
 }

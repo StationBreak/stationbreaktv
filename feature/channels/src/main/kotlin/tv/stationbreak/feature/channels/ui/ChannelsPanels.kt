@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.FreeTier
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.ui.mark.ChannelMark
 import tv.stationbreak.core.ui.mark.markInitialsOf
@@ -68,7 +69,7 @@ internal fun ChannelsPanelView(
                 }
 
                 is ChannelsPanel.NeedsPro -> {
-                    stringResource(proNeedText(panel.need))
+                    proNeedText(panel.need)
                 }
 
                 null -> {
@@ -235,10 +236,15 @@ internal fun tagOf(choice: Choice): String =
     }
 
 /** What the note says about [need], for the panel and for a screen reader. */
-internal fun proNeedText(need: ProNeed): Int =
+@Composable
+internal fun proNeedText(need: ProNeed): String =
     when (need) {
-        ProNeed.Reshape -> R.string.channels_pro_needs_reshape
-        ProNeed.Reset -> R.string.channels_pro_needs_reset
-        ProNeed.CustomLimit -> R.string.pro_custom_limit_note
-        ProNeed.AdultCopy -> R.string.channels_pro_needs_adult_copy
+        ProNeed.Reshape -> stringResource(R.string.channels_pro_needs_reshape)
+        ProNeed.Reset -> stringResource(R.string.channels_pro_needs_reset)
+        ProNeed.CustomLimit -> customLimitText()
+        ProNeed.AdultCopy -> stringResource(R.string.channels_pro_needs_adult_copy)
     }
+
+/** The free allowance, read from the one constant that enforces it. */
+@Composable
+internal fun customLimitText(): String = stringResource(R.string.pro_custom_limit_note, FreeTier.CUSTOM_CHANNELS)

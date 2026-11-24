@@ -11,6 +11,7 @@ import tv.stationbreak.feature.channels.R
 import tv.stationbreak.feature.channels.builder.BuilderConfirm
 import tv.stationbreak.feature.channels.builder.BuilderMessage
 import tv.stationbreak.feature.channels.builder.BuilderMode
+import tv.stationbreak.feature.channels.ui.customLimitText
 import tv.stationbreak.feature.channels.ui.needsText
 
 // The words of what did not happen, and of the questions the builder asks.
@@ -38,6 +39,10 @@ internal fun messageText(
             needsText(BandNeeded.General)
         }
 
+        message == BuilderMessage.CustomLimit -> {
+            customLimitText()
+        }
+
         message == BuilderMessage.NumberTaken && holder != null && number != null -> {
             stringResource(R.string.builder_number_held, number, holder)
         }
@@ -46,6 +51,8 @@ internal fun messageText(
             stringResource(plainMessage(message))
         }
     }
+
+private const val CUSTOM_LIMIT = "The custom-limit line is worded by customLimitText, which takes the free allowance"
 
 private const val NEEDS_BAND = "The needs-a-band lines are worded by needsText, which takes the band"
 
@@ -65,7 +72,7 @@ private fun plainMessage(message: BuilderMessage): Int =
         BuilderMessage.NotFound -> R.string.builder_not_found
         BuilderMessage.OpenFailed -> R.string.builder_open_failed
         BuilderMessage.Reshuffled -> R.string.builder_saved
-        BuilderMessage.CustomLimit -> R.string.pro_custom_limit_note
+        BuilderMessage.CustomLimit -> error(CUSTOM_LIMIT)
         BuilderMessage.NeedsPro -> R.string.builder_pro_needs
         BuilderMessage.NeedsFamily -> error(NEEDS_BAND)
         BuilderMessage.NeedsTeen -> error(NEEDS_BAND)
