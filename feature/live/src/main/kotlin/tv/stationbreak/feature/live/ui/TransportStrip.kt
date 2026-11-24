@@ -26,7 +26,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -48,7 +47,6 @@ import tv.stationbreak.core.ui.guideText
 import tv.stationbreak.feature.live.R
 import tv.stationbreak.feature.live.TransportView
 
-private const val MINUTE_MS = 60_000L
 private const val SHOWN_AFTER_MS = 1_000L
 private const val TICK_MS = 1_000L
 private const val SPIN_MS = 900
@@ -58,22 +56,22 @@ private val StripTextSize = 12.sp
 private val SpinnerSize = 22.dp
 
 /**
- * Whole minutes [view] is behind live at [nowMs], at least 1; null when under a second behind (a skip that reached live
- * must not flash "1 min behind").
+ * How far off live [view] is at [nowMs] ([TransportView.offsetMs]), null when under a second (a skip that reached live
+ * must not flash "1 second behind").
  */
-internal fun behindMinutes(
+internal fun behindOffset(
     view: TransportView,
     nowMs: Long,
-): Int? {
-    val behind = view.behindMs(nowMs)
-    return if (behind < SHOWN_AFTER_MS) null else (behind / MINUTE_MS).toInt().coerceAtLeast(1)
+): OffsetParts? {
+    val offsetMs = view.offsetMs(nowMs)
+    return if (offsetMs < SHOWN_AFTER_MS) null else OffsetParts.of(offsetMs)
 }
 
 /**
- * The transport strip, in the guide's design: "Paused" while paused, otherwise how many minutes behind live
- * (nothing when caught up), and a spinner while a seek is under way, over the frozen frame (never snow). Drawn only while [view]
- * says it is [TransportView.visible]. Paused, the label does not change; playing
- * behind, the gap holds; only while seeking does the gap grow, so [nowMs] is read once a second then, not otherwise.
+ * The transport strip, in the guide's design: "Paused" while paused, and how far behind live (nothing when caught up)
+ * in hours, minutes and seconds, following each scrub step, and a spinner while a seek is under way, over the frozen
+ * frame (never snow). Drawn only while [view] says it is [TransportView.visible]. The gap grows while paused or
+ * seeking, so [nowMs] is read once a second then; playing behind it holds. Pending steps freeze it at their offset.
  */
 @Composable
 internal fun TransportStrip(
@@ -82,15 +80,15 @@ internal fun TransportStrip(
 ) {
     if (view == null || !view.visible) return
     val now = remember(view, nowMs) { mutableLongStateOf(nowMs()) }
-    val ticking = view.seeking && !view.paused
+    val ticking = view.seeking || view.paused
     LaunchedEffect(now, ticking) {
         while (ticking) {
             delay(TICK_MS)
             now.longValue = nowMs()
         }
     }
-    val minutes by remember(view) { derivedStateOf { behindMinutes(view, now.longValue) } }
-    val shown = minutes
+    val offset by remember(view) { derivedStateOf { behindOffset(view, now.longValue) } }
+    val shown = offset
     if (!view.paused && shown == null && !view.seeking) return
     ChromeTheme {
         val colors = LocalGuideColors.current
@@ -107,12 +105,7 @@ internal fun TransportStrip(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val label =
-                    when {
-                        view.paused -> stringResource(R.string.live_transport_paused)
-                        shown != null -> pluralStringResource(R.plurals.live_transport_behind, shown, shown)
-                        else -> null
-                    }
+                val label = transportLabel(view.paused, shown)
                 if (label != null) {
                     Text(
                         text = label,
@@ -126,6 +119,18 @@ internal fun TransportStrip(
         }
     }
 }
+
+/** The strip's words: "Paused", "Paused, 20 seconds behind", "1 minute 10 seconds behind"; null when caught up. */
+@Composable
+private fun transportLabel(
+    paused: Boolean,
+    offset: OffsetParts?,
+): String? =
+    when {
+        offset == null -> if (paused) stringResource(R.string.live_transport_paused) else null
+        paused -> stringResource(R.string.live_transport_paused_behind, offsetText(offset))
+        else -> stringResource(R.string.live_transport_behind, offsetText(offset))
+    }
 
 @Composable
 private fun spinnerTurn(): Float =

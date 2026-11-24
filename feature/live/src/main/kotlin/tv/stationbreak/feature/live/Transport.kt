@@ -143,6 +143,8 @@ data class TransportView(
     val inPointMs: Long,
     val cutMs: Long,
     val driftMs: Long,
+    /** The clock time (epoch ms) of the first press of the pending steps; null when none is pending. */
+    val scrubAtMs: Long? = null,
 ) {
     /** The media position that is live at the clock time [nowMs]; not capped at the cut. */
     fun liveMs(nowMs: Long): Long = inPointMs + (nowMs + driftMs - blockStartMs)
@@ -153,6 +155,18 @@ data class TransportView(
         val media = if (moving) mediaMs + (nowMs - asOfMs) else mediaMs
         return TransportMath.behindMs(liveMs(nowMs), media)
     }
+
+    /**
+     * The offset the banner shows at [nowMs]. While steps are pending ([targetMs] set) it is the distance from live to
+     * the target, with live read at [scrubAtMs], so it does not move with the clock between presses: each step changes
+     * it by exactly the step (bar a clamp). Otherwise it is [behindMs].
+     */
+    fun offsetMs(nowMs: Long): Long =
+        if (targetMs == null) {
+            behindMs(nowMs)
+        } else {
+            TransportMath.behindMs(liveMs(scrubAtMs ?: asOfMs), targetMs)
+        }
 }
 
 /** The place arithmetic of pause and seek, all in media milliseconds. */
