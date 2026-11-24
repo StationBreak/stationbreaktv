@@ -43,6 +43,10 @@ OkHttp data source and the UI module's `SubtitleView`), which is licensed under 
 <https://www.apache.org/licenses/LICENSE-2.0>). Every other library the app ships is checked by Licensee against the
 allowlist in `build-logic` ([ADR-0003](docs/adr/0003-licensing-and-contributions.md)).
 
+The non-US rating table of the kid and grown-up holds is derived from the rating systems of the
+[Android Open Source Project's TV app](https://android.googlesource.com/platform/packages/apps/TV/+/4e256ebdeb1333af4f2b9832d61078965e4a672f/ratings/),
+licensed under the Apache License 2.0; see [NOTICE](NOTICE).
+
 ## Contributing
 
 Outside pull requests are not being accepted yet, until the app-store permission is final ([#745](https://github.com/StationBreak/stationbreaktv/issues/745)); issues and ideas are welcome.

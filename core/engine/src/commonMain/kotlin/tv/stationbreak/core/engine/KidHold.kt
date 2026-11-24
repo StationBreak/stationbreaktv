@@ -27,10 +27,13 @@ import tv.stationbreak.core.model.studioKey2
  * ([RatingMap.levelOf]), a tab or no-break space in a rating read for [RatingMap.isExplicit] (fail up), and odd
  * spaces and dash variants in the genres and tags of the tier lists ([NoiseTidy]). Results move only up, except a
  * rating that was unknown for its noise and now has its level.
+ * `kid-hold-10` (#987) maps the non-US ratings of the Android TV ratings XML ([RatingMap], [AndroidTvRatingSystems]):
+ * a rating that was unknown (adult) can now be kids, family or teen, at or above its age hint (AU PG is 10). A bare
+ * age is Family at least (#1006), so a bare `6` is no longer kids. Unknown and unrated stay adult.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-9"
+    const val VERSION_NAME = "kid-hold-10"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's

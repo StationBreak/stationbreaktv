@@ -223,6 +223,8 @@ class RatingSafetyLeakTest {
     // and 10 kids to teen (the bump list, the latter also Horror). kid-hold-8 (#1078) moves 17712 titles, every one up
     // to Explicit and none anywhere else: 16272 adult (XXX, TV-X, NC-17, the hentai tag, the Adult genre), and 270
     // kids, 258 family and 912 teen (episodes whose own rating is Explicit, which fails up past the series' rating).
+    // kid-hold-10 (#987) moves 1378 titles: the bare ages 6 and 6+ cap at Family, so their 697 kids go 328 to family
+    // and 369 to teen (a family veto, which the kids tier ignored), and DE-12 is the XML's DVB 12: 681 adult to teen.
     @Test
     fun theSyntheticLibraryTierCounts() {
         val counts = library.items.groupingBy { tierOf(it) }.eachCount()
@@ -232,10 +234,10 @@ class RatingSafetyLeakTest {
     private companion object {
         val EXPECTED_COUNTS =
             mapOf(
-                RatingTier.Kids to 2797,
-                RatingTier.Family to 1681,
-                RatingTier.Teen to 6688,
-                RatingTier.Adult to 28850,
+                RatingTier.Kids to 2100,
+                RatingTier.Family to 2009,
+                RatingTier.Teen to 7738,
+                RatingTier.Adult to 28169,
                 RatingTier.Explicit to 17712,
             )
     }

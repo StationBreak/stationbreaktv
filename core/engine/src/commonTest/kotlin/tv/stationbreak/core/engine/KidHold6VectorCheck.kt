@@ -25,7 +25,8 @@ import kotlin.test.assertTrue
  *
  * The frozen files of the versions before `kid-hold-8` ([explicitIsAdult]) are read as `kid-hold-8` reads them: the
  * Explicit tier was part of their adult tier, and the one rating `kid-hold-8` moves ([MOVED_AT_8]) is held to its new
- * level. Their rows are never edited.
+ * level. Their rows are never edited; the rows a later version supersedes ([SUPERSEDED_AT_9], [SUPERSEDED_AT_10]) are
+ * held to their new answer.
  */
 internal object KidHold6VectorCheck {
     private val showId = idOf(0x600)
@@ -37,32 +38,30 @@ internal object KidHold6VectorCheck {
     /** The explicitRating rows of earlier files that `kid-hold-9` supersedes (#1088), with their new answer. */
     private val SUPERSEDED_AT_9: Map<String?, Boolean> = mapOf("\tX" to true)
 
+    /**
+     * The rows of earlier files that `kid-hold-10` supersedes (#987, `kid-hold-10.json` names them): a bare age is
+     * Family at least (#1006), and `DE-12` is the Android TV XML's DVB 12. By rating, by tier row name and by
+     * passesKidCeiling row name.
+     */
+    @Suppress("MagicNumber")
+    private val SUPERSEDED_AT_10: Map<String?, Int?> = mapOf("0" to 2, "6" to 2, "6+" to 2, "7+" to 2, "DE-12" to 3)
+    private val TIER_SUPERSEDED_AT_10: Map<String, String> = mapOf("bare 6 with a kids genre" to "family")
+    private val CEILING_SUPERSEDED_AT_10: Map<String, Boolean> = mapOf("bare 6 under TV-Y7" to false)
+
     fun run(
         text: String,
         minRows: Int = MIN_ROWS,
         explicitIsAdult: Boolean = true,
     ) {
         val doc = VectorJson.parse(text)
-        var rows = 0
-        for (row in doc.sectionOrEmpty("ratingMap")) {
-            rows++
-            val rating = row.stringOrNull("rating")
-            val level = if (explicitIsAdult && rating in MOVED_AT_8) MOVED_AT_8[rating] else row.intOrNull("level")
-            assertEquals(level, RatingMap.levelOf(rating), "ratingMap: [$rating]")
-        }
-        for (row in doc.sectionOrEmpty("explicitRating")) {
-            rows++
-            val rating = row.stringOrNull("rating")
-            val explicit = SUPERSEDED_AT_9[rating] ?: row.string("explicit").toBooleanStrict()
-            assertEquals(explicit, RatingMap.isExplicit(rating), "explicit: [$rating]")
-        }
+        var rows = checkRatings(doc, explicitIsAdult)
         for (row in doc.sectionOrEmpty("tier")) {
             rows++
             val (entry, series) = entryOf(row)
             val name = row.string("name")
             val tier = RatingTier.of(entry, series)
             val read = if (explicitIsAdult && tier == RatingTier.Explicit) RatingTier.Adult else tier
-            assertEquals(row.string("tier"), read.name.lowercase(), "tier: $name")
+            assertEquals(TIER_SUPERSEDED_AT_10[name] ?: row.string("tier"), read.name.lowercase(), "tier: $name")
             assertEquals(tier == RatingTier.Kids, KidHold.admits(entry, series), "admits: $name")
             val drops = tier == RatingTier.Kids || tier == RatingTier.Explicit
             assertEquals(drops, GrownUpHold.dropsFromGrownUp(entry, series), "grown-up: $name")
@@ -82,7 +81,8 @@ internal object KidHold6VectorCheck {
             rows++
             val film = movie(idOf(1), rating = row.stringOrNull("rating"), genres = listOf("Kids"))
             val passes = KidHold.passesKidCeiling(film, null, row.stringOrNull("ceiling"))
-            assertEquals(row.string("passes").toBooleanStrict(), passes, row.string("name"))
+            val name = row.string("name")
+            assertEquals(CEILING_SUPERSEDED_AT_10[name] ?: row.string("passes").toBooleanStrict(), passes, name)
         }
         for (row in doc.sectionOrEmpty("customCeiling")) {
             rows++
@@ -90,6 +90,32 @@ internal object KidHold6VectorCheck {
             assertEquals(row.string("passes").toBooleanStrict(), passes, "customCeiling: ${row.string("name")}")
         }
         assertTrue(rows >= minRows, "the vector has rows: $rows")
+    }
+
+    // The 'ratingMap' and 'explicitRating' rows, each held to its new answer where a later version supersedes it.
+    private fun checkRatings(
+        doc: JsonObject,
+        explicitIsAdult: Boolean,
+    ): Int {
+        var rows = 0
+        for (row in doc.sectionOrEmpty("ratingMap")) {
+            rows++
+            val rating = row.stringOrNull("rating")
+            val level =
+                when {
+                    rating in SUPERSEDED_AT_10 -> SUPERSEDED_AT_10[rating]
+                    explicitIsAdult && rating in MOVED_AT_8 -> MOVED_AT_8[rating]
+                    else -> row.intOrNull("level")
+                }
+            assertEquals(level, RatingMap.levelOf(rating), "ratingMap: [$rating]")
+        }
+        for (row in doc.sectionOrEmpty("explicitRating")) {
+            rows++
+            val rating = row.stringOrNull("rating")
+            val explicit = SUPERSEDED_AT_9[rating] ?: row.string("explicit").toBooleanStrict()
+            assertEquals(explicit, RatingMap.isExplicit(rating), "explicit: [$rating]")
+        }
+        return rows
     }
 
     // The row's item alone in a snapshot, through the evaluator under the row's policy and ceiling.
