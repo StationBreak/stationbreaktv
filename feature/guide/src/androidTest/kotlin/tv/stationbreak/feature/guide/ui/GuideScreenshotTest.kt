@@ -655,10 +655,14 @@ class GuideScreenshotTest {
         // The help well takes two lines and the hint row sits under it, so on a 540 dp screen at the Safe fit the rows
         // scroll at every font size: each row is walked to, and must show whole between the title and the help well.
         // The crash reports row is on the sheet only in a build with an endpoint, and this one has none.
-        for (row in SettingsRow.entries.filter { it.isShown(SettingsValues()) }) {
+        val rows = SettingsRow.entries.filter { it.isShown(SettingsValues()) }
+        for (row in rows) {
             assertBetween(GuideTags.settingsRow(row), titleBottom, wellTop)
             press(Key.DirectionDown)
         }
+        // Back to the first row, where callers expect the sheet to stand.
+        repeat(rows.size) { press(Key.DirectionUp) }
+        compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsSelected()
     }
 
     private fun assertBetween(
