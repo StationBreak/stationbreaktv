@@ -233,7 +233,9 @@ class BackupRulesTest {
                 "androidx.profileinstaller.ProfileInstallReceiver",
             ) + (if (isBenchmarkVariant) benchmarkActivities else emptySet()) +
                 // The ADB rebuild command (#812): behind DUMP, in the debug and benchmark variants only.
-                (if (variantDirectory.endsWith("Debug") || isBenchmarkVariant) setOf(rebuildReceiver) else emptySet())
+                (if (variantDirectory.endsWith("Debug") || isBenchmarkVariant) setOf(rebuildReceiver) else emptySet()) +
+                // The Appstore SDK's response receiver (#99): the Amazon variants only, as src/amazon declares it.
+                (if (variantDirectory.startsWith("amazon")) amazonFlavorReceivers() else emptySet())
         assertEquals(allowed, exported)
     }
 
@@ -289,6 +291,19 @@ class BackupRulesTest {
             val names = allElements(mergedManifest).map { nameOf(it) }
             assertTrue("$variantDirectory has a benchmark activity", names.none { it in benchmarkActivities })
         }
+    }
+
+    // The receivers the amazon flavor's own manifest exports (the Appstore SDK's response receiver, #99). Read from the
+    // file so no shared test names the SDK (checkFlavorIsolation); each must demand a permission.
+    private fun amazonFlavorReceivers(): Set<String> {
+        val receivers =
+            allElements(parse(File("src/amazon/AndroidManifest.xml")))
+                .filter { it.tagName == "receiver" && it.getAttributeNS(androidNamespace, "exported") == "true" }
+        receivers.forEach {
+            val permission = it.getAttributeNS(androidNamespace, "permission")
+            assertTrue("${nameOf(it)} has no permission", permission.isNotEmpty())
+        }
+        return receivers.map { nameOf(it) }.toSet()
     }
 
     // The ADB command that rebuilds today's schedule (#812): a receiver in the debug and benchmark manifests only.

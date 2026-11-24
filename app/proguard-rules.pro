@@ -13,3 +13,8 @@
 # java.lang.management is absent, as on Android; the app passes Android's own clock (BuildProbes).
 -dontwarn java.lang.management.ManagementFactory
 -dontwarn java.lang.management.ThreadMXBean
+
+# The Amazon Appstore SDK (amazon flavor only, #99; a plain jar with no consumer rules). It reaches its own classes by name
+# and obfuscated internals, so Amazon's integration guide asks to keep them. No effect on the github build: it has none.
+-keep class com.amazon.** { *; }
+-dontwarn com.amazon.**

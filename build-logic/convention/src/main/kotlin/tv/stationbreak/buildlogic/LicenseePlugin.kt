@@ -36,6 +36,18 @@ class LicenseePlugin : Plugin<Project> {
                 allowUrl("https://opensource.org/license/mit") {
                     because("slf4j-api and slf4j-nop are MIT; their POMs name the license by this URL only")
                 }
+                // The Amazon Appstore SDK is under Amazon's Program Materials License, which is not GPL-compatible, so
+                // it is allowed for this one artifact and version, never by a license URL (that would let any artifact
+                // under the same license in). Owner decision, 2026-11-24 (ADR-0032): ADR-0003's additional-permission
+                // exception (GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore, #745) covers linking it into the
+                // store build. It is an `amazonImplementation` dependency of `app`, so no github variant resolves it.
+                // A new version is a new review of the license: bump the version here with the catalog.
+                allowDependency("com.amazon.device", "amazon-appstore-sdk", "3.0.9") {
+                    because(
+                        "Appstore SDK for in-app purchasing; the AppStore additional-permission exception " +
+                            "applies (ADR-0003, ADR-0032, #745)",
+                    )
+                }
                 // Entries are listed ahead of need, so one that no dependency uses yet isn't an error.
                 unusedAction(UnusedAction.IGNORE)
             }

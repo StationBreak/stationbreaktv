@@ -16,6 +16,7 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.process.CommandLineArgumentProvider
+import tv.stationbreak.buildlogic.ProSalePolicy
 import tv.stationbreak.buildlogic.ProUnlockPolicy
 import tv.stationbreak.buildlogic.ReleaseVersion
 
@@ -94,6 +95,18 @@ androidComponents {
             "PRO_UNLOCKED",
             BuildConfigField("boolean", proUnlocked, "StationBreak Pro unlocked (#793); see app/build.gradle.kts"),
         )
+        // Whether the Amazon build puts Pro on sale (#99, ADR-0032): ProSalePolicy in build-logic is the owner's switch. Only
+        // the amazon flavor has the constant; the github flavor has no store code to read it.
+        if (distribution == "amazon") {
+            variant.buildConfigFields?.put(
+                "PRO_ON_SALE",
+                BuildConfigField(
+                    "boolean",
+                    ProSalePolicy.onSale(variant.buildType, distribution),
+                    "Pro on sale in the Appstore (#99); see ProSalePolicy",
+                ),
+            )
+        }
         // Fail closed on the application ID (#416). The Baseline Profile plugin adds a nonMinified* and a benchmark* build
         // type for every non-debuggable one (release and benchmark), four in all. They are release code signed with the
         // debug key: under the production ID they could not install over a store build, so they get their own ID.
@@ -293,6 +306,9 @@ dependencies {
     implementation(libs.okhttp)
     // Opt-in crash reports (#96, Q-PRIV-1): ACRA's core collects, the app's own sender (app/crash) posts through OkHttp.
     implementation(libs.acra.core)
+    // The Amazon Appstore SDK (in-app purchasing, #99, ADR-0032): the `amazon` flavor only, so the github variants never
+    // resolve it. Only app/src/amazon names its types (FlavorIsolationRules, ProGithubUnlockTest).
+    "amazonImplementation"(libs.amazon.appstore.sdk)
     implementation(libs.kotlinx.serialization.json)
     // The player reads media through the credentialed OkHttp client; the app wraps it in this data source and hands it
     // over (ADR-0016, 9), so core:playback needs no HTTP client of its own.

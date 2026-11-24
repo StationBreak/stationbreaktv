@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The Appstore client (Amazon's store app) the SDK talks to; needed to see it on Android 11 and later. -->
+    <queries>
+        <package android:name="com.amazon.venezia" />
+    </queries>
+
+    <application>
+        <!--
+            The Appstore SDK's response receiver (#99, ADR-0032). The SDK is a plain jar with no manifest of its own, so
+            the app declares what Amazon's integration guide asks for. It is exported because the Appstore client sends to
+            it, and it demands Amazon's own NOTIFY permission, which only the Appstore client holds. It is in every Amazon
+            variant, whatever PRO_ON_SALE says, because flipping that switch must be a one-line change; with the switch off
+            nothing registers a listener, so it does nothing. BackupRulesTest lists it as an exported component of the
+            Amazon variants only.
+        -->
+        <receiver
+            android:name="com.amazon.device.iap.ResponseReceiver"
+            android:exported="true"
+            android:permission="com.amazon.inapp.purchasing.Permission.NOTIFY">
+            <intent-filter>
+                <action android:name="com.amazon.inapp.purchasing.NOTIFY" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
