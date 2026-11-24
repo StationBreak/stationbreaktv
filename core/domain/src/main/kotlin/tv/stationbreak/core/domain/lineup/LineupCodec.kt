@@ -108,8 +108,8 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
  * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped
  * instead, so a save writes them back without them: `shelfReason` on a channel that is not a starter and
- * `leavesAtMs` on a leftovers channel (version 3; only a starter has a reason, only a starter or a custom channel leaves), a `previousRules` without its `rulesFromMs` or the other way round, or
- * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
+ * `leavesAtMs` on a leftovers channel (version 3; only a starter has a reason, only a starter or a custom channel
+ * leaves), a `previousRules` without its `rulesFromMs` or the other way round, or `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
  * A `"noNumber"` reason below version 6 is not one of them: it is a later-version value, so the file is unreadable
  * even on a channel whose reason would otherwise be dropped.
@@ -417,7 +417,7 @@ internal object LineupCodec {
                     touched -> ViewerChoice.Touched
                     else -> ViewerChoice.None
                 },
-            // A starter, or a retired one kept as custom, leaves the lineup; only a starter sits on the shelf for a reason.
+            // A starter or a custom channel (a retired starter) leaves; only a starter has a shelf reason.
             leavesAtMs = channel.leavesAtMs.takeIf { source !is ChannelSource.Leftovers },
             shelfReason = reasonOf(channel.shelfReason, starter),
         )

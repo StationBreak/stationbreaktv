@@ -5,8 +5,10 @@ import tv.stationbreak.core.engine.SeededGen
 import tv.stationbreak.core.engine.forAllCases
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.core.model.OrderingMode
 import tv.stationbreak.core.model.Seed
 import tv.stationbreak.core.rules.AdultMark
+import tv.stationbreak.core.rules.Ordering
 import tv.stationbreak.core.rules.Source
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -406,6 +408,34 @@ class LineupEditsTest {
         assertEquals(1L, custom("a", 650).copy(leavesAtMs = 1L).leavesAtMs) // a retired starter kept as custom
         assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(shelfReason = ShelfReason.Empty) }
         assertEquals(1L, starter("western", 310).copy(leavesAtMs = 1L).leavesAtMs)
+    }
+
+    @Test
+    fun rewritingOrReshufflingARetiredStarterThatIsLeavingKeepsItOn() {
+        val shuffle = someRules.copy(formatVersion = 2, ordering = Ordering(OrderingMode.Shuffle))
+        val leaving =
+            LineupChannel(
+                ChannelId("custom:starter:gone"),
+                null,
+                650,
+                null,
+                ChannelState.On,
+                ChannelSource.Custom(shuffle),
+                5L,
+                leavesAtMs = 1_000L,
+            )
+        val lineup = lineupOf(leaving)
+        val edits =
+            listOf(
+                LineupEdit.ReplaceCustom(leaving.id, shuffle, null, kids = false),
+                LineupEdit.Reseed(leaving.id, Seed(7uL)),
+            )
+        for (edit in edits) {
+            val after = applied(lineup, edit).byId(leaving.id)
+            assertNull(after.leavesAtMs, "$edit")
+            assertEquals(ViewerChoice.Touched, after.viewerChoice, "$edit")
+            assertEquals(ChannelState.On, after.state)
+        }
     }
 
     @Test

@@ -28,6 +28,7 @@ import kotlin.test.assertTrue
  * viewer's choices inferred once (A7, E7), its unedited starters take the new rules from the next boundary (D1), and
  * the selection runs; nothing of today changes, and the curation basis at the swap is empty (F2).
  */
+@Suppress("LargeClass") // One catalog-swap fixture shared by every case; splitting it would copy the fixture.
 class LineupPlannerMigrationTest {
     private val noon = 12 * 3_600_000L
     private val boundary = nextDayStart(noon)
@@ -320,6 +321,19 @@ class LineupPlannerMigrationTest {
         val now = swap(lineup, realLibrary, StarterCatalog).channel("tall-tales-club")
 
         assertEquals(ChannelState.Shelf, now.state)
+        assertNull(now.leavesAtMs)
+    }
+
+    // Known limit: a file from before version 3 has its choices inferred, which marks an on-air retired starter
+    // Touched, so it keeps converting On (safe: nothing is shelved that might have been chosen).
+    @Test
+    fun aPreVersion3RetiredStarterIsInferredTouchedAndStaysOn() {
+        val lineup = retiredBefore().copy(viewerChoicesKnown = false)
+
+        val now = swap(lineup, realLibrary, StarterCatalog).channel("tall-tales-club")
+
+        assertTrue(now.source is ChannelSource.Custom)
+        assertEquals(ChannelState.On, now.state)
         assertNull(now.leavesAtMs)
     }
 
