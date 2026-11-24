@@ -23,10 +23,12 @@ import tv.stationbreak.core.model.RuleSeries
  * `grown-up-hold-11` moves with `kid-hold-11` (#1124): a grown-up or custom channel's rating ceiling reads the mapped
  * level of [RatingMap] (so `DE-12` or `AU-PG` can air under a ceiling it is within), and AU `R`, SG `R21`, KR `19` and
  * JP `19` and `20` are Explicit.
+ * `grown-up-hold-12` moves with `kid-hold-12` (#1128): TH `19` and the spaced spellings of the adult-only labels are
+ * Explicit too.
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-11"
+    const val VERSION_NAME = "grown-up-hold-12"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take

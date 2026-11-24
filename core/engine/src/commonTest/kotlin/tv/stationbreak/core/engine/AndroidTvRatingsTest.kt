@@ -40,6 +40,7 @@ class AndroidTvRatingsTest {
             "JP-20" to 7,
             "KR-19" to 7,
             "SG-R21" to 7,
+            "TH-19" to 7,
             "NZ-PGR" to 2,
             "NZ-AO" to 7,
             "SG-PG" to 2,
@@ -138,7 +139,7 @@ class AndroidTvRatingsTest {
 
     @Test
     fun theAdultOnlyLabelsAreExplicit() {
-        for (rating in listOf("AU-R", "SG-R21", "KR-19", "JP-19", "JP-20")) {
+        for (rating in listOf("AU-R", "SG-R21", "KR-19", "JP-19", "JP-20", "TH-19")) {
             assertEquals(7, RatingMap.levelOf(rating), rating)
             assertTrue(RatingMap.isExplicit(rating), rating)
             assertEquals(RatingTier.Explicit, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
@@ -147,6 +148,21 @@ class AndroidTvRatingsTest {
         for (rating in listOf("R", "AU-M", "SG-M18", "KR-15", "JP-18")) {
             assertFalse(RatingMap.isExplicit(rating), rating)
         }
+    }
+
+    // #1128: the same labels with a space after the country code are Explicit too (their level stays unknown, which
+    // fails every ceiling), and the spellings that are not adult-only are not.
+    @Test
+    fun theSpacedAdultOnlyLabelsAreExplicit() {
+        val spaced = listOf("AU R", "SG R21", "KR 19", "JP 19", "JP 20", "TH 19", "au r", "Rated SG R21", "PG/AU R")
+        for (rating in spaced) {
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertEquals(RatingTier.Explicit, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
+        }
+        for (rating in listOf("AU PG", "AU M", "SG M18", "KR 15", "JP 18", "TH 18", "US R", "TV MA")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
+        }
+        assertEquals(null, RatingMap.levelOf("SG R21"))
     }
 
     @Test

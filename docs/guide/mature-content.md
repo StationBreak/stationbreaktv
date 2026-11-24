@@ -59,7 +59,8 @@ rating at the same level the app uses for its audience, so a title rated `DE-12`
 `TV-14`) and `AU-PG` airs on a Kids channel (maximum `PG`). Each rating is held to the level of its minimum age, rounded
 up: `DE-12` is read as 13, so it does not air under a `PG` maximum. A rating the app does not recognise fails every
 maximum rating, the same as no rating. The adult-only labels Australian `R`, Singapore `R21`, Korean `19` and Japanese
-`19` and `20` are Explicit: they air on After Hours only, never on a Tots, Kids or Teens channel.
+`19` and `20`, and Thai `19`, are Explicit, also when written with a space (`SG R21`, `AU R`). They never air on a Tots, Kids or Teens
+channel or on a starter grown-up channel. A custom channel with no maximum rating can still air them.
 
 The explicit rule reads the same metadata. A file with no metadata at all can't be told apart from a test clip, so it
 is not treated as explicit: it stays off the Tots, Kids and Teens channels and out of Odds & Ends, but a grown-up

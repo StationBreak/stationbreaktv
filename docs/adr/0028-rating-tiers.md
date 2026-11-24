@@ -331,6 +331,24 @@ non-US titles under-used. Now one shared reading serves both:
   bands take non-US titles within their ceilings, and `DE-12` can air under TV-14 and PG-13 but not PG. No title airs
   above its ceiling; the unknown spelling airs under none.
 
+## Addendum 2026-11-23 (6): every adult-only label is Explicit, also with a space, `kid-hold-12` / `grown-up-hold-12` ([#1128](https://github.com/StationBreak/stationbreaktv/issues/1128))
+
+Two gaps the review of addendum (5) found, both failing safe and both closed now. Both only make a title stricter.
+
+- TH `19` was level 6 (adult) while JP `19` was Explicit. It is level 7 now (`CountryRatingTables`' overrides), so every
+  adult-only label (AU `R`, SG `R21`, KR `19`, JP `19` and `20`, TH `19`) is Explicit.
+- A spelling with a space after the country code (`SG R21`, `AU R`, and the same for every other Explicit label) was
+  unknown, so adult, not Explicit. `RatingMap.isExplicit` now also reads it with a hyphen in place of that space and
+  applies the same Explicit check, the one that already reads `NC - 17` as a whole key. The level of such a spelling is
+  unchanged (unknown, which fails every ceiling), and a spaced spelling that is not adult-only (`AU PG`) stays unknown and
+  is not Explicit. `ExplicitPrefixInvariantTest` still shows nothing Explicit before stops being Explicit.
+- Calls made (reversible): TH `19` Explicit, and the spaced spellings Explicit. Stricter: such titles leave every Tots,
+  Kids, Teens and starter grown-up pool and air on After Hours only (a custom channel with no ceiling is not touched).
+- Versions: `kid-hold-12` and `grown-up-hold-12`, so every stored day is rebuilt once. Vectors: `kid-hold-12.json`, a delta
+  (`kid-hold-11.json` is now pinned by `FrozenHoldVectorsTest`); it supersedes the rows `TH-19` and
+  `TH-19+` of `kid-hold-10.json` and `TH-19` of `kid-hold-11.json` (level 7, were 6). The gate oracle does not read `RatingMap` and needs no change: it decides Explicit through
+  `RatingTier`.
+
 ## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
 
 This record keeps the names of its date. Since [#1100](https://github.com/StationBreak/stationbreaktv/issues/1100) the

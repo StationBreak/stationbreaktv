@@ -20,6 +20,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * ([CountryRatingTables], with its overrides), reads a spelling of them that needs no prefix, reads the parts of a
  * list as a whole rating is read, and caps a bare age at Family. `kid-hold-11` (#1124) reads AU `R`, SG `R21`, KR `19`
  * and JP `19` and `20` as level 7 (Explicit), and the grown-up and custom ceilings read this level (`CeilingCheck`).
+ * `kid-hold-12` (#1128) reads TH `19` as level 7 too, and [isExplicit] reads a country code followed by a space
+ * (`SG R21`, `AU R`) as the hyphen spelling (the level of such a spelling stays unknown).
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
  * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
@@ -82,6 +84,7 @@ object RatingMap {
 
     private const val LEVEL_X = 7
     private const val FAMILY_LEVEL = 2
+    private const val CODE_AND_SPACE = 3
     private const val RATED = "RATED "
     private const val ASCII_CASE_OFFSET = 'a' - 'A'
 
@@ -100,9 +103,18 @@ object RatingMap {
         return explicitPart(key) || ('/' in key && key.split('/').any { explicitPart(it.trim(' ')) })
     }
 
+    // The key as it is, or read with a space after its two-letter country code as a hyphen (`SG R21`, `AU R`, #1128): a
+    // space is not a prefix separator for the level (`AU PG` stays unknown), but an adult-only label so spelt is
+    // Explicit, never unknown-adult. Stricter only: the first reading is the one before.
+    private fun explicitPart(key: String): Boolean {
+        val coded = key.length > CODE_AND_SPACE && key[0] in 'A'..'Z' && key[1] in 'A'..'Z' && key[2] == ' '
+        if (!coded) return explicitKey(key)
+        return explicitKey(key) || explicitKey(key.take(2) + "-" + key.substring(CODE_AND_SPACE).trim(' '))
+    }
+
     // As written, or with its spaces taken out (`R 18+`, `NC 17`), with or without a country prefix. The whole key
     // packed is read too, so a name whose letters look like a prefix (`NC - 17`) stays Explicit (#987 review).
-    private fun explicitPart(key: String): Boolean {
+    private fun explicitKey(key: String): Boolean {
         val bare = withoutCountry(key)
         return key in EXPLICIT ||
             key.replace(" ", "") in EXPLICIT ||
