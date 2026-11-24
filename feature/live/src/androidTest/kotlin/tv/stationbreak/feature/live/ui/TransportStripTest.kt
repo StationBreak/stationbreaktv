@@ -46,14 +46,50 @@ class TransportStripTest {
     @Test
     fun showsPausedWhilePaused() {
         show(view(paused = true))
+        compose.onNodeWithTag(LiveTags.TRANSPORT).assertTextEquals("Paused, 5 minutes behind")
+    }
+
+    @Test
+    fun showsJustPausedWhenCaughtUp() {
+        show(view(paused = true).copy(mediaMs = 15 * MINUTE))
         compose.onNodeWithTag(LiveTags.TRANSPORT).assertTextEquals("Paused")
     }
 
     @Test
     fun showsMinutesBehind() {
         show(view())
-        compose.onNodeWithTag(LiveTags.TRANSPORT).assertTextEquals("5 min behind")
+        compose.onNodeWithTag(LiveTags.TRANSPORT).assertTextEquals("5 minutes behind")
     }
+
+    // Live is 15 min in at NOW; the picture sits at 0, so the block is made to have started [seconds] before NOW.
+    private fun assertBehind(
+        seconds: Long,
+        text: String,
+    ) {
+        show(view().copy(mediaMs = 0, blockStartMs = NOW - seconds * 1_000, cutMs = 2 * 60 * MINUTE))
+        compose.onNodeWithTag(LiveTags.TRANSPORT).assertTextEquals(text)
+    }
+
+    @Test
+    fun oneSecondBehind() = assertBehind(1, "1 second behind")
+
+    @Test
+    fun tenSecondsBehind() = assertBehind(10, "10 seconds behind")
+
+    @Test
+    fun aWholeMinuteDropsTheSeconds() = assertBehind(60, "1 minute behind")
+
+    @Test
+    fun minutePlusSecondsBehind() = assertBehind(70, "1 minute 10 seconds behind")
+
+    @Test
+    fun anHourDropsTheMinutesAndSeconds() = assertBehind(3_600, "1 hour behind")
+
+    @Test
+    fun anHourAndSecondsDropsTheMinutes() = assertBehind(3_610, "1 hour 10 seconds behind")
+
+    @Test
+    fun hoursMinutesAndSecondsBehind() = assertBehind(3_730, "1 hour 2 minutes 10 seconds behind")
 
     @Test
     fun showsASpinnerWhileSeeking() {

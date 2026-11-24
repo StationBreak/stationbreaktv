@@ -55,6 +55,11 @@ idle transcode does while paused, and what a seek on a Jellyfin transcode costs.
    ignored while the snow shows, while the number is moving, and on any card. On a non-seekable direct-play source, back
    and skip do nothing; the app does not re-tune to gain seeking. D-pad Left and Right stay unmapped while playing, so a
    viewer reaching for Up or Down never moves their place. The transport bar's look is left to the design partner.
+   The transport strip's offset follows the scrub step (#1114): each Back or Ahead step, press or held repeat, moves the
+   "behind live" it shows by exactly that step, paused or playing. It reads in hours, minutes and seconds with zero units
+   dropped ("10 seconds", "1 minute 10 seconds", "1 hour", "1 hour 2 minutes 10 seconds"), from `plurals` resources.
+   While steps are pending the offset is held at live as of the first press, so the clock does not move it between
+   presses.
 3. **State model.** Per sitting, held by the program being played: `Live` (position follows the clock),
    `PausedBehind(place)` and `PlayingBehind(place)`. `place` is the block (channel, block start, item, in-point, end
    position) and a media position. **Behind is derived**, not stored: the live position minus the media position,

@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.feature.live.TransportView
 
-/** The minutes the placeholder strip shows, and when the screen stays awake (spec 20, ADR-0021). */
+/** The offset the placeholder strip shows, and when the screen stays awake (spec 20, ADR-0021). */
 class BehindMinutesTest {
     private fun view(
         paused: Boolean = false,
@@ -28,25 +28,23 @@ class BehindMinutesTest {
     )
 
     @Test
-    fun caughtUpShowsNoMinutes() = assertNull(behindMinutes(view(behindMs = 0), NOW))
+    fun caughtUpShowsNoOffset() = assertNull(behindOffset(view(behindMs = 0), NOW))
 
     @Test
-    fun underASecondShowsNoMinutes() = assertNull(behindMinutes(view(behindMs = 999), NOW))
+    fun underASecondShowsNoOffset() = assertNull(behindOffset(view(behindMs = 999), NOW))
 
     @Test
-    fun fiftyNineSecondsShowsOneMinute() = assertEquals(1, behindMinutes(view(behindMs = 59_000), NOW))
+    fun theOffsetIsInSecondsNotWholeMinutes() {
+        assertEquals(OffsetParts(0, 0, 59), behindOffset(view(behindMs = 59_000), NOW))
+        assertEquals(OffsetParts(0, 1, 1), behindOffset(view(behindMs = 61_000), NOW))
+        assertEquals(OffsetParts(0, 2, 59), behindOffset(view(behindMs = 2 * MIN + 59_000), NOW))
+    }
 
     @Test
-    fun sixtyOneSecondsShowsOneMinute() = assertEquals(1, behindMinutes(view(behindMs = 61_000), NOW))
-
-    @Test
-    fun wholeMinutesRoundDown() = assertEquals(2, behindMinutes(view(behindMs = 2 * MIN + 59_000), NOW))
-
-    @Test
-    fun pausedMinutesGrowWithTheClock() {
+    fun pausedOffsetGrowsWithTheClock() {
         val paused = view(paused = true, behindMs = 5 * MIN)
-        assertEquals(5, behindMinutes(paused, NOW))
-        assertEquals(8, behindMinutes(paused, NOW + 3 * MIN))
+        assertEquals(OffsetParts(0, 5, 0), behindOffset(paused, NOW))
+        assertEquals(OffsetParts(0, 8, 0), behindOffset(paused, NOW + 3 * MIN))
     }
 
     @Test

@@ -298,6 +298,9 @@ internal class BehindPlay(
      */
     private var liveSinceMs: Long? = null
 
+    /** The clock time of the first press of the pending steps; the banner's offset is read at it ([TransportView]). */
+    private var scrubAtMs: Long? = null
+
     /** The play's events, forwarded by their one collector for the loop to take in order. */
     private val events = Channel<PlayerEvent>(Channel.UNLIMITED)
 
@@ -589,6 +592,7 @@ internal class BehindPlay(
         val fromMs = steps.target?.toMs ?: read()
         val liveMs = TransportMath.liveMs(block, host.vnowMs())
         val toMs = steppedFrom(fromMs, op.direction)
+        if (steps.target == null) scrubAtMs = nowMs()
         steps.aim(toMs, op.direction == SeekDirection.Ahead && TransportMath.reachesLive(toMs, liveMs, cutMs))
         show()
     }
@@ -1023,6 +1027,7 @@ internal class BehindPlay(
                 inPointMs = inPointMs,
                 cutMs = cutMs,
                 driftMs = host.driftMs,
+                scrubAtMs = scrubAtMs,
             ),
         )
     }
