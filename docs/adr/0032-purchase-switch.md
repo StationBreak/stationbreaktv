@@ -1,6 +1,6 @@
 # ADR-0032: The Pro purchase switch
 
-- **Status:** Accepted, foundation only: the Amazon Appstore adapter waits on the owner's licence decision (below)
+- **Status:** Accepted. The Amazon Appstore adapter is linked (decision of 2026-11-24, below) and stays off in the store release until the owner flips `PRO_ON_SALE`
 - **Date:** 2026-11-21
 - **Decided by:** the owner ([#119](https://github.com/StationBreak/stationbreaktv/issues/119): the GitHub build is Pro and
   has no billing; [#36](https://github.com/StationBreak/stationbreaktv/issues/36): Amazon IAP only, $20 one time) and
@@ -44,15 +44,15 @@ must stay free of any billing code.
 
    | Build | `PRO_UNLOCKED` | Store binding | Pro comes from |
    | --- | --- | --- | --- |
-   | debug, benchmark (both flavors) | true | amazon: the adapter seam; github: none | the build, with no purchase |
+   | debug, benchmark (both flavors) | true | amazon: the Appstore adapter (`PRO_ON_SALE` true); github: none | the build, with no purchase |
    | `github` release | true | none (never owned) | the build: GPL, honor system ([#119](https://github.com/StationBreak/stationbreaktv/issues/119)) |
-   | `amazon` release | false (a build error if true) | `app/src/amazon` | the store's verified entitlement only |
+   | `amazon` release | false (a build error if true) | `app/src/amazon`: the closed stand-in while `PRO_ON_SALE` is false, the Appstore adapter once it is true | the store's verified entitlement only, and none while off sale |
 
-   The Appstore SDK, when linked, enters `app/src/amazon` in one file, and no other source set names it, so the GitHub
-   build has neither the code nor the dependency. The Play flavor is out of scope; the GitHub flavor never gets Play
+   The Appstore SDK is an `amazonImplementation` dependency and only `app/src/amazon` names it (its types stay in
+   `PurchasingServiceSdk.kt`), so the GitHub build has neither the code nor the dependency. The Play flavor is out of scope; the GitHub flavor never gets Play
    Billing.
-5. **One SKU constant**, `PRO_SKU` in that file. The console's SKU is the owner's to create.
-6. **Verification (the adapter's contract, written in the seam file).** Register a `PurchasingListener`; set `verified`
+5. **One SKU constant**, `PRO_SKU` in `ProSku.kt` (`app/src/amazon`). The console's SKU is the owner's to create.
+6. **Verification (the adapter's contract, written on `AmazonStore`).** Register a `PurchasingListener`; set `verified`
    to true only after the SDK reports a valid receipt and `notifyFulfillment` was called; ask `getPurchaseUpdates` at
    start and each resume. Set `verified` to false only from a successful, fully paged (`hasMore == false`)
    `getPurchaseUpdates(reset = true)` sync that lists no Pro SKU or lists it canceled. Anything else (an empty delta
@@ -100,19 +100,49 @@ must stay free of any billing code.
   false. Telling that TV from a refunded one needs a stored "ever held Pro" field or a mark that says inferred, which
   is a lineup-format decision, so it is left for that decision.
 
-## Open: the Appstore SDK
+## Decision (2026-11-24): the Appstore SDK is linked
 
-`com.amazon.device:amazon-appstore-sdk` (3.0.9 on Maven Central) is licensed under Amazon's Program Materials License,
-which is not on the GPL-compatible list `licensee` enforces ([ADR-0003](0003-licensing-and-contributions.md)). Linking it
-into the `amazon` flavor needs the owner's decision (the GPL exception, [#745](https://github.com/StationBreak/stationbreaktv/issues/745),
-and a reasoned `allowUrl` entry in `LicenseePlugin`), plus its checksum in dependency verification. Until then the Amazon
-release builds with a stand-in that owns nothing, so it stays free.
+`com.amazon.device:amazon-appstore-sdk` 3.0.9 (Maven Central) is under Amazon's Program Materials License, which is not
+on the GPL-compatible list `licensee` enforces ([ADR-0003](0003-licensing-and-contributions.md)). The owner decided to
+link it into the `amazon` flavor ([#745](https://github.com/StationBreak/stationbreaktv/issues/745); this replaces the
+earlier "do not link the SDK" rule). What that means:
+
+- **Flavor only.** It is `amazonImplementation` in `app/build.gradle.kts`, so no github variant resolves it. The
+  existing proofs stand: `checkArchitecture` (a `com.amazon.device:*` declaration only in `app`'s `amazon*`
+  configurations), `checkFlavorIsolation` (`com.amazon.` named only in `app/src/amazon*`), and `ProGithubUnlockTest`,
+  which scans the github release's runtime classpath for `com/amazon/device/`.
+- **Licensee.** `LicenseePlugin` allows this one artifact and version with `allowDependency`, never by the license URL,
+  so another artifact under the same license is still rejected. The reason is the AppStore additional-permission
+  exception (GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore, ADR-0003, #745). A new SDK version is a new
+  license review: bump the version in the allowance with the catalog.
+- **Checksums.** Its `.jar` and `.pom` are in `gradle/verification-metadata.xml`, written with
+  `--write-verification-metadata sha256` and compared with an independent download (and Maven Central's `.sha1`).
+- **The key.** The SDK reads `AppstoreAuthenticationKey.pem` from the app's assets: it is at
+  `app/src/amazon/assets/AppstoreAuthenticationKey.pem`. It is a public key, from the Appstore console, supplied by the
+  owner, and is committed on purpose. Only the Amazon variants carry it. With the switch off, nothing reads it.
+- **Manifest and R8.** The SDK is a plain jar, so `app/src/amazon/AndroidManifest.xml` declares its `ResponseReceiver`
+  (exported, behind Amazon's NOTIFY permission) and the Appstore client's package for visibility; `BackupRulesTest`
+  lists the receiver for the Amazon variants only. `proguard-rules.pro` keeps `com.amazon.**`, as Amazon's guide asks.
+  Both are in every Amazon variant, whatever the switch says, so that flipping it stays one line.
+- **The adapter.** `AmazonStore` implements the contract of decision 6 over a thin seam (`AppstoreSdk`) that names no
+  SDK type, so the contract is unit tested with a fake in `testAmazon`; `PurchasingServiceSdk` is the one file that binds
+  the real SDK. It never logs, and never reads the user ID or marketplace ID. It asks for the purchase updates at start
+  and at each resume through the process lifecycle.
+- **`PRO_ON_SALE`, the owner's switch.** Pro is not in V1. `BuildConfig.PRO_ON_SALE` (amazon flavor only) comes from
+  `ProSalePolicy` in build-logic: true for debug and benchmark (where Pro is already unlocked, so the adapter can be
+  tried on a device), and **false for the amazon release, which stays so until the owner flips it**: change the
+  `("release" to "amazon")` line in `ProSalePolicy.matrix` to true, nothing else. While it is false the store release
+  behaves exactly as it did with the stand-in (nothing owned, `available` false, a purchase or restore fails, no price)
+  and makes no SDK call at all: no listener is registered and nothing is asked. A flavor with no store baked on sale
+  fails the build.
+- **Not yet proven on a device.** Nothing here was run against the real Appstore; the console's SKU (`PRO_SKU`) is
+  still the owner's to create.
 
 ## Consequences
 
 - The GitHub APK has no billing class, string or dependency; a release check can prove it.
 - The screen for buying, the nag and the restore button are a later change; they call `StoreEntitlement` through a port.
-- Every outcome is tested against `FakeStoreEntitlement`, with no SDK.
+- Every outcome is tested against `FakeStoreEntitlement`, with no SDK; the Amazon adapter's contract is tested over a fake of its own SDK seam.
 
 ## Addendum (2026-11-23): product names ([#1101](https://github.com/StationBreak/stationbreaktv/issues/1101))
 

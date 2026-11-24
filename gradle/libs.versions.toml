@@ -51,6 +51,9 @@ serialization = "1.12.0"
 # ACRA 5.14.2 (checked 2026-11-20): crash reports (#96), core only. Its HTTP, dialog and toast sender modules are not
 # used: reports go through OkHttp (app/crash), as ADR-0005 allows no second HTTP stack.
 acra = "5.14.2"
+# Amazon Appstore SDK 3.0.9 (Maven Central, checked 2026-11-24): in-app purchasing for the `amazon` flavor only (#99, ADR-0032).
+# Its Program Materials License is allowed for this one artifact in LicenseePlugin; a new version is a new review.
+amazonAppstoreSdk = "3.0.9"
 # slf4j-nop 2.0.18 is the SLF4J line the SDK's kotlin-logging resolves (slf4j-api 2.0.18, checked 2026-10-14): without a
 # binding the SDK's first request crashes on Android (ADR-0006, F0.3 task 2.13).
 slf4j = "2.0.20"
@@ -165,6 +168,7 @@ jellyfin-sdk-api-okhttp = { module = "org.jellyfin.sdk:jellyfin-api-okhttp", ver
 # Pinned to the SDK's version (see [versions]).
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 acra-core = { module = "ch.acra:acra-core", version.ref = "acra" }
+amazon-appstore-sdk = { module = "com.amazon.device:amazon-appstore-sdk", version.ref = "amazonAppstoreSdk" }
 # Pinned to the SDK's version (see [versions]).
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 # Test only. Same version as kotlinx-coroutines-core: virtual time for the Quick Connect polling tests.

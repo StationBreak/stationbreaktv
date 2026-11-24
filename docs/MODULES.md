@@ -741,7 +741,7 @@ CI (F0.2). It now forbids only `javax.inject` in the `[KMP]` modules (`config/de
 | `github` | GitHub Releases (sideload) | None (see Q-BIZ-1) | Fully FOSS dependency set. Potential F-Droid candidate. |
 
 Billing sits behind the `StoreEntitlement` port in `core:domain` (`store` package), with a flavor-specific binding in
-`app/src/<flavor>/`: the `amazon` source set holds the one file the Appstore SDK may enter, the `github` source set binds
+`app/src/<flavor>/`: the `amazon` source set holds the Appstore adapter (only `PurchasingServiceSdk.kt` names the SDK; `PRO_ON_SALE` decides whether it runs), the `github` source set binds
 a store that never owns, and no other source set or test names a billing SDK. `ProEntitlement` is "the build's
 `PRO_UNLOCKED` OR the store's verified entitlement" (`StoreBackedPro`; [ADR-0032](adr/0032-purchase-switch.md)). The
 code stays public for every flavor, as the spec requires.
