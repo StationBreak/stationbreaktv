@@ -312,7 +312,6 @@ private val familyBand: List<Recipe> =
                     Contains("Despicable Me"),
                 ),
             filters = filters(kind = FilterKind.Movie),
-            format = FormatPromise.Films,
         ),
         recipe(
             Band.Family,

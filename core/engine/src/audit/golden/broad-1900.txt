@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 15, curation-1, extras-1)
+LINEUP AUDIT (catalog 16, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -17,7 +17,8 @@ TOTALS
   channels per title: 1 channels: 432 titles, 2 channels: 1297 titles, 3 channels: 171 titles
   titles per channel that is on:
     saturday-morning                83
-    rainy-day-matinee              107
+    popcorn-matinee                 80
+    big-screen-toons                27
     level-up                        60
     popcorn-epic                    50
     laugh-track                    112
@@ -69,11 +70,11 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   wheels-and-whistles            24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  rainy-day-matinee              39  on(p)              107  107t 168.37h 0a score 11000        107t 168.37h 0a
+  rainy-day-matinee              39  off    TooThin     107  0t 0.00h 0a score     0 THIN       -
   little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  popcorn-matinee                48  off    TooThin      80  0t 0.00h 0a score     0 THIN       -
-  big-screen-toons               51  off    TooThin      27  0t 0.00h 0a score     0 THIN       -
+  popcorn-matinee                48  on(p)               80  80t 126.40h 0a score 11000         80t 126.40h 0a
+  big-screen-toons               51  on(p)               27  27t 41.97h 0a score  6896          27t 41.97h 0a
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -2379,351 +2380,351 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   000002fe Veldarpe Pebraxi [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   000002ff Tortortor Milovel [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000300 Mixidar Famami [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000301 Senolzu Mamiquin [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000302 Darzuma Torrenfa [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000303 Quinquinvel Lobraky [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000304 Lomidar Olquinma [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000305 Fabrazu Velmaxi [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000306 Zumaol Quinmitor [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000307 Renrenbra Kyzusen [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   00000308 Kylosen Brabralo [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   00000309 Olsenfa Darquinzu [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000030a Mavelol Renolky [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000030b Pepexi Xitorpe [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000030c Xikymi Senzubra [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   0000030d Brazulo Zuxitor [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000030e Velquinky Pedardar [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000030f Tormixi Miollo [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000310 Mibrami Fatorren [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000311 Senmaquin Mafaol [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000312 Darrenren Torxipe [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   00000313 Quinlope Lodarvel [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   00000314 Losentor Olkymi [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000315 Favelquin Veltorquin [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000316 Zupezu Quinfafa [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000317 Renkyma Kyperen [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000318 Kyfavel Bradarma [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000319 Oldardar Darkyxi [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000031a Matorzu Renveltor [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   0000031b Pexiol Xilosen [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   0000031c Xiolbra Senpequin [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   0000031d Brarensen Zusenzu [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   0000031e Vellofa Perenky [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   0000031f Torsenol Mivelpe [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000320 Mivelbra Falobra [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000321 Senpemi Mamator [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000322 Darkylo Torsendar [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000323 Quinfaky Lorenlo [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000324 Lodarxi Olbraren [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000325 Fatormi Vellool [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000326 Zuxiquin Quinmape [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000327 Renolren Kymivel [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   00000328 Kyzupe Brarenmi [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   00000329 Olquintor Darbraquin [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000032a Mamiquin Renquinfa [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000032b Pebraren Xiolren [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000032c Ximama Senmima [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   0000032d Brakyvel Zuzuxi [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   0000032e Velfadar Pexivel [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000032f Tordarzu Miquinsen [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000330 Mitorma Faolquin [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000331 Senxibra Matorzu [film, 1 items, 1.67h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000332 Darolsen Torzuky [film, 1 items, 1.68h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   00000333 Quinzufa Loxima [film, 1 items, 1.70h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   00000334 Loquinol Oldarbra [film, 1 items, 1.57h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000335 Famibra Veloltor [film, 1 items, 1.58h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000336 Zubrasen Quintordar [film, 1 items, 1.60h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000337 Renmalo Kyfalo [film, 1 items, 1.62h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000338 Kyrenky Braxizu [film, 1 items, 1.63h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000339 Olloxi Dardarol [film, 1 items, 1.65h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000033a Masenmi Renkype [film, 1 items, 1.50h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000033b Pevello Xivelvel [film, 1 items, 1.52h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000033c Xiperen Senfami [film, 1 items, 1.53h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000033d Braolpe Zupedar [film, 1 items, 1.55h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000033e Velzutor Pesenfa [film, 1 items, 1.57h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000033f Torquinquin Mikyren [film, 1 items, 1.58h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000340 Mimiren Favelma [film, 1 items, 1.60h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000341 Senbrape Maloxi [film, 1 items, 1.62h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000342 Darmavel Torpevel [film, 1 items, 1.63h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000343 Quinrendar Losensen [film, 1 items, 1.50h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   00000344 Lolozu Olrenquin [film, 1 items, 1.52h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up fresh-cut -135.71 = specificity 14.29 decade -150.00
   00000345 Fasenma Velvelzu [film, 1 items, 1.53h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000346 Zuvelvel Quinloky [film, 1 items, 1.55h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000347 Renpesen Kymama [film, 1 items, 1.57h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000348 Kykyfa Brasenbra [film, 1 items, 1.58h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000349 Olfaol Darrentor [film, 1 items, 1.60h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   0000034a Madarbra Renbradar [film, 1 items, 1.62h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   0000034b Petorsen Xiquinlo [film, 1 items, 1.63h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000034c Xixilo Senmazu [film, 1 items, 1.50h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up flip-phone -137.59 = specificity 12.41 decade -150.00
   0000034d Bramaky Zumiol [film, 1 items, 1.52h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up flip-phone -137.59 = specificity 12.41 decade -150.00
   0000034e Velrenxi Pezupe [film, 1 items, 1.53h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000034f Torlomi Mibravel [film, 1 items, 1.55h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up fresh-cut -135.71 = specificity 14.29 decade -150.00
   00000350 Misenlo Faquinmi [film, 1 items, 1.57h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000351 Senvelky Maoldar [film, 1 items, 1.58h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000352 Darpepe Tormifa [film, 1 items, 1.60h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   00000353 Quinkytor Lozuren [film, 1 items, 1.62h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   00000354 Lofaquin Olxiol [film, 1 items, 1.63h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000355 Fadarren Velquinxi [film, 1 items, 1.50h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   00000356 Zutorpe Quinolvel [film, 1 items, 1.52h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000357 Renxivel Kytorsen [film, 1 items, 1.53h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000358 Kyoldar Brazuquin [film, 1 items, 1.55h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   00000359 Olzuzu Darxifa [film, 1 items, 1.57h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up binge-row -137.51 = specificity 12.49 decade -150.00
   0000035a Maquinma Rendarky [film, 1 items, 1.58h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000035b Pemivel Xikyma [film, 1 items, 1.60h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000035c Xibradar Sentorbra [film, 1 items, 1.62h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up rabbit-ears -138.24 = specificity 11.76 decade -150.00
   0000035d Brapefa Zufator [film, 1 items, 1.63h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   0000035e Velkyol Pepesen [film, 1 items, 1.50h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up shag-carpet -137.22 = specificity 12.78 decade -150.00
   0000035f Torfabra Midarlo [film, 1 items, 1.52h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up neon-decade -137.60 = specificity 12.40 decade -150.00
   00000360 Midarsen Fakyzu [film, 1 items, 1.53h]
     home saturday-morning 315.60 = specificity 15.60 genre 40.00 kids 200.00 tone 60.00
   00000361 Sentorfa Mavelol [film, 1 items, 1.55h]
-    home rainy-day-matinee 148.78 = specificity 14.78 genre 40.00 format 80.00 tone 14.00
+    home big-screen-toons 120.58 = specificity 20.58 genre 40.00 tone 60.00
     runner-up dial-up -137.54 = specificity 12.46 decade -150.00
   00000362 Darxiky Torfape [film, 1 items, 1.87h]
     home dusty-trails 120.38 = specificity 20.38 genre 40.00 tone 60.00
@@ -3746,83 +3747,83 @@ TITLES (scores in points; a term that is zero is left out)
   00000474 Lorenvel Olzupe [film, 1 items, 1.92h]
     home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
   00000475 Falodar Velbravel [film, 1 items, 1.37h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000476 Zusenzu Quinquinmi [film, 1 items, 1.38h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000477 Renvelma Kyoldar [film, 1 items, 1.40h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000478 Kypebra Bramifa [film, 1 items, 1.42h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000479 Olkysen Darzuren [film, 1 items, 1.43h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   0000047a Mafafa Renxiol [film, 1 items, 1.45h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   0000047b Pedarol Xidarxi [film, 1 items, 1.47h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   0000047c Xitorbra Senolvel [film, 1 items, 1.48h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   0000047d Brabrasen Zutorsen [film, 1 items, 1.50h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   0000047e Velmalo Pefaquin [film, 1 items, 1.37h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
     guest spots: binge-row
   0000047f Torrenky Mixifa [film, 1 items, 1.38h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
     guest spots: fresh-cut
   00000480 Miloxi Fadarky [film, 1 items, 1.40h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000481 Sensenmi Makyma [film, 1 items, 1.42h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000482 Darvello Tortorbra [film, 1 items, 1.43h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   00000483 Quinperen Lofator [film, 1 items, 1.45h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
     guest spots: shag-carpet
   00000484 Lokype Olpesen [film, 1 items, 1.47h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000485 Fafator Veldarlo [film, 1 items, 1.48h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
     guest spots: neon-decade
   00000486 Zudarquin Quinkyzu [film, 1 items, 1.50h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
     guest spots: dial-up
   00000487 Rentorren Kyvelol [film, 1 items, 1.37h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000488 Kyxima Brafape [film, 1 items, 1.38h]
-    home rainy-day-matinee 179.78 = specificity 14.78 genre 40.00 format 80.00 tone 45.00
+    home popcorn-matinee 115.73 = specificity 15.73 genre 40.00 tone 60.00
     runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
     guest spots: flip-phone
   00000489 Ololvel Darpebra [film, 1 items, 1.33h]

@@ -113,8 +113,13 @@ object StarterCatalog : StarterCatalogView {
      * Version 15 (#1103): the band names reach the leftovers channels. Keys, numbers, ceilings and stored ids are
      * unchanged; only the names move, to Tots' (33, key `kids-odds-and-ends`), Kids' (66) and Teens' (99) Odds & Ends.
      * No fingerprint, hold or rules format change.
+     *
+     * Version 16 (#1002): Rainy Day Matinee (key `rainy-day-matinee`, 39) loses its Films format promise, so the +80
+     * fit points no longer let it out-home Popcorn Matinee, Big Screen Toons and Starship Sunday. It is still films
+     * only (the Movie filter). Key, number, band, ceiling and opt-in are unchanged; its fingerprint changes. No rules
+     * format or hold version change.
      */
-    const val VERSION = 15
+    const val VERSION = 16
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 15, curation-1, extras-1)
+LINEUP AUDIT (catalog 16, curation-1, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1791 items, 75 titles (44 series, 31 films)
@@ -163,71 +163,71 @@ TITLES (scores in points; a term that is zero is left out)
   0000069d Quinvelpe Lolovel [film, 1 items, 1.58h]
     home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
   0000069e Lopevel Olmami [film, 1 items, 1.60h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   0000069f Fakydar Velsenquin [film, 1 items, 1.72h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006a0 Zufazu Quinrenfa [film, 1 items, 1.83h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006a1 Rendarma Kybraky [film, 1 items, 1.95h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006a2 Kytorvel Braloma [film, 1 items, 1.60h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006a3 Olxisen Darmaxi [film, 1 items, 1.72h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a4 Maolfa Renmitor [film, 1 items, 1.83h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a5 Pezuol Xizusen [film, 1 items, 1.95h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a6 Xiquinbra Senbralo [film, 1 items, 1.60h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a7 Brasensen Zuquinzu [film, 1 items, 1.72h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a8 Velvelfa Peolky [film, 1 items, 1.83h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006a9 Torpeky Mimipe [film, 1 items, 1.95h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up flip-phone -58.45 = specificity 31.55 decade -150.00 tone 60.00
     guest spots: flip-phone
   000006aa Mikyxi Fazubra [film, 1 items, 1.33h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006ab Senfami Maxitor [film, 1 items, 1.45h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006ac Dardarlo Torquindar [film, 1 items, 1.57h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006ad Quintorky Loollo [film, 1 items, 1.68h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   000006ae Loxipe Oltorren [film, 1 items, 1.33h]
-    home rainy-day-matinee 203.54 = specificity 23.54 genre 40.00 format 80.00 tone 60.00
+    home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
   00000000 Velmami Pefator [series, 42 items, 7.70h]
