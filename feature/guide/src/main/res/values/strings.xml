@@ -59,6 +59,8 @@
     <string name="guide_settings_group_privacy">Privacy</string>
     <!-- A choice row as a screen reader hears it while it has the focus: its label, then its value. -->
     <string name="guide_settings_spoken">%1$s, %2$s</string>
+    <!-- The same, for a row with an explainer: its label, its value, then the explainer the help well shows. -->
+    <string name="guide_settings_spoken_help">%1$s, %2$s. %3$s</string>
     <!-- The end of a row that opens another screen. -->
     <string name="guide_settings_chevron">›</string>
     <string name="guide_settings_appearance">Appearance</string>
@@ -174,6 +176,25 @@
     <string name="guide_settings_change_pin">Change PIN</string>
     <!-- The one line under each Settings row that Family Mode switches off, and under the menu's About and Channels rows. -->
     <string name="guide_kids_locked">Turn off Family Mode first</string>
+
+    <!-- The Settings sheet's help well (#1105): what the row under the D-pad does. Draft copy for the owner's approval.
+         Those that name the product take it as %1$s from the app's name, so it is written once. None names a way
+         round Family Mode, and none mentions a price, a trial or when anything arrives. Under a row that Family Mode
+         has switched off the well says the locked note instead. -->
+    <string name="guide_help_family_off">Keeps this TV to those channels. Changing it, or turning it off, needs your PIN.</string>
+    <string name="guide_help_family_on">Only these channels play. Everything above stays hidden until the PIN turns Family Mode off.</string>
+    <string name="guide_help_hours">Pick times when this TV drops to a lower level, such as Tots at bedtime. The PIN overrides it.</string>
+    <string name="guide_help_pro">%1$s Pro adds more ways to change your lineup.</string>
+    <string name="guide_help_support">Shows how to support %1$s. It changes nothing in the app.</string>
+    <string name="guide_help_libraries">Choose which of your libraries make channels.</string>
+    <string name="guide_help_sync_now">Looks for new and changed titles. %1$s also does this on its own.</string>
+    <string name="guide_help_channel_change">What you see between channels: Stan\'s stand-by card, or static like an old set.</string>
+    <string name="guide_help_levelling">Keeps loud and quiet programmes closer in volume. Turn it off for the original sound.</string>
+    <string name="guide_help_appearance">Dark for a dim room, Light for a bright one.</string>
+    <string name="guide_help_screen_fit">Safe keeps text away from the edge on TVs that crop. Edge uses the whole screen.</string>
+    <string name="guide_help_change_pin">Change the PIN that guards Family Mode. You need the old one.</string>
+    <string name="guide_help_sign_out">Signs this TV out of your server. Your channels are kept.</string>
+    <string name="guide_help_crash_reports">Off unless you turn it on. If %1$s crashes it can send a technical report, not a copy of your library.</string>
     <!-- What OK does on the Family Mode row, in the Settings sheet's hint row. -->
     <string name="guide_hint_kids_set_pin">Set a PIN</string>
     <string name="guide_hint_kids_turn_on">Turn on</string>

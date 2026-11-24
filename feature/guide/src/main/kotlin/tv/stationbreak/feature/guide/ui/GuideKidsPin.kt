@@ -80,7 +80,10 @@ internal fun GuideKidsPin(
     val prompt = stringResource(pinPrompt(entry.stage))
     val keyName = pinKeyName(entry.focus)
     val entered = stringResource(R.string.guide_pin_entered, entry.digits.length, PIN_LENGTH)
-    val spoken = listOfNotNull(prompt.takeIf { entry.digits.isEmpty() }, keyName, entered).joinToString(". ")
+    val capLine = entry.cap?.takeIf { entry.purpose == PinPurpose.Cap }?.let { stringResource(kidsCapChannels(it)) }
+    // The cap line ends in its own full stop, so it joins the prompt with a space.
+    val ask = listOfNotNull(capLine, prompt).joinToString(" ").takeIf { entry.digits.isEmpty() }
+    val spoken = listOfNotNull(ask, keyName, entered).joinToString(". ")
     LeftSheet(
         SheetMeasures.Width,
         modifier
@@ -102,6 +105,7 @@ internal fun GuideKidsPin(
             color = colors.text,
             maxLines = 1,
         )
+        capLine?.let { CapLine(it) }
         Spacer(Modifier.height(SectionGap))
         Text(
             text = prompt,

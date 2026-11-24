@@ -590,8 +590,8 @@ class GuideScreenshotTest {
     @Test
     fun theSettingsPanelLight() = shootSettings(GuideTheme.Light, suffix = "-light")
 
-    // All seven rows between the sheet's title and its hint row, unscrolled, at both screen fits and at the font
-    // scales a TV is set to, with the Update library line as long as it gets (and room for it on two lines).
+    // Every row, walked to, shows whole between the sheet's title and its help well, at both screen fits and at the
+    // font scales a TV is set to.
     @Test
     fun theSettingsPanelFitsAtSafeAndFontScale1() = shootSettings(GuideTheme.Dark, "-safe-1", ScreenFit.Safe, 1f)
 
@@ -641,57 +641,43 @@ class GuideScreenshotTest {
         }
         compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsSelected()
         val titleBottom = bounds(GuideTags.SETTINGS_TITLE).bottom
-        val hintTop = bounds(GuideTags.SETTINGS_HINT).top
-        // The longest "Update library" status line is the libraries-gone failure, which wraps to two lines. When the
-        // line shown here is one line at this width, a line more is added to each row's bottom, so the fit holds for
-        // the two-line case too.
-        val status = bounds(GuideTags.SETTINGS_SYNC_STATUS)
-        val wrapExtra = if (lineCount(GuideTags.SETTINGS_SYNC_STATUS) >= 2) 0f else status.height
-        // At the TV's own text size every row shows at once. A larger one may need the rows to scroll (with the
-        // shared 36 dp rows, #336): then each row is walked to, and must show whole between the title and the hint.
-        if (scale == 1f) {
-            for (tag in SETTINGS_ROW_TAGS) assertBetween(tag, titleBottom, hintTop, wrapExtra)
-        }
+        // The well is hidden from TalkBack, so it is read through the unmerged tree.
+        val wellTop =
+            compose
+                .onNodeWithTag(GuideTags.SETTINGS_HELP, useUnmergedTree = true)
+                .fetchSemanticsNode()
+                .boundsInRoot.top
         val picked = if (chosen == ScreenFit.Safe) "Safe" else "Edge"
         compose
             .onNodeWithTag(GuideTags.SETTINGS_SCREEN_FIT)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, picked))
         shoot("$SETTINGS_FRAME$suffix.png")
-        if (scale != 1f) {
-            // The crash reports row is on the sheet only in a build with an endpoint, and this one has none.
-            for (row in SettingsRow.entries.filter { it.isShown(SettingsValues()) }) {
-                assertBetween(GuideTags.settingsRow(row), titleBottom, hintTop, 0f)
-                press(Key.DirectionDown)
-            }
+        // The help well takes two lines and the hint row sits under it, so on a 540 dp screen at the Safe fit the rows
+        // scroll at every font size: each row is walked to, and must show whole between the title and the help well.
+        // The crash reports row is on the sheet only in a build with an endpoint, and this one has none.
+        val rows = SettingsRow.entries.filter { it.isShown(SettingsValues()) }
+        for (row in rows) {
+            assertBetween(GuideTags.settingsRow(row), titleBottom, wellTop)
+            press(Key.DirectionDown)
         }
+        // Back to the first row, where callers expect the sheet to stand.
+        repeat(rows.size) { press(Key.DirectionUp) }
+        compose.onNodeWithTag(GuideTags.SETTINGS_APPEARANCE).assertIsSelected()
     }
 
     private fun assertBetween(
         tag: String,
         top: Float,
         bottom: Float,
-        extra: Float,
     ) {
         compose.waitForIdle()
         val rect = bounds(tag)
         assertTrue("$tag was squeezed out of the sheet ($rect)", rect.height > 0f)
         assertTrue("$tag (top ${rect.top}) is under the title (bottom $top)", rect.top >= top)
-        val end = rect.bottom + extra
-        assertTrue("$tag (bottom $end) runs into the hint row (top $bottom)", end <= bottom)
+        assertTrue("$tag (bottom ${rect.bottom}) runs into the help well (top $bottom)", rect.bottom <= bottom)
     }
 
     private fun bounds(tag: String) = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
-
-    private fun lineCount(tag: String): Int {
-        val layouts = mutableListOf<TextLayoutResult>()
-        compose
-            .onNodeWithTag(tag, useUnmergedTree = true)
-            .fetchSemanticsNode()
-            .config[SemanticsActions.GetTextLayoutResult]
-            .action
-            ?.invoke(layouts)
-        return layouts.single().lineCount
-    }
 
     // The panel's title starts at the fit's safe left edge, not at the screen's.
     private fun assertTextInsideSafeArea(chosen: ScreenFit) {
@@ -1077,18 +1063,6 @@ class GuideScreenshotTest {
         const val SHORTS_PER_RUN = 6
         const val SHORTS_SLATE_MIN = 120L
         const val SHORTS_SLATE_LENGTH_MIN = 5L
-        val SETTINGS_ROW_TAGS =
-            listOf(
-                GuideTags.SETTINGS_APPEARANCE,
-                GuideTags.SETTINGS_SCREEN_FIT,
-                GuideTags.SETTINGS_CHANNEL_CHANGE,
-                GuideTags.SETTINGS_LEVELLING,
-                GuideTags.SETTINGS_KIDS_MODE,
-                GuideTags.SETTINGS_LIBRARIES,
-                GuideTags.SETTINGS_SYNC_NOW,
-                GuideTags.SETTINGS_SYNC_STATUS,
-                GuideTags.SETTINGS_SIGN_OUT,
-            )
         const val SETTINGS_FRAME = "guide-settings"
         const val TITLE_SLACK_PX = 2f
         const val EDGE_PROBE_PX = 3
