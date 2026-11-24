@@ -11,5 +11,14 @@ class FakeHouseholdSetting(
 ) : HouseholdSetting {
     val flag = MutableStateFlow(initial)
 
+    /** The next day start the test says; the usual 06:00 UTC of the epoch's day one by default. */
+    val changesAt = MutableStateFlow(DAY_MS + 6 * 3_600_000L)
+
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = flag
+
+    override fun changesStartAt(account: LibraryAccount): Flow<Long> = changesAt
+
+    private companion object {
+        const val DAY_MS = 86_400_000L
+    }
 }

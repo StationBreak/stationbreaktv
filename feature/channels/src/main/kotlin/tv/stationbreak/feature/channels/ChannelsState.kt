@@ -177,6 +177,8 @@ internal data class ChannelsUi(
     val gettingReady: Boolean = false,
     /** The lineup's "Use my collections" flag: on until the lineup says otherwise. */
     val useMyCollections: Boolean = true,
+    /** When a change of that flag starts to apply (the next day start, epoch ms); null until the lineup says. */
+    val changesStartAtMs: Long? = null,
     /** The channel whose properties sheet is open over the list; a panel can open over the sheet. */
     val about: ChannelId? = null,
     /** What [about] reads; null while it is being read, which the sheet shows as loading. */

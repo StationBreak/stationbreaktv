@@ -30,12 +30,13 @@ import tv.stationbreak.feature.channels.R
 @Composable
 internal fun HouseholdLine(
     on: Boolean,
+    changesAtMs: Long?,
     focused: Boolean,
 ) {
     val state = stringResource(if (on) R.string.channels_switch_on else R.string.channels_switch_off)
     val label = stringResource(R.string.channels_use_my_collections)
-    val hint = stringResource(R.string.channels_use_my_collections_hint)
-    val spoken = householdSpoken()
+    val hint = householdHint(changesAtMs)
+    val spoken = householdSpoken(changesAtMs)
     Column(
         Modifier
             .fillMaxWidth()
@@ -69,13 +70,18 @@ internal fun HouseholdLine(
     }
 }
 
+/** The switch's hint, with the time a change starts at (the rules' next day start); empty until that is known. */
+@Composable
+private fun householdHint(changesAtMs: Long?): String =
+    changesAtMs?.let { stringResource(R.string.channels_use_my_collections_hint, clockTimeOf(it)) }.orEmpty()
+
 /** What a screen reader says for the "Use my collections" switch: the label and the hint, never the state. */
 @Composable
-internal fun householdSpoken(): String =
+internal fun householdSpoken(changesAtMs: Long?): String =
     stringResource(
         R.string.spoken_pair,
         stringResource(R.string.channels_use_my_collections),
-        stringResource(R.string.channels_use_my_collections_hint),
+        householdHint(changesAtMs),
     )
 
 /** The two lines that are not switches: New channel above the first group and Reset after the last. */

@@ -99,7 +99,11 @@ internal class FakeProperties(
 internal class FakeHousehold : HouseholdSetting {
     val flag = MutableStateFlow(true)
 
+    val changesAt = MutableStateFlow(6 * 3_600_000L)
+
     override fun useMyCollections(account: LibraryAccount): Flow<Boolean> = flag
+
+    override fun changesStartAt(account: LibraryAccount): Flow<Long> = changesAt
 }
 
 /** The fake editor, which waits for a gate a test sets before it answers (a slow save or reset). */

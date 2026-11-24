@@ -72,12 +72,29 @@ internal fun ChannelList(
     ) {
         items(lines.size, key = { lines[it].key() }, contentType = { lines[it]::class }) { i ->
             when (val line = lines[i]) {
-                Line.Household -> HouseholdLine(on = ui.useMyCollections, focused = i == focused)
-                Line.New -> NewLine(focused = i == focused)
-                is Line.Heading -> HeadingLine(line.group, line.count)
-                is Line.Band -> BandLine(line.group, line.band)
-                is Line.Channel -> RowLine(line.row, focused = i == focused, isPro = ui.isPro)
-                Line.Reset -> ResetLine(focused = i == focused)
+                Line.Household -> {
+                    HouseholdLine(on = ui.useMyCollections, changesAtMs = ui.changesStartAtMs, focused = i == focused)
+                }
+
+                Line.New -> {
+                    NewLine(focused = i == focused)
+                }
+
+                is Line.Heading -> {
+                    HeadingLine(line.group, line.count)
+                }
+
+                is Line.Band -> {
+                    BandLine(line.group, line.band)
+                }
+
+                is Line.Channel -> {
+                    RowLine(line.row, focused = i == focused, isPro = ui.isPro)
+                }
+
+                Line.Reset -> {
+                    ResetLine(focused = i == focused)
+                }
             }
         }
     }
@@ -246,10 +263,16 @@ internal fun reasonTextOf(
 ): String {
     val at = row.startsAtMs
     if (reason != HiddenReason.EmptyToday || at == null) return stringResource(reasonText(reason))
+    return stringResource(R.string.channels_reason_starts_at, clockTimeOf(at))
+}
+
+/** [ms] as a time of day in the device zone and its 12/24-hour setting: the one way this screen words a time. */
+@Composable
+internal fun clockTimeOf(ms: Long): String {
     val is24h =
         android.text.format.DateFormat
             .is24HourFormat(LocalContext.current)
-    return stringResource(R.string.channels_reason_starts_at, ProgramText.time(at, ZoneId.systemDefault(), is24h))
+    return ProgramText.time(ms, ZoneId.systemDefault(), is24h)
 }
 
 internal fun reasonText(reason: HiddenReason): Int =

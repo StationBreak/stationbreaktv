@@ -126,6 +126,14 @@ class HouseholdSettingTest {
         }
 
     @Test
+    fun aChangeStartsAtTheNextDayStart() =
+        runBlocking<Unit> {
+            seed()
+            // 14:00 now, the day began at 06:00: the next start is 06:00 tomorrow.
+            assertEquals(atMs - 8 * 3_600_000L + dayMs, service.changesStartAt(ACCOUNT).first())
+        }
+
+    @Test
     fun offDropsTheHouseholdCollectionFromTomorrowsDays() =
         runBlocking<Unit> {
             seed()
