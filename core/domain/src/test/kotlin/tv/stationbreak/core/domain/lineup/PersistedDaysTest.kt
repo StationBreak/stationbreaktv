@@ -267,12 +267,13 @@ class PersistedDaysTest {
     // (kid-hold-6, grown-up-hold-5); ADR-0029 the moves up and the bump list (kid-hold-7,
     // grown-up-hold-6); #1078 the Explicit tier (kid-hold-8, grown-up-hold-7); #1088 the input tidy (kid-hold-9,
     // grown-up-hold-8); #1108 a custom channel's young-ceiling tier limit (grown-up-hold-9, kid-hold-9 stays); #987 the
-    // non-US ratings of the Android TV XML and bare ages capped at Family (kid-hold-10, grown-up-hold-10). Each rename
-    // rebuilds every held day once.
+    // non-US ratings of the Android TV XML and bare ages capped at Family (kid-hold-10, grown-up-hold-10); #1124
+    // ceilings read the mapped level and adult-only country labels are Explicit (kid-hold-11, grown-up-hold-11). Each
+    // rename rebuilds every held day once.
     @Test
-    fun theHoldNamesAreKidHoldTenAndGrownUpHoldTen() {
-        assertTrue("kid-hold-10" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
-        assertTrue("grown-up-hold-10" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+    fun theHoldNamesAreKidHoldElevenAndGrownUpHoldEleven() {
+        assertTrue("kid-hold-11" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+        assertTrue("grown-up-hold-11" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
     }
 
     @Test

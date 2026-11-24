@@ -30,10 +30,16 @@ class AndroidTvRatingsTest {
         }
 
     // The StationBreak decisions on top of the XML (CountryRatingTables' overrides): the AU PG override is the one
-    // rating below its hint (owner decision, #987); the others fail up from a hint the rating's own name contradicts.
+    // rating below its hint (owner decision, #987); the others fail up from a hint the rating's own name contradicts,
+    // and the adult-only labels (hint 18 or more) are Explicit (#1124).
     private val overrides: Map<String, Int?> =
         mapOf(
             "AU-PG" to 2,
+            "AU-R" to 7,
+            "JP-19" to 7,
+            "JP-20" to 7,
+            "KR-19" to 7,
+            "SG-R21" to 7,
             "NZ-PGR" to 2,
             "NZ-AO" to 7,
             "SG-PG" to 2,
@@ -107,6 +113,39 @@ class AndroidTvRatingsTest {
             for (ceiling in listOf(null) + KidHold.CEILING_CHOICES) {
                 if (KidHold.passesKidCeiling(film, null, ceiling)) assertTrue(hint <= 7 && key != "AU-PG", key)
             }
+        }
+    }
+
+    // #1124: a custom or grown-up channel's ceiling reads the mapped level, never above it, and under Custom (no hold
+    // beyond the young-ceiling tier limit) exactly at or below it.
+    @Test
+    fun aCeilingPassesARatingExactlyWhenItsMappedLevelIsWithinIt() {
+        eachRating { key, _ ->
+            val level = RatingMap.levelOf(key) // null for Exempt: it fails every ceiling
+            val library = snapshot(items = listOf(movie(idOf(1), rating = key)))
+            for (ceiling in RatingLadder.names - "Approved") {
+                val channel = rules(listOf(Source.Library(LIB)), maxRating = ceiling)
+                val within = level != null && level <= checkNotNull(RatingLadder.rankOf(ceiling))
+                for (policy in listOf(PoolPolicy.Custom, PoolPolicy.GrownUp)) {
+                    val passes = PoolEvaluator.evaluate(channel, library, policy).items.isNotEmpty()
+                    if (passes) assertTrue(within, "$key airs under $ceiling, $policy")
+                }
+                val custom = PoolEvaluator.evaluate(channel, library, PoolPolicy.Custom).items.isNotEmpty()
+                assertEquals(within, custom, "$key under $ceiling, Custom")
+            }
+        }
+    }
+
+    @Test
+    fun theAdultOnlyLabelsAreExplicit() {
+        for (rating in listOf("AU-R", "SG-R21", "KR-19", "JP-19", "JP-20")) {
+            assertEquals(7, RatingMap.levelOf(rating), rating)
+            assertTrue(RatingMap.isExplicit(rating), rating)
+            assertEquals(RatingTier.Explicit, RatingTier.of(movie(idOf(1), rating = rating), null), rating)
+        }
+        // Not the US R, nor the labels one rung below.
+        for (rating in listOf("R", "AU-M", "SG-M18", "KR-15", "JP-18")) {
+            assertFalse(RatingMap.isExplicit(rating), rating)
         }
     }
 

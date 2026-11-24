@@ -16,6 +16,12 @@ import tv.stationbreak.core.rules.SeriesState
  * With [approvedIsUnrated] (`kid-hold-6`, ADR-0028: every app channel but the rules-format reference
  * [PoolPolicy.Open]), `Approved` has no rank either: an item whose effective rating, or whose known series' rating, is
  * `Approved` fails every ceiling, as `NR`, `Passed` and no rating already do.
+ *
+ * With [approvedIsUnrated] the rating is read as the tier holds read it ([RatingMap.levelOf], `grown-up-hold-11`,
+ * #1124): a country rating such as `DE-12` or `AU-PG` passes a ceiling its mapped level is within, and an unknown or
+ * unrated one fails every ceiling (fail closed). The ceiling itself is a ladder name, and a US rating has the same
+ * level on the map as its tier on the ladder. Without it ([PoolPolicy.Open], the rules-format reference) only the US
+ * ladder reads, as `RatingEligibility` does.
  */
 internal fun passesCeiling(
     entry: RuleItem,
@@ -32,6 +38,10 @@ internal fun passesCeiling(
             true
         }
 
+        approvedIsUnrated -> {
+            passesMappedCeiling(entry, series, maxRating)
+        }
+
         entry.item.kind == ScheduleItemKind.Movie -> {
             RatingEligibility.isMovieEligible(entry.officialRating, maxRating)
         }
@@ -46,6 +56,36 @@ internal fun passesCeiling(
             RatingEligibility.isEpisodeEligible(entry.officialRating, state, maxRating)
         }
     }
+
+// Rule 4 (as RatingEligibility reads it) on the mapped level of each rating: a movie or an episode with no series by
+// its own rating; an episode of a known series by its effective rating and, when the series has one, the series'
+// rating; an episode whose series the snapshot lacks fails.
+private fun passesMappedCeiling(
+    entry: RuleItem,
+    series: RuleSeries?,
+    maxRating: String,
+): Boolean {
+    require(maxRating in RatingLadder.names) { "The rating ceiling is not on the ladder" }
+    val ceiling = checkNotNull(RatingLadder.rankOf(maxRating))
+
+    fun within(rating: String?): Boolean = RatingMap.levelOf(rating)?.let { it <= ceiling } == true
+
+    val own = entry.officialRating
+    return when {
+        entry.item.kind == ScheduleItemKind.Movie || entry.item.seriesId == null -> {
+            within(own)
+        }
+
+        series == null -> {
+            false
+        }
+
+        else -> {
+            val shows = series.officialRating
+            within(if (own.isNullOrEmpty()) shows else own) && (shows.isNullOrEmpty() || within(shows))
+        }
+    }
+}
 
 // Whether the rating rule 4 reads for [entry] (its effective rating, and a known series' non-empty rating) is Approved.
 private fun ratedApproved(

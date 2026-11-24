@@ -20,10 +20,13 @@ import tv.stationbreak.core.model.RuleSeries
  * `grown-up-hold-9` (#1108) moves alone: kid-hold-9 stays. A custom channel under a young ceiling follows the tier
  * limit of its band ([tierLimit]), as a built-in channel of that band does (ADR-0028 addendum 2026-11-23).
  * `grown-up-hold-10` moves with `kid-hold-10` (#987): the same gate, on the tiers of the non-US rating table.
+ * `grown-up-hold-11` moves with `kid-hold-11` (#1124): a grown-up or custom channel's rating ceiling reads the mapped
+ * level of [RatingMap] (so `DE-12` or `AU-PG` can air under a ceiling it is within), and AU `R`, SG `R21`, KR `19` and
+ * JP `19` and `20` are Explicit.
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-10"
+    const val VERSION_NAME = "grown-up-hold-11"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take

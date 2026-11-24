@@ -53,10 +53,13 @@ up, except Australian PG, which is read as PG. Coverage is partial: the UK's `12
 recognised. A rating the app does not recognise is treated as adult, the same as no rating. A bare age such as `6` is
 treated as family at most, never as a Tots title, because it names no rating system.
 
-For now those ratings decide which audience a title belongs to and which Tots channels can take it, but not a channel's
-maximum rating. The Kids and Teens channels, and any channel with a maximum rating you set, still check that limit
-against US ratings only, so a title rated `DE-12` or `AU-PG` does not air on them. It can still air on a grown-up
-channel with no maximum rating.
+Those ratings decide which audience a title belongs to, which Tots channels can take it, and whether it fits a
+channel's maximum rating. The Kids and Teens channels, and any channel with a maximum rating you set, read a title's
+rating at the same level the app uses for its audience, so a title rated `DE-12` airs on a Teens channel (maximum
+`TV-14`) and `AU-PG` airs on a Kids channel (maximum `PG`). Each rating is held to the level of its minimum age, rounded
+up: `DE-12` is read as 13, so it does not air under a `PG` maximum. A rating the app does not recognise fails every
+maximum rating, the same as no rating. The adult-only labels Australian `R`, Singapore `R21`, Korean `19` and Japanese
+`19` and `20` are Explicit: they air on After Hours only, never on a Tots, Kids or Teens channel.
 
 The explicit rule reads the same metadata. A file with no metadata at all can't be told apart from a test clip, so it
 is not treated as explicit: it stays off the Tots, Kids and Teens channels and out of Odds & Ends, but a grown-up

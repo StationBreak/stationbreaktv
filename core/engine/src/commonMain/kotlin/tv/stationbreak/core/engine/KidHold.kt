@@ -30,10 +30,12 @@ import tv.stationbreak.core.model.studioKey2
  * `kid-hold-10` (#987) maps the non-US ratings of the Android TV ratings XML ([RatingMap], [AndroidTvRatingSystems]):
  * a rating that was unknown (adult) can now be kids, family or teen, at or above its age hint (AU PG is 10). A bare
  * age is Family at least (#1006), so a bare `6` is no longer kids. Unknown and unrated stay adult.
+ * `kid-hold-11` (#1124) reads AU `R`, SG `R21`, KR `19` and JP `19` and `20` as level 7, Explicit (adult-only labels):
+ * no kid channel admitted them before either. Grown-up and custom ceilings read the mapped level (`grown-up-hold-11`).
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-10"
+    const val VERSION_NAME = "kid-hold-11"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's

@@ -40,7 +40,7 @@ class NonUsRatingVectors {
             "AU-M" to 5,
             "AU-MA" to 5,
             "AU-AV" to 5,
-            "AU-R" to 6,
+            "AU-R" to 7,
         )
         check(
             "BR",
@@ -101,6 +101,8 @@ class NonUsRatingVectors {
         )
         check("NL", "NL-6" to 1, "NL-9" to 2, "NL-12" to 3, "NL-14" to 4, "NL-16" to 5, "NL-18" to 6)
         check("CN and JP", "CN-6" to 1, "CN-18" to 6, "JP-6" to 1, "JP-12" to 3, "JP-15" to 5, "JP-18" to 6)
+        // The adult-only labels are Explicit (#1124).
+        check("JP adult-only", "JP-19" to 7, "JP-20" to 7)
     }
 
     @Test
@@ -119,10 +121,10 @@ class NonUsRatingVectors {
             "ES-X-RATED" to 7,
         )
         check("FR", "FR-U" to 0, "FR-UNIVERSAL" to 0, "FR-10" to 2, "FR-12" to 3, "FR-16" to 5, "FR-18" to 6)
-        check("KR", "KR-ALL" to 0, "KR-7" to 1, "KR-12" to 3, "KR-15" to 5, "KR-19" to 6)
+        check("KR", "KR-ALL" to 0, "KR-7" to 1, "KR-12" to 3, "KR-15" to 5, "KR-19" to 7)
         // NZ PGR and AO have a hint of 0 in the XML; their names say otherwise, so they fail upward.
         check("NZ", "NZ-G" to 0, "NZ-PGR" to 2, "NZ-AO" to 7, "NZ-16" to 5)
-        check("SG", "SG-G" to 0, "SG-PG" to 2, "SG-PG13" to 3, "SG-NC16" to 5, "SG-M18" to 6, "SG-R21" to 6)
+        check("SG", "SG-G" to 0, "SG-PG" to 2, "SG-PG13" to 3, "SG-NC16" to 5, "SG-M18" to 6, "SG-R21" to 7)
         check("TH", "TH-4" to 1, "TH-6" to 1, "TH-10" to 2, "TH-13" to 3, "TH-15" to 5, "TH-18" to 6, "TH-19" to 6)
     }
 
@@ -216,7 +218,7 @@ class NonUsRatingVectors {
             "DE-12/DE-16" to 5,
             "PG-13/R" to 5,
             "DE-12/FSK 16" to null,
-            "AU-PG/AU-R" to 6,
+            "AU-PG/AU-R" to 7,
         )
     }
 
@@ -233,7 +235,7 @@ class NonUsRatingVectors {
             "PG-14" to 4,
             "NC16" to 5,
             "M18" to 6,
-            "R21" to 6,
+            "R21" to 7,
             "X-RATED" to 7,
         )
     }
