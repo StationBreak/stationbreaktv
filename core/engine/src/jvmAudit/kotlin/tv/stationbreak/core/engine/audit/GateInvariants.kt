@@ -258,10 +258,30 @@ internal object CeilingOracle {
     ): Boolean {
         val limit = channel.ceiling?.let { RatingLadder.rankOf(it) }
         val rated = listOf(entry.officialRating, series?.officialRating).filter { !it.isNullOrBlank() }
-        val ranks = rated.map { RatingLadder.rankOf(it) }
+        val ranks = rated.map { rankOf(it) }
         val allUnder = limit != null && ranks.isNotEmpty() && ranks.all { it != null && it <= limit }
         return channel.ceiling == null || allUnder
     }
+
+    // A rating's rank on the ladder: its US name, else (#1123) the oracle's own reading of a country-prefixed age or an
+    // all-ages word. It does not call `RatingMap`. An age takes the lowest rank whose age is at least it, and a bare
+    // age is Family (rank 2) at least; anything else is unknown (null), which fails closed.
+    private val AGE = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(\d{1,2})\+?""")
+    private val ALL_AGES = Regex("""(?:[A-Z]{2}\s*[-:/]\s*)?(?:ALL|ALL AGES)""")
+    private val RANK_AGES = listOf(0, 7, 10, 13, 14, 16, 18)
+    private const val FAMILY_RANK = 2
+
+    internal fun rankOf(raw: String?): Int? = RatingLadder.rankOf(raw) ?: raw?.trim()?.uppercase()?.let(::countryRank)
+
+    private fun countryRank(key: String): Int? =
+        if (ALL_AGES.matches(key)) {
+            0
+        } else {
+            AGE.matchEntire(key)?.groupValues?.get(1)?.toInt()?.let { age ->
+                val rank = RANK_AGES.indexOfFirst { age <= it }.let { if (it < 0) RANK_AGES.size else it }
+                if (key.first().isDigit()) maxOf(rank, FAMILY_RANK) else rank
+            }
+        }
 }
 
 /**

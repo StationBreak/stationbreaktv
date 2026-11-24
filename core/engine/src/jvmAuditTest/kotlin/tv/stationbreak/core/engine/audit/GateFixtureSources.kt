@@ -12,7 +12,12 @@ import tv.stationbreak.core.model.RuleSnapshot
  * again. Another fixture (an anonymized household snapshot, the 2026-11-20 mock) is a file dropped in that folder.
  */
 internal object GateFixtureSources {
-    fun all(): Map<String, AuditInput> = mapOf("anilist-only" to aniList(), "edge-cases" to edgeCases())
+    fun all(): Map<String, AuditInput> =
+        buildMap {
+            put("anilist-only", aniList())
+            put("edge-cases", edgeCases())
+            put("non-us-ratings", nonUsRatings())
+        }
 
     // A run of [count] films that share their facts; the length and the year move on for each.
     @Suppress("LongParameterList") // The facts a run of films shares.
@@ -87,6 +92,22 @@ internal object GateFixtureSources {
         b.show(listOf("Horror", "Kids"), "TV-Y7", listOf("kids"), year = 2011)
         b.films(1, listOf("Horror", "Family"), "PG", minutes = 92, firstYear = 2012)
         return AuditInput(unrated(withAdultSlice(b.build())), null)
+    }
+
+    // #1123: an ordinary library with titles that carry the ratings of other countries (the DVB-style ages), a bare age
+    // and a string no table reads. The engine admits what its tables read; the oracle reads them on its own.
+    private fun nonUsRatings(): AuditInput {
+        val b = LibraryBuilder(7)
+        b.shows(10, listOf("Comedy"), "TV-PG", 22, listOf("sitcom"), 2, 6, 1994)
+        b.shows(6, listOf("Drama"), "TV-14", 44, emptyList(), 2, 6, 2008)
+        b.shows(16, listOf("Animation", "Kids"), "TV-Y", 11, listOf("kids"), 2, 6, 2008)
+        b.films(10, listOf("Family", "Adventure"), "PG", minutes = 96, firstYear = 1999)
+        b.films(8, listOf("Comedy", "Romance"), "PG-13", firstYear = 2001)
+        for (rating in listOf("DE-6", "DE-12", "DE-16", "DE-18", "6", "ZZ-invented")) {
+            b.shows(4, listOf("Animation", "Kids"), rating, 11, listOf("kids"), 2, 6, 2014)
+            b.films(3, listOf("Family"), rating, minutes = 90, firstYear = 2015)
+        }
+        return AuditInput(unrated(b.build()), null)
     }
 
     // The builder's "" rating is what a series spec holds for no rating; the file stores it as none.
