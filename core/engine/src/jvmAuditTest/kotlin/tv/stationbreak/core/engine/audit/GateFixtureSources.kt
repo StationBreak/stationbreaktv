@@ -12,7 +12,12 @@ import tv.stationbreak.core.model.RuleSnapshot
  * again. Another fixture (an anonymized household snapshot, the 2026-11-20 mock) is a file dropped in that folder.
  */
 internal object GateFixtureSources {
-    fun all(): Map<String, AuditInput> = mapOf("anilist-only" to aniList(), "edge-cases" to edgeCases(), "non-us-ratings" to nonUsRatings())
+    fun all(): Map<String, AuditInput> =
+        buildMap {
+            put("anilist-only", aniList())
+            put("edge-cases", edgeCases())
+            put("non-us-ratings", nonUsRatings())
+        }
 
     // A run of [count] films that share their facts; the length and the year move on for each.
     @Suppress("LongParameterList") // The facts a run of films shares.

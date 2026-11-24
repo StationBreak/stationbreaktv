@@ -271,19 +271,17 @@ internal object CeilingOracle {
     private val RANK_AGES = listOf(0, 7, 10, 13, 14, 16, 18)
     private const val FAMILY_RANK = 2
 
-    internal fun rankOf(raw: String?): Int? {
-        RatingLadder.rankOf(raw)?.let { return it }
-        val key = raw?.trim()?.uppercase() ?: return null
-        if (ALL_AGES.matches(key)) return 0
-        val age =
-            AGE
-                .matchEntire(key)
-                ?.groupValues
-                ?.get(1)
-                ?.toInt() ?: return null
-        val rank = RANK_AGES.indexOfFirst { age <= it }.let { if (it < 0) RANK_AGES.size else it }
-        return if (key.first().isDigit()) maxOf(rank, FAMILY_RANK) else rank
-    }
+    internal fun rankOf(raw: String?): Int? = RatingLadder.rankOf(raw) ?: raw?.trim()?.uppercase()?.let(::countryRank)
+
+    private fun countryRank(key: String): Int? =
+        if (ALL_AGES.matches(key)) {
+            0
+        } else {
+            AGE.matchEntire(key)?.groupValues?.get(1)?.toInt()?.let { age ->
+                val rank = RANK_AGES.indexOfFirst { age <= it }.let { if (it < 0) RANK_AGES.size else it }
+                if (key.first().isDigit()) maxOf(rank, FAMILY_RANK) else rank
+            }
+        }
 }
 
 /**

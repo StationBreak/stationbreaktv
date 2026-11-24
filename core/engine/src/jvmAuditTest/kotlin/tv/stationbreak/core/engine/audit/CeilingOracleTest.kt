@@ -7,26 +7,39 @@ import kotlin.test.assertNull
 
 /** #1123: [CeilingOracle] reads a country rating on its own, and fails closed on a string it does not read. */
 class CeilingOracleTest {
+    // The ladder's ranks by name: ALL is the lowest, then 7, PG (10), 13, 14, 16, 18.
+    private val all = 0
+    private val seven = 1
+    private val family = 2
+    private val thirteen = 3
+    private val fourteen = 4
+    private val sixteen = 5
+    private val eighteen = 6
+
     @Test
     fun readsCountryAgesAndAllAgesWordsOnTheLadder() {
-        assertEquals(1, CeilingOracle.rankOf("DE-6"))
-        assertEquals(3, CeilingOracle.rankOf("DE-12"))
-        assertEquals(5, CeilingOracle.rankOf("de:16"))
-        assertEquals(6, CeilingOracle.rankOf("DE-18"))
-        assertEquals(0, CeilingOracle.rankOf("DE-ALL"))
-        assertEquals(0, CeilingOracle.rankOf("All Ages"))
-        assertEquals(4, CeilingOracle.rankOf("TV-14"))
+        val expected =
+            mapOf(
+                "DE-6" to seven,
+                "DE-12" to thirteen,
+                "de:16" to sixteen,
+                "DE-18" to eighteen,
+                "DE-ALL" to all,
+                "All Ages" to all,
+                "TV-14" to fourteen,
+            )
+        for ((raw, rank) in expected) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
     }
 
     @Test
     fun aBareAgeIsFamilyAtLeast() {
-        assertEquals(2, CeilingOracle.rankOf("6"))
-        assertEquals(3, CeilingOracle.rankOf("12+"))
+        for ((raw, rank) in mapOf("6" to family, "12+" to thirteen)) assertEquals(rank, CeilingOracle.rankOf(raw), raw)
     }
 
     @Test
     fun anUnknownStringHasNoRank() {
-        for (raw in listOf("ZZ-invented", "DE-", "DE-six", "", "  ", "12 12", "DE-6/DE-12")) assertNull(CeilingOracle.rankOf(raw), raw)
+        val unknown = listOf("ZZ-invented", "DE-", "DE-six", "", "  ", "12 12", "DE-6/DE-12")
+        for (raw in unknown) assertNull(CeilingOracle.rankOf(raw), raw)
         assertNull(CeilingOracle.rankOf(null))
     }
 }
