@@ -12,7 +12,8 @@ internal object CountryRatingTables {
      * the XML's age hint (15) is not used, nor any other source's. The rest fail up from a hint the rating's own name
      * contradicts: NZ PGR (parental guidance) and SG PG are 10, not the XML's 0; NZ AO (adults only) is explicit like
      * the `AO` alias, not 0; ES X (X-Rated) is explicit, not 18. `kid-hold-11` (#1124): the adult-only labels AU R, SG
-     * R21, KR 19 and JP 19 and 20 are explicit (level 7), not 18 (owner call, reversible).
+     * R21, KR 19 and JP 19 and 20 are explicit (level 7), not 18 (owner call, reversible). `kid-hold-12` (#1128): TH 19
+     is explicit too, so every adult-only label is level 7.
      */
     @Suppress("MagicNumber")
     private val OVERRIDES: Map<String, Map<String, Int>> =
@@ -20,6 +21,7 @@ internal object CountryRatingTables {
             "AU" to mapOf("PG" to 2, "R" to 7),
             "JP" to mapOf("19" to 7, "20" to 7),
             "KR" to mapOf("19" to 7),
+            "TH" to mapOf("19" to 7),
             "NZ" to mapOf("PGR" to 2, "AO" to 7),
             "SG" to mapOf("PG" to 2, "R21" to 7),
             "ES" to mapOf("X" to 7, "X-RATED" to 7),

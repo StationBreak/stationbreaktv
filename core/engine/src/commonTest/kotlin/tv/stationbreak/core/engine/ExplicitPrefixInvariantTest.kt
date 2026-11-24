@@ -51,6 +51,16 @@ class ExplicitPrefixInvariantTest {
         }
     }
 
+    // #1128: a country code and a space in front of an Explicit rating reads as the hyphen spelling does.
+    @Test
+    fun anExplicitRatingWithACountryCodeAndASpaceIsExplicit() {
+        for (entry in RatingMap.EXPLICIT) {
+            for (prefix in listOf("GB ", "au ", "NZ  ")) {
+                assertTrue(RatingMap.isExplicit(prefix + entry), "[$prefix$entry]")
+            }
+        }
+    }
+
     @Test
     fun anExplicitRatingStaysExplicitUnderTheSharedPrefixRule() {
         var reference = 0

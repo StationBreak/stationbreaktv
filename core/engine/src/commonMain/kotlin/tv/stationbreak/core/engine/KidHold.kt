@@ -32,10 +32,12 @@ import tv.stationbreak.core.model.studioKey2
  * age is Family at least (#1006), so a bare `6` is no longer kids. Unknown and unrated stay adult.
  * `kid-hold-11` (#1124) reads AU `R`, SG `R21`, KR `19` and JP `19` and `20` as level 7, Explicit (adult-only labels):
  * no kid channel admitted them before either. Grown-up and custom ceilings read the mapped level (`grown-up-hold-11`).
+ * `kid-hold-12` (#1128) reads TH `19` as level 7 too, and a country code followed by a space (`SG R21`, `AU R`) as
+ * Explicit for the Explicit tier ([RatingMap.isExplicit]). Stricter only: nothing that was Explicit stops being so.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-11"
+    const val VERSION_NAME = "kid-hold-12"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's

@@ -125,7 +125,7 @@ class NonUsRatingVectors {
         // NZ PGR and AO have a hint of 0 in the XML; their names say otherwise, so they fail upward.
         check("NZ", "NZ-G" to 0, "NZ-PGR" to 2, "NZ-AO" to 7, "NZ-16" to 5)
         check("SG", "SG-G" to 0, "SG-PG" to 2, "SG-PG13" to 3, "SG-NC16" to 5, "SG-M18" to 6, "SG-R21" to 7)
-        check("TH", "TH-4" to 1, "TH-6" to 1, "TH-10" to 2, "TH-13" to 3, "TH-15" to 5, "TH-18" to 6, "TH-19" to 6)
+        check("TH", "TH-4" to 1, "TH-6" to 1, "TH-10" to 2, "TH-13" to 3, "TH-15" to 5, "TH-18" to 6, "TH-19" to 7)
     }
 
     @Test

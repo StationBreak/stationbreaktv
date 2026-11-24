@@ -301,8 +301,8 @@ class KidHoldTest {
     }
 
     @Test
-    fun theVersionIsKidHoldEleven() {
-        assertEquals("kid-hold-11", KidHold.VERSION_NAME)
+    fun theVersionIsKidHoldTwelve() {
+        assertEquals("kid-hold-12", KidHold.VERSION_NAME)
     }
 
     // --- the frozen manifest ---
@@ -310,7 +310,7 @@ class KidHoldTest {
     // A change to either list is a new version name: the hold's behaviour is versioned by it.
     @Test
     fun theManifestIsFrozenUnderItsVersionName() {
-        assertEquals("kid-hold-11", KidHold.VERSION_NAME)
+        assertEquals("kid-hold-12", KidHold.VERSION_NAME)
         assertEquals(
             listOf("Children", "Children's", "Children’s", "Childrens", "Kids", "Kid", "Preschool", "Pre-school"),
             KidHold.KIDS_GENRES,
@@ -413,8 +413,8 @@ class KidHoldTest {
     // The signal's lists are frozen under both hold versions: a change is a new version name of each.
     @Test
     fun theAnimatedFamilyListsAreFrozenUnderBothHoldVersions() {
-        assertEquals("kid-hold-11", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-11", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-12", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-12", GrownUpHold.VERSION_NAME)
         assertEquals("animation", AnimatedFamilySignal.GENRE_ANIMATION)
         assertEquals("family", AnimatedFamilySignal.GENRE_FAMILY)
         assertEquals(setOf("G", "TV-G", "TV-Y", "TV-Y7", "TV-Y7-FV", "Approved"), AnimatedFamilySignal.RATINGS)
@@ -423,11 +423,12 @@ class KidHoldTest {
 
     // The two version names are pinned as a pair. They do not always move together: #1108's grown-up-hold-9 moved
     // alone (no kid-hold rule changed, a custom channel's tier limit did), so a bump of one edits this pair on purpose.
-    // #987 moved both (kid-hold-10, grown-up-hold-10), and so did #1124 (kid-hold-11, grown-up-hold-11).
+    // #987 moved both (kid-hold-10, grown-up-hold-10), and so did #1124 (kid-hold-11, grown-up-hold-11)
+    // and #1128 (kid-hold-12, grown-up-hold-12).
     @Test
     fun theCurrentHoldVersionNamesArePinnedAsAPair() {
         assertEquals(
-            mapOf("kid-hold-11" to "grown-up-hold-11"),
+            mapOf("kid-hold-12" to "grown-up-hold-12"),
             mapOf(KidHold.VERSION_NAME to GrownUpHold.VERSION_NAME),
         )
     }
@@ -435,8 +436,8 @@ class KidHoldTest {
     // The gate's behaviour is pinned under both version names: a change to any vector is a new version of each hold.
     @Test
     fun theGrownUpGateIsPinnedUnderBothHoldVersions() {
-        assertEquals("kid-hold-11", KidHold.VERSION_NAME)
-        assertEquals("grown-up-hold-11", GrownUpHold.VERSION_NAME)
+        assertEquals("kid-hold-12", KidHold.VERSION_NAME)
+        assertEquals("grown-up-hold-12", GrownUpHold.VERSION_NAME)
         val animated = listOf("Animation", "Family")
         val drops =
             mapOf(
