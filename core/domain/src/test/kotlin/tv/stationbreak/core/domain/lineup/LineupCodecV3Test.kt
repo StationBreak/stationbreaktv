@@ -190,7 +190,7 @@ class LineupCodecV3Test {
     }
 
     @Test
-    fun leavesAtAndShelfReasonOnANonStarterAreIgnored() {
+    fun shelfReasonOnANonStarterIsIgnoredAndALeaveOnACustomChannelIsKept() {
         val lineup = lineupOf(starterChannel("a", 110), channel("custom-1", 600, ChannelState.On, custom()))
         val file =
             tree(lineup).withChannel(1) {
@@ -199,9 +199,9 @@ class LineupCodecV3Test {
 
         val read = loaded(file.toString()).lineup.channels[1]
 
-        assertNull(read.leavesAtMs)
+        assertEquals(5L, read.leavesAtMs)
         assertNull(read.shelfReason)
-        assertEquals(lineup.channels[1], read)
+        assertEquals(lineup.channels[1].copy(leavesAtMs = 5L), read)
     }
 
     private fun custom() = ChannelSource.Custom(rules("Mine", Source.Tag("mine")))

@@ -402,8 +402,8 @@ class LineupEditsTest {
     }
 
     @Test
-    fun onlyAStarterHoldsADayBoundaryFieldOrAShelfReason() {
-        assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(leavesAtMs = 1L) }
+    fun onlyAStarterHoldsAShelfReasonAndOnlyAStarterOrCustomLeaves() {
+        assertEquals(1L, custom("a", 650).copy(leavesAtMs = 1L).leavesAtMs) // a retired starter kept as custom
         assertFailsWith<IllegalArgumentException> { custom("a", 650).copy(shelfReason = ShelfReason.Empty) }
         assertEquals(1L, starter("western", 310).copy(leavesAtMs = 1L).leavesAtMs)
     }

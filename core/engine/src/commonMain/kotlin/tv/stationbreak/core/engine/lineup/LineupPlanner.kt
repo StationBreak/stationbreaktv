@@ -378,6 +378,29 @@ object LineupPlanner {
         return if (source.recipeKey == AdultMark.AFTER_HOURS_KEY) AdultMark.marked(rules) else rules
     }
 
+    // A retired recipe's channel as a custom one, keeping the rules of today, so a change waiting for its boundary
+    // is not applied to a channel that is frozen. It has no shelf reason. One the viewer never touched is not kept On:
+    // it leaves at the boundary (a playing show is never cut, #562), keeps its number (retired), and the viewer can
+    // switch it on from the shelf.
+    private fun retiredToCustom(
+        channel: LineupChannel,
+        source: ChannelSource.Starter,
+        p: Planning,
+    ): LineupChannel {
+        val unseen =
+            channel.state == ChannelState.On &&
+                !source.edited &&
+                channel.viewerChoice == ViewerChoice.None &&
+                source.recipeKey in p.catalog.retiredKeys
+        return channel.copy(
+            source = ChannelSource.Custom(customRulesOf(source, p.nowMs)),
+            // A custom channel cannot hold the added mark (`canHoldAddedMark`).
+            viewerChoice = minOf(channel.viewerChoice, ViewerChoice.Touched),
+            leavesAtMs = if (unseen) channel.leavesAtMs ?: p.boundaryMs else null,
+            shelfReason = null,
+        )
+    }
+
     // Catalog updates and the hint pass of every synced call. Edited, custom and unusable channels are never touched.
     // Only a [keeper] (see [previousKeepers]: the protected starters that hold previous rules come first) keeps
     // previous rules, so a protected starter's rules for today never change in the middle of a day.
@@ -392,19 +415,7 @@ object LineupPlanner {
                 val recipe = p.recipe(source.recipeKey)
                 when {
                     recipe == null -> {
-                        if (newer) {
-                            // A custom channel has no day to leave on and no shelf reason. It keeps the rules of today,
-                            // so a change still waiting for its boundary is not applied to a channel that is frozen.
-                            channel.copy(
-                                source = ChannelSource.Custom(customRulesOf(source, p.nowMs)),
-                                // A custom channel cannot hold the added mark (`canHoldAddedMark`).
-                                viewerChoice = minOf(channel.viewerChoice, ViewerChoice.Touched),
-                                leavesAtMs = null,
-                                shelfReason = null,
-                            )
-                        } else {
-                            channel
-                        }
+                        if (newer) retiredToCustom(channel, source, p) else channel
                     }
 
                     source.edited -> {
