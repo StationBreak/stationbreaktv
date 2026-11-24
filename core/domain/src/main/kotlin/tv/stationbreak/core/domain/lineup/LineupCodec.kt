@@ -90,8 +90,9 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  * written as before). An older build reads a version-8 file as [Decoded.NewerVersion]; a `moved` key in a file below
  * version 8 makes it [Decoded.Unreadable]. The list is advice, so it is read leniently: an entry that does not read,
  * or whose channel is no longer in the lineup, is dropped, and nothing in it can make the file unreadable. A notice
- * ends when the viewer opens Channels, or [MovedNotice.KEEP_DAYS] days after it was made (every refresh drops the
- * old ones), so a household that never opens Channels has a file back at its old version within that time.
+ * ends when the viewer dismisses the guide's note about it, or [MovedNotice.KEEP_DAYS] days after it was made (every
+ * refresh drops the old ones), so a household that never sees the note has a file back at its old version within that
+ * time.
  *
  * **Any** change to the schema, adding a field or an enum value included, bumps [VERSION]. So an older app sees
  * [Decoded.NewerVersion] for a newer file and never saves over fields it doesn't know, and a file with an unknown key

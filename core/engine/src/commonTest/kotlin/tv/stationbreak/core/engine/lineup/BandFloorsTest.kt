@@ -476,16 +476,18 @@ class BandFloorsTest {
 
     // A notice lives KEEP_DAYS days: kept on the last of them, dropped the day after, and with it the file's v8.
     @Test
-    fun aNoticeIsKeptForFourteenDaysAndThenDropped() {
+    fun aNoticeIsKeptForSixtyDaysAndThenDropped() {
         val (plain, library, first) = plannerSetup()
         val alpha = first.channel("alpha").id
         val made = 100L
         val stored = first.copy(movedNotices = listOf(MovedNotice(alpha, 50, 110, made)))
 
         fun at(day: Long) = planOf(stored, library, plain, nowMs = day * DAY_MS + DAY_START_MS).movedNotices
-        assertEquals(1, at(made + MovedNotice.KEEP_DAYS).size, "the boundary day")
+        assertEquals(60L, MovedNotice.KEEP_DAYS, "sixty days, so a viewer away for weeks is still told (#1107)")
+        assertEquals(1, at(made + 60).size, "the boundary day")
+        assertEquals(1, at(made + 14 + 1).size, "past the old fourteen")
+        assertEquals(emptyList(), at(made + 61), "the day after the sixtieth")
         assertEquals(1, at(made).size, "a fresh one")
-        assertEquals(emptyList(), at(made + MovedNotice.KEEP_DAYS + 1), "the day after")
     }
 
     @Test

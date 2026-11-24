@@ -103,7 +103,7 @@ class LineupCodecMovedTest {
             val kept = MovedNotice.live(listOf(MovedNotice(laughs, 50, 110, day)), setOf(laughs), today)
             assertEquals(listOf(MovedNotice(laughs, 50, 110, today)), kept, "day $day")
             val later = MovedNotice.live(kept, setOf(laughs), today + MovedNotice.KEEP_DAYS + 1)
-            assertEquals(emptyList(), later, "day $day ends 14 days after it was made")
+            assertEquals(emptyList(), later, "day $day ends 60 days after it was made")
         }
         val past = MovedNotice.live(listOf(MovedNotice(laughs, 50, 110, Long.MIN_VALUE)), setOf(laughs), today)
         assertEquals(emptyList(), past, "a huge negative day is old, not live")

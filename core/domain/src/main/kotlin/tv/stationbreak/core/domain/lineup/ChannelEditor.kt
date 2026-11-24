@@ -157,10 +157,17 @@ interface ChannelEditor {
     suspend fun reset(account: LibraryAccount): ResetResult
 
     /**
-     * The channels moved to keep to their band's floor (#1097) that the viewer has not been told of, once: they are
-     * cleared from the lineup in the same step that reads them, so a second call is empty. Empty too while the lineup
-     * may not be written or none is held. Notices for channels no longer in the lineup are dropped. Never throws, but
-     * for cancellation.
+     * The channels moved to keep to their band's floor (#1097) that the viewer has not been told of, by new number: a
+     * read only, so asking twice gives the same list until [acknowledgeMoved] is saved. Empty while none is pending,
+     * while the lineup may not be written (an acknowledgement could not be kept) and when none is held. Notices for
+     * channels no longer in the lineup are left out. Never throws, but for cancellation.
      */
-    suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel>
+    suspend fun peekMovedNotices(account: LibraryAccount): List<MovedChannel>
+
+    /**
+     * The viewer has been told: clears the pending notices in one atomic save. True when none is pending afterwards
+     * (cleared now, or none to clear); false when the save failed or the lineup may not be written, and they stay
+     * pending for the next showing. Never throws, but for cancellation.
+     */
+    suspend fun acknowledgeMoved(account: LibraryAccount): Boolean
 }

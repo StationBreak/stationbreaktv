@@ -168,34 +168,41 @@ class ChannelManager(
             }
         }
 
-    // The notices are read in the lock the clearing is made in: what is cleared is what is returned. With none pending
-    // the check refuses and nothing is written. A failed or refused save returns none, and the next visit tries again.
+    // A read only: nothing is cleared, so a glance, a crash or a power cut while the note shows loses nothing. A
+    // lineup that may not be written shows none, since the viewer's dismissal could not be kept.
     @Suppress("TooGenericExceptionCaught")
-    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> {
-        var seen: Lineup? = null
-        val saved =
-            try {
-                service.edit(account, LineupEdit.AcknowledgeMoved) {
-                    seen = it
-                    it.movedNotices.isNotEmpty()
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                service.reportEvent(LineupEvent.EditFailed)
-                null
-            }
-        val lineup = seen
-        return if (saved is Saved.Ok && lineup != null) movedChannels(lineup) else emptyList()
-    }
-
-    private fun movedChannels(lineup: Lineup): List<MovedChannel> {
-        val byId = lineup.channels.associateBy { it.id }
-        val live = MovedNotice.live(lineup.movedNotices, byId.keys, MovedNotice.dayOf(service.nowMs()))
-        return live.mapNotNull { notice ->
-            byId[notice.id]?.let { MovedChannel(it.displayName(service.catalog), notice.from, notice.to) }
+    override suspend fun peekMovedNotices(account: LibraryAccount): List<MovedChannel> =
+        try {
+            val lineup = service.loaded(account)?.takeIf { it.writable }?.lineup
+            val byId = lineup?.channels?.associateBy { it.id }.orEmpty()
+            val live =
+                MovedNotice.live(lineup?.movedNotices.orEmpty(), byId.keys, MovedNotice.dayOf(service.nowMs()))
+            live
+                .mapNotNull { notice ->
+                    byId[notice.id]?.let { MovedChannel(it.displayName(service.catalog), notice.from, notice.to) }
+                }.sortedWith(compareBy({ it.to }, { it.name }))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            service.reportEvent(LineupEvent.AccessFailed)
+            emptyList()
         }
-    }
+
+    // One atomic edit clears them all. With none pending the check refuses, nothing is written, and that counts as
+    // told. A failed or refused save, or a lineup that may not be written, is not: the note stays pending.
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun acknowledgeMoved(account: LibraryAccount): Boolean =
+        try {
+            when (service.edit(account, LineupEdit.AcknowledgeMoved) { it.movedNotices.isNotEmpty() }) {
+                is Saved.Ok, Saved.Denied -> true
+                else -> false
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            service.reportEvent(LineupEvent.EditFailed)
+            false
+        }
 
     // A choice that cannot be read is an expected failure here, as is none chosen: nothing is written, and the caller
     // may try again. So is a failure of the plan or the save itself: it is reported (ResetFailed) and is

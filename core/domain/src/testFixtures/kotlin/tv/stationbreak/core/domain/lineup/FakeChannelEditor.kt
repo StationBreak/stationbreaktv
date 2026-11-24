@@ -26,11 +26,17 @@ class FakeChannelEditor(
     /** What [reset] answers next. */
     var resetResult: ResetResult = ResetResult.Chosen
 
-    /** What [takeMovedNotices] answers once; it is cleared by the call, as the real one clears the lineup's. */
+    /** What [peekMovedNotices] answers until [acknowledgeMoved] clears it: the pending notices, as the lineup holds them. */
     var moved: List<MovedChannel> = emptyList()
 
-    /** How many times [takeMovedNotices] was called. */
-    var takes = 0
+    /** How many times [peekMovedNotices] was called. */
+    var peeks = 0
+
+    /** How many times [acknowledgeMoved] was called. */
+    var acknowledgements = 0
+
+    /** What [acknowledgeMoved] answers; false is a save that failed, and leaves [moved] pending. */
+    var acknowledgeSaves = true
 
     fun setAccess(value: LineupAccess) {
         accessNow.value = value
@@ -51,8 +57,14 @@ class FakeChannelEditor(
         return resetResult
     }
 
-    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> {
-        takes++
-        return moved.also { moved = emptyList() }
+    override suspend fun peekMovedNotices(account: LibraryAccount): List<MovedChannel> {
+        peeks++
+        return moved
+    }
+
+    override suspend fun acknowledgeMoved(account: LibraryAccount): Boolean {
+        acknowledgements++
+        if (acknowledgeSaves) moved = emptyList()
+        return acknowledgeSaves
     }
 }

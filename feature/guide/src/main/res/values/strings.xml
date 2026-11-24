@@ -295,4 +295,18 @@
     <string name="band_kids">Kids</string>
     <string name="band_teens">Teens</string>
     <string name="band_adults">Adults</string>
+
+    <!-- The moved-channel note (#1107): a sheet over the guide, once, after a channel was moved up to the band that fits
+         what it shows. The reason is one sentence for the whole sheet and promises nothing. A row is the channel's own
+         name, then its old and new numbers; the spoken row says the same in words. -->
+    <plurals name="guide_moved_title">
+        <item quantity="one">A channel moved</item>
+        <item quantity="other">Channels moved</item>
+    </plurals>
+    <string name="guide_moved_reason">Channels now keep to the band that fits what they show. These were below theirs, so they moved up. Nothing was removed.</string>
+    <string name="guide_moved_row">%1$s</string>
+    <string name="guide_moved_numbers">%1$d → %2$d</string>
+    <string name="guide_moved_row_spoken">%1$s, was channel %2$d, now channel %3$d</string>
+    <string name="guide_moved_ok">OK</string>
+    <string name="guide_moved_hint_dismiss">Close</string>
 </resources>

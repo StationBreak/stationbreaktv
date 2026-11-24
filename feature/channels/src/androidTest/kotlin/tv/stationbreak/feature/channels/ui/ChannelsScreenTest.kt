@@ -238,7 +238,9 @@ private class Lineup(
 
     override fun changesStartAt(account: LibraryAccount): Flow<Long> = changesAt
 
-    override suspend fun takeMovedNotices(account: LibraryAccount): List<MovedChannel> = emptyList()
+    override suspend fun peekMovedNotices(account: LibraryAccount): List<MovedChannel> = emptyList()
+
+    override suspend fun acknowledgeMoved(account: LibraryAccount): Boolean = true
 
     override fun access(account: LibraryAccount): Flow<LineupAccess> = flowOf(access)
 
