@@ -9,8 +9,11 @@
 # <tag> is a release tag, vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N (release.yml's tag check).
 # <end-commit> (a full 40-character SHA, default: the commit <tag> points at) ends the range: release.yml passes
 # $GITHUB_SHA, the commit that was built. The range is the commits after the previous release tag reachable from the
-# end commit (highest version first, <tag> itself excluded; only final vMAJOR.MINOR.PATCH tags count, so
-# `v1.2.0-beta.1`, `v1.2.0-rc1` and `vendor-x` are ignored) up to the end commit. With no previous
+# end commit up to the end commit. The previous tag is the highest release tag of any stage (see <tag> above) reachable
+# from the end commit, <tag> itself excluded, by semantic version: for the same MAJOR.MINOR.PATCH final > rc > beta >
+# alpha, then by N; otherwise by number. So `v1.2.0-beta.2` starts at `v1.2.0-beta.1`, and a final `v1.2.0` starts at
+# its own last pre-release (say `v1.2.0-rc.1`) when there is one: that is the rule's literal result. Tags that are not
+# release tags (`v1.2.0-rc1`, `vendor-x`) are ignored. With no previous
 # tag it prints just `First release.` (the whole history is no use as a draft). A shallow clone is refused: the range
 # would be wrong. Merge commits are skipped. Groups, in order: Breaking changes (a `!` after the type or scope, or a
 # `BREAKING CHANGE:` / `BREAKING-CHANGE:` footer), Features (feat), Fixes (fix), Performance (perf), Other changes
@@ -33,9 +36,9 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   exit 2
 fi
 tag="$1"
-# The tag argument: release.yml's tag check. The previous tag below is a final release only.
-release_tag_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)$'
-if ! [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-(alpha|beta|rc)\.(0|[1-9]|[12][0-9]))?$ ]]; then
+# The tag argument, and every candidate for the previous tag: release.yml's tag check.
+release_tag_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-(alpha|beta|rc)\.(0|[1-9]|[12][0-9]))?$'
+if ! [[ "$tag" =~ $release_tag_re ]]; then
   echo "release-notes.sh: '$tag' is not a vMAJOR.MINOR.PATCH tag, optionally with -alpha.N, -beta.N or -rc.N" >&2
   exit 2
 fi
@@ -61,15 +64,21 @@ if [ "$#" -eq 2 ]; then
   fi
 fi
 
-# The previous tag: the highest release version among the tags reachable from the end commit, other than <tag>.
-previous=""
-tags_raw="$(git tag --merged "$end_commit" --sort=-v:refname)"
+# The previous tag: the highest release tag of any stage among the tags reachable from the end commit, other than <tag>.
+# Ordered here, not by git's --sort=-v:refname (that ranks v1.0.0-beta.1 above v1.0.0). The key is zero-padded
+# MAJOR MINOR PATCH, then stage (alpha 0, beta 1, rc 2, final 3), then N, so a plain string comparison orders it.
+previous="" best=""
 while IFS= read -r candidate; do
   if [ "$candidate" != "$tag" ] && [[ "$candidate" =~ $release_tag_re ]]; then
-    previous="$candidate"
-    break
+    case "${BASH_REMATCH[5]}" in alpha) stage=0 ;; beta) stage=1 ;; rc) stage=2 ;; *) stage=3 ;; esac
+    key="$(printf '%09d.%09d.%09d.%d.%02d' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "$stage" \
+      "${BASH_REMATCH[6]:-0}")"
+    if [[ "$key" > "$best" ]]; then
+      best="$key"
+      previous="$candidate"
+    fi
   fi
-done <<<"$tags_raw"
+done < <(git tag --merged "$end_commit")
 
 if [ -z "$previous" ]; then
   echo "First release."
