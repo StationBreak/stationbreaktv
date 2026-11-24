@@ -397,10 +397,10 @@ class GuideNoLibrariesUiTest {
         compose.waitUntil(TIMEOUT_MS) {
             compose.onAllNodesWithTag(GuideTags.SETTINGS_SYNC_STATUS).fetchSemanticsNodes().isNotEmpty()
         }
+        // The explainer follows, with the app's name in it, so this is a substring (an exact match is per item).
         compose
-            .onNodeWithTag(
-                GuideTags.SETTINGS_SHEET,
-            ).assertContentDescriptionContains("Update library, Updating…. Looks for new and changed titles.")
+            .onNodeWithTag(GuideTags.SETTINGS_SHEET)
+            .assertContentDescriptionContains("Update library, Updating…. Looks for new and changed titles.", true)
         val why = "the Update library line is not a second live region"
         assertEquals(why, 1, liveNodes().size)
     }

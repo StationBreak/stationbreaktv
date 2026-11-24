@@ -70,7 +70,9 @@ class GuideKidsPinUiTest {
     fun theCapPadIsTitledForTheCap_andAsksForTheCurrentPin() {
         show { GuideKidsPin(PinEntry.start(PinPurpose.Cap, KidsCap.Family)) }
         compose.onNodeWithTag(GuideTags.KIDS_PIN_TITLE).assertTextEquals("Change the Family Mode cap")
-        compose.onNodeWithTag(GuideTags.KIDS_PIN).assertContentDescriptionEquals("Enter your PIN. 5. 0 of 4 digits")
+        compose.onNodeWithTag(GuideTags.KIDS_PIN).assertContentDescriptionEquals(
+            "Channels 1 to 66: Tots and Kids. Enter your PIN. 5. 0 of 4 digits",
+        )
     }
 
     @Test
