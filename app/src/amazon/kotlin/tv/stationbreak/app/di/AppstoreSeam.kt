@@ -49,6 +49,25 @@ internal class ProductData(
     val prices: Map<String, String?>,
 )
 
+/**
+ * A page from the SDK's receipts, each already mapped or null when it could not be. A receipt that cannot be read (or a
+ * missing list) makes the whole page [Reply.Failed]: dropping it could hide a Pro receipt and turn a full listing into
+ * "no Pro", which would say false.
+ */
+internal fun updatesPageOf(
+    requestId: String,
+    reply: Reply,
+    receipts: List<StoreReceipt?>?,
+    hasMore: Boolean,
+): UpdatesPage {
+    val readable = receipts?.filterNotNull()
+    return if (reply != Reply.Ok || readable == null || readable.size != receipts.size) {
+        UpdatesPage(requestId, if (reply == Reply.Unsupported) reply else Reply.Failed, emptyList(), false)
+    } else {
+        UpdatesPage(requestId, reply, readable, hasMore)
+    }
+}
+
 internal enum class PurchaseReply { Successful, AlreadyPurchased, Pending, Failed, Unsupported }
 
 internal class PurchaseResult(

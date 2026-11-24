@@ -135,6 +135,17 @@ earlier "do not link the SDK" rule). What that means:
   behaves exactly as it did with the stand-in (nothing owned, `available` false, a purchase or restore fails, no price)
   and makes no SDK call at all: no listener is registered and nothing is asked. A flavor with no store baked on sale
   fails the build.
+- **Fulfillment.** `notifyFulfillment` is void and asynchronous, so "fulfilled" in the contract means the call was made
+  and did not throw. Receipt IDs are held in memory for the life of the process, only to tell the SDK once; they are
+  never persisted, logged or printed.
+- **The receiver.** `ResponseReceiver` is exported and relies on the NOTIFY permission being held only by the Appstore
+  client, plus the SDK's own check of what it receives against `AppstoreAuthenticationKey.pem`. The manifest adds no
+  other guard: `android:permission` is not valid on the intent filter's action.
+- **Checklist before flipping `PRO_ON_SALE` for the store release.** The SDK jar's own logging is outside our
+  no-logging test, so on a debug amazon build run a purchase and a restore with logcat open, check that no receipt,
+  user ID, marketplace ID or token appears in it, and record the result in the pull request that flips the switch.
+  Also confirm the manifest entries and R8 rules above against Amazon's current guide, create the console SKU, and
+  try a purchase, a refund and a restore on a device.
 - **Not yet proven on a device.** Nothing here was run against the real Appstore; the console's SKU (`PRO_SKU`) is
   still the owner's to create.
 

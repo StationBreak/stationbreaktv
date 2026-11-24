@@ -23,6 +23,7 @@ import tv.stationbreak.app.di.PurchaseResult
 import tv.stationbreak.app.di.Reply
 import tv.stationbreak.app.di.StoreReceipt
 import tv.stationbreak.app.di.UpdatesPage
+import tv.stationbreak.app.di.updatesPageOf
 import tv.stationbreak.core.domain.store.PurchaseOutcome
 import tv.stationbreak.core.domain.store.RestoreOutcome
 
@@ -231,6 +232,32 @@ class AmazonStoreTest {
             assertEquals("a delta alone cannot say false", true, store.verified.value)
             assertEquals("it asks for a full reset listing", true, sdk.asked("updates").last().reset)
             assertEquals(2, sdk.asked("updates").size)
+        }
+
+    @Test
+    fun anUnsolicitedPageWithMoreIsNeverPagedAndLeavesAnInFlightSyncItsPages() =
+        runTest {
+            val store = store()
+            store.onForeground()
+            store.answerUpdates(hasMore = true)
+            assertEquals(listOf(true, false), sdk.asked("updates").map { it.reset })
+
+            store.onPurchaseUpdates(page("pushed", hasMore = true))
+
+            assertEquals("no reset = false request for a delta", 2, sdk.asked("updates").size)
+            store.answerUpdates()
+            val resets = sdk.asked("updates").map { it.reset }
+            assertEquals("the full sync waited its turn", listOf(true, false, true), resets)
+            assertEquals(false, store.verified.value)
+        }
+
+    @Test
+    fun aPageWithAnUnreadableReceiptNeverSaysFalse() =
+        runTest {
+            val store = store()
+            store.onForeground()
+            store.onPurchaseUpdates(updatesPageOf(sdk.last.id, Reply.Ok, listOf(null), hasMore = false))
+            assertNull(store.verified.value)
         }
 
     @Test

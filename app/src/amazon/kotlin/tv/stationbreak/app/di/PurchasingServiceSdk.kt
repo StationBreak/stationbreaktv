@@ -80,9 +80,9 @@ internal class AppstoreListener(
                     PurchaseUpdatesResponse.RequestStatus.NOT_SUPPORTED -> Reply.Unsupported
                     else -> Reply.Failed
                 }
-            UpdatesPage(id, reply, response.receipts.orEmpty().mapNotNull(::receipt), response.hasMore())
+            updatesPageOf(id, reply, response.receipts?.map(::receipt), response.hasMore())
         } catch (_: Exception) {
-            UpdatesPage(id, Reply.Failed, emptyList(), false)
+            updatesPageOf(id, Reply.Failed, null, false)
         }
     }
 

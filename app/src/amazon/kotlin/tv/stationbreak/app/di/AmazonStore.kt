@@ -33,9 +33,13 @@ internal class Ledger(
     private val sdk: AppstoreSdk,
     private val verified: MutableStateFlow<Boolean?>,
 ) {
+    // Receipt IDs already fulfilled in this process: memory only, never persisted, logged or passed on.
     private val fulfilled = HashSet<String>()
 
-    /** Fulfills a valid Pro receipt, then and only then sets verified. False if `notifyFulfillment` did not happen. */
+    /**
+     * Fulfills a valid Pro receipt, then and only then sets verified. `notifyFulfillment` is void and asynchronous, so
+     * "fulfilled" means the call was made and did not throw; false if it did not happen.
+     */
     fun grant(receipt: StoreReceipt): Boolean {
         val already = synchronized(fulfilled) { receipt.id in fulfilled }
         val ok = already || sdk.notifyFulfilled(receipt.id)
@@ -95,7 +99,9 @@ internal class Ledger(
  * - it keeps moving on its own: a purchase the purchase screen stopped waiting for (the viewer tuned away), or one
  *   that settles later, reaches it from the purchase responses and updates the SDK still delivers;
  * - [available] is true whenever the SDK is bound and the store did not say it is unsupported: offline too;
- * - nothing is logged, and no receipt, user ID, marketplace ID or token is kept, printed or passed on;
+ * - nothing is logged or persisted, and no user ID, marketplace ID or token is read. Receipt IDs are held in memory
+ *   only, for the life of the process, to tell the SDK once that a receipt was fulfilled, and are never printed;
+ * - `notifyFulfillment` is void and asynchronous, so "fulfilled" means the call was made and did not throw;
  * - the one SKU is [PRO_SKU], the only place it is named.
  *
  * [onForeground] asks for the purchase updates at start and at each resume. Nothing runs in this class unless
@@ -186,24 +192,29 @@ internal class AmazonStore(
 
     override fun onPurchaseUpdates(page: UpdatesPage) {
         answered(page.reply == Reply.Unsupported)
-        val sync = synchronized(lock) { syncs.remove(page.requestId) }
-        // An answer nobody is waiting for is a delta: it can grant, and it can ask for a full sync, never say false.
-        val session = sync ?: Sync(resetting = false)
+        val session = synchronized(lock) { syncs.remove(page.requestId) }
+        if (session == null) {
+            // An answer nobody is waiting for is a delta. It can grant, and it asks for a full sync (behind the mutex)
+            // when it has more pages or cancels Pro. It is never paged here, since `reset = false` would take pages
+            // from a sync in flight, and it never says false.
+            if (page.reply == Reply.Ok) {
+                val delta = Sync(resetting = false).also { it.receipts += page.receipts }
+                ledger.settle(delta) { scope.launch { sync() } }
+                if (page.hasMore) scope.launch { sync() }
+            }
+            return
+        }
         if (page.reply != Reply.Ok) {
             session.done.complete(SyncResult.Failed)
             return
         }
         session.receipts += page.receipts
         if (page.hasMore) {
-            askNextPage(session)
+            val next = synchronized(lock) { sdk.getPurchaseUpdates(reset = false)?.also { syncs[it] = session } }
+            if (next == null) session.done.complete(SyncResult.Failed)
         } else {
             session.done.complete(ledger.settle(session) { scope.launch { sync() } })
         }
-    }
-
-    private fun askNextPage(session: Sync) {
-        val next = synchronized(lock) { sdk.getPurchaseUpdates(reset = false)?.also { syncs[it] = session } }
-        if (next == null) session.done.complete(SyncResult.Failed)
     }
 
     override fun onProductData(data: ProductData) {
