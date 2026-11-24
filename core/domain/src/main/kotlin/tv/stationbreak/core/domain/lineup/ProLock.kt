@@ -39,7 +39,7 @@ private fun List<ChannelSummary>.lockedIds(): Set<ChannelId> = lockedCustoms(map
 /**
  * The lineup as features see it while Pro may be locked (#99): [delegate]'s lists without the locked custom channels,
  * so the guide, flipping and channel management never show one. Each list is emitted again when Pro changes. The
- * locked set is ranked over [delegate]'s whole lists, so [delegate] must not be filtered by anything else (Kids Mode
+ * locked set is ranked over [delegate]'s whole lists, so [delegate] must not be filtered by anything else (Family Mode
  * wraps this one, not the other way round).
  */
 class ProLockedChannelRepository(

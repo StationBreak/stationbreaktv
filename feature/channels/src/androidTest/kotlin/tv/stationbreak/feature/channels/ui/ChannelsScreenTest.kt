@@ -1020,7 +1020,7 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_SWITCH_OFF)
 
         press(Pad.Select)
-        panelSays("part of Pro")
+        panelSays("part of StationBreak Pro")
         assertTrue("no purchase without a store", !exists(ChannelsTags.ACTION_SEE_PRO))
         compose.onNodeWithTag(ChannelsTags.ACTION_CANCEL).assertIsSelected()
         assertTrue("nothing is sent", lineup.changes.isEmpty())
@@ -1043,7 +1043,7 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_SWITCH_ON)
 
         press(Pad.Select)
-        panelSays("part of Pro")
+        panelSays("part of StationBreak Pro")
         assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
@@ -1059,7 +1059,7 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_SWITCH_OFF)
 
         press(Pad.Select)
-        panelSays("part of Pro")
+        panelSays("part of StationBreak Pro")
         assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
@@ -1101,7 +1101,9 @@ class ChannelsScreenTest {
         assertTrue("a Pro word is shown", compose.runOnUiThread { noProWords() })
 
         press(Pad.Select)
-        panelSays("Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro.")
+        panelSays(
+            "Free includes 5 custom channels. Delete some of yours to make room. More is part of StationBreak Pro.",
+        )
         assertTrue("no purchase without a store", !exists(ChannelsTags.ACTION_SEE_PRO))
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
@@ -1127,7 +1129,7 @@ class ChannelsScreenTest {
             if (nodes(hasTestTag(ChannelsTags.RESET) and isSelected()).isEmpty()) press(Pad.Down)
         }
         press(Pad.Select)
-        panelSays("part of Pro")
+        panelSays("part of StationBreak Pro")
         assertEquals(0, lineup.resets.get())
     }
 
@@ -1158,7 +1160,7 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_SWITCH_OFF)
 
         press(Pad.Select)
-        panelSays("part of Pro")
+        panelSays("part of StationBreak Pro")
         assertTrue("nothing is sent", lineup.changes.isEmpty())
     }
 
@@ -1173,7 +1175,9 @@ class ChannelsScreenTest {
         toChoice(ChannelsTags.ACTION_COPY)
 
         press(Pad.Select)
-        panelSays("Free includes 5 custom channels. Delete some of yours to make room. More is part of Pro.")
+        panelSays(
+            "Free includes 5 custom channels. Delete some of yours to make room. More is part of StationBreak Pro.",
+        )
         assertTrue("no builder opens at the limit", !exists(BuilderTags.SCREEN))
         assertTrue("no channel is made", lineup.changes.isEmpty())
     }

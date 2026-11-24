@@ -116,6 +116,51 @@ class ChannelsProOfferedTest {
         }
 
     @Test
+    fun aNoteClosesWhenProArrivesAnotherWay_withoutBackFromThePurchaseScreen() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+
+            rig.pro.set(true)
+            runCurrent()
+
+            assertNull(rig.ui.panel)
+            assertFalse(rig.ui.seeingPro)
+        }
+
+    @Test
+    fun aNoteUnderThePurchaseScreenClosesWhenProArrives_andThePurchaseScreenStaysUntilBack() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+            rig.pick(Choice.SeePro)
+
+            rig.pro.set(true)
+            runCurrent()
+
+            assertNull(rig.ui.panel)
+            assertTrue(rig.ui.seeingPro)
+            rig.vm.proDone()
+            assertFalse(rig.ui.seeingPro)
+        }
+
+    @Test
+    fun aNoteStaysWhenProIsStillNotOwned() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            openRow(rig, A)
+            rig.pick(Choice.SwitchOff)
+
+            rig.pro.set(false)
+            runCurrent()
+
+            assertEquals(ChannelsPanel.NeedsPro(ProNeed.Reshape, A), rig.ui.panel)
+        }
+
+    @Test
     fun aRefund_closesTheGatesAgain_soSwitchOffAndChangeNumberOnAStarterShowTheNote() =
         channelsTest(lineup) { rig ->
             rig.freeAndOffered()

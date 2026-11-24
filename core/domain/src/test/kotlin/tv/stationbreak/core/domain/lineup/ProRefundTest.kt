@@ -191,7 +191,7 @@ class ProRefundTest {
     @Test
     fun kidsModeDoesNotUncoverALockedCustom_sinceTheLockIsRankedOverTheWholeLineup() =
         runBlocking<Unit> {
-            // c6 and c7 are the locked ones; both are kids channels. Kids Mode on shows only numbers up to 33.
+            // c6 and c7 are the locked ones; both are kids channels. Family Mode on shows only numbers up to 33.
             val customs = (1..total).map { custom(it).copy(numberOverride = if (it >= 6) 20 + it else 600 + it) }
             val base = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
             store.inner.save(ACCOUNT, LineupCodec.encode(lineupOf(*(listOf(base) + customs).toTypedArray())))

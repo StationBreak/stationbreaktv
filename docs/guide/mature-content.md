@@ -35,8 +35,8 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   off it even when the rating would fit. A channel with a higher limit, or none, is unchanged. If you turn on
   **Tots channel** in the builder, it gets the Tots rules above.
 - **Copies of After Hours stay adult.** A copy of After Hours is always an adult channel. You aren't asked, and you
-  can't choose otherwise or change it later. Copying After Hours is only for Pro, as any change to a built-in channel
-  is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.
+  can't choose otherwise or change it later. Copying After Hours is only for StationBreak Pro, as any change to a built-in
+  channel is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.
 
 Keeping children safe is free: the Tots rules above, and Family Mode with a PIN when it arrives. Only conveniences for
 parents, such as hours of operation and a bedtime card, are part of Pro. See [Free and Pro](free-and-pro.md).
@@ -174,9 +174,8 @@ first allowed channel at once, and a period's edge is noticed within a minute. I
 TV shows Stan asleep with **Off the air** on the screen until the period ends. Channels are only hidden, never removed, so they all come back
 when the period is over. The TV's own clock and time zone decide, so there is nothing to adjust for daylight saving time.
 
-Open the guide's menu, choose **Settings**, then **Hours of operation**. The row appears with StationBreak Pro; without
-Pro it is not there. It needs a PIN first (set one with **Family Mode**, as above), so a grown-up can
-always override the hours. While Family Mode is on, the row does nothing and says **Turn off Family Mode first**.
+Open the guide's menu, choose **Settings**, then **Hours of operation**. The row is there only with Pro. It needs a PIN first (set one with **Family Mode**, as above), so a
+grown-up can always override the hours. While Family Mode is on, the row does nothing and says **Turn off Family Mode first**.
 
 - **Adding or changing a period.** Choose **Add a period**, or a period in the list. Move down the rows and press Left
   or Right to change a value: the day, **From**, **To** and the level. Times move 15 minutes at a time and go round

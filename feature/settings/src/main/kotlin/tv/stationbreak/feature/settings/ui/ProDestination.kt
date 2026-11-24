@@ -189,7 +189,6 @@ private val ADDS =
         R.string.settings_pro_adds_channels,
         R.string.settings_pro_adds_reset,
         R.string.settings_pro_adds_custom,
-        R.string.settings_pro_adds_hours,
     )
 
 private fun resultText(result: ProResult): Int =

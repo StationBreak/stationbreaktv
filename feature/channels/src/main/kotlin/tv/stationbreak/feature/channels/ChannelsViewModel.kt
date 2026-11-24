@@ -251,7 +251,7 @@ internal class ChannelsViewModel
                     launch {
                         editor.access(account).collect { a -> change(generation) { it.copy(access = a) } }
                     }
-                val entitled = launch { pro.pro.collect { p -> change(generation) { it.copy(isPro = p) } } }
+                val entitled = launch { pro.pro.collect { p -> change(generation) { proChanged(it, p) } } }
                 val offered = launch { storeAvailable.collect { o -> change(generation) { it.copy(proOffered = o) } } }
                 val capped =
                     launch {
@@ -717,6 +717,18 @@ internal class ChannelsViewModel
         }
 
         // A new channel was refused for the free cap: the Pro note says so (#1071).
+        // Pro arriving another way (a restore, a purchase on the purchase screen, the store catching up) leaves a Pro
+        // note with nothing left to say, so it closes; the purchase screen over it, if it shows, stays until Back.
+        private fun proChanged(
+            m: Model,
+            isPro: Boolean,
+        ): Model =
+            if (isPro && m.panel is ChannelsPanel.NeedsPro) {
+                m.copy(isPro = true, panel = null)
+            } else {
+                m.copy(isPro = isPro)
+            }
+
         private fun capReached(m: Model): Model = m.copy(panel = ChannelsPanel.NeedsPro(ProNeed.CustomLimit))
 
         // A wait that is still on after ACCESS_WAIT is dropped and says so; one that resolved (or was cancelled by a
@@ -927,12 +939,34 @@ internal class ChannelsViewModel
             reason: ChangeRefusal,
         ): Model =
             when (reason) {
-                is ChangeRefusal.NumberTaken -> swapPanel(m, closed, change, reason.holder)
-                ChangeRefusal.KidsBandOnly -> closed.copy(message = ChannelsMessage.KidsBand)
-                is ChangeRefusal.BelowBand -> closed.copy(message = belowBandMessage(reason.needs))
-                ChangeRefusal.LastOn -> closed.copy(message = ChannelsMessage.LastOn)
-                ChangeRefusal.NoFreeNumber -> closed.copy(message = ChannelsMessage.NoNumber)
-                else -> closed.copy(message = ChannelsMessage.Failed)
+                is ChangeRefusal.NumberTaken -> {
+                    swapPanel(m, closed, change, reason.holder)
+                }
+
+                ChangeRefusal.KidsBandOnly -> {
+                    closed.copy(message = ChannelsMessage.KidsBand)
+                }
+
+                is ChangeRefusal.BelowBand -> {
+                    closed.copy(message = belowBandMessage(reason.needs))
+                }
+
+                ChangeRefusal.LastOn -> {
+                    closed.copy(message = ChannelsMessage.LastOn)
+                }
+
+                ChangeRefusal.NoFreeNumber -> {
+                    closed.copy(message = ChannelsMessage.NoNumber)
+                }
+
+                // Pro lapsed between the choice and the change: the same note as at the list.
+                ChangeRefusal.NeedsPro -> {
+                    closed.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reshape, change.channelId), holder = null)
+                }
+
+                else -> {
+                    closed.copy(message = ChannelsMessage.Failed)
+                }
             }
 
         private fun swapPanel(
@@ -1006,8 +1040,11 @@ internal class ChannelsViewModel
 
                 ResetResult.SaveFailed -> done.copy(message = ChannelsMessage.SaveFailed)
 
-                // The reset line is not shown to a free viewer, so the domain's refusal is not expected.
-                ResetResult.Failed, ResetResult.NeedsPro -> done.copy(message = ChannelsMessage.Failed)
+                // Reset is asked only with Pro (askReset gates it), so this is Pro lost while it ran: the same note as
+                // at the list.
+                ResetResult.NeedsPro -> done.copy(panel = ChannelsPanel.NeedsPro(ProNeed.Reset))
+
+                ResetResult.Failed -> done.copy(message = ChannelsMessage.Failed)
 
                 ResetResult.LibrariesUnavailable -> done.copy(message = ChannelsMessage.LibrariesUnavailable)
             }
