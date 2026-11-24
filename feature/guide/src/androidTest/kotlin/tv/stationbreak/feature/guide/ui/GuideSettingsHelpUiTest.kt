@@ -66,7 +66,7 @@ class GuideSettingsHelpUiTest {
         val kids = SettingsValues(kidsPinSet = true, kidsCap = KidsCap.Family)
         show { GuideSettingsSheet(kids, SettingsRow.KidsMode, SyncNowState.Idle) }
         well().assertTextEquals(
-            "Channels 1 to 66: Tots and Kids. Keeps this TV to the channels below. " +
+            "Channels 1 to 66: Tots and Kids. Keeps this TV to those channels. " +
                 "Changing it, or turning it off, needs your PIN.",
         )
     }

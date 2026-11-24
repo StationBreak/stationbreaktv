@@ -181,7 +181,7 @@
          Those that name the product take it as %1$s from the app's name, so it is written once. None names a way
          round Family Mode, and none mentions a price, a trial or when anything arrives. Under a row that Family Mode
          has switched off the well says the locked note instead. -->
-    <string name="guide_help_family_off">Keeps this TV to the channels below. Changing it, or turning it off, needs your PIN.</string>
+    <string name="guide_help_family_off">Keeps this TV to those channels. Changing it, or turning it off, needs your PIN.</string>
     <string name="guide_help_family_on">Only these channels play. Everything above stays hidden until the PIN turns Family Mode off.</string>
     <string name="guide_help_hours">Pick times when this TV drops to a lower level, such as Tots at bedtime. The PIN overrides it.</string>
     <string name="guide_help_pro">%1$s Pro adds more ways to change your lineup.</string>
