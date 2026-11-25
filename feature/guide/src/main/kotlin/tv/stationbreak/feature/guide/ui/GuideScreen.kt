@@ -248,6 +248,8 @@ internal fun GuideScreen(
             settings?.reset?.let { GuideKidsPinReset(it) }
             // The hours screen (#789) stands in the sheet's place the same way.
             settings?.hours?.let { GuideHours(it, settingsValues) }
+            // The user guide's QR screen (#1105) stands in the sheet's place the same way.
+            if (settings?.guideShown == true) GuideUserGuide()
         }
     }
 }

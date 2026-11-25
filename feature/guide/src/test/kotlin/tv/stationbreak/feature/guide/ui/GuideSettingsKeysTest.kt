@@ -43,9 +43,9 @@ class GuideSettingsKeysTest {
             panel = checkNotNull(panel.press(Key.DirectionDown).panel)
             walked += panel.row
         }
-        assertEquals(shown + SettingsRow.SignOut, walked)
+        assertEquals(shown + SettingsRow.UserGuide, walked)
         // Held: every repeat moves (and stops at the end).
-        val last = on(SettingsRow.SignOut)
+        val last = on(SettingsRow.UserGuide)
         assertEquals(SettingsStep(last), last.press(Key.DirectionDown, repeat = 3))
         assertEquals(SettingsStep(on(SettingsRow.ScreenFit)), on(SettingsRow.ChannelChange).press(Key.DirectionUp))
         // A release moves nothing.
@@ -73,11 +73,42 @@ class GuideSettingsKeysTest {
 
     @Test
     fun crashReportsRowIsWalkedToOnlyInABuildWithAnEndpoint() {
-        val last = on(SettingsRow.SignOut)
-        assertEquals(SettingsStep(last), last.press(Key.DirectionDown))
+        val signOut = on(SettingsRow.SignOut)
+        assertEquals(SettingsStep(on(SettingsRow.UserGuide)), signOut.press(Key.DirectionDown))
         val offered = defaults.copy(crashReportsAvailable = true)
-        assertEquals(SettingsStep(on(SettingsRow.CrashReports)), last.press(Key.DirectionDown, offered))
-        assertEquals(SettingsStep(last), on(SettingsRow.CrashReports).press(Key.DirectionUp, offered))
+        assertEquals(SettingsStep(on(SettingsRow.CrashReports)), signOut.press(Key.DirectionDown, offered))
+        assertEquals(SettingsStep(signOut), on(SettingsRow.CrashReports).press(Key.DirectionUp, offered))
+        assertEquals(
+            SettingsStep(on(SettingsRow.UserGuide)),
+            on(SettingsRow.CrashReports).press(Key.DirectionDown, offered),
+        )
+    }
+
+    @Test
+    fun okOnTheUserGuideRowShowsItsScreen_andBackAndOkBothReturnToTheRow() {
+        val row = on(SettingsRow.UserGuide)
+        val shown = row.press(Key.DirectionCenter)
+        assertEquals(SettingsStep(SettingsPanel(SettingsRow.UserGuide, guideShown = true)), shown)
+        val screen = checkNotNull(shown.panel)
+        // It has no slot of its own and no focus: the sheet's own keys are its keys.
+        assertEquals(false, screen.covered)
+        assertEquals(SettingsStep(row), screen.release(Key.Back))
+        assertEquals(SettingsStep(row), screen.press(Key.DirectionCenter))
+        // Every other D-pad key is kept and changes nothing; Back acts on its release; media keys are not its.
+        for (key in listOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight)) {
+            assertEquals(SettingsStep(screen), screen.press(key))
+        }
+        assertEquals(SettingsStep(screen), screen.press(Key.Back))
+        assertNull(settingsStep(screen, defaults, Key.MediaPlayPause, KeyEventType.KeyDown, 0))
+        // Back from the row then closes the sheet, as before.
+        assertEquals(SettingsStep(null), row.release(Key.Back))
+    }
+
+    @Test
+    fun okOnTheUserGuideRowDoesNothingWhileFamilyModeIsOn() {
+        val locked = defaults.copy(kidsOn = true, kidsPinSet = true)
+        val row = on(SettingsRow.UserGuide)
+        assertEquals(SettingsStep(row), row.press(Key.DirectionCenter, locked))
     }
 
     @Test

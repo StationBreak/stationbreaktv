@@ -24,6 +24,8 @@ dependencies {
 
     testImplementation(testFixtures(project(":core:domain")))
     testImplementation(libs.kotlinx.coroutines.test)
+    // The user-guide QR drawable is written and decoded by tests only (GuideQrTest): no QR code is made at runtime.
+    testImplementation(libs.zxing.core)
 
     // The screen's instrumented tests (spec 17) use these; they also pin the androidx.test versions that Hilt's test
     // artifact would otherwise resolve to an older one.
