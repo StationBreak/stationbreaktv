@@ -30,7 +30,9 @@ first. The built-in lineup is chosen for your library. Switching built-in channe
 resetting your channels, making a sixth channel and copying After Hours are part of Pro. Choose one on the free app and
 a note says it is part of Pro. Where the store is connected the note has **See Pro**, which opens the Pro screen (Back
 returns you to where you were) and **OK**; where it isn't, the note only has **OK**. Nothing is refused without saying
-why. Your own channels can be switched on and off and renumbered freely, and can swap numbers with each other. A number
+why. The channel builder's own Pro lines work the same way: with the store connected, the line has **See Pro** and
+**OK** and the cursor is already on **See Pro**; Back is the same as **OK**, and puts the cursor back where it was.
+Your own channels can be switched on and off and renumbered freely, and can swap numbers with each other. A number
 a built-in channel holds is taken.
 
 **Use my collections** can be switched on or off at any time.

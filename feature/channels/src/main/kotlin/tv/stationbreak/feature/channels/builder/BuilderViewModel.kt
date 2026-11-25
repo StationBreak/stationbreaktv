@@ -31,6 +31,7 @@ import tv.stationbreak.core.domain.lineup.builder.ChannelPreviews
 import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
+import tv.stationbreak.core.domain.store.StoreEntitlement
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.feature.channels.PanelMove
 import javax.inject.Inject
@@ -64,8 +65,11 @@ internal class BuilderViewModel
         private val channels: ChannelRepository,
         private val clock: Clock,
         dispatcher: CoroutineDispatcher,
+        /** Whether the store is available (#1146): only then does a Pro line offer See Pro. */
+        private val storeAvailable: StateFlow<Boolean> = MutableStateFlow(false),
     ) : ViewModel() {
         @Inject
+        @Suppress("LongParameterList") // The builder's ports and the store.
         constructor(
             library: LibraryRepository,
             builder: ChannelBuilder,
@@ -73,7 +77,8 @@ internal class BuilderViewModel
             previews: ChannelPreviews,
             channels: ChannelRepository,
             clock: Clock,
-        ) : this(library, builder, picker, previews, channels, clock, Dispatchers.Default)
+            store: StoreEntitlement,
+        ) : this(library, builder, picker, previews, channels, clock, Dispatchers.Default, store.available)
 
         private val scope = CoroutineScope(SupervisorJob() + dispatcher)
         private val lock = Any()
@@ -182,6 +187,7 @@ internal class BuilderViewModel
                 if (next.message == old.message) next = next.copy(message = null)
                 next = next.copy(refused = null)
             }
+            next = next.proNoted(old, storeAvailable.value)
             if (next.account != null && next.draft.poolOnly() != old.draft.poolOnly()) next = startPreview(next)
             model = next.copy(focus = next.mended())
             shown.value = model.toUi()
@@ -290,8 +296,8 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 val focus = m.focus ?: return
-                // Until the channel is open there is nothing to move on; only Back is live.
-                if (!m.ready) return
+                // Until the channel is open there is nothing to move on; only Back is live (and a Pro line's choices).
+                if (!m.answers()) return
                 val by = if (move == PanelMove.Left) -1 else 1
                 val turning = move == PanelMove.Left || move == PanelMove.Right
                 val knob = knobOf(focus).takeIf { turning && m.confirm == null && !m.saving }
@@ -323,7 +329,7 @@ internal class BuilderViewModel
             synchronized(lock) {
                 val m = model
                 val focus = m.focus ?: return
-                if (!m.ready || m.saving) return
+                if (!m.answers() || m.saving) return
                 apply { it.copy(message = null) }
                 if (m.confirm != null) answer(focus) else selectFocused(m, focus)
             }
@@ -475,7 +481,7 @@ internal class BuilderViewModel
                     }
 
                     m.confirm != null -> {
-                        closeConfirm()
+                        dismissConfirm(m)
                     }
 
                     m.narrowOpen && !m.onSheet -> {
@@ -530,16 +536,35 @@ internal class BuilderViewModel
             apply { it.copy(confirm = null, focus = it.resume, resume = null) }
         }
 
+        // Back, and the keep of a question: a Pro line with no channel behind it (the open failed) ends the visit, as
+        // there is nothing left to go back to.
+        private fun dismissConfirm(m: BuilderModel) {
+            if (m.confirm is BuilderConfirm.Pro && !m.ready) closeNow() else closeConfirm()
+        }
+
+        /** The purchase screen was left (#1146): the Pro line stays on See Pro, and goes if Pro was bought. */
+        fun proReturned(owned: Boolean) {
+            synchronized(lock) {
+                val m = model
+                if (owned && m.confirm is BuilderConfirm.Pro) dismissConfirm(m)
+            }
+        }
+
         private fun answer(focus: BuilderFocus) {
             val m = model
             val yes = (focus as? BuilderFocus.Choice)?.index == 0
+            if (m.confirm is BuilderConfirm.Pro) {
+                // See Pro leaves the line up, to be found again on Back; OK is the keep.
+                if (yes) sent.trySend(BuilderEvent.SeePro) else dismissConfirm(m)
+                return
+            }
             closeConfirm()
             if (!yes) return
             when (m.confirm) {
                 BuilderConfirm.Leave -> closeNow()
                 BuilderConfirm.KidsOff -> setKids(on = false)
                 is BuilderConfirm.Delete -> deleteNow()
-                null -> Unit
+                is BuilderConfirm.Pro, null -> Unit
             }
         }
 

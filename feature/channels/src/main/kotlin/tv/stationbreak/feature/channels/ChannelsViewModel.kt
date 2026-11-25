@@ -786,6 +786,16 @@ internal class ChannelsViewModel
         }
 
         /**
+         * See Pro on the builder's own Pro line (#1146): the purchase screen shows over the builder. Only with a store,
+         * as on the list's note; the builder offers it only then, and the keys stay the builder's until Back.
+         */
+        fun seeProFromBuilder() {
+            synchronized(lock) {
+                if (model.builder != null && model.proOffered) apply { it.copy(seeingPro = true) }
+            }
+        }
+
+        /**
          * The purchase screen has finished (Back): the viewer is where they were, on the note, which closes when Pro
          * was bought meanwhile (it has nothing left to say).
          */

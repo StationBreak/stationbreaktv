@@ -145,6 +145,14 @@ internal sealed interface BuilderConfirm {
     data class Delete(
         val name: String,
     ) : BuilderConfirm
+
+    /**
+     * A Pro line ([message] is [BuilderMessage.NeedsPro] or [BuilderMessage.CustomLimit]) shown with a way on, only
+     * where the store is available (#1146). Its choices are See Pro, then OK; it opens on See Pro, and Back is OK.
+     */
+    data class Pro(
+        val message: BuilderMessage,
+    ) : BuilderConfirm
 }
 
 /** A line the screen shows after something did not happen. An invalid draft is [BuilderUi.problem], not a message. */
@@ -193,6 +201,9 @@ internal sealed interface BuilderEvent {
     ) : BuilderEvent
 
     data object Closed : BuilderEvent
+
+    /** Select on See Pro (#1146): the host shows the purchase screen over the builder, which does not end. */
+    data object SeePro : BuilderEvent
 }
 
 /** What the builder screens draw. */
