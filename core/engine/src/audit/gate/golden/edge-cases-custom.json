@@ -117,7 +117,7 @@
     {"key":"telenovela-tonight","number":436,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"cherry-blossom-hour","number":440,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"one-season-only","number":512,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
-    {"key":"cartoons-after-dark","number":516,"ceiling":null,"policy":"GrownUp","titles":1,"homes":1,"hours":0.5},
+    {"key":"cartoons-after-dark","number":516,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"family-business","number":520,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"anthology-hour","number":524,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"always-december","number":900,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
@@ -129,7 +129,7 @@
     {"key":"leftovers:kids-odds-and-ends","number":33,"ceiling":"PG","policy":"KidsOnly","titles":0,"homes":0,"hours":0.0},
     {"key":"leftovers:family-odds-and-ends","number":66,"ceiling":"PG","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
     {"key":"leftovers:teen-odds-and-ends","number":99,"ceiling":"TV-14","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
-    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":6,"homes":0,"hours":9.8}
+    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":7,"homes":0,"hours":10.3}
   ],
   "everything.off": ["after-hours"],
   "everything.noHome": {"no-source-match":1,"only-on-shelved-channels":12},

@@ -53,13 +53,16 @@ internal class Library {
         rating: String? = null,
         studios: List<String> = emptyList(),
         epRatings: List<String?>? = null,
+        tags: List<String> = emptyList(),
     ): CanonicalId {
         val id = idOf(next++)
-        series += seriesOf(id, rating = rating, genres = genres, studios = studios)
+        series += seriesOf(id, rating = rating, genres = genres, studios = studios, tags = tags)
         val list = byTitle.getOrPut(id) { ArrayList() }
         repeat(eps) { i ->
             val epRating = if (epRatings == null) rating else epRatings[i % epRatings.size]
-            val ep = episodeOf(idOf(next++), id, rating = epRating, genres = genres, studios = studios).lasting(epMs)
+            val ep =
+                episodeOf(idOf(next++), id, rating = epRating, genres = genres, studios = studios, tags = tags)
+                    .lasting(epMs)
             items += ep
             list += ep.item
         }
@@ -71,9 +74,10 @@ internal class Library {
         genres: List<String> = emptyList(),
         rating: String? = null,
         studios: List<String> = emptyList(),
+        tags: List<String> = emptyList(),
     ): CanonicalId {
         val id = idOf(next++)
-        val film = movieOf(id, rating = rating, genres = genres, studios = studios).lasting(ms)
+        val film = movieOf(id, rating = rating, genres = genres, studios = studios, tags = tags).lasting(ms)
         items += film
         byTitle[id] = mutableListOf(film.item)
         return id

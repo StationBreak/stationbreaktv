@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 16, curation-2, extras-1)
+LINEUP AUDIT (catalog 17, curation-2, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 2045 items, 57 titles (41 series, 16 films)
@@ -122,7 +122,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   after-hours                   504  off    OptIn         0  -                                  -
   one-season-only               512  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  cartoons-after-dark           516  off    TooThin       2  1t 7.15h 0a score   815 THIN       -
+  cartoons-after-dark           516  off    TooThin       1  1t 7.15h 0a score   815 THIN       -
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -187,7 +187,7 @@ TITLES (scores in points; a term that is zero is left out)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   000007d5 Olxima Pebraren [film, 1 items, 1.67h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
-    candidate only on: big-screen-toons (TooThin), binge-row (TooThin), cartoons-after-dark (TooThin)
+    candidate only on: big-screen-toons (TooThin), binge-row (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   00000000 Velmami Pefator [series, 60 items, 22.00h]
     home laugh-track 237.42 = specificity 22.42 genre 40.00 tag 35.00 format 80.00 tone 60.00

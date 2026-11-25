@@ -41,7 +41,8 @@ object StarterCatalog : StarterCatalogView {
      * Trade-off of the Family exclusion: an adult cartoon that reaches Cartoons After Dark through a tag or an anchor
      * (not the genre) AND carries the Family genre was on it at catalog 4 and is off it at catalog 5. It then falls to
      * another lane, or to Odds & Ends. That is accepted: Family is the signal that keeps PG family animation, which
-     * the grown-up hold passes, off a channel for grown-ups. The audit counts the titles it affects per profile
+     * the grown-up hold passes, off a channel for grown-ups (version 17 adds the adult signal for the genre entry, and
+     * Family stays out as well). The audit counts the titles it affects per profile
      * library (`LineupAuditTest`).
      *
      * Version 6 (the kids recipes stop copying Saturday Morning, #591): every key, number, band and opt-in kept, no
@@ -118,8 +119,16 @@ object StarterCatalog : StarterCatalogView {
      * fit points no longer let it out-home Popcorn Matinee, Big Screen Toons and Starship Sunday. It is still films
      * only (the Movie filter). Key, number, band, ceiling and opt-in are unchanged; its fingerprint changes. No rules
      * format or hold version change.
+     *
+     * Version 17 (#1154): Cartoons After Dark (key `cartoons-after-dark`, 516) needs an adult signal for a title that
+     * comes in through the Animation genre alone: a decisive rating of PG-13 / TV-14 or higher. Kid-rated, Family-tier
+     * and unrated animation with no Family genre no longer airs there; a title that reaches the channel through an
+     * adult tag, a theme studio or an anchor is unchanged. Unrated titles still fail up to the Adult tier; they are
+     * simply not admitted through the genre. The rule is the recipe's `Theme.adultSignalOnGenreEntry`, read by the
+     * curation only: it is not in any channel's rules, the rules format or a stored file. Key, number, band, ceiling
+     * and opt-in are unchanged; its fingerprint changes. No rules format or hold version change.
      */
-    const val VERSION = 16
+    const val VERSION = 17
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -29,6 +29,8 @@ internal class Title(
     val format: TitleFormat,
     val madeForKids: Boolean,
     val adultAnimation: Boolean,
+    /** Every rating of the title, its series' and each episode's, is an adult signal ([isAdultRating]). */
+    val adultRated: Boolean = false,
 )
 
 private const val ADULT_RANK = 4
@@ -99,7 +101,24 @@ internal object Titles {
             format = format,
             madeForKids = madeForKids(series, entries),
             adultAnimation = adult,
+            adultRated = allAdultRated(series, entries),
         )
+    }
+
+    // MED fix (#1154): the series' rating decides for the hold, but a kids' episode under a TV-14 series, or one TV-14
+    // episode among TV-Y ones, must not enter an adult channel on the genre alone. So the title shows the signal only
+    // when its series (if rated) and every episode that has a rating of its own is an adult signal, and an episode with
+    // no rating has the series' to lean on. A film, or an episode with no rated series, must be rated itself.
+    private fun allAdultRated(
+        series: RuleSeries?,
+        entries: List<RuleItem>,
+    ): Boolean {
+        val seriesRating = series?.officialRating?.takeIf { it.isNotBlank() }
+        if (seriesRating != null && !isAdultRating(seriesRating)) return false
+        return entries.all { e ->
+            val own = e.officialRating?.takeIf { it.isNotBlank() }
+            if (own != null) isAdultRating(own) else seriesRating != null
+        }
     }
 
     // The highest-ranked episode rating, ties (and ratings off the ladder) by the smaller string, so neither the order
