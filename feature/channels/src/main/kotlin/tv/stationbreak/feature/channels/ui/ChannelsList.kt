@@ -126,7 +126,7 @@ private fun RowLine(
     isPro: Boolean,
 ) {
     val reason = reasonOf(row)
-    val shelfReason = row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }
+    val shelfReason = shelfNoteOf(row, isPro)
     val labels = labelsOf(row)
     val spoken = spokenRow(row.number, row.name, labels, reason, shelfReason, joiner(R.string.spoken_pair))
     val stripe = bandOf(row.number)?.takeIf { it != NumberBand.Adults }?.let { ChannelsPalette.band.of(it) }

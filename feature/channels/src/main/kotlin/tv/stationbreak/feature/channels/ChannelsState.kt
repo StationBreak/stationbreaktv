@@ -28,6 +28,8 @@ internal data class ChannelRow(
     val startsAtMs: Long? = null,
     /** Why a shelved channel is not on, or why one on today leaves at the next day start; null for the others. */
     val shelfReason: ShelfReason? = null,
+    /** When an On channel the planner dropped leaves (next day start); the note says so, not [shelfReason]. */
+    val leavesAtMs: Long? = null,
     /** The viewer chose this number, so "Default number" shows. */
     val hasOverride: Boolean,
     /** The viewer just switched this channel on and its day is still being built (#776): it has no reason yet. */

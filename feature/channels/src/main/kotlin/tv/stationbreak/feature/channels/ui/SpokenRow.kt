@@ -48,6 +48,15 @@ internal fun reasonOf(row: ChannelRow): String? =
         row.reason?.let { reasonTextOf(row, it) }
     }
 
+/** The note under a row for its shelf reason, or for the time an On row leaves: the one line either way. */
+@Composable
+internal fun shelfNoteOf(
+    row: ChannelRow,
+    isPro: Boolean,
+): String? =
+    row.leavesAtMs?.let { stringResource(R.string.channels_reason_leaves_at, clockTimeOf(it)) }
+        ?: row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) }
+
 /** What a screen reader says for [row]: the same words the row's own node carries. */
 @Composable
 internal fun spokenOf(
@@ -59,6 +68,6 @@ internal fun spokenOf(
         row.name,
         labelsOf(row),
         reasonOf(row),
-        row.shelfReason?.let { stringResource(shelfReasonText(it, isPro)) },
+        shelfNoteOf(row, isPro),
         joiner(R.string.spoken_pair),
     )

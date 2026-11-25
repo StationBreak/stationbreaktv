@@ -77,6 +77,7 @@
     <string name="channels_reason_all_filtered">Everything that fits is filtered out</string>
     <string name="channels_reason_ceiling">All above the rating limit, or unrated</string>
     <string name="channels_reason_starts_at">Starts at %1$s</string>
+    <string name="channels_reason_leaves_at">Leaves at %1$s</string>
     <string name="channels_reason_empty_today">Nothing to air today; back when there is</string>
 
     <!-- placeholder: design partner -->
