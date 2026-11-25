@@ -44,8 +44,9 @@ internal fun lateOnPool(
     for (item in pool) {
         val group = item.groupId
         val title = titles[group]
-        // A title the snapshot does not hold cannot be judged: it stays, as it did before the guests.
-        if (title != null && !admits(channel, title, anchored)) continue
+        // A title the snapshot does not hold cannot be judged: it stays, as it did before the guests, unless the
+        // channel asks for an adult signal, which it cannot show (fail closed).
+        if (!kept(channel, title, anchored)) continue
         if (homes?.homeOf(group) == null) {
             items.add(item)
             homed.add(group)
@@ -57,6 +58,13 @@ internal fun lateOnPool(
     }
     return LateOnPool(items, homed, TitleWeights.of(weights))
 }
+
+// Whether the channel keeps a pool item of [title] (null: the snapshot lacks it).
+private fun kept(
+    channel: CurationChannel,
+    title: Title?,
+    anchored: Set<CanonicalId>,
+): Boolean = if (title == null) !wantsAdultSignal(channel.recipe) else admits(channel, title, anchored)
 
 // A title made for kids never guests on a grown-up channel (the anime rule is checked for every title).
 private fun mayGuest(

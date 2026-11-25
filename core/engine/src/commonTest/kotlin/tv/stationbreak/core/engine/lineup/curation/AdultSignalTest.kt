@@ -65,6 +65,52 @@ class AdultSignalTest {
     }
 
     @Test
+    fun anAmbiguousRatingIsReadAtItsYoungestAgeAndIsNoSignal() {
+        for (rating in listOf("C", "A", "11", "SE-11", "DK-11", "PG12", "JP-PG12", "AU-PG", "PG-13/11", "NR")) {
+            val lib = Library()
+            val film = lib.film(genres = cartoon, rating = rating)
+            assertEquals(emptySet(), admitted(lib, listOf(film)), rating)
+        }
+    }
+
+    @Test
+    fun anAdultRatingIsASignalWhetherUsOrCountryPrefixed() {
+        for (rating in listOf("PG-13", "PG13", "TV-14", "TV-14-V", "R", "TV-MA", "NC-17", "DE-16", "DE-18")) {
+            val lib = Library()
+            val film = lib.film(genres = cartoon, rating = rating)
+            assertEquals(setOf(film), admitted(lib, listOf(film)), rating)
+        }
+    }
+
+    @Test
+    fun kidsEpisodesUnderAnAdultSeriesRatingStayOut() {
+        val lib = Library()
+        val mixed = lib.show(eps = 3, genres = cartoon, rating = "TV-14", epRatings = listOf("TV-Y", "TV-G", "TV-14"))
+        assertEquals(emptySet(), admitted(lib, listOf(mixed)))
+    }
+
+    @Test
+    fun aSeriesWithNoRatingAndOneAdultEpisodeStaysOut() {
+        val lib = Library()
+        val mixed = lib.show(eps = 3, genres = cartoon, epRatings = listOf("TV-Y", "TV-Y", "TV-14"))
+        val allAdult = lib.show(eps = 3, genres = cartoon, epRatings = listOf("TV-14", "TV-MA"))
+        val underAdultSeries = lib.show(eps = 2, genres = cartoon, rating = "TV-MA", epRatings = listOf(null))
+        assertEquals(setOf(allAdult, underAdultSeries), admitted(lib, listOf(mixed, allAdult, underAdultSeries)))
+    }
+
+    @Test
+    fun aTitleTheSnapshotDoesNotHoldIsNotAdmittedOnTheGenre() {
+        val lib = Library()
+        val known = lib.film(genres = cartoon, rating = "TV-MA")
+        val unknown = lib.film(genres = cartoon, rating = "TV-MA")
+        val partial = Library().also { it.film(genres = cartoon, rating = "TV-MA") }
+        val pool = lib.itemsOf(listOf(known, unknown))
+        val ch = channel("after-dark", 516, cartoon, pool, theme = theme)
+        val out = Curation.lateOn(partial.snapshot(), ch, null).items.mapTo(HashSet()) { it.groupId }
+        assertEquals(setOf(known), out)
+    }
+
+    @Test
     fun aTagStudioOrAnchorEntryNeedsNoRating() {
         val lib = Library()
         val tagged = lib.show(eps = 2, genres = cartoon, tags = listOf("Adult Animation"))
