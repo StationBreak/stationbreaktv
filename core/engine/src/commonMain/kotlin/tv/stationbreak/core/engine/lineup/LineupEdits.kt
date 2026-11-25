@@ -491,6 +491,14 @@ object LineupEdits {
         return if (number < needs.numbers.first) EditRefusal.BelowBand(needs) else null
     }
 
+    // A retired starter set to leave (`leavesAtMs`) that the viewer rewrites or reseeds is theirs now: it stays.
+    private fun keptByViewer(channel: LineupChannel): LineupChannel =
+        if (channel.leavesAtMs == null) {
+            channel
+        } else {
+            channel.copy(leavesAtMs = null, viewerChoice = maxOf(channel.viewerChoice, ViewerChoice.Touched))
+        }
+
     // The stored seed stays; the number moves by the rules of SetNumber, on a lineup that already has the new rules.
     private fun replaceCustom(
         lineup: Lineup,
@@ -500,7 +508,7 @@ object LineupEdits {
     ): EditOutcome {
         val stored = (channel.source as? ChannelSource.Custom) ?: return refused(EditRefusal.NotCustom)
         val rules = edit.rules.copy(seed = stored.rules.seed)
-        val changed = channel.copy(source = ChannelSource.Custom(rules))
+        val changed = keptByViewer(channel).copy(source = ChannelSource.Custom(rules))
         val number = edit.number ?: keptOrFirstFree(lineup, channel, edit.kids, catalog)
         return when {
             number == null -> refused(EditRefusal.NoFreeNumber)
@@ -528,9 +536,18 @@ object LineupEdits {
     ): EditOutcome {
         val stored = (channel.source as? ChannelSource.Custom)
         return when {
-            stored == null -> refused(EditRefusal.NotCustom)
-            !shuffles(stored.rules) -> refused(EditRefusal.NotShuffle)
-            else -> applied(lineup, channel.copy(source = ChannelSource.Custom(stored.rules.copy(seed = seed))))
+            stored == null -> {
+                refused(EditRefusal.NotCustom)
+            }
+
+            !shuffles(stored.rules) -> {
+                refused(EditRefusal.NotShuffle)
+            }
+
+            else -> {
+                val reseeded = ChannelSource.Custom(stored.rules.copy(seed = seed))
+                applied(lineup, keptByViewer(channel).copy(source = reseeded))
+            }
         }
     }
 

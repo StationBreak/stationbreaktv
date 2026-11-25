@@ -108,9 +108,10 @@ import tv.stationbreak.core.rules.upgradedToStudioFold2
  *
  * What is rejected and what is dropped: an unknown key or value, and a field of a later version in an older file,
  * make the file [Decoded.Unreadable]. A few values this app could have written itself are read leniently and dropped
- * instead, so a save writes them back without them: `leavesAtMs` and `shelfReason` on a channel that is not a starter
- * (version 3; only a starter has them), a `previousRules` without its `rulesFromMs` or the other way round, or
- * `previousRules` that do not read (both dropped: the starter keeps its current rules), and a version 3 field written
+ * instead, so a save writes them back without them: `shelfReason` on a channel that is not a starter and
+ * `leavesAtMs` on a leftovers channel (version 3; only a starter has a reason, only a starter or a custom channel
+ * leaves), a `previousRules` without its `rulesFromMs` or the other way round, or `previousRules` that do
+ * not read (both dropped: the starter keeps its current rules), and a version 3 field written
  * as JSON `null` in a version 1 or 2 file (read as absent).
  * A `"noNumber"` reason below version 6 is not one of them: it is a later-version value, so the file is unreadable
  * even on a channel whose reason would otherwise be dropped.
@@ -378,7 +379,7 @@ internal object LineupCodec {
             source = SourceCodec.encode(channel.source),
             chosenByViewer = if (channel.chosenByViewer) true else null,
             addedByViewer = if (AddedMark.holds(channel)) true else null,
-            leavesAtMs = channel.leavesAtMs.takeIf { channel.source is ChannelSource.Starter },
+            leavesAtMs = channel.leavesAtMs.takeIf { channel.source !is ChannelSource.Leftovers },
             shelfReason =
                 channel.shelfReason
                     .takeIf { channel.source is ChannelSource.Starter }
@@ -418,8 +419,8 @@ internal object LineupCodec {
                     touched -> ViewerChoice.Touched
                     else -> ViewerChoice.None
                 },
-            // Only a starter leaves the lineup or sits on the shelf for a reason.
-            leavesAtMs = channel.leavesAtMs.takeIf { starter },
+            // A starter or a custom channel (a retired starter) leaves; only a starter has a shelf reason.
+            leavesAtMs = channel.leavesAtMs.takeIf { source !is ChannelSource.Leftovers },
             shelfReason = reasonOf(channel.shelfReason, starter),
         )
     }

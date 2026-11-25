@@ -122,7 +122,8 @@ data class CurationBasis(
  * starter can also mean "when the planner unpicked it" (a pick for the next boundary it took back: the time of the
  * plan, never ahead), as opposed to the time ahead of a viewer's switch-off of one waiting to start.
  * [leavesAtMs] is when an untouched starter the planner dropped goes to the shelf, and [shelfReason] why it is there
- * (starters only).
+ * (starters only). A retired starter kept as a custom channel also has a [leavesAtMs], when the planner shelves one
+ * the viewer never touched (see `LineupPlanner.refreshed`), but never a [shelfReason].
  */
 data class LineupChannel(
     val id: ChannelId,
@@ -137,8 +138,11 @@ data class LineupChannel(
     val shelfReason: ShelfReason? = null,
 ) {
     init {
-        require(source is ChannelSource.Starter || (leavesAtMs == null && shelfReason == null)) {
-            "Only a starter leaves the lineup or sits on the shelf for a reason"
+        require(source is ChannelSource.Starter || shelfReason == null) {
+            "Only a starter sits on the shelf for a reason"
+        }
+        require(source !is ChannelSource.Leftovers || leavesAtMs == null) {
+            "A leftovers channel cannot leave the lineup"
         }
     }
 

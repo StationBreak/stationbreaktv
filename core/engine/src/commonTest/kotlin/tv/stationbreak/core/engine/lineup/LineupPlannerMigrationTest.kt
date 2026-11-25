@@ -28,6 +28,7 @@ import kotlin.test.assertTrue
  * viewer's choices inferred once (A7, E7), its unedited starters take the new rules from the next boundary (D1), and
  * the selection runs; nothing of today changes, and the curation basis at the swap is empty (F2).
  */
+@Suppress("LargeClass") // One catalog-swap fixture shared by every case; splitting it would copy the fixture.
 class LineupPlannerMigrationTest {
     private val noon = 12 * 3_600_000L
     private val boundary = nextDayStart(noon)
@@ -238,6 +239,102 @@ class LineupPlannerMigrationTest {
             // Catalog 3's rules: programmed, from the boundary for one on the air.
             assertEquals(OrderingMode.Curated, now.starter.rules.orderingMode, old.id.value)
         }
+    }
+
+    // Device check: a retired starter the viewer never touched must not stay on the air as a custom channel at its old
+    // number (the Teens band). It leaves at the boundary, never mid-show (#562), and keeps its retired number.
+    private fun retiredBefore(): Lineup {
+        val lineup = before(real2, realLibrary).copy(viewerChoicesKnown = true)
+        val retired = lineup.channels.filter { keyOf(it) in StarterCatalog.retiredKeys }
+        assertEquals(StarterCatalog.retiredKeys, retired.map(::keyOf).toSet())
+        return lineup.copy(
+            channels = lineup.channels.map { if (it in retired) it.copy(state = ChannelState.On) else it },
+        )
+    }
+
+    @Test
+    fun anUntouchedRetiredStarterLeavesAtTheBoundaryAndIsShelvedThen() {
+        val lineup = retiredBefore()
+        val retired = lineup.channels.filter { keyOf(it) in StarterCatalog.retiredKeys }
+        assertTrue(retired.all { it.viewerChoice == ViewerChoice.None })
+
+        val next = swap(lineup, realLibrary, StarterCatalog)
+
+        val byId = next.channels.associateBy { it.id }
+        for (old in retired) {
+            val now = byId.getValue(old.id)
+            assertTrue(now.source is ChannelSource.Custom, old.id.value)
+            assertEquals(old.number, now.number, "its number stays retired, never reused")
+            // On today, so a playing show is not cut: it leaves at the boundary.
+            assertEquals(ChannelState.On, now.state, old.id.value)
+            assertEquals(boundary, now.leavesAtMs, old.id.value)
+        }
+        val rolled = next.rolled(boundary)
+        for (old in retired) {
+            assertEquals(ChannelState.Shelf, rolled.channels.first { it.id == old.id }.state, old.id.value)
+        }
+        val onAir = rolled.channels.filter { it.state == ChannelState.On }
+        assertTrue(onAir.none { keyOf(it) in StarterCatalog.retiredKeys })
+        val live = rolled.channels.mapNotNull { it.number }
+        assertTrue(retired.none { r -> rolled.channels.any { it.id != r.id && it.number == r.number } })
+        assertEquals(live.size, live.toSet().size)
+    }
+
+    @Test
+    fun aViewerChosenRetiredStarterStaysOnAsCustom() {
+        val lineup =
+            retiredBefore().withChannel("tall-tales-club") { it.copy(viewerChoice = ViewerChoice.Touched) }
+
+        val next = swap(lineup, realLibrary, StarterCatalog)
+        val now = next.channel("tall-tales-club")
+
+        assertTrue(now.source is ChannelSource.Custom)
+        assertEquals(ChannelState.On, now.state)
+        assertNull(now.leavesAtMs)
+        assertEquals(
+            ChannelState.On,
+            next
+                .rolled(boundary)
+                .channels
+                .first { it.id == now.id }
+                .state,
+        )
+    }
+
+    @Test
+    fun anEditedRetiredStarterStaysOnAsCustom() {
+        val lineup =
+            retiredBefore().withChannel("tall-tales-club") {
+                it.copy(source = it.starter.copy(edited = true))
+            }
+
+        val now = swap(lineup, realLibrary, StarterCatalog).channel("tall-tales-club")
+
+        assertEquals(ChannelState.On, now.state)
+        assertNull(now.leavesAtMs)
+    }
+
+    @Test
+    fun aRetiredStarterThatWasOffStaysOff() {
+        val lineup = retiredBefore().withChannel("tall-tales-club") { it.copy(state = ChannelState.Shelf) }
+
+        val now = swap(lineup, realLibrary, StarterCatalog).channel("tall-tales-club")
+
+        assertEquals(ChannelState.Shelf, now.state)
+        assertNull(now.leavesAtMs)
+    }
+
+    // Known limit: a file from before version 3 has its choices inferred, which marks an on-air retired starter
+    // Touched, so it keeps converting On (safe: nothing is shelved that might have been chosen).
+    @Test
+    fun aPreVersion3RetiredStarterIsInferredTouchedAndStaysOn() {
+        val lineup = retiredBefore().copy(viewerChoicesKnown = false)
+
+        val now = swap(lineup, realLibrary, StarterCatalog).channel("tall-tales-club")
+
+        assertTrue(now.source is ChannelSource.Custom)
+        assertEquals(ChannelState.On, now.state)
+        assertNull(now.leavesAtMs)
     }
 
     private fun keyOf(channel: LineupChannel) = channel.id.value.substringAfter(':')

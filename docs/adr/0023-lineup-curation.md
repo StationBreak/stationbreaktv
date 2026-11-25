@@ -137,7 +137,7 @@ How it works:
   budget (3,084 bytes, about 27 collection sources). Only a starter whose rules fit the budget is a keeper.
 - **Starting and leaving.** A starter that selection switches on is on from the boundary: its `onSinceMs` is a time
   ahead, and it is not on the air before it. A starter that selection leaves out stays on until the boundary, then goes
-  to the shelf (`leavesAtMs`). The first choice, which has aired nothing, switches on at once. A starter that selection
+  to the shelf (`leavesAtMs`). A retired starter the viewer never touched, kept as a custom channel, leaves the same way (fix: upgrade device check). The first choice, which has aired nothing, switches on at once. A starter that selection
   switched on for the boundary and takes back before it airs goes back to the shelf with `onSinceMs` set to the time of
   that plan, never a time ahead. So a Shelf starter whose start is still ahead is only ever the viewer's switch-off of one
   waiting to start, which is how a later switch-on is told to be the undo of it (see the amendment of 2026-11-16 in the

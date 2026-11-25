@@ -94,7 +94,7 @@ class KidStatusTest {
     @Test
     fun aLeftoversChannelCannotLeaveSoOnlyStartingTakesAKidLeftoversOffADay() {
         // [KidStatus.hasKidLeftoversOn] reads isOnAirOn (started and not left), but the lineup's invariant keeps
-        // `leavesAtMs` to starters: a kid leftovers channel cannot have left, so there is no left case to hold.
+        // `leavesAtMs` off leftovers: a kid leftovers channel cannot have left, so there is no left case to hold.
         val kids = channel(99, ChannelSource.Leftovers("kids-odds-and-ends", "PG"))
         assertFailsWith<IllegalArgumentException> { kids.copy(leavesAtMs = 1_000L) }
     }
