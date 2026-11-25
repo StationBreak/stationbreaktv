@@ -11,7 +11,7 @@ import tv.stationbreak.core.domain.lineup.builder.Listed
 import tv.stationbreak.core.domain.lineup.builder.PickerEntry
 import tv.stationbreak.core.model.Seed
 
-internal val NO_DRAFT = ChannelDraft("", emptyList(), emptyList(), DraftFilters(), kids = false, seed = Seed(0uL))
+internal val NO_DRAFT = ChannelDraft("", emptyList(), emptyList(), DraftFilters(), tier = null, seed = Seed(0uL))
 
 /** What one visit to the builder knows beyond what [BuilderUi] shows. The ViewModel changes it under its lock. */
 @Suppress("LongParameterList") // The visit's state, one for one.

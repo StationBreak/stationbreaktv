@@ -170,7 +170,7 @@ class DayReuseTest {
         tv.days()
 
         // The owner's Kids switch: the only edit that takes a kid channel out of the band.
-        tv.edit(LineupEdit.ReplaceCustom(kid.id, mine.rules, 650, kids = false))
+        tv.edit(LineupEdit.ReplaceCustom(kid.id, mine.rules, 650, band = null))
         tv.days()
 
         assertEquals(2, tv.builds.size, "a kid channel moved out of 1-33 is no longer held to made-for-kids content")

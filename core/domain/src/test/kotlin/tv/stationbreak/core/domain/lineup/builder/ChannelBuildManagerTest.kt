@@ -6,6 +6,7 @@ import tv.stationbreak.core.domain.FakeProEntitlement
 import tv.stationbreak.core.domain.lineup.ACCOUNT
 import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.CountingLibrary
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.LIBRARIES
 import tv.stationbreak.core.domain.lineup.LineupCodec
 import tv.stationbreak.core.domain.lineup.LineupCodec.Decoded.Loaded
@@ -105,11 +106,11 @@ class ChannelBuildManagerTest {
     }
 
     private suspend fun freeIn(
-        kids: Boolean,
+        tier: FamilyTier?,
         forChannel: ChannelId? = null,
-    ): List<Int> = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, kids, forChannel)).value
+    ): List<Int> = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, tier, forChannel)).value
 
-    private suspend fun firstFree(kids: Boolean): Int? = freeIn(kids).firstOrNull()
+    private suspend fun firstFree(tier: FamilyTier?): Int? = freeIn(tier).firstOrNull()
 
     private fun Lineup.channel(id: ChannelId) = channels.first { it.id == id }
 
@@ -122,9 +123,9 @@ class ChannelBuildManagerTest {
 
     private suspend fun built(
         name: String = "Mine",
-        kids: Boolean = false,
+        tier: FamilyTier? = null,
     ): ChannelId {
-        val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, kids), name))
+        val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, tier), name))
         return assertIs<BuildResult.Done>(result).id
     }
 
@@ -148,7 +149,7 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed()
 
-            val id = built(kids = true)
+            val id = built(tier = FamilyTier.Tots)
 
             assertEquals(1, stored().channel(id).number)
         }
@@ -159,7 +160,7 @@ class ChannelBuildManagerTest {
             val fillers = (1..99).map { custom("k$it", it, ChannelState.UserHidden) }
             seedLineup(lineupOf(baseChannels()[0], *fillers.toTypedArray()))
             val before = store.inner.peek(ACCOUNT)
-            val draft = named(builder.blank(ACCOUNT, kids = true))
+            val draft = named(builder.blank(ACCOUNT, tier = FamilyTier.Tots))
             assertNull(draft.number)
 
             val result = builder.create(ACCOUNT, draft)
@@ -173,8 +174,8 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed()
 
-            val first = builder.blank(ACCOUNT, kids = false)
-            val second = builder.blank(ACCOUNT, kids = false)
+            val first = builder.blank(ACCOUNT, tier = null)
+            val second = builder.blank(ACCOUNT, tier = null)
 
             assertNotEquals(first.seed, second.seed)
         }
@@ -184,12 +185,12 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed()
 
-            val draft = builder.blank(ACCOUNT, kids = false)
+            val draft = builder.blank(ACCOUNT, tier = null)
 
             assertEquals(Seed(1_000uL), draft.seed)
             assertEquals(600, draft.number)
             assertEquals("", draft.name)
-            assertTrue(!draft.numberChosen && !draft.kids && draft.sources.isEmpty())
+            assertTrue(!draft.numberChosen && draft.tier == null && draft.sources.isEmpty())
         }
 
     @Test
@@ -214,7 +215,7 @@ class ChannelBuildManagerTest {
     fun createAirsTheSeedThePreviewUsed() =
         runBlocking<Unit> {
             seed()
-            val draft = named(builder.blank(ACCOUNT, kids = false))
+            val draft = named(builder.blank(ACCOUNT, tier = null))
             val drawnBefore = drawn
 
             val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, draft)).id
@@ -228,7 +229,7 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed(custom("Holder", 610))
 
-            val draft = named(builder.blank(ACCOUNT, false)).copy(number = 610, numberChosen = true)
+            val draft = named(builder.blank(ACCOUNT, null)).copy(number = 610, numberChosen = true)
 
             val result = builder.create(ACCOUNT, draft)
 
@@ -240,7 +241,7 @@ class ChannelBuildManagerTest {
     fun anUnpickedNumberIsChosenInsideTheLock() =
         runBlocking<Unit> {
             seed()
-            val preview = named(builder.blank(ACCOUNT, kids = false), "Slow")
+            val preview = named(builder.blank(ACCOUNT, tier = null), "Slow")
             assertEquals(600, preview.number)
             built("Quick")
 
@@ -392,13 +393,13 @@ class ChannelBuildManagerTest {
 
             val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, toons, copy = true))
 
-            assertTrue(opened.draft.kids)
+            assertEquals(FamilyTier.Tots, opened.draft.tier)
             assertEquals(1, opened.draft.number)
             val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, opened.draft)).id
             assertEquals(1, stored().channel(id).number)
             assertTrue(KidStatus.isKidChannel(stored().channel(id)))
 
-            val grownUp = opened.draft.copy(kids = false, number = firstFree(kids = false))
+            val grownUp = opened.draft.copy(tier = null, number = firstFree(tier = null))
             val off = assertIs<BuildResult.Done>(builder.create(ACCOUNT, grownUp)).id
             assertEquals(600, stored().channel(off).number)
             assertFalse(KidStatus.isKidChannel(stored().channel(off)), "turned off, it is a grown-up channel")
@@ -412,7 +413,7 @@ class ChannelBuildManagerTest {
 
             val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, toons, copy = true))
 
-            assertTrue(opened.draft.kids)
+            assertEquals(FamilyTier.Tots, opened.draft.tier)
             assertNull(opened.draft.number)
             val result = builder.create(ACCOUNT, opened.draft)
             assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), result)
@@ -424,10 +425,10 @@ class ChannelBuildManagerTest {
             seed(custom("Kid", 5))
             val id = ChannelId("custom:Kid")
             val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-            assertTrue(draft.kids)
+            assertEquals(FamilyTier.Tots, draft.tier)
 
-            val number = firstFree(kids = false)
-            val result = builder.save(ACCOUNT, id, draft.copy(kids = false, number = number))
+            val number = firstFree(tier = null)
+            val result = builder.save(ACCOUNT, id, draft.copy(tier = null, number = number))
 
             assertEquals(600, number)
             assertEquals(BuildResult.Done(id), result)
@@ -450,21 +451,21 @@ class ChannelBuildManagerTest {
                 seed(migrated(number))
                 val id = ChannelId("starter:lights-out")
                 val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-                assertTrue(draft.kids, "at $number")
+                assertEquals(FamilyTier.Tots, draft.tier, "at $number")
             }
         }
 
     @Test
     fun replacingAMigratedKidChannelWithKidsOnOrOffKeepsTheIdAndTheHold() =
         runBlocking<Unit> {
-            for (kids in listOf(false, true)) {
+            for (tier in listOf(null, FamilyTier.Tots)) {
                 seed(migrated(44))
                 val id = ChannelId("starter:lights-out")
                 val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-                val number = if (kids) null else firstFree(kids = false)
-                assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, draft.copy(kids = kids, number = number)))
-                assertTrue(KidStatus.isKidChannel(stored().channel(id)), "kids = $kids")
-                assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(stored().channel(id)), "kids = $kids")
+                val number = if (tier != null) null else firstFree(tier = null)
+                assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, draft.copy(tier = tier, number = number)))
+                assertTrue(KidStatus.isKidChannel(stored().channel(id)), "tier = $tier")
+                assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(stored().channel(id)), "tier = $tier")
             }
         }
 
@@ -475,7 +476,7 @@ class ChannelBuildManagerTest {
             val id = ChannelId("custom:Mine")
             val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
 
-            assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, draft.copy(kids = true)))
+            assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, draft.copy(tier = FamilyTier.Tots)))
 
             assertEquals(1, stored().channel(id).number)
         }
@@ -488,8 +489,8 @@ class ChannelBuildManagerTest {
             val id = ChannelId("custom:Mine")
             val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
 
-            assertNull(firstFree(kids = true))
-            val result = builder.save(ACCOUNT, id, draft.copy(kids = true))
+            assertNull(firstFree(tier = FamilyTier.Tots))
+            val result = builder.save(ACCOUNT, id, draft.copy(tier = FamilyTier.Tots))
             assertEquals(BuildResult.Refused(BuildRefusal.KidsBandFull), result)
             assertEquals(610, stored().channel(id).number)
         }
@@ -508,7 +509,7 @@ class ChannelBuildManagerTest {
         }
 
     @Test
-    fun aPickedNumberBelowTheChannelsFloorIsRefusedWithTheBandItNeeds() =
+    fun aPickedGrownUpNumberInAYoungBandIsADraftProblemNotAFloorRefusal() =
         runBlocking<Unit> {
             seed(custom("Mine", 610))
             val id = ChannelId("custom:Mine")
@@ -516,19 +517,19 @@ class ChannelBuildManagerTest {
 
             val result = builder.save(ACCOUNT, id, draft.copy(number = 50, numberChosen = true))
 
-            assertEquals(BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.General)), result)
+            assertEquals(BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.GrownUpNumberInYoungBand)), result)
             assertEquals(610, stored().channel(id).number)
-            val blank = named(builder.blank(ACCOUNT, kids = false))
+            val blank = named(builder.blank(ACCOUNT, tier = null))
             val created = builder.create(ACCOUNT, blank.copy(number = 66, numberChosen = true))
-            assertEquals(BuildResult.Refused(BuildRefusal.BelowBand(BandNeeded.General)), created)
+            assertEquals(BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.GrownUpNumberInYoungBand)), created)
         }
 
     @Test
     fun aPickedNumberOnTheWrongSideOfTheKidsBandIsADraftProblem() =
         runBlocking<Unit> {
             seed()
-            val kids = named(builder.blank(ACCOUNT, kids = true)).copy(number = 700, numberChosen = true)
-            val grownUp = named(builder.blank(ACCOUNT, kids = false)).copy(number = 5, numberChosen = true)
+            val kids = named(builder.blank(ACCOUNT, tier = FamilyTier.Tots)).copy(number = 700, numberChosen = true)
+            val grownUp = named(builder.blank(ACCOUNT, tier = null)).copy(number = 5, numberChosen = true)
 
             assertEquals(
                 BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.KidsNumberOutsideBand)),
@@ -560,7 +561,7 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed()
 
-            val result = builder.create(ACCOUNT, builder.blank(ACCOUNT, kids = false))
+            val result = builder.create(ACCOUNT, builder.blank(ACCOUNT, tier = null))
 
             assertEquals(BuildResult.Refused(BuildRefusal.Invalid(DraftProblem.NameEmpty)), result)
         }
@@ -572,7 +573,7 @@ class ChannelBuildManagerTest {
             store.inner.save(ACCOUNT, newer.encodeToByteArray())
             service.refresh(ACCOUNT, LIBRARIES)
 
-            val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, kids = false)))
+            val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, tier = null)))
 
             assertEquals(BuildResult.NotEditable, result)
         }
@@ -585,7 +586,7 @@ class ChannelBuildManagerTest {
             val before = store.inner.peek(ACCOUNT)
             store.inner.failWrites = true
 
-            val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, kids = false)))
+            val result = builder.create(ACCOUNT, named(builder.blank(ACCOUNT, tier = null)))
 
             assertEquals(BuildResult.SaveFailed, result)
             assertContentEquals(before, store.inner.peek(ACCOUNT))
@@ -655,7 +656,7 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed()
             val settings = KeptSettings("Laughs", listOf(KeptItem.NoCaps))
-            val kept = named(builder.blank(ACCOUNT, kids = false)).copy(kept = settings)
+            val kept = named(builder.blank(ACCOUNT, tier = null)).copy(kept = settings)
 
             assertEquals(BuildResult.Refused(BuildRefusal.UnknownChannel), builder.create(ACCOUNT, kept))
         }
@@ -665,10 +666,10 @@ class ChannelBuildManagerTest {
         runBlocking<Unit> {
             seed(custom("Mine", 600), custom("Other", 603))
 
-            val free = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, kids = false)).value
+            val free = assertIs<Listed.Ok<List<Int>>>(builder.freeNumbers(ACCOUNT, tier = null)).value
 
             assertEquals(listOf(601, 602, 604), free.take(3))
-            assertEquals(firstFree(kids = false), free.first())
+            assertEquals(firstFree(tier = null), free.first())
         }
 
     @Test
@@ -692,8 +693,8 @@ class ChannelBuildManagerTest {
             val laughs = starter("laughs", 110, ChannelState.On, rules("Laughs", Source.Genre("Comedy")))
             seedLineup(lineupOf(toons.copy(numberOverride = 20), laughs, custom("Mine", 601)))
 
-            val kids = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, kids = true)).value
-            val grownUp = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, kids = false)).value
+            val kids = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, tier = FamilyTier.Tots)).value
+            val grownUp = assertIs<Listed.Ok<List<Int>>>(retired.freeNumbers(ACCOUNT, tier = null)).value
 
             assertTrue(1 !in kids && 10 !in kids && 20 !in kids, "retired, default and override are skipped")
             assertEquals(2, kids.first())
@@ -706,10 +707,10 @@ class ChannelBuildManagerTest {
             seed(custom("Mine", 603), custom("Other", 605))
             val mine = ChannelId("custom:Mine")
 
-            val plain = freeIn(kids = false)
-            val own = freeIn(kids = false, forChannel = mine)
-            val kids = freeIn(kids = true, forChannel = mine)
-            val unknown = freeIn(kids = false, forChannel = ChannelId("nope"))
+            val plain = freeIn(tier = null)
+            val own = freeIn(tier = null, forChannel = mine)
+            val kids = freeIn(tier = FamilyTier.Tots, forChannel = mine)
+            val unknown = freeIn(tier = null, forChannel = ChannelId("nope"))
 
             assertTrue(603 !in plain)
             assertEquals((plain + 603).sorted(), own)
@@ -721,7 +722,7 @@ class ChannelBuildManagerTest {
     @Test
     fun freeNumbersAreUnavailableWithoutALineup() =
         runBlocking<Unit> {
-            assertEquals(Listed.Unavailable, builder.freeNumbers(ACCOUNT, kids = false))
+            assertEquals(Listed.Unavailable, builder.freeNumbers(ACCOUNT, tier = null))
         }
 
     @Test
@@ -732,7 +733,7 @@ class ChannelBuildManagerTest {
 
             val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, ChannelId("custom:Kid"), copy = false))
 
-            assertTrue(opened.draft.kids)
+            assertEquals(FamilyTier.Tots, opened.draft.tier)
             assertEquals("PG", opened.draft.filters.maxRating)
         }
 
@@ -740,7 +741,8 @@ class ChannelBuildManagerTest {
     fun createAndSaveHoldAKidsDraftToACeilingTheKidsHoldKnows() =
         runBlocking<Unit> {
             seed()
-            val kid = named(builder.blank(ACCOUNT, kids = true)).copy(filters = DraftFilters(maxRating = "R"))
+            val blank = named(builder.blank(ACCOUNT, tier = FamilyTier.Tots))
+            val kid = blank.copy(filters = DraftFilters(maxRating = "R"))
 
             val id = assertIs<BuildResult.Done>(builder.create(ACCOUNT, kid)).id
             assertEquals("PG", stored().customRules(id).maxRating)

@@ -43,6 +43,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -373,7 +374,7 @@ class BuilderStepsTest {
                 PlayOrder.Shuffle,
                 3,
                 1,
-                kids = false,
+                tier = null,
                 number = 600,
                 kept = kept,
                 origin = BUILT_IN,
@@ -456,11 +457,11 @@ class BuilderStepsTest {
     }
 
     @Test
-    fun turningTheKidsSwitchOffAsksFirst() {
+    fun turningTheFamilySwitchOffAsksFirst() {
         show()
         toPlay()
         press(Pad.Down, Pad.Down, Pad.Down, Pad.Select)
-        until { vm.ui.value.draft.kids }
+        until { vm.ui.value.draft.tier != null }
         press(Pad.Select)
         until { exists(BuilderTags.CONFIRM) }
         compose.onNodeWithTag(BuilderTags.CONFIRM_TEXT).assertTextContains("no longer be held", substring = true)

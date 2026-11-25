@@ -105,11 +105,20 @@
     <string name="builder_series_cap">Episodes in a row</string>
     <string name="builder_cap_no_limit">No limit</string>
     <string name="builder_film_cap">Films of a collection in a row</string>
+    <string name="builder_family">Family channel</string>
+    <string name="builder_cap">Cap</string>
+    <string name="builder_cap_tots">Tots</string>
+    <string name="builder_cap_kids">Kids</string>
+    <string name="builder_cap_teens">Teens</string>
     <string name="builder_kids">Tots channel</string>
+    <string name="builder_tier_kids">Kids channel</string>
+    <string name="builder_tier_teens">Teens channel</string>
     <string name="builder_kids_off_confirm">This channel will no longer be held to kids content</string>
     <string name="builder_kids_off_turn_off">Turn off</string>
     <string name="builder_kids_off_keep">Keep it on</string>
     <string name="builder_kids_band_full">No free Tots number; free one up in Channels</string>
+    <string name="builder_kids_tier_band_full">No free Kids number; free one up in Channels</string>
+    <string name="builder_teens_tier_band_full">No free Teens number; free one up in Channels</string>
     <string name="builder_kids_skipped">Skipped for Tots: %1$s</string>
     <string name="builder_save_and_watch">Save and watch</string>
     <string name="builder_save">Save</string>
@@ -201,6 +210,8 @@
     <string name="builder_number_held">Channel %1$d is %2$s. Choose another number.</string>
     <string name="builder_number_taken_pick">That number is taken. Choose another.</string>
     <string name="builder_kids_band">Tots channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
+    <string name="builder_kids_tier_band">Kids channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
+    <string name="builder_teens_tier_band">Teens channels keep numbers %1$d to %2$d, and other channels can\'t use them.</string>
     <string name="builder_out_of_range">That number isn\'t one a channel can have.</string>
     <string name="builder_last_on">Keep at least one channel on.</string>
     <string name="builder_not_customisable">That channel can\'t be copied.</string>
@@ -225,6 +236,8 @@
     <string name="builder_problem_too_many_genres">Too many genres.</string>
     <string name="builder_problem_kids_number">A Tots channel needs a number from %1$d to %2$d.</string>
     <string name="builder_problem_grown_up_number">Numbers %1$d to %2$d are for Tots channels.</string>
+    <string name="builder_problem_tier_number">A %1$s channel needs a number from %2$d to %3$d.</string>
+    <string name="builder_problem_grown_up_young_number">Numbers %1$d to %2$d are for %3$s channels.</string>
 
     <!-- Channel properties sheet (#631) -->
     <string name="channels_action_about">About this channel</string>

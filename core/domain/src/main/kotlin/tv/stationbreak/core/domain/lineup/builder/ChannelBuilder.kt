@@ -4,6 +4,7 @@ package tv.stationbreak.core.domain.lineup.builder
 import kotlinx.coroutines.flow.Flow
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.BandNeeded
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.model.ChannelId
 
 /** Why a build was not made. Nothing changed. */
@@ -21,8 +22,18 @@ sealed interface BuildRefusal {
     /** No number is free for a grown-up channel. */
     data object NoFreeNumber : BuildRefusal
 
-    /** No number is free for a kids channel. */
+    /** No number is free for a Tots channel. */
     data object KidsBandFull : BuildRefusal
+
+    /** No number is free for a Kids or Teens channel ([tier]). */
+    data class TierBandFull(
+        val tier: FamilyTier,
+    ) : BuildRefusal
+
+    /** The number is outside the band of a Kids or Teens channel ([tier]); the screen explains. */
+    data class OutsideTierBand(
+        val tier: FamilyTier,
+    ) : BuildRefusal
 
     data object OutOfRange : BuildRefusal
 
@@ -99,13 +110,13 @@ sealed interface OpenResult {
 /** How features build channels (spec 22). None of it throws, but for cancellation. */
 interface ChannelBuilder {
     /**
-     * A blank draft with a fresh seed and the first free number for grown-up (or kids) channels, null number if none
-     * is free (a preview number only; create works the number out again inside the lock). A kids draft's ceiling is
-     * one the kids hold knows, as in every draft [open] returns.
+     * A blank draft with a fresh seed and the first free number for grown-up channels (or those of [tier]), null
+     * number if none is free (a preview number only; create works the number out again inside the lock). A family
+     * draft's ceiling is one its tier allows, as in every draft [open] returns.
      */
     suspend fun blank(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
     ): ChannelDraft
 
     /**
@@ -160,14 +171,14 @@ interface ChannelBuilder {
     fun canAddCustom(account: LibraryAccount): Flow<Boolean>
 
     /**
-     * Every number free for a channel of the band ([kids] or not), lowest first: no channel has it as its number, its
-     * default or an override, and the catalog has not retired it. A blank draft and a kids switch take the first.
-     * With [forChannel] (the channel being edited), that channel's own current number counts as free too when it is in
-     * the asked-for band. [Listed.Unavailable] when the lineup can't be read.
+     * Every number free for a channel of the band of [tier] (null: the grown-up numbers), lowest first: no channel has
+     * it as its number, its default or an override, and the catalog has not retired it. A blank draft and a tier
+     * change take the first. With [forChannel] (the channel being edited), that channel's own current number counts as
+     * free too when it is in the asked-for band. [Listed.Unavailable] when the lineup can't be read.
      */
     suspend fun freeNumbers(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
         forChannel: ChannelId? = null,
     ): Listed<List<Int>>
 }

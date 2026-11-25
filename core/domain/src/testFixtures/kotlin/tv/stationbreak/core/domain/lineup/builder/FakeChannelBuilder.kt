@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
@@ -23,9 +24,9 @@ class FakeChannelBuilder : ChannelBuilder {
     val created = mutableListOf<ChannelDraft>()
     val saved = mutableListOf<Pair<ChannelId, ChannelDraft>>()
 
-    /** What [blank] answers, with the asked-for kids setting. */
+    /** What [blank] answers, with the asked-for tier. */
     var blankDraft: ChannelDraft =
-        ChannelDraft("", emptyList(), emptyList(), DraftFilters(), kids = false, number = FIRST_NUMBER, seed = Seed(1uL))
+        ChannelDraft("", emptyList(), emptyList(), DraftFilters(), tier = null, number = FIRST_NUMBER, seed = Seed(1uL))
 
     /** What [open] answers next. */
     var openResult: OpenResult = OpenResult.NotFound
@@ -47,10 +48,10 @@ class FakeChannelBuilder : ChannelBuilder {
 
     override suspend fun blank(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
     ): ChannelDraft {
         calls += "blank"
-        return blankDraft.copy(kids = kids)
+        return blankDraft.copy(tier = tier)
     }
 
     override suspend fun open(
@@ -99,12 +100,12 @@ class FakeChannelBuilder : ChannelBuilder {
 
     override suspend fun freeNumbers(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
         forChannel: ChannelId?,
     ): Listed<List<Int>> {
         calls += "freeNumbers"
         freeFor += forChannel
-        return free ?: Listed.Ok((if (kids) ChannelNumbers.kids else ChannelNumbers.custom).toList())
+        return free ?: Listed.Ok((tier?.numbers ?: ChannelNumbers.custom).toList())
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -2,6 +2,7 @@
 package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -76,17 +77,33 @@ internal fun ChannelDraft.suggested(): ChannelDraft {
 }
 
 /**
- * The kids switch went [on] or off, with the numbers free in the new band: the first is the draft's; with none the
- * switch stays as it was.
+ * The family cap went to [tier] (null: off), with the numbers free in the new band: the first is the draft's; with
+ * none the cap stays as it was.
  */
-internal fun BuilderModel.kidsDone(
-    on: Boolean,
+internal fun BuilderModel.tierDone(
+    tier: FamilyTier?,
     free: List<Int>,
 ): BuilderModel =
     when {
-        free.isNotEmpty() -> copy(draft = draft.withKids(on, free.first()), free = free)
-        on -> copy(message = BuilderMessage.KidsBandFull)
-        else -> copy(message = BuilderMessage.NoFreeNumber)
+        free.isNotEmpty() -> copy(draft = draft.withTier(tier, free.first()), free = free)
+        tier == null -> copy(message = BuilderMessage.NoFreeNumber)
+        else -> copy(message = bandFullMessage(tier))
+    }
+
+/** The line for a band with no free number: the Tots one is the Tots band's own, as it was. */
+internal fun bandFullMessage(tier: FamilyTier): BuilderMessage =
+    when (tier) {
+        FamilyTier.Tots -> BuilderMessage.KidsBandFull
+        FamilyTier.Kids -> BuilderMessage.KidsTierBandFull
+        FamilyTier.Teens -> BuilderMessage.TeensTierBandFull
+    }
+
+/** The line for a number outside the band of a family channel's tier. */
+internal fun outsideBandMessage(tier: FamilyTier): BuilderMessage =
+    when (tier) {
+        FamilyTier.Tots -> BuilderMessage.KidsBand
+        FamilyTier.Kids -> BuilderMessage.KidsTierBand
+        FamilyTier.Teens -> BuilderMessage.TeensTierBand
     }
 
 internal fun BuilderModel.reopened(opening: Opening): BuilderModel =

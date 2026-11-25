@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.SkippedPick
 import tv.stationbreak.core.ui.panelFocus
 import tv.stationbreak.feature.channels.R
@@ -37,7 +38,7 @@ internal fun Footer(ui: BuilderUi) {
         if (ui.draft.hasPool()) {
             val count = ui.barCount
             if (count != null) NoteText(barCountText(count, ui.preview), BuilderTags.BAR)
-            PreviewLine(ui.preview, ui.draft.kids)
+            PreviewLine(ui.preview, ui.draft.tier == FamilyTier.Tots)
         }
         if (ui.step != BuilderStep.Name) NextButton(ui)
     }

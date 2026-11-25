@@ -225,7 +225,7 @@ private fun Notices(ui: BuilderUi) {
     }
     if (problem != null) {
         val where = ui.problemStep?.takeIf { it != ui.step && !ui.onSheet }
-        val text = problemText(problem)
+        val text = problemText(problem, ui.draft)
         NoticeLine(
             if (where !=
                 null

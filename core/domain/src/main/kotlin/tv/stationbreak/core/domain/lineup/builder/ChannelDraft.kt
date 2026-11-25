@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
-import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.model.ChannelId
 import tv.stationbreak.core.model.Seed
 
@@ -154,11 +154,17 @@ enum class DraftProblem {
     /** More genres in the filter than the rules format holds (256). */
     TooManyGenres,
 
-    /** A kids channel with a picked number outside 1 to 99. */
+    /** A Tots channel with a picked number outside the Tots band (1 to 33). */
     KidsNumberOutsideBand,
 
-    /** A grown-up channel with a picked number inside 1 to 99, the kids band. */
+    /** A grown-up channel with a picked number inside the Tots band (1 to 33). */
     GrownUpNumberInKidsBand,
+
+    /** A Kids or Teens channel with a picked number outside its band (34 to 66, 67 to 99). */
+    TierNumberOutsideBand,
+
+    /** A grown-up channel with a picked number inside the Kids or Teens band (34 to 99). */
+    GrownUpNumberInYoungBand,
 }
 
 /**
@@ -191,7 +197,7 @@ data class ChannelDraft(
     val order: PlayOrder? = PlayOrder.Shuffle,
     val seriesCap: Int? = DEFAULT_SERIES_CAP,
     val filmCap: Int? = DEFAULT_FILM_CAP,
-    val kids: Boolean,
+    val tier: FamilyTier?,
     val number: Int? = null,
     val kept: KeptSettings? = null,
     val numberChosen: Boolean = false,
@@ -304,19 +310,21 @@ data class ChannelDraft(
     fun canReshuffle(): Boolean = order == PlayOrder.Shuffle || (order == null && !keepsOrder())
 
     /**
-     * The draft with the kids switch [on] or off at [number] (a number the builder found, not one the viewer picked).
-     * A kids channel's ceiling is one of the kids hold's own choices: any other is replaced by the choice that holds
-     * it to what it held it to, never looser, so the draft, the screen and the file agree.
+     * The draft with the family [tier] (null: no family cap) at [number] (a number the builder found, not one the
+     * viewer picked). A Tots or Kids channel's ceiling is one of the kids hold's own choices and a Teens channel's is
+     * at most TV-14: any other is replaced by the choice that holds it to what it held it to, never looser, so the
+     * draft, the screen and the file agree.
      */
-    fun withKids(
-        on: Boolean,
+    fun withTier(
+        tier: FamilyTier?,
         number: Int?,
-    ): ChannelDraft = copy(kids = on, number = number, numberChosen = false).kidsNormalised()
+    ): ChannelDraft = copy(tier = tier, number = number, numberChosen = false).tierNormalised()
 
-    /** [this] with a kids channel's ceiling made one the kids hold knows; a grown-up draft is returned as it is. */
-    internal fun kidsNormalised(): ChannelDraft {
-        if (!kids || filters.maxRating in DraftChoices.ratingCeilings(kids = true)) return this
-        return copy(filters = filters.copy(maxRating = DraftChoices.kidsCeilingFor(filters.maxRating)))
+    /** [this] with a family channel's ceiling made one its tier allows; a grown-up draft is returned as it is. */
+    internal fun tierNormalised(): ChannelDraft {
+        val held = tier
+        if (held == null || DraftChoices.allows(filters.maxRating, held)) return this
+        return copy(filters = filters.copy(maxRating = DraftChoices.ceilingFor(filters.maxRating, held)))
     }
 
     // Caps matter only where they are written; one given without the other is incomplete.
@@ -342,14 +350,16 @@ data class ChannelDraft(
         }
     }
 
-    // A number the viewer picked must be on the side of the band their kids setting says.
+    // A number the viewer picked must be in the band their tier says: a tier's own, and no grown-up channel in any.
     private fun numberProblem(): DraftProblem? {
         val picked = number?.takeIf { numberChosen } ?: return null
-        val inKidsBand = picked in Band.Kids.numbers
+        val pickedTier = FamilyTier.of(picked)
         return when {
-            kids && !inKidsBand -> DraftProblem.KidsNumberOutsideBand
-            !kids && inKidsBand -> DraftProblem.GrownUpNumberInKidsBand
-            else -> null
+            tier == pickedTier -> null
+            tier == FamilyTier.Tots -> DraftProblem.KidsNumberOutsideBand
+            tier != null -> DraftProblem.TierNumberOutsideBand
+            pickedTier == FamilyTier.Tots -> DraftProblem.GrownUpNumberInKidsBand
+            else -> DraftProblem.GrownUpNumberInYoungBand
         }
     }
 

@@ -276,6 +276,7 @@ private fun EditRefusal.toRefusal(): ChangeRefusal =
         EditRefusal.NotShuffle,
         EditRefusal.IdTaken,
         EditRefusal.CustomLimit,
+        is EditRefusal.OutsideBand,
         -> ChangeRefusal.Invalid
     }
 

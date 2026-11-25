@@ -75,6 +75,7 @@ import tv.stationbreak.core.domain.lineup.ChannelSummary
 import tv.stationbreak.core.domain.lineup.ChannelTiming
 import tv.stationbreak.core.domain.lineup.FakeReadiness
 import tv.stationbreak.core.domain.lineup.FakeSchedule
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.HeldTitle
 import tv.stationbreak.core.domain.lineup.HiddenReason
 import tv.stationbreak.core.domain.lineup.HomeShows
@@ -851,7 +852,7 @@ class ChannelsScreenTest {
                 listOf(DraftSource.Library("lib1", "Library 1")),
                 emptyList(),
                 DraftFilters(),
-                kids = false,
+                tier = null,
                 number = 600,
                 origin = ALPHA,
                 seed = Seed(1uL),

@@ -37,6 +37,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
@@ -114,7 +115,7 @@ class EditSheetTest {
         order,
         3,
         1,
-        kids = false,
+        tier = null,
         number = 600,
         kept = kept,
         numberChosen = false,
@@ -245,7 +246,7 @@ class EditSheetTest {
         toRow(SheetRow.Reshuffle)
         assertTrue(exists(BuilderTags.sheetRow(SheetRow.Reshuffle)))
         // An unsaved change takes it away.
-        toRow(SheetRow.Kids)
+        toRow(SheetRow.Family)
         press(Pad.Select)
         until { vm.ui.value.dirty }
         assertFalse(SheetRow.Reshuffle in vm.ui.value.sheetRows)
@@ -296,10 +297,10 @@ class EditSheetTest {
     @Test
     fun saveWritesAndClosesTheSheet() {
         show()
-        toRow(SheetRow.Kids)
+        toRow(SheetRow.Family)
         press(Pad.Select)
         until { vm.ui.value.dirty }
-        compose.onNodeWithTag(BuilderTags.sheetRow(SheetRow.Kids)).assertIsOn()
+        compose.onNodeWithTag(BuilderTags.sheetRow(SheetRow.Family)).assertIsOn()
         toRow(SheetRow.Save)
         press(Pad.Select)
         until { exits.isNotEmpty() }
@@ -307,7 +308,7 @@ class EditSheetTest {
         assertTrue(
             builder.saved
                 .single()
-                .second.kids,
+                .second.tier == FamilyTier.Tots,
         )
         assertEquals(listOf<ChannelId?>(null), exits.toList())
     }
@@ -315,7 +316,7 @@ class EditSheetTest {
     @Test
     fun backWithChangesAsksKeepEditing() {
         show()
-        toRow(SheetRow.Kids)
+        toRow(SheetRow.Family)
         press(Pad.Select)
         until { vm.ui.value.dirty }
         press(Pad.Back)
@@ -370,7 +371,7 @@ class EditSheetTest {
                     KeptItem.EpochHours(12),
                 ),
             )
-        show(draftOf(kept = kept).copy(kids = true, number = 5))
+        show(draftOf(kept = kept).copy(tier = FamilyTier.Tots, number = 5))
         toRow(SheetRow.Delete)
         val screen = compose.onRoot().getBoundsInRoot()
         val bounds = compose.onNodeWithTag(BuilderTags.sheetRow(SheetRow.Delete)).getBoundsInRoot()

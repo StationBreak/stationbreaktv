@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -48,14 +49,14 @@ internal fun libraries(n: Int): Listed<List<PickerEntry>> {
 internal fun draftOf(
     name: String = "",
     sources: List<DraftSource> = emptyList(),
-    kids: Boolean = false,
+    tier: FamilyTier? = null,
     number: Int? = 600,
     seed: Seed = Seed(1uL),
     origin: ChannelId? = null,
     order: PlayOrder? = PlayOrder.Shuffle,
     kept: KeptSettings? = null,
     filters: DraftFilters = DraftFilters(),
-) = ChannelDraft(name, sources, emptyList(), filters, order, 3, 1, kids, number, kept, false, origin, seed)
+) = ChannelDraft(name, sources, emptyList(), filters, order, 3, 1, tier, number, kept, false, origin, seed)
 
 /** What the builder ViewModel tests share: fakes for every port and a ViewModel on them. */
 internal class BuilderRig(

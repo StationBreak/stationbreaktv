@@ -194,7 +194,7 @@ class DraftRulesV3Test {
                 emptyList(),
                 DraftFilters(),
                 order = PlayOrder.Shuffle,
-                kids = false,
+                tier = null,
                 seed = seed,
             )
 

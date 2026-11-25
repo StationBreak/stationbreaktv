@@ -81,7 +81,7 @@ class BandFloorsTest {
         ceiling: String?,
         number: Int?,
         rules: ChannelRules = rulesOf(ceiling),
-    ) = LineupEdit.AddCustom(ChannelId("custom:$id"), rules, number, kids = false, customLimit = null)
+    ) = LineupEdit.AddCustom(ChannelId("custom:$id"), rules, number, band = null, customLimit = null)
 
     private val general = EditRefusal.BelowBand(Band.General)
 
@@ -200,20 +200,22 @@ class BandFloorsTest {
         val pg = custom("pg", 40, "PG")
         val lineup = lineupOf(starter("western", 310), pg)
 
+        // The channel is a Kids-tier one (Band.Family) while it stays, a Teens one at 67, a grown-up one from 100.
         fun replace(
             ceiling: String?,
             number: Int?,
-        ) = LineupEdit.ReplaceCustom(pg.id, rulesOf(ceiling), number, kids = false)
+            band: Band? = Band.Family,
+        ) = LineupEdit.ReplaceCustom(pg.id, rulesOf(ceiling), number, band = band)
         // Family at 40 lifted to R (or no ceiling), number kept or not given: Adult below 100.
         assertEquals(general, refusal(lineup, replace("R", null)))
         assertEquals(general, refusal(lineup, replace(null, 40)))
         assertEquals(teen, refusal(lineup, replace("TV-14", 60)))
         // The same edit that moves it to an allowed number is applied.
-        assertEquals(700, applied(lineup, replace("R", 700)).numberOf(pg))
-        assertEquals(67, applied(lineup, replace("TV-14", 67)).numberOf(pg))
+        assertEquals(700, applied(lineup, replace("R", 700, band = null)).numberOf(pg))
+        assertEquals(67, applied(lineup, replace("TV-14", 67, band = Band.Teen)).numberOf(pg))
         // Lowering a ceiling is always fine.
         val adult = custom("adult", 700, "R")
-        val low = LineupEdit.ReplaceCustom(adult.id, rulesOf("PG"), null, kids = false)
+        val low = LineupEdit.ReplaceCustom(adult.id, rulesOf("PG"), null, band = null)
         assertEquals(700, applied(lineupOf(starter("western", 310), adult), low).numberOf(adult))
     }
 
@@ -223,7 +225,7 @@ class BandFloorsTest {
         val lineup = lineupOf(starter("western", 310), copy)
         assertEquals(general, refusal(lineup, LineupEdit.SetNumber(copy.id, 45)))
         // Saved with a kids switch and a Kids-band number, it is still adult: refused.
-        val replace = LineupEdit.ReplaceCustom(copy.id, AdultMark.marked(rulesOf("PG")), 5, kids = true)
+        val replace = LineupEdit.ReplaceCustom(copy.id, AdultMark.marked(rulesOf("PG")), 5, band = Band.Kids)
         assertEquals(general, refusal(lineup, replace))
     }
 
@@ -234,10 +236,10 @@ class BandFloorsTest {
         assertEquals(3, applied(lineup, LineupEdit.SetNumber(kid.id, 3)).numberOf(kid))
         assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(kid.id, 50)))
         // The explicit switch (Kids off) is the one way out, as before.
-        val off = LineupEdit.ReplaceCustom(kid.id, rulesOf(), 700, kids = false)
+        val off = LineupEdit.ReplaceCustom(kid.id, rulesOf(), 700, band = null)
         assertEquals(700, applied(lineup, off).numberOf(kid))
         // And a new kid channel in the Kids band, whatever its ceiling.
-        val addKid = LineupEdit.AddCustom(ChannelId("custom:k2"), rulesOf(), 4, kids = true, customLimit = null)
+        val addKid = LineupEdit.AddCustom(ChannelId("custom:k2"), rulesOf(), 4, band = Band.Kids, customLimit = null)
         assertEquals(4, applied(lineup, addKid).channels.last().number)
     }
 

@@ -68,7 +68,7 @@ internal fun NameStep(
 private fun summaryOf(draft: ChannelDraft): String {
     val sources = joined(draft.sources.map { it.label }, R.string.builder_join)
     val order = orderName(draft.order ?: PlayOrder.Shuffle)
-    val kids = stringResource(R.string.builder_kids)
-    val play = if (draft.kids) stringResource(R.string.builder_summary_play, order, kids) else order
+    val tier = draft.tier
+    val play = if (tier != null) stringResource(R.string.builder_summary_play, order, tierChannelName(tier)) else order
     return stringResource(R.string.builder_summary, stringResource(R.string.builder_summary_sources, sources), play)
 }

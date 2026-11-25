@@ -83,7 +83,7 @@ class ChannelBuildFreeTierTest {
         return checkNotNull((LineupCodec.decode(bytes) as? Loaded)?.lineup)
     }
 
-    private suspend fun create(): BuildResult = builder.create(ACCOUNT, builder.blank(ACCOUNT, false).named())
+    private suspend fun create(): BuildResult = builder.create(ACCOUNT, builder.blank(ACCOUNT, null).named())
 
     private fun ChannelDraft.named() = copy(name = "Mine", sources = listOf(DraftSource.Genre("Comedy", "Comedy")))
 
@@ -245,7 +245,7 @@ class ChannelBuildFreeTierTest {
         runBlocking<Unit> {
             pro.set(true)
             seedWith(customs = 5)
-            val draft = builder.blank(ACCOUNT, false).named()
+            val draft = builder.blank(ACCOUNT, null).named()
             val before = store.inner.peek(ACCOUNT)
 
             val result = whileLocked({ builder.create(ACCOUNT, draft) }) { pro.set(false) }

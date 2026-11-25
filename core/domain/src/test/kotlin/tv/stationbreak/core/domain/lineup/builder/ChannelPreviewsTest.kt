@@ -16,6 +16,7 @@ import tv.stationbreak.core.domain.lineup.ADDED_MS
 import tv.stationbreak.core.domain.lineup.Airing
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.CountingLibrary
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.LIBRARIES
 import tv.stationbreak.core.domain.lineup.LIBRARY_ID
 import tv.stationbreak.core.domain.lineup.LineupCodec
@@ -163,7 +164,7 @@ class ChannelPreviewsTest {
     private fun draft(
         vararg sources: DraftSource,
         seed: ULong = 11uL,
-        kids: Boolean = false,
+        tier: FamilyTier? = null,
         order: PlayOrder = PlayOrder.Shuffle,
         filters: DraftFilters = DraftFilters(),
     ) = ChannelDraft(
@@ -172,7 +173,7 @@ class ChannelPreviewsTest {
         emptyList(),
         filters,
         order = order,
-        kids = kids,
+        tier = tier,
         seed = Seed(seed),
     )
 
@@ -256,7 +257,7 @@ class ChannelPreviewsTest {
         film(4, genres = listOf("Animation", "Kids"), rating = "R")
         film(5, genres = listOf("Animation", "Drama"), rating = "G")
         val kids = DraftSource.Genre("Animation", "Animation")
-        val mine = draft(kids, kids = true, filters = DraftFilters(maxRating = "PG-13"))
+        val mine = draft(kids, tier = FamilyTier.Tots, filters = DraftFilters(maxRating = "PG-13"))
 
         val shown = preview(mine)
 
@@ -277,7 +278,7 @@ class ChannelPreviewsTest {
 
         val opened = runBlocking { builder.open(ACCOUNT, mine, copy = false) }
         val draft = (opened as OpenResult.Opened).draft
-        assertTrue(draft.kids)
+        assertEquals(FamilyTier.Tots, draft.tier)
 
         assertEquals(setOf(id(1)), ids(preview(draft, editing = mine)).toSet(), "kids tier only, under the kid cap")
     }
@@ -288,8 +289,8 @@ class ChannelPreviewsTest {
         film(2, genres = listOf("Animation", "Kids"), rating = "PG")
         film(3, genres = listOf("Animation", "Kids"), rating = "R")
         val kids = DraftSource.Genre("Animation", "Animation")
-        val loose = draft(kids, kids = true, filters = DraftFilters(maxRating = "R"))
-        val normalised = loose.kidsNormalised()
+        val loose = draft(kids, tier = FamilyTier.Tots, filters = DraftFilters(maxRating = "R"))
+        val normalised = loose.tierNormalised()
 
         assertEquals("PG", normalised.filters.maxRating)
         assertEquals(ids(preview(normalised)), ids(preview(loose)))
@@ -385,7 +386,7 @@ class ChannelPreviewsTest {
                 DraftSource.Pick(id(1).value, "Good Film"),
                 DraftSource.Pick(id(2).value, "Too Strong"),
                 DraftSource.Pick(id(3).value, "Not For Kids"),
-                kids = true,
+                tier = FamilyTier.Tots,
             )
 
         val shown = preview(mine)
@@ -404,7 +405,7 @@ class ChannelPreviewsTest {
     @Test
     fun aKidsChannelNeverAirsAPickedItemTheHoldRefuses() {
         film(2, "Too Strong", genres = listOf("Kids"), rating = "R")
-        val mine = draft(DraftSource.Pick(id(2).value, "Too Strong"), kids = true)
+        val mine = draft(DraftSource.Pick(id(2).value, "Too Strong"), tier = FamilyTier.Tots)
 
         val shown = preview(mine)
 

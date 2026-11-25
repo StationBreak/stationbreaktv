@@ -30,7 +30,7 @@ internal sealed interface BuilderMode {
 
 internal enum class NarrowRowKind { Genres, Years, Runtime, Only, Rating, LeaveOut }
 
-internal enum class PlayRowKind { Order, SeriesCap, FilmCap, Kids, Kept }
+internal enum class PlayRowKind { Order, SeriesCap, FilmCap, Family, Cap, Kept }
 
 /** The rows of the Name page; an edit's page ends in Done, a new channel's in Save and watch. */
 internal enum class NameRowKind { Name, Number, Save, Done }
@@ -43,7 +43,8 @@ internal enum class SheetRow {
     PlayOrder,
     SeriesCap,
     FilmCap,
-    Kids,
+    Family,
+    Cap,
     Number,
     Kept,
     Preview,
@@ -159,6 +160,12 @@ internal sealed interface BuilderConfirm {
 internal enum class BuilderMessage {
     KidsBandFull,
     KidsBand,
+
+    /** The band of a Kids or Teens channel (#1152): no number is free in it, or the number picked is outside it. */
+    KidsTierBandFull,
+    TeensTierBandFull,
+    KidsTierBand,
+    TeensTierBand,
 
     /** The number is below the lowest band the channel may use (#1097): Family, Teen or Adult numbers and up. */
     NeedsFamily,

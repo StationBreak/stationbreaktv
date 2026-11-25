@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.core.domain.lineup.builder
 
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.model.Seed
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,7 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** What a draft says about itself: its problems, the settings it shows, and the kids switch. */
+/** What a draft says about itself: its problems, the settings it shows, and the family cap. */
 class ChannelDraftTest {
     private val comedy = DraftSource.Genre("Comedy", "Comedy")
 
@@ -17,10 +18,10 @@ class ChannelDraftTest {
         name: String = "Mine",
         sources: List<DraftSource> = listOf(comedy),
         order: PlayOrder? = PlayOrder.Shuffle,
-        kids: Boolean = false,
+        tier: FamilyTier? = null,
         filters: DraftFilters = DraftFilters(),
         kept: KeptSettings? = null,
-    ) = ChannelDraft(name, sources, emptyList(), filters, order, 3, 1, kids, 600, kept, false, null, Seed(1uL))
+    ) = ChannelDraft(name, sources, emptyList(), filters, order, 3, 1, tier, 600, kept, false, null, Seed(1uL))
 
     @Test
     fun aDraftThatCanBeSavedHasNoProblems() {
@@ -142,9 +143,9 @@ class ChannelDraftTest {
     fun turningKidsOnTakesTheNumberAndHoldsALooserCeilingAtWhatTheHoldAllows() {
         val grownUp = draft(filters = DraftFilters(maxRating = "R"))
 
-        val kids = grownUp.withKids(on = true, number = 5)
+        val kids = grownUp.withTier(FamilyTier.Tots, number = 5)
 
-        assertTrue(kids.kids)
+        assertEquals(FamilyTier.Tots, kids.tier)
         assertEquals(5, kids.number)
         assertFalse(kids.numberChosen)
         assertEquals("PG", kids.filters.maxRating)
@@ -152,23 +153,80 @@ class ChannelDraftTest {
 
     @Test
     fun turningKidsOnWithNoCeilingIsPgAndAKidsChoiceStays() {
-        assertEquals("PG", draft().withKids(on = true, number = 5).filters.maxRating)
+        assertEquals("PG", draft().withTier(FamilyTier.Tots, number = 5).filters.maxRating)
         val g = draft(filters = DraftFilters(maxRating = "G"))
-        assertEquals("G", g.withKids(on = true, number = 5).filters.maxRating)
+        assertEquals("G", g.withTier(FamilyTier.Tots, number = 5).filters.maxRating)
         assertEquals(
             "TV-Y7",
-            draft(filters = DraftFilters(maxRating = "TV-Y7")).withKids(on = true, number = 5).filters.maxRating,
+            draft(filters = DraftFilters(maxRating = "TV-Y7")).withTier(FamilyTier.Tots, number = 5).filters.maxRating,
         )
     }
 
     @Test
     fun turningKidsOffLeavesTheCeilingAlone() {
-        val kids = draft(kids = true, filters = DraftFilters(maxRating = "G"))
+        val kids = draft(tier = FamilyTier.Tots, filters = DraftFilters(maxRating = "G"))
 
-        val off = kids.withKids(on = false, number = 610)
+        val off = kids.withTier(null, number = 610)
 
-        assertFalse(off.kids)
+        assertNull(off.tier)
         assertEquals(610, off.number)
         assertEquals("G", off.filters.maxRating)
+    }
+
+    @Test
+    fun turningKidsOnHoldsALooserCeilingAtPgAndTeensAtTv14() {
+        val loose = draft(filters = DraftFilters(maxRating = "R"))
+
+        assertEquals("PG", loose.withTier(FamilyTier.Kids, 40).filters.maxRating)
+        assertEquals("TV-14", loose.withTier(FamilyTier.Teens, 70).filters.maxRating)
+        assertEquals("TV-14", draft().withTier(FamilyTier.Teens, 70).filters.maxRating, "no ceiling is the top")
+        assertEquals(FamilyTier.Teens, loose.withTier(FamilyTier.Teens, 70).tier)
+    }
+
+    @Test
+    fun aTeensCeilingAtOrBelowTv14StaysAsItIs() {
+        for (rating in listOf("PG", "TV-PG", "PG-13", "TV-14", "G", "TV-Y7-FV")) {
+            val kept = draft(filters = DraftFilters(maxRating = rating)).withTier(FamilyTier.Teens, 70)
+
+            assertEquals(rating, kept.filters.maxRating)
+        }
+    }
+
+    @Test
+    fun aKidsTierCeilingIsAKidsHoldChoice() {
+        fun held(rating: String) = draft(filters = DraftFilters(maxRating = rating)).withTier(FamilyTier.Kids, 40)
+
+        assertEquals("G", held("G").filters.maxRating)
+        assertEquals("PG", held("TV-14").filters.maxRating)
+    }
+
+    @Test
+    fun aPickedNumberMustBeInTheBandOfItsTier() {
+        fun problem(
+            tier: FamilyTier?,
+            number: Int,
+        ) = draft(tier = tier).copy(number = number, numberChosen = true).problem()
+
+        assertNull(problem(FamilyTier.Tots, 33))
+        assertNull(problem(FamilyTier.Kids, 34))
+        assertNull(problem(FamilyTier.Kids, 66))
+        assertNull(problem(FamilyTier.Teens, 67))
+        assertNull(problem(FamilyTier.Teens, 99))
+        assertNull(problem(null, 100))
+        assertEquals(DraftProblem.KidsNumberOutsideBand, problem(FamilyTier.Tots, 34))
+        assertEquals(DraftProblem.TierNumberOutsideBand, problem(FamilyTier.Kids, 33))
+        assertEquals(DraftProblem.TierNumberOutsideBand, problem(FamilyTier.Kids, 67))
+        assertEquals(DraftProblem.TierNumberOutsideBand, problem(FamilyTier.Teens, 66))
+        assertEquals(DraftProblem.TierNumberOutsideBand, problem(FamilyTier.Teens, 100))
+        assertEquals(DraftProblem.GrownUpNumberInKidsBand, problem(null, 1))
+        assertEquals(DraftProblem.GrownUpNumberInKidsBand, problem(null, 33))
+        assertEquals(DraftProblem.GrownUpNumberInYoungBand, problem(null, 34))
+        assertEquals(DraftProblem.GrownUpNumberInYoungBand, problem(null, 66))
+        assertEquals(DraftProblem.GrownUpNumberInYoungBand, problem(null, 99))
+    }
+
+    @Test
+    fun aNumberTheBuilderFoundIsNeverAProblem() {
+        assertNull(draft(tier = FamilyTier.Teens).copy(number = 5, numberChosen = false).problem())
     }
 }

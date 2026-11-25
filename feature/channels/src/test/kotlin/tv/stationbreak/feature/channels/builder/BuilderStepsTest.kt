@@ -14,6 +14,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.TitleHit
 import tv.stationbreak.core.domain.TitleKind
 import tv.stationbreak.core.domain.lineup.BandNeeded
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
@@ -53,7 +54,7 @@ class BuilderStepsTest {
             repeat(12) { rig.press(Left) }
             assertEquals(1, rig.ui.draft.seriesCap)
             rig.press(Up, Right, Right, Down)
-            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Kids), rig.ui.focus)
+            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Family), rig.ui.focus)
         }
 
     @Test
@@ -67,9 +68,9 @@ class BuilderStepsTest {
             assertEquals(5, rig.ui.draft.seriesCap)
             rig.press(Up, Right, Right)
             assertEquals(PlayOrder.InOrder, rig.ui.draft.order)
-            // Down skips the hidden caps and lands on the Kids switch.
+            // Down skips the hidden caps and lands on the Family channel switch.
             rig.press(Down)
-            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Kids), rig.ui.focus)
+            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Family), rig.ui.focus)
             rig.press(Up, Left, Left)
             assertEquals(PlayOrder.Shuffle, rig.ui.draft.order)
             assertEquals(5, rig.ui.draft.seriesCap)
@@ -92,7 +93,7 @@ class BuilderStepsTest {
             rig.builder.free = Listed.Ok(listOf(1))
             rig.toKids()
             rig.select()
-            assertTrue(rig.ui.draft.kids)
+            assertEquals(FamilyTier.Tots, rig.ui.draft.tier)
             assertEquals(1, rig.ui.draft.number)
         }
 
@@ -102,7 +103,7 @@ class BuilderStepsTest {
             rig.builder.free = Listed.Ok(emptyList())
             rig.toKids()
             rig.select()
-            assertFalse(rig.ui.draft.kids)
+            assertNull(rig.ui.draft.tier)
             assertEquals(BuilderMessage.KidsBandFull, rig.ui.message)
         }
 
@@ -119,9 +120,9 @@ class BuilderStepsTest {
             rig.builder.free = Listed.Ok(listOf(600))
             rig.select()
             assertNull(rig.ui.confirm)
-            assertFalse(rig.ui.draft.kids)
+            assertNull(rig.ui.draft.tier)
             assertEquals(600, rig.ui.draft.number)
-            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Kids), rig.ui.focus)
+            assertEquals(BuilderFocus.PlayRow(PlayRowKind.Family), rig.ui.focus)
         }
 
     @Test
@@ -133,7 +134,7 @@ class BuilderStepsTest {
             rig.select()
             rig.select()
             assertNull(rig.ui.confirm)
-            assertTrue(rig.ui.draft.kids)
+            assertEquals(FamilyTier.Tots, rig.ui.draft.tier)
             assertEquals(1, rig.ui.draft.number)
         }
 

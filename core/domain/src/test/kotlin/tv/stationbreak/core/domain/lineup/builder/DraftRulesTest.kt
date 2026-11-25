@@ -34,7 +34,7 @@ class DraftRulesTest {
         name: String = "Funny Films",
         sources: List<DraftSource> = listOf(comedy),
         order: PlayOrder = PlayOrder.Shuffle,
-    ) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order = order, kids = false, seed = seed)
+    ) = ChannelDraft(name, sources, emptyList(), DraftFilters(), order = order, tier = null, seed = seed)
 
     // An edit of [previous] when it is set (the saved channel keeps its version), else a new channel (written at 5).
     private fun toRules(
@@ -395,7 +395,7 @@ class DraftRulesTest {
                     maxRating = listOf(null, "G", "PG").random(random),
                 ),
             order = PlayOrder.entries.random(random),
-            kids = false,
+            tier = null,
             seriesCap = random.nextInt(1, 11),
             filmCap = random.nextInt(1, 11),
             seed = Seed(random.nextLong().toULong()),

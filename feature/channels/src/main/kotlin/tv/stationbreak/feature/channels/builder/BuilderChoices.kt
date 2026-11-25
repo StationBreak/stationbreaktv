@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
 package tv.stationbreak.feature.channels.builder
 
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftChoices
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
@@ -41,7 +42,9 @@ internal fun sheetRowsOf(
             add(SheetRow.SeriesCap)
             add(SheetRow.FilmCap)
         }
-        add(SheetRow.Kids)
+        add(SheetRow.Family)
+        // The Cap row is on the sheet while the channel has a tier; with none the sheet draws it dimmed, off the focus.
+        if (draft.tier != null) add(SheetRow.Cap)
         add(SheetRow.Number)
         if (draft.keepsReplaceable()) add(SheetRow.Kept)
         add(SheetRow.Preview)
@@ -70,7 +73,8 @@ internal fun playRowsOf(draft: ChannelDraft): List<PlayRowKind> =
             add(PlayRowKind.SeriesCap)
             add(PlayRowKind.FilmCap)
         }
-        add(PlayRowKind.Kids)
+        add(PlayRowKind.Family)
+        if (draft.tier != null) add(PlayRowKind.Cap)
         if (draft.keepsReplaceable()) add(PlayRowKind.Kept)
     }
 
@@ -107,11 +111,11 @@ internal fun DraftFilters.withRuntime(
 internal fun DraftFilters.withRating(
     by: Int,
     wrap: Boolean,
-    kids: Boolean,
+    tier: FamilyTier?,
 ): DraftFilters {
-    val tiers = DraftChoices.ratingCeilings(kids)
-    val last = if (kids) tiers.lastIndex else tiers.size
-    val at = DraftChoices.ratingTier(maxRating, kids)?.coerceAtMost(tiers.lastIndex) ?: tiers.size
+    val tiers = DraftChoices.ratingCeilings(tier)
+    val last = if (tier != null) tiers.lastIndex else tiers.size
+    val at = DraftChoices.ratingTier(maxRating, tier)?.coerceAtMost(tiers.lastIndex) ?: tiers.size
     val to = (at + by).let { if (it > last) (if (wrap) 0 else last) else it.coerceAtLeast(0) }
     return copy(maxRating = tiers.getOrNull(to))
 }

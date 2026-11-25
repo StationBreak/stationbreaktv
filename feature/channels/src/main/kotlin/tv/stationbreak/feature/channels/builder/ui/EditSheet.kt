@@ -11,6 +11,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.KeptItem
 import tv.stationbreak.core.domain.lineup.builder.RulesDescription
@@ -52,6 +53,11 @@ private sealed interface SheetLine {
         override val key = "kept:header"
     }
 
+    /** The Cap row while Family channel is off: drawn dimmed, and not a stop of the focus. */
+    data object CapOff : SheetLine {
+        override val key = "row:CapOff"
+    }
+
     data class KeptLine(
         val index: Int,
         val item: KeptItem,
@@ -71,8 +77,10 @@ private fun sheetLinesOf(ui: BuilderUi): List<SheetLine> =
                 ui.draft.keptInForce.forEachIndexed { i, item -> add(SheetLine.KeptLine(i, item)) }
             }
             add(SheetLine.Row(row))
+            if (row == SheetRow.Family && ui.draft.tier == null) add(SheetLine.CapOff)
             val skipped = ui.preview.skippedPicks()
-            if (row == SheetRow.Preview && ui.draft.kids && skipped.isNotEmpty()) add(SheetLine.Skipped(skipped))
+            val tots = ui.draft.tier == FamilyTier.Tots
+            if (row == SheetRow.Preview && tots && skipped.isNotEmpty()) add(SheetLine.Skipped(skipped))
         }
     }
 
@@ -88,7 +96,7 @@ internal fun EditSheet(
     modifier: Modifier = Modifier,
 ) {
     val lines =
-        remember(ui.sheetRows, ui.draft.kept, ui.draft.keptInForce, ui.draft.kids, ui.preview) {
+        remember(ui.sheetRows, ui.draft.kept, ui.draft.keptInForce, ui.draft.tier, ui.preview) {
             sheetLinesOf(ui)
         }
     val focused = lines.indexOfFirst { it is SheetLine.Row && ui.focus == BuilderFocus.Sheet(it.row) }
@@ -96,6 +104,10 @@ internal fun EditSheet(
         when (line) {
             is SheetLine.Row -> {
                 SheetRowLine(line.row, ui, typing, isFocused)
+            }
+
+            SheetLine.CapOff -> {
+                CapLine(ui.draft, focused = false, tag = BuilderTags.sheetRow(SheetRow.Cap))
             }
 
             is SheetLine.Skipped -> {
@@ -127,11 +139,16 @@ private fun SheetRowLine(
             NameLine(draft.name, typing, focused, tag)
         }
 
-        SheetRow.Kids -> {
-            val text = labelled(stringResource(R.string.builder_kids), onOff(draft.kids))
-            FocusLine(focused, tag, ticked = draft.kids, role = Role.Switch, spoken = Spoken(text)) {
+        SheetRow.Family -> {
+            val on = draft.tier != null
+            val text = labelled(stringResource(R.string.builder_family), onOff(on))
+            FocusLine(focused, tag, ticked = on, role = Role.Switch, spoken = Spoken(text)) {
                 Text(text, style = MaterialTheme.typography.bodyLarge)
             }
+        }
+
+        SheetRow.Cap -> {
+            CapLine(draft, focused, tag)
         }
 
         SheetRow.Preview -> {
@@ -198,7 +215,7 @@ private fun sheetText(
             stringResource(R.string.builder_delete)
         }
 
-        SheetRow.Name, SheetRow.Kids, SheetRow.Preview -> {
+        SheetRow.Name, SheetRow.Family, SheetRow.Cap, SheetRow.Preview -> {
             ""
         }
     }
