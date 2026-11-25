@@ -10,6 +10,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getBoundsInRoot
@@ -197,7 +199,10 @@ class EditSheetTest {
         assertFalse(exists(BuilderTags.kept(0)))
         compose.onNodeWithTag(BuilderTags.EDIT).assertTextContains("Edit")
         assertFalse(exists(BuilderTags.step(BuilderStep.Sources)))
-        assertEquals(SheetRow.entries - SheetRow.Kept, rows)
+        // With Family channel off the Cap row is not a stop of the D-pad, so it is not in the list; it is still drawn,
+        // dimmed, between Family channel and Number.
+        assertEquals(SheetRow.entries - SheetRow.Kept - SheetRow.Cap, rows)
+        assertCapDrawnDimmedBetweenFamilyAndNumber()
         var previous: SheetRow? = null
         // The Next up line is listed but the D-pad never stops on it.
         rows.forEach { row ->
@@ -220,8 +225,34 @@ class EditSheetTest {
                         },
                     ).fetchSemanticsNodes()
                     .map { it.config[SemanticsProperties.TestTag] }
-            assertTrue(tags.toString(), tags.all { tag -> rows.any { BuilderTags.sheetRow(it) == tag } })
+            val drawn = rows + SheetRow.Cap
+            assertTrue(tags.toString(), tags.all { tag -> drawn.any { BuilderTags.sheetRow(it) == tag } })
         }
+    }
+
+    private fun assertCapDrawnDimmedBetweenFamilyAndNumber() {
+        toRow(SheetRow.Family)
+        val cap = BuilderTags.sheetRow(SheetRow.Cap)
+        assertTrue("Cap is drawn while Family channel is off", exists(cap))
+        compose.onNodeWithTag(cap).assertIsNotEnabled()
+        assertTrue(top(SheetRow.Family) < compose.onNodeWithTag(cap).getBoundsInRoot().top)
+        // The list is lazy: Number is only measured when it is on screen.
+        if (exists(BuilderTags.sheetRow(SheetRow.Number))) {
+            assertTrue(compose.onNodeWithTag(cap).getBoundsInRoot().top < top(SheetRow.Number))
+        }
+    }
+
+    @Test
+    fun withAFamilyCapTheSheetListsTheCapRowAfterFamilyChannelAndItIsAStop() {
+        show(draftOf().copy(tier = FamilyTier.Kids, number = 40))
+        val rows = vm.ui.value.sheetRows
+        assertEquals(SheetRow.entries - SheetRow.Kept, rows)
+        toRow(SheetRow.Family)
+        press(Pad.Down)
+        assertEquals(BuilderFocus.Sheet(SheetRow.Cap), vm.ui.value.focus)
+        compose.onNodeWithTag(BuilderTags.sheetRow(SheetRow.Cap)).assertIsEnabled()
+        press(Pad.Down)
+        assertEquals(BuilderFocus.Sheet(SheetRow.Number), vm.ui.value.focus)
     }
 
     @Test
