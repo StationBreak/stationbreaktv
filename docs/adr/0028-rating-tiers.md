@@ -391,3 +391,35 @@ Jellyfin, MediaPortal, TMDb or any other project: each tier below is read from t
   supersedes. The gate oracle (`CeilingOracle`) reads these spellings on its own, from its own list, not from `RatingMap`.
 - Effect, on the gate's synthetic non-US fixture, extended with these spellings: the hard-fail invariants hold (no title
   above its ceiling, no rating of 15 or older in a young band, no Explicit title outside After Hours).
+
+## Addendum 2026-11-25 (8): a custom channel's cap is its number band ([#1046](https://github.com/StationBreak/stationbreaktv/issues/1046), [#1152](https://github.com/StationBreak/stationbreaktv/issues/1152))
+
+Owner decision (2026-11-24, #1152) amends #993 and #1046: a custom channel has its own cap, Tots, Kids or Teens, and the
+cap limits what the channel airs. Family Mode is a separate reachability filter on which channels are seen; it does
+not rewrite a channel's cap. A Teens channel is not reachable while Family Mode is Tots. The earlier rule (the channel's
+ceiling follows the viewer's Family Mode cap, carried as a schedule input) is withdrawn.
+
+**What holds it, with no new hold rule.** The tier is the channel's number band (`FamilyTier`, #1157), and the cap is
+the channel's own number and ceiling, so it is the same on every TV and ADR-0017 holds with no new schedule input:
+
+- **Tots** (1 to 33) is a kid channel (`PoolPolicy.KidsOnly`): the kids tier, under a ceiling capped at TV-Y7 (rule 5).
+- **Kids** (34 to 66) is `PoolPolicy.Custom` under at most PG / TV-PG, with the tier limit of addendum (3): up to the
+  family tier.
+- **Teens** (67 to 99) is `PoolPolicy.Custom` under at most PG-13 / TV-14, with the tier limit up to the teen tier.
+- **Unrated is out under every cap**: no rating, a blank one, `NR`, `Approved`, or a name the map does not know. The
+  #754 exception stays dropped (rule 4); it never applies to Tots.
+- **A thin pool is a thin channel.** Nothing is filled from above the cap: a day's gap fill reads the channel's own pool.
+- **The band cannot sit under a higher ceiling.** `ChannelFloors` numbers a ceiling above a band's cap in a higher band,
+  and `FloorMigration` moves a channel found below its floor, so a channel's number and its cap agree, which is what
+  keeps Family Mode (it reads the number alone) in step with the content cap.
+
+**No version bump.** The engine already did all of this (addenda 3, 5 and `ChannelFloors`); no hold function changed, so
+`kid-hold-13` and `grown-up-hold-13` and their vectors stand and no stored day is rebuilt. `FamilyCapCeilingsTest` pins
+it: every ceiling of every tier, over every rating spelling, US and non-US, with episodes of series rated above and below
+their own, a missing series and no series: nothing airs above the cap, nothing unrated airs, a thin pool stays empty.
+
+**Known limit (owner may overrule).** The cap is not read from the number alone: a viewer's own channel in 34 to 99
+keeps its own stored ceiling ("no hidden filters", addendum 3), and only the floor ties the two. One that finds no free
+number to move to anywhere stays below its floor (`FloorMigration`). Clamping a custom channel's ceiling to its band, as a
+built-in's is, would close that, but it would make a below-floor channel stop moving (the floor reads the clamped
+ceiling) and narrow the viewer's channel silently; it is left as a decision.
