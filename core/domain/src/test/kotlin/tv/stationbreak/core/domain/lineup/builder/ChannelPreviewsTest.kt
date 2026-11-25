@@ -273,7 +273,7 @@ class ChannelPreviewsTest {
         film(3, genres = listOf("Animation", "Drama"), rating = "G")
         val mine = ChannelId("starter:lights-out")
         val custom = ChannelSource.Custom(rules("Lights Out", Source.Genre("Animation")))
-        val migrated = channel(mine.value, 44, ChannelState.On, custom)
+        val migrated = channel(mine.value, 150, ChannelState.On, custom)
         runBlocking { holding(migrated) }
 
         val opened = runBlocking { builder.open(ACCOUNT, mine, copy = false) }

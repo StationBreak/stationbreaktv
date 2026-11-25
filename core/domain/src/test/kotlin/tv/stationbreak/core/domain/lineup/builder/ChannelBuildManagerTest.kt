@@ -445,17 +445,6 @@ class ChannelBuildManagerTest {
         )
 
     @Test
-    fun editingAMigratedKidChannelOpensAsKidsAtAnyNumber() =
-        runBlocking<Unit> {
-            for (number in listOf(44, 150)) {
-                seed(migrated(number))
-                val id = ChannelId("starter:lights-out")
-                val draft = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
-                assertEquals(FamilyTier.Tots, draft.tier, "at $number")
-            }
-        }
-
-    @Test
     fun replacingAMigratedKidChannelWithKidsOnOrOffKeepsTheIdAndTheHold() =
         runBlocking<Unit> {
             for (tier in listOf(null, FamilyTier.Tots)) {

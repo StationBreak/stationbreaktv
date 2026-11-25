@@ -276,4 +276,56 @@ class ChannelBuildTierTest {
             val off = KidsLockState(enabled = false, cap = KidsCap.Kids, pinSet = false)
             assertTrue(ids.values.all { off.allows(stored().channel(it).number, stored().floorOf(it)) })
         }
+
+    // A retired kid recipe's channel (#1044): Custom, keeps its starter ID, so it is a kid channel at any number.
+    private fun migrated(number: Int) =
+        channel(
+            "starter:lights-out",
+            number,
+            ChannelState.On,
+            ChannelSource.Custom(rules("Lights Out", Source.Genre("Animation"), maxRating = "PG")),
+        )
+
+    private suspend fun renameKeepsTheMovedNumber(
+        tier: FamilyTier,
+        first: Int,
+    ) {
+        val id = ChannelId("starter:lights-out")
+        seed(migrated(150))
+        val opened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+        assertEquals(FamilyTier.Tots, opened.tier)
+        assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, opened.withTier(tier, firstFree(tier))))
+        assertEquals(first, stored().channel(id).number)
+
+        val reopened = assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft
+        assertEquals(tier, reopened.tier)
+        assertEquals(BuildResult.Done(id), builder.save(ACCOUNT, id, reopened.copy(name = "Renamed")))
+
+        assertEquals(first, stored().channel(id).number)
+        assertEquals(tier, assertIs<OpenResult.Opened>(builder.open(ACCOUNT, id, copy = false)).draft.tier)
+    }
+
+    @Test
+    fun aKidChannelByIdMovedToKidsKeepsItsNumber() {
+        runBlocking { renameKeepsTheMovedNumber(FamilyTier.Kids, 34) }
+    }
+
+    @Test
+    fun aKidChannelByIdMovedToTeensKeepsItsNumber() {
+        runBlocking { renameKeepsTheMovedNumber(FamilyTier.Teens, 67) }
+    }
+
+    @Test
+    fun aMigratedKidChannelOpensAtItsBandAndAsTotsOutsideTheYoungBands() {
+        for ((number, tier) in listOf(150 to FamilyTier.Tots, 44 to FamilyTier.Kids, 80 to FamilyTier.Teens)) {
+            val fresh = ChannelBuildTierTest()
+            val opened = runBlocking { fresh.openMigrated(number) }
+            assertEquals(tier, opened.draft.tier, "at $number")
+        }
+    }
+
+    private suspend fun openMigrated(number: Int): OpenResult.Opened {
+        seed(migrated(number))
+        return assertIs<OpenResult.Opened>(builder.open(ACCOUNT, ChannelId("starter:lights-out"), copy = false))
+    }
 }

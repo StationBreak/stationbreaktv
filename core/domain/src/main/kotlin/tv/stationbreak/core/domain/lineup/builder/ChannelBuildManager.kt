@@ -135,10 +135,10 @@ class ChannelBuildManager(
         return OpenResult.Opened(opened.tierNormalised(), name)
     }
 
-    // The tier of a custom channel being edited: Tots for a kid channel (a kid key kept at any number included), else
-    // the band its number is in, none for a grown-up number.
+    // The tier of a custom channel being edited: the band its number is in; a kid channel by its ID (a retired kid
+    // starter kept as Custom) whose number is in no young band is Tots, so a stored Kids or Teens number is kept.
     private fun tierOf(channel: LineupChannel): FamilyTier? =
-        FamilyTier.Tots.takeIf { KidStatus.isKidChannel(channel) } ?: FamilyTier.of(channel.number)
+        FamilyTier.of(channel.number) ?: FamilyTier.Tots.takeIf { KidStatus.isKidChannel(channel) }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
     private fun LineupChannel.rulesToOpen(copy: Boolean): ChannelRules? =
