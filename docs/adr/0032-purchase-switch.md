@@ -1,6 +1,6 @@
 # ADR-0032: The Pro purchase switch
 
-- **Status:** Accepted. The Amazon Appstore adapter is linked (decision of 2026-11-24, below) and stays off in the store release until the owner flips `PRO_ON_SALE`
+- **Status:** Accepted. The Amazon Appstore adapter is linked (decision of 2026-11-24, below) and the owner flipped `PRO_ON_SALE` on for the store release on 2026-11-25 (addendum at the end)
 - **Date:** 2026-11-21
 - **Decided by:** the owner ([#119](https://github.com/StationBreak/stationbreaktv/issues/119): the GitHub build is Pro and
   has no billing; [#36](https://github.com/StationBreak/stationbreaktv/issues/36): Amazon IAP only, $20 one time) and
@@ -162,3 +162,12 @@ This record keeps the names of its date. Since [#1100](https://github.com/Statio
 **Kids** (34 to 66, was the Family band) and **Teens** (67 to 99, was the Teen band). Where this record says Kids Mode,
 the Kids band or the Family band, read Family Mode, Tots and Kids. Code names, `kid-hold-*`, `kidsOnly`, the
 `kids-odds-and-ends` key and stored values keep the old words. See the [glossary](../guide/glossary.md).
+
+## Addendum (2026-11-25): Pro is on sale in the store release
+
+The owner confirmed the purchase checklist above on 2026-11-25 (console SKU created; a purchase, a refund and a restore
+tried on a device) and asked for `PRO_ON_SALE` to be true for the `amazon` release in beta.3. `ProSalePolicy.matrix`
+now has `("release" to "amazon") to true`; nothing else changed. The store release binds the Appstore adapter, so its
+Settings row and purchase screen are live and a verified entitlement turns Pro on. Setting the line back to false
+closes the store release again (the closed stand-in, no SDK call). The github flavor is unchanged. The "Not yet proven
+on a device" note above is superseded by the owner's confirmation. The version, tag and release are the owner's.
