@@ -31,8 +31,9 @@ internal fun idOf(n: Int): CanonicalId = engineIdOf(n)
 
 internal fun collection(
     id: CanonicalId,
-    movies: Set<CanonicalId>,
-): RuleCollection = collectionOf(id, movies = movies)
+    movies: Set<CanonicalId> = emptySet(),
+    episodes: Set<CanonicalId> = emptySet(),
+): RuleCollection = collectionOf(id, movies = movies, episodes = episodes)
 
 private fun RuleItem.lasting(ms: Long): RuleItem = copy(item = item.copy(runtimeMs = ms))
 

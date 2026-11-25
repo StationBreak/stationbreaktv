@@ -79,7 +79,7 @@ class Homes internal constructor(
 }
 
 /**
- * The cross-channel curation step (spec 23, `curation-1`): one home per title by an integer fit score; guests on
+ * The cross-channel curation step (spec 23, `curation-2`): one home per title by an integer fit score; guests on
  * grown-up channels, under a 30 % share except on guest-only (decade) channels, which are built from guests; the 25 %
  * share cap as per-series keeps; and weights 3/2/1. Title facts come from the snapshot, so the channels passed do not
  * change them. Integer arithmetic only, and every result is in channel-number or canonical-ID order, so any input
@@ -164,6 +164,9 @@ private class CurationHoming(
 private const val GUEST_BITS = 24
 private const val GUEST_MASK = (1L shl GUEST_BITS) - 1
 
+// An anchor homes a title only where its channel holds at least 1 / ANCHOR_SHARE_DEN of the title's airable hours.
+private const val ANCHOR_SHARE_DEN = 4
+
 internal val CHANNEL_ORDER =
     Comparator<CurationChannel> { a, b ->
         val byNumber = a.number.compareTo(b.number)
@@ -215,18 +218,31 @@ private class CurationRun(
         for (t in titles.indices) placeHome(t)
     }
 
-    // The best fit among the title's candidate channels, guest-only ones left out while any other fits. Ties go to the
-    // lower number: lanes are in number order and only a strictly higher score replaces the best so far.
+    // The best fit among the title's candidate channels, guest-only ones left out while any other fits, and so are
+    // anchors that cannot air a quarter of the title (#1153): they stay guest candidates. With no one left, the rule
+    // before #1153 stands. Ties go to the lower number: lanes are in number order and only a strictly higher score
+    // replaces the best so far.
     private fun placeHome(t: Int) {
         var anyRegular = false
         for (e in titleStart[t] until titleStart[t + 1]) anyRegular = anyRegular || !lanes[entryLane[e]].guestOnly
-        var best = -1
-        for (e in titleStart[t] until titleStart[t + 1]) {
-            val eligible = !anyRegular || !lanes[entryLane[e]].guestOnly
-            if (eligible && (best < 0 || entryScore[e] > entryScore[best])) best = e
-        }
+        val best = bestHome(t, anyRegular, true).takeIf { it >= 0 } ?: bestHome(t, anyRegular, false)
         homeLane[t] = if (best < 0) -1 else entryLane[best]
         if (best >= 0) home[entryLane[best]][entryPos[best]] = true
+    }
+
+    private fun bestHome(
+        t: Int,
+        anyRegular: Boolean,
+        shareRule: Boolean,
+    ): Int {
+        var best = -1
+        for (e in titleStart[t] until titleStart[t + 1]) {
+            val lane = lanes[entryLane[e]]
+            val short = shareRule && lane.anchor[entryPos[e]] && lane.ms[entryPos[e]] * ANCHOR_SHARE_DEN < built.titleMs[t]
+            val eligible = (!anyRegular || !lane.guestOnly) && !short
+            if (eligible && (best < 0 || entryScore[e] > entryScore[best])) best = e
+        }
+        return best
     }
 
     // A member airs here: every candidate of a kid channel, the homes and guests of a grown-up one.

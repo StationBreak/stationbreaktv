@@ -81,6 +81,6 @@ class NameMatcherTest {
 
     @Test
     fun theCurationTablesVersionIsPinned() {
-        assertEquals("curation-1", CurationTables.VERSION_NAME)
+        assertEquals("curation-2", CurationTables.VERSION_NAME)
     }
 }

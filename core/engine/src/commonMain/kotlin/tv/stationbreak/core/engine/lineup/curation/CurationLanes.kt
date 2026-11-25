@@ -78,6 +78,15 @@ internal class LaneBuilder(
     /** The titles of every airable pool item the snapshot holds, ascending by ID. */
     val titles: Array<FoldedTitle> = foldTitles()
 
+    /** The airable hours of each title over every pool, each item once, before any channel's own filter (#1153). */
+    val titleMs =
+        LongArray(titles.size).also { total ->
+            for (item in distinctItems(pools)) {
+                val t = titleOf(item)
+                if (t >= 0) total[t] += item.runtimeMs
+            }
+        }
+
     // Indexed by title; each lane leaves them as it found them (0 and -1), so one pair serves every lane.
     private val scratchMs = LongArray(titles.size)
     private val scratchPos = IntArray(titles.size).also { it.fill(-1) }
