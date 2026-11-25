@@ -113,12 +113,13 @@ internal class LaneBuilder(
         channel: CurationChannel,
         pool: List<ScheduleItem>,
     ): Lane {
+        val anchored = anchoredGroups(snapshot, channel, pool)
         val itemTitle = IntArray(pool.size)
         val touched = IntArray(pool.size)
         var count = 0
         for (i in pool.indices) {
             val t = titleOf(pool[i])
-            itemTitle[i] = if (t >= 0 && admits(channel, titles[t].title)) t else -1
+            itemTitle[i] = if (t >= 0 && admits(channel, titles[t].title, anchored)) t else -1
             if (itemTitle[i] < 0) continue
             if (scratchPos[t] < 0) {
                 scratchPos[t] = 0
@@ -286,17 +287,19 @@ private fun foldTitle(title: Title): FoldedTitle {
 }
 
 // The anime rule: an anime-only channel keeps only anime; a grown-up channel that is not anime-only drops it. After
-// Hours is exempt (#1078): an Explicit title, anime or not, airs there or nowhere.
+// Hours is exempt (#1078): an Explicit title, anime or not, airs there or nowhere. Then the adult-signal rule
+// (catalog 17, #1154) for a channel that asks for it.
 internal fun admits(
     channel: CurationChannel,
     title: Title,
+    anchored: Set<CanonicalId> = emptySet(),
 ): Boolean {
     val anime = title.format == TitleFormat.Anime
     return when {
         channel.recipe.key == AdultMark.AFTER_HOURS_KEY -> true
         channel.recipe.theme?.animeOnly == true -> anime
-        !channel.kid -> !anime
-        else -> true
+        !channel.kid && anime -> false
+        else -> !wantsAdultSignal(channel.recipe) || hasAdultSignal(channel.recipe, title, anchored)
     }
 }
 
@@ -311,7 +314,7 @@ private fun formatFits(
         null -> false
     }
 
-private fun idSourcesOf(sources: List<Source>): List<Source> {
+internal fun idSourcesOf(sources: List<Source>): List<Source> {
     val out = ArrayList<Source>()
     for (s in sources) if (s is Source.Collection || s is Source.Series || s is Source.Item) out.add(s)
     return out
@@ -323,7 +326,7 @@ private fun studioAnchorsOf(recipe: Recipe): List<NameMatcher> {
     return out
 }
 
-private fun foldedDistinct(names: List<String>): List<String> {
+internal fun foldedDistinct(names: List<String>): List<String> {
     val out = ArrayList<String>(names.size)
     for (n in names) {
         val f = foldNameAscii(n)
@@ -341,7 +344,7 @@ private fun hits(
     return n
 }
 
-private fun matchesAny(
+internal fun matchesAny(
     matchers: List<NameMatcher>,
     foldedNames: List<String>,
 ): Boolean {

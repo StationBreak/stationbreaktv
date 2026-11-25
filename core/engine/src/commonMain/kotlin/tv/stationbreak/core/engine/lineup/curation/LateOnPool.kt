@@ -39,12 +39,13 @@ internal fun lateOnPool(
     val titles = Titles.of(snapshot, pool)
     val items = ArrayList<ScheduleItem>(pool.size)
     val homed = HashSet<CanonicalId>()
+    val anchored = anchoredGroups(snapshot, channel, pool)
     val weights = HashMap<CanonicalId, Int>()
     for (item in pool) {
         val group = item.groupId
         val title = titles[group]
         // A title the snapshot does not hold cannot be judged: it stays, as it did before the guests.
-        if (title != null && !admits(channel, title)) continue
+        if (title != null && !admits(channel, title, anchored)) continue
         if (homes?.homeOf(group) == null) {
             items.add(item)
             homed.add(group)

@@ -1,11 +1,11 @@
-LINEUP AUDIT (catalog 16, curation-2, extras-1)
+LINEUP AUDIT (catalog 17, curation-2, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1940 items, 58 titles (44 series, 14 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 58, with a home: 58, with no home: 0
+  titles: 58, with a home: 53, with no home: 5
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -13,19 +13,18 @@ TOTALS
     filtered-or-rated                  0
     not-airable                        0
     anime-rule                         0
-    only-on-shelved-channels           0
-  channels per title: 1 channels: 30 titles, 2 channels: 28 titles
+    only-on-shelved-channels           5
+  channels per title: 1 channels: 25 titles, 2 channels: 28 titles, 3 channels: 5 titles
   titles per channel that is on:
     little-spirits                  14
     level-up                        44
-    binge-row                        8
+    binge-row                        9
     prestige                         8
     giant-robot-hour                 6
-    cartoons-after-dark              6
     leftovers:kids-odds-and-ends     0
-    leftovers:family-odds-and-ends     0
-    leftovers:teen-odds-and-ends     0
-    leftovers:odds-and-ends          0
+    leftovers:family-odds-and-ends     5
+    leftovers:teen-odds-and-ends     5
+    leftovers:odds-and-ends          5
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
@@ -122,7 +121,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   after-hours                   504  off    OptIn         0  -                                  -
   one-season-only               512  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  cartoons-after-dark           516  on(p)                6  6t 85.80h 0a score  8600           6t 85.80h 0a
+  cartoons-after-dark           516  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   family-business               520  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   anthology-hour                524  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   always-december               900  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -263,18 +262,27 @@ TITLES (scores in points; a term that is zero is left out)
   0000001d Pelotor Xixilo [series, 72 items, 27.60h]
     home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
   0000001e Makyky Renpeky [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (TooThin)
+    airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   0000001f Pefaxi Xisenpe [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (TooThin)
+    airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   00000020 Xidarmi Senkybra [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (TooThin)
+    airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   00000021 Bramilo Zuvelmi [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (TooThin)
+    airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   00000022 Velbraky Pelodar [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: flip-phone (TooThin)
+    airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   00000023 Tormape Mipelo [series, 39 items, 14.30h]
-    home cartoons-after-dark 133.33 = specificity 33.33 genre 40.00 tone 60.00
-    runner-up binge-row -117.09 = specificity 28.91 decade -150.00 tone 4.00
+    home binge-row -117.09 = specificity 28.91 decade -150.00 tone 4.00
   00000024 Mirentor Fasenren [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00

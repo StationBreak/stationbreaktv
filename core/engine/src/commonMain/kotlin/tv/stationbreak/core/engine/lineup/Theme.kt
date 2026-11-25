@@ -102,10 +102,17 @@ enum class FormatPromise { Films, ShortSeries }
 /**
  * What makes a recipe themed: [anchors] (the sources it is built round), [themeStudios] (studios whose items fit it),
  * a [format] promise, and [animeOnly] for a channel that airs anime alone.
+ *
+ * [adultSignalOnGenreEntry] (catalog 17, #1154) is curation data, not rules: it is never written to a channel's rules,
+ * a lineup file or the rules format. When set, a title the channel's genre source brings in must also show an adult
+ * signal (a decisive rating of PG-13 / TV-14 or higher; see `admits`), or reach the channel another way (one of the
+ * recipe's tag sources, a theme studio or studio anchor, or an anchor). A title with no rating is not admitted through
+ * the genre alone. The curation reads it; nothing else does.
  */
 data class Theme(
     val anchors: List<Anchor>,
     val themeStudios: List<NameMatcher>,
     val format: FormatPromise?,
     val animeOnly: Boolean,
+    val adultSignalOnGenreEntry: Boolean = false,
 )

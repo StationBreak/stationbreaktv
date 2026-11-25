@@ -74,6 +74,7 @@ private fun recipe(
     filters: Filters? = null,
     format: FormatPromise? = null,
     animeOnly: Boolean = false,
+    adultSignalOnGenreEntry: Boolean = false,
     bar: QualifyingBar = QualifyingBar.Standard,
     plain: Boolean = false,
     season: Season? = null,
@@ -96,7 +97,7 @@ private fun recipe(
         ordering = OrderingMode.Curated,
         collectionHints = emptyList(),
         filters = filters,
-        theme = Theme(anchors, themeStudios, format, animeOnly),
+        theme = Theme(anchors, themeStudios, format, animeOnly, adultSignalOnGenreEntry),
         qualifyingBar = bar,
         season = season,
     )
@@ -1249,9 +1250,11 @@ private val premiumBand: List<Recipe> =
                     Exact("FXX"),
                     Prefix("FX Productions"),
                 ),
-            // The grown-up hold drops only the kids tier (ADR-0028), so a PG animated family film from a
-            // studio off the kid list would come in on the Animation genre: Family stays out. No minimum rating (that
-            // would be rules format 6).
+            // The grown-up hold drops only the kids tier (ADR-0028), so a kid-rated or unrated cartoon with no Family
+            // genre would come in on the Animation genre alone. Catalog 17 (#1154): a title the genre brings in needs
+            // an adult signal (PG-13 / TV-14 or higher) in the curation; a tag, studio or anchor entry is unchanged.
+            // Family stays out. A true minimum rating would be rules format 6.
+            adultSignalOnGenreEntry = true,
             filters = filters(genres = listOf("Animation"), notGenres = listOf("Family")),
             bar = QualifyingBar.Niche,
         ),

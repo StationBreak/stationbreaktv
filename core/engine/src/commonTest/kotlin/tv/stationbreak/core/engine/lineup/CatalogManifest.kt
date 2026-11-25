@@ -301,6 +301,8 @@ private fun canonicalOf(theme: Theme): String =
             },
         )
         append("anime").append(theme.animeOnly)
+        // Catalog 17: only a recipe that asks for it writes it, so every other keeps its fingerprint.
+        if (theme.adultSignalOnGenreEntry) append("adultsignal")
     }
 
 // A text with its UTF-8 byte length in front, so the canonical string cannot be read two ways.
