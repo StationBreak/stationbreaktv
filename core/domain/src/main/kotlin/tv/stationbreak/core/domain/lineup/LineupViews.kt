@@ -45,6 +45,7 @@ internal fun LineupChannel.summary(
     recipeKey = source.recipeKey(),
     viewerMade = isViewerCustom(),
     floor = ChannelFloors.of(this, catalog),
+    leavesAt = leavesAtMs?.takeIf { shownState(nowMs) == ChannelState.On }?.let(Instant::fromEpochMilliseconds),
 )
 
 // The catalog recipe key of a starter or leftovers channel; a custom or unusable one has none. No else, so a new source

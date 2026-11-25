@@ -37,7 +37,9 @@ internal fun channelRows(
                     c.onSince.toEpochMilliseconds().takeIf {
                         it > nowMs && reasons[c.id] == HiddenReason.EmptyToday && group == ChannelGroup.On && !waiting
                     },
-                shelfReason = if (group == ChannelGroup.Off) null else c.shelfReason,
+                // An On row that leaves says when; the shelf reason is not actionable while it is still on the air.
+                shelfReason = if (group == ChannelGroup.Off || c.leavesAt != null) null else c.shelfReason,
+                leavesAtMs = c.leavesAt?.takeIf { group == ChannelGroup.On }?.toEpochMilliseconds(),
                 hasOverride = c.defaultNumber != null && c.number != c.defaultNumber,
                 gettingReady = waiting,
                 markKey = c.recipeKey,

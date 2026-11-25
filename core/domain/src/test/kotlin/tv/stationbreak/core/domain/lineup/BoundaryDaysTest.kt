@@ -17,6 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 import tv.stationbreak.core.engine.lineup.ShelfReason as EngineReason
 
 /** The day of a starter takes its rules, its sources and the household flag from the day, not from now (spec 23). */
@@ -216,6 +217,18 @@ class BoundaryDaysTest {
         assertTrue(days.scheduled(lineup, boundary, null).none { it.channel.id == leaving.id }, "gone once due")
         assertEquals(ChannelStatus.On, leaving.summary(TestCatalog, PlayKey("k"), boundary - 1).state)
         assertEquals(ChannelStatus.Shelf, leaving.summary(TestCatalog, PlayKey("k"), boundary).state)
+    }
+
+    @Test
+    fun leavesAtIsSetOnlyForAnOnChannelWithALeave() {
+        val laughs = before.channels.first { it.id == LineupIds.starter("laughs") }
+        val key = PlayKey("k")
+        val leaving = laughs.copy(leavesAtMs = boundary, shelfReason = EngineReason.BelowCap)
+        assertEquals(Instant.fromEpochMilliseconds(boundary), leaving.summary(TestCatalog, key, boundary - 1).leavesAt)
+        assertNull(leaving.summary(TestCatalog, key, boundary).leavesAt, "shelved once due")
+        assertNull(laughs.summary(TestCatalog, key, noon).leavesAt, "on with no leave")
+        val shelf = laughs.copy(state = ChannelState.Shelf, shelfReason = EngineReason.NoNumber)
+        assertNull(shelf.summary(TestCatalog, key, noon).leavesAt)
     }
 
     @Test

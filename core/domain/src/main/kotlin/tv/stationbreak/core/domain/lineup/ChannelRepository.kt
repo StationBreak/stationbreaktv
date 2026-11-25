@@ -97,6 +97,8 @@ data class ChannelSummary(
     val viewerMade: Boolean = kind == ChannelKind.Custom,
     /** The lowest number the channel may have (`ChannelFloors`, #1097), for Kids Mode. Always given. */
     val floor: Int,
+    /** When an On channel the planner dropped goes to the shelf (the next day start); null for any other channel. */
+    val leavesAt: Instant? = null,
 )
 
 /**
