@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -86,14 +87,14 @@ private fun QrBlock() {
     )
     Text(
         text = stringResource(R.string.guide_help_qr_prompt),
-        modifier = Modifier.clearAndSetSemantics { },
+        modifier = Modifier.semantics { hideFromAccessibility() },
         style = guideProse(SheetMeasures.BodySize, FontWeight.Normal),
         color = colors.secondary,
     )
     // One line, never broken mid-address: the address is typed by anyone who cannot scan.
     Text(
         text = stringResource(R.string.guide_help_url_text),
-        modifier = Modifier.testTag(GuideTags.USER_GUIDE_URL).clearAndSetSemantics { },
+        modifier = Modifier.testTag(GuideTags.USER_GUIDE_URL).semantics { hideFromAccessibility() },
         style = guideProse(URL_SP.sp, FontWeight.Medium),
         color = colors.text,
         softWrap = false,

@@ -411,7 +411,11 @@ class GuideNoLibrariesUiTest {
     fun signOutRow_showsTheQuestionOverTheSheet_andStayingReturnsToIt() {
         showGone()
         openSettings()
-        repeat(SettingsRow.entries.size) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        // Sign out is not the last row (the Help group's User guide follows it): walk to it, one row at a time.
+        val onSignOut = {
+            runCatching { compose.onNodeWithTag(GuideTags.SETTINGS_SIGN_OUT).assertIsSelected() }.isSuccess
+        }
+        repeat(SettingsRow.entries.size) { if (!onSignOut()) press(KeyEvent.KEYCODE_DPAD_DOWN) }
         awaitSelected(GuideTags.SETTINGS_SIGN_OUT)
         compose.onNodeWithTag(GuideTags.SETTINGS_HINT).assertTextEquals("OK Sign out   Back Close")
 

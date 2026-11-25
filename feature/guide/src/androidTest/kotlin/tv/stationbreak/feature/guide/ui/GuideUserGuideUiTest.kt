@@ -36,7 +36,8 @@ class GuideUserGuideUiTest {
     @Test
     fun theHelpGroupHasTheUserGuideRow_andItsExplainerShowsInTheWell() {
         show { GuideSettingsSheet(SettingsValues(), SettingsRow.UserGuide, SyncNowState.Idle) }
-        flag().assertTextEquals("HELP")
+        // The flag is a heading whose words are its description (its text is cleared for a screen reader).
+        flag().assertContentDescriptionEquals("Help")
         compose.onNodeWithTag(GuideTags.settingsRow(SettingsRow.UserGuide)).assertContentDescriptionEquals("User guide")
         compose
             .onNodeWithTag(GuideTags.SETTINGS_HELP, useUnmergedTree = true)
