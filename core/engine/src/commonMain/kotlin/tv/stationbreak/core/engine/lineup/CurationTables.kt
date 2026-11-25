@@ -7,7 +7,7 @@ package tv.stationbreak.core.engine.lineup
  */
 object CurationTables {
     /** The version name of both tables. Later code (day inputs, the curation digest) refers to this constant. */
-    const val VERSION_NAME: String = "curation-1"
+    const val VERSION_NAME: String = "curation-2"
 
     /**
      * Studios and networks that mark an animated title as anime. A one-word name is a whole-word match, so a short

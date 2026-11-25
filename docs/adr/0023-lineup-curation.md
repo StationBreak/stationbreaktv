@@ -30,7 +30,7 @@ Three constraints shape the answer:
 ### 1. The model
 
 Spec 23 adds a step between "each recipe's candidate pool" and "each channel's day". It is a pure function of the
-library snapshot, the catalog, the holds and the household setting. Its version name is `curation-1`
+library snapshot, the catalog, the holds and the household setting. Its version name is `curation-2` (`curation-1` before the anchor share rule, #1153)
 (`Curation.VERSION_NAME`).
 
 **A title** is a series (all its episodes together) or a film. Its **tone** is made for kids or not, adult animation or
@@ -53,6 +53,15 @@ number, never the channel's, so a viewer's renumbering never moves a home), then
 | A made-for-kids title on a kid channel | +200 |
 | The channel's format promise fits (films only; short series) | +80 |
 | The title's tone on the channel: 60 times the hours of that tone divided by the channel's candidate hours, rounded down | 0 to +60 |
+
+**An anchor homes a title only where its channel can air a quarter of it** (`curation-2`, #1153). The anchor's +1000
+makes a channel the home only if that channel's pool holds at least 25% of the title's airable hours (the title's
+whole-title total: every airable pool item of the title, each once, before any channel's own filter; runtime 1 minute to
+24 hours). A channel short of that is not home-eligible for the title, but it stays a guest candidate with its score
+unchanged (anchor points included) under the usual caps. A title whose every candidate is short keeps the rule before
+#1153, so no title loses its home. This stops one episode in a small collection from making a channel a whole series'
+only home, which sent the rest of the series to Odds & Ends. On the audit's synthetic profile libraries (none has a
+collection anchor that short) no home, seat, cutoff or Odds & Ends hour moves.
 
 **Guests.** A title that is not made for kids may also guest on up to two other grown-up channels where its tone is at
 least a quarter of that channel's home tone mix, best fit first. Guests may take at most 30% of a channel's airtime
@@ -155,7 +164,7 @@ How it works:
   change waiting for the boundary moves no key until then. The background roll writes the new revision at the boundary.
 - **Persisted days (format 6).** Saved days (`DaySnapshotCodec.VERSION` 6) carry the weights and the day pool after the
   trim window. A restored day is made with no keeps, so the window is applied once, when a fresh day is made. Days are
-  keyed on the holds and on `curation-1`, so a hold or curation change rebuilds them.
+  keyed on the holds and on the curation version, so a hold or curation change rebuilds them.
 - **The lineup file** is version 3. It adds the basis, previous rules, leave times, shelf reasons, the household flag,
   the viewer-choice marks and a re-plan time. Before the first save of an upgrade, the old file is copied to a `.v<old>.bak`
   file. An older app that finds a version 3 file shows a planned default lineup and cannot save. It never reads the copy.
