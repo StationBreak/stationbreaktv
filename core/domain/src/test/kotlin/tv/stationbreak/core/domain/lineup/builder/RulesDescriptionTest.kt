@@ -22,7 +22,7 @@ class RulesDescriptionTest {
         order = order,
         seriesCap = seriesCap,
         filmCap = filmCap,
-        kids = false,
+        tier = null,
         kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings("Copied", it) },
         seed = Seed(1uL),
     )

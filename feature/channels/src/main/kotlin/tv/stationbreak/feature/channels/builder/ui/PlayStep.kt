@@ -32,6 +32,11 @@ private sealed interface PlayLine {
         override val key = "row:${kind.name}"
     }
 
+    /** The Cap row while Family channel is off: drawn dimmed, and not a stop of the focus. */
+    data object CapOff : PlayLine {
+        override val key = "row:CapOff"
+    }
+
     data class KeptHeader(
         val from: String?,
     ) : PlayLine {
@@ -58,6 +63,7 @@ private fun playLinesOf(draft: ChannelDraft): List<PlayLine> =
         rows.forEach { kind ->
             if (kind == PlayRowKind.Kept) addKept()
             add(PlayLine.Row(kind))
+            if (kind == PlayRowKind.Family && draft.tier == null) add(PlayLine.CapOff)
         }
         if (PlayRowKind.Kept !in rows) addKept()
     }
@@ -73,6 +79,7 @@ internal fun PlayStep(
     FocusedLines(lines, focused, key = { it.key }, modifier = modifier.fillMaxWidth()) { line, isFocused ->
         when (line) {
             is PlayLine.Row -> PlayRow(line.kind, ui, isFocused)
+            PlayLine.CapOff -> CapLine(draft, focused = false, tag = BuilderTags.playRow(PlayRowKind.Cap))
             is PlayLine.KeptHeader -> NoteText(keptFromText(line.from), null)
             is PlayLine.KeptLine -> NoteText(keptText(line.item), BuilderTags.kept(line.index))
         }
@@ -102,8 +109,12 @@ private fun PlayRow(
             TextLine(text, focused, tag)
         }
 
-        PlayRowKind.Kids -> {
-            TextLine(labelled(stringResource(R.string.builder_kids), onOff(draft.kids)), focused, tag)
+        PlayRowKind.Family -> {
+            TextLine(labelled(stringResource(R.string.builder_family), onOff(draft.tier != null)), focused, tag)
+        }
+
+        PlayRowKind.Cap -> {
+            CapLine(draft, focused, tag)
         }
 
         PlayRowKind.Kept -> {

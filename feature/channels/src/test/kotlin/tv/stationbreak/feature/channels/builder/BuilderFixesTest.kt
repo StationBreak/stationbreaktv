@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import tv.stationbreak.core.domain.LibraryAccount
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
@@ -38,10 +39,10 @@ class BuilderFixesTest {
     // Opens a copy with [filters] and goes to its Rating row.
     private fun BuilderRig.ratingRow(
         filters: DraftFilters,
-        kids: Boolean = false,
+        tier: FamilyTier? = null,
     ) {
         builder.openResult =
-            OpenResult.Opened(draftOf("Copy", listOf(lib1), kids = kids, origin = BUILT_IN, filters = filters), null)
+            OpenResult.Opened(draftOf("Copy", listOf(lib1), tier = tier, origin = BUILT_IN, filters = filters), null)
         vm.openCopy(BUILT_IN) { it }
         settle()
         press(Right)
@@ -85,7 +86,7 @@ class BuilderFixesTest {
     @Test
     fun aKidsCeilingStopsAtPgAndKeepsAStoredPg() =
         builderTest { rig ->
-            rig.ratingRow(DraftFilters(maxRating = "PG"), kids = true)
+            rig.ratingRow(DraftFilters(maxRating = "PG"), tier = FamilyTier.Tots)
             rig.press(Right, Right)
             assertEquals("PG", rig.ui.draft.filters.maxRating)
             rig.press(Left)
@@ -159,7 +160,7 @@ class BuilderFixesTest {
             rig.builder.free = Listed.Ok(listOf(5, 7, 8))
             rig.press(Down, Down, Down)
             rig.select()
-            assertTrue(rig.ui.draft.kids)
+            assertEquals(FamilyTier.Tots, rig.ui.draft.tier)
             assertEquals(5, rig.ui.draft.number)
             // One read on opening, one for the switch; a new channel asks with no channel of its own.
             assertEquals(listOf<ChannelId?>(null, null), rig.builder.freeFor)
@@ -348,7 +349,7 @@ class BuilderFixesTest {
                 rig.vm.next()
                 rig.press(Down, Down, Down)
                 rig.select()
-                assertTrue(rig.ui.draft.kids)
+                assertEquals(FamilyTier.Tots, rig.ui.draft.tier)
                 assertEquals(expected.getValue(stored ?: "none"), rig.ui.draft.filters.maxRating)
             }
         }
@@ -358,7 +359,13 @@ class BuilderFixesTest {
         builderTest { rig ->
             rig.builder.openResult =
                 OpenResult.Opened(
-                    draftOf("Kids", listOf(lib1), true, origin = BUILT_IN, filters = DraftFilters(maxRating = "PG")),
+                    draftOf(
+                        "Kids",
+                        listOf(lib1),
+                        FamilyTier.Tots,
+                        origin = BUILT_IN,
+                        filters = DraftFilters(maxRating = "PG"),
+                    ),
                     null,
                 )
             rig.vm.openCopy(BUILT_IN) { it }
@@ -370,10 +377,12 @@ class BuilderFixesTest {
     @Test
     fun aReshuffledKidsChannelIsReopenedAsTheBuilderOpenedIt() =
         builderTest { rig ->
-            val kids = draftOf("Kids", listOf(lib1), true, origin = CUSTOM, filters = DraftFilters(maxRating = "PG"))
+            val pg = DraftFilters(maxRating = "PG")
+            val kids = draftOf("Kids", listOf(lib1), FamilyTier.Tots, origin = CUSTOM, filters = pg)
             rig.openEdit(kids)
             rig.builder.openResult = OpenResult.Opened(kids.copy(seed = Seed(2uL)), null)
-            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down)
+            // The Tots draft lists the Cap row after Family channel, so Reshuffle is one row further down.
+            rig.press(Down, Down, Down, Down, Down, Down, Down, Down, Down, Down)
             assertEquals(BuilderFocus.Sheet(SheetRow.Reshuffle), rig.ui.focus)
             rig.select()
             assertEquals(Seed(2uL), rig.ui.draft.seed)

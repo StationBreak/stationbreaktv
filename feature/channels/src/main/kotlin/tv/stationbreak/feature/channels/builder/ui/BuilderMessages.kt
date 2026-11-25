@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftProblem
 import tv.stationbreak.feature.channels.R
@@ -25,6 +26,16 @@ internal fun messageText(
     when {
         message == BuilderMessage.KidsBand -> {
             stringResource(R.string.builder_kids_band, ChannelNumbers.kids.first, ChannelNumbers.kids.last)
+        }
+
+        message == BuilderMessage.KidsTierBand -> {
+            val band = FamilyTier.Kids.numbers
+            stringResource(R.string.builder_kids_tier_band, band.first, band.last)
+        }
+
+        message == BuilderMessage.TeensTierBand -> {
+            val band = FamilyTier.Teens.numbers
+            stringResource(R.string.builder_teens_tier_band, band.first, band.last)
         }
 
         message == BuilderMessage.NeedsFamily -> {
@@ -60,29 +71,58 @@ private const val NEEDS_BAND = "The needs-a-band lines are worded by needsText, 
 private fun plainMessage(message: BuilderMessage): Int =
     when (message) {
         BuilderMessage.KidsBandFull -> R.string.builder_kids_band_full
+
+        BuilderMessage.KidsTierBandFull -> R.string.builder_kids_tier_band_full
+
+        BuilderMessage.TeensTierBandFull -> R.string.builder_teens_tier_band_full
+
         BuilderMessage.NoFreeNumber -> R.string.builder_no_free_number
+
         BuilderMessage.OutOfRange -> R.string.builder_out_of_range
+
         BuilderMessage.LastOn -> R.string.builder_last_on
+
         BuilderMessage.SaveFailed -> R.string.builder_save_failed
+
         BuilderMessage.Failed -> R.string.builder_failed
+
         BuilderMessage.NotEditable -> R.string.builder_not_editable
+
         BuilderMessage.NotCustomisable -> R.string.builder_not_customisable
+
         BuilderMessage.NotChangeable -> R.string.builder_not_changeable
+
         BuilderMessage.NotShuffle -> R.string.builder_not_shuffle
+
         BuilderMessage.NotFound -> R.string.builder_not_found
+
         BuilderMessage.OpenFailed -> R.string.builder_open_failed
+
         BuilderMessage.Reshuffled -> R.string.builder_saved
+
         BuilderMessage.CustomLimit -> error(CUSTOM_LIMIT)
+
         BuilderMessage.NeedsPro -> R.string.builder_pro_needs
+
         BuilderMessage.NeedsFamily -> error(NEEDS_BAND)
+
         BuilderMessage.NeedsTeen -> error(NEEDS_BAND)
+
         BuilderMessage.NeedsGeneral -> error(NEEDS_BAND)
-        BuilderMessage.KidsBand, BuilderMessage.NumberTaken -> R.string.builder_number_taken_pick
+
+        BuilderMessage.KidsBand,
+        BuilderMessage.KidsTierBand,
+        BuilderMessage.TeensTierBand,
+        BuilderMessage.NumberTaken,
+        -> R.string.builder_number_taken_pick
     }
 
 @Composable
 @Suppress("CyclomaticComplexMethod") // One line per problem, exhaustive so a new problem cannot go unworded.
-internal fun problemText(problem: DraftProblem): String {
+internal fun problemText(
+    problem: DraftProblem,
+    draft: ChannelDraft,
+): String {
     val kids = ChannelNumbers.kids
     return when (problem) {
         DraftProblem.NameEmpty -> {
@@ -148,8 +188,31 @@ internal fun problemText(problem: DraftProblem): String {
         DraftProblem.GrownUpNumberInKidsBand -> {
             stringResource(R.string.builder_problem_grown_up_number, kids.first, kids.last)
         }
+
+        DraftProblem.TierNumberOutsideBand, DraftProblem.GrownUpNumberInYoungBand -> {
+            youngBandProblemText(problem, draft)
+        }
     }
 }
+
+// The two problems that name a band by the draft: the cap's own, or the band a grown-up channel's number is in.
+@Composable
+private fun youngBandProblemText(
+    problem: DraftProblem,
+    draft: ChannelDraft,
+): String =
+    if (problem == DraftProblem.TierNumberOutsideBand) {
+        val tier = checkNotNull(draft.tier)
+        stringResource(R.string.builder_problem_tier_number, capName(tier), tier.numbers.first, tier.numbers.last)
+    } else {
+        val tier = checkNotNull(FamilyTier.of(draft.number))
+        stringResource(
+            R.string.builder_problem_grown_up_young_number,
+            tier.numbers.first,
+            tier.numbers.last,
+            capName(tier),
+        )
+    }
 
 /** The question a confirm asks. */
 @Composable

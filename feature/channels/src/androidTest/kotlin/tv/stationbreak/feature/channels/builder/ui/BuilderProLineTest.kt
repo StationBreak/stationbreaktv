@@ -33,6 +33,7 @@ import tv.stationbreak.core.domain.InMemoryLibraryRepository
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.lineup.ChannelRepository
 import tv.stationbreak.core.domain.lineup.ChannelSummary
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.ScheduleFixtures.T0
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
@@ -108,7 +109,7 @@ class BuilderProLineTest {
             PlayOrder.Shuffle,
             3,
             1,
-            kids = false,
+            tier = null,
             number = 600,
             kept = null,
             numberChosen = false,

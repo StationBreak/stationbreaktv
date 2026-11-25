@@ -250,7 +250,7 @@ class ExtrasWiringTest {
                     listOf(DraftSource.Genre("Comedy", "Comedy")),
                     emptyList(),
                     DraftFilters(),
-                    kids = false,
+                    tier = null,
                     seed = Seed(11uL),
                 )
 

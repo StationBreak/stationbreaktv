@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.lineup.BuiltInScheduleSource
 import tv.stationbreak.core.domain.lineup.Ceilings
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.LineupDays
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.ProgramInfo
@@ -24,7 +25,6 @@ import tv.stationbreak.core.engine.ExtrasFilter
 import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
-import tv.stationbreak.core.engine.lineup.Band
 import tv.stationbreak.core.engine.lineup.ChannelSource
 import tv.stationbreak.core.engine.lineup.ChannelState
 import tv.stationbreak.core.engine.lineup.Lineup
@@ -145,8 +145,8 @@ class BuiltInChannelPreviews(
     ): ChannelPreview =
         withContext(dispatcher) {
             try {
-                // A kids draft previews under the ceiling create and save would write.
-                previewOf(account, draft.kidsNormalised(), at, editing) ?: ChannelPreview.Unavailable
+                // A family draft previews under the ceiling create and save would write.
+                previewOf(account, draft.tierNormalised(), at, editing) ?: ChannelPreview.Unavailable
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -256,17 +256,18 @@ class BuiltInChannelPreviews(
         return RulesTarget.NewChannel(carry, lineup.isAdultOrigin(draft.origin))
     }
 
-    // A channel as the lineup would hold it: the draft's number (a kids draft in the Kids band, so the hold and the
-    // PG cap follow from it, as for a built channel), or the first free one.
+    // A channel as the lineup would hold it: the draft's number (a family draft in its tier's band, so the hold and
+    // the ceiling follow from it, as for a built channel), or the first free one.
     private fun syntheticChannel(
         lineup: Lineup,
         draft: ChannelDraft,
         rules: ChannelRules,
         at: Instant,
     ): LineupChannel {
-        val picked = draft.number?.takeIf { (it in Band.Kids.numbers) == draft.kids }
-        val free = LineupEdits.firstFreeCustom(lineup, draft.kids, service.catalog)
-        val fallback = if (draft.kids) Band.Kids.numbers.first else LineupDefaults.CUSTOM_NUMBERS.first
+        val band = draft.tier?.band
+        val picked = draft.number?.takeIf { FamilyTier.of(it) == draft.tier }
+        val free = LineupEdits.firstFreeCustom(lineup, band, service.catalog)
+        val fallback = (band?.numbers ?: LineupDefaults.CUSTOM_NUMBERS).first
         val number = picked ?: free ?: fallback
         return LineupChannel(
             PREVIEW_ID,

@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.LibraryRepository
 import tv.stationbreak.core.domain.lineup.ChannelRepository
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.BuildRefusal
 import tv.stationbreak.core.domain.lineup.builder.BuildResult
 import tv.stationbreak.core.domain.lineup.builder.CatalogPicker
@@ -109,7 +110,7 @@ internal class BuilderViewModel
             }
         }
 
-        fun openNew() = begin(BuilderMode.New) { account -> Opening.Draft(builder.blank(account, kids = false)) }
+        fun openNew() = begin(BuilderMode.New) { account -> Opening.Draft(builder.blank(account, tier = null)) }
 
         fun openEdit(id: ChannelId) =
             begin(BuilderMode.Edit(id)) { account -> opening(builder.open(account, id, copy = false)) { it.draft } }
@@ -150,7 +151,7 @@ internal class BuilderViewModel
             val account = library.activeAccount().filterNotNull().first()
             when (val opening = open(account)) {
                 is Opening.Draft -> {
-                    val free = freeNumbers(account, opening.draft.kids, editing)
+                    val free = freeNumbers(account, opening.draft.tier, editing)
                     change(generation) { it.arrived(account, opening.draft).copy(free = free) }
                     readTab(generation, SourceKindTab.Libraries)
                 }
@@ -164,9 +165,9 @@ internal class BuilderViewModel
         // The numbers free in a band (an edit's own counts), read from the domain; none when it can't be.
         private suspend fun freeNumbers(
             account: LibraryAccount,
-            kids: Boolean,
+            tier: FamilyTier?,
             editing: ChannelId?,
-        ): List<Int> = (builder.freeNumbers(account, kids, editing) as? Listed.Ok)?.value.orEmpty()
+        ): List<Int> = (builder.freeNumbers(account, tier, editing) as? Listed.Ok)?.value.orEmpty()
 
         /** Applies [f] to the model of [generation], and publishes. */
         private fun change(
@@ -303,7 +304,7 @@ internal class BuilderViewModel
                 val knob = knobOf(focus).takeIf { turning && m.confirm == null && !m.saving }
                 when {
                     knob != null -> {
-                        apply { it.copy(draft = it.draft.turned(knob, by, wrap = false, it.free)) }
+                        turn(knob, by, wrap = false)
                     }
 
                     turning && m.confirm == null && focus == BuilderFocus.NarrowRow(NarrowRowKind.Genres) -> {
@@ -394,7 +395,20 @@ internal class BuilderViewModel
         // Select on a value row goes to the next choice, round to the first after the last.
         private fun turnSelected() {
             val knob = knobOf(model.focus) ?: return
-            apply { it.copy(draft = it.draft.turned(knob, 1, wrap = true, it.free)) }
+            turn(knob, 1, wrap = true)
+        }
+
+        // The cap moves the channel's band, which needs the numbers free there (a read); the rest turn in place.
+        private fun turn(
+            knob: Knob,
+            by: Int,
+            wrap: Boolean,
+        ) {
+            if (knob == Knob.Cap) {
+                stepTier(by, wrap)
+            } else {
+                apply { it.copy(draft = it.draft.turned(knob, by, wrap, it.free)) }
+            }
         }
 
         private fun toggleGenre() {
@@ -418,7 +432,8 @@ internal class BuilderViewModel
         private fun selectPlay(row: PlayRowKind) {
             when (row) {
                 PlayRowKind.Order -> turnSelected()
-                PlayRowKind.Kids -> toggleKids()
+                PlayRowKind.Family -> toggleFamily()
+                PlayRowKind.Cap -> turnSelected()
                 PlayRowKind.Kept -> useBuildersSettings()
                 else -> Unit
             }
@@ -429,7 +444,8 @@ internal class BuilderViewModel
                 SheetRow.Sources -> openPage(row, BuilderStep.Sources, BuilderFocus.Tab(model.tab), narrow = false)
                 SheetRow.NarrowDown -> openPage(row, BuilderStep.Sources, BuilderFocus.Narrow, narrow = true)
                 SheetRow.PlayOrder -> turnSelected()
-                SheetRow.Kids -> toggleKids()
+                SheetRow.Family -> toggleFamily()
+                SheetRow.Cap -> turnSelected()
                 SheetRow.Kept -> useBuildersSettings()
                 SheetRow.Number -> openPage(row, BuilderStep.Name, BuilderFocus.NameRow(NameRowKind.Number), false)
                 SheetRow.Save -> save(andWatch = false)
@@ -562,26 +578,39 @@ internal class BuilderViewModel
             if (!yes) return
             when (m.confirm) {
                 BuilderConfirm.Leave -> closeNow()
-                BuilderConfirm.KidsOff -> setKids(on = false)
+                BuilderConfirm.KidsOff -> setTier(null)
                 is BuilderConfirm.Delete -> deleteNow()
                 is BuilderConfirm.Pro, null -> Unit
             }
         }
 
-        // The kids switch
+        // The family channel switch and its cap
 
-        private fun toggleKids() {
-            if (model.draft.kids) ask(BuilderConfirm.KidsOff) else setKids(on = true)
+        // On starts at Tots, so a Tots channel is what the switch always made; off asks first.
+        private fun toggleFamily() {
+            if (model.draft.tier != null) ask(BuilderConfirm.KidsOff) else setTier(FamilyTier.Tots)
         }
 
-        private fun setKids(on: Boolean) {
+        // Left and Right on the cap row (never reached while it is off, as it is not in the focus order); Select goes
+        // round to the first after the last, as the other value rows do.
+        private fun stepTier(
+            by: Int,
+            wrap: Boolean,
+        ) {
+            val tiers = FamilyTier.entries
+            val at = model.draft.tier?.ordinal ?: return
+            val to = (at + by).let { if (it > tiers.lastIndex && wrap) 0 else it.coerceIn(0, tiers.lastIndex) }
+            if (to != at) setTier(tiers[to])
+        }
+
+        private fun setTier(tier: FamilyTier?) {
             val account = model.account ?: return
             val generation = model.generation
             val editing = (model.mode as? BuilderMode.Edit)?.id
             scope.launch {
-                // One read: the switch takes the first of the band's free numbers.
-                val free = freeNumbers(account, kids = on, editing = editing)
-                change(generation) { it.kidsDone(on, free) }
+                // One read: the cap takes the first of the new band's free numbers.
+                val free = freeNumbers(account, tier = tier, editing = editing)
+                change(generation) { it.tierDone(tier, free) }
             }
         }
 
@@ -621,7 +650,7 @@ internal class BuilderViewModel
                 val holderName = holder?.let { nameOf(account, it) }.orEmpty()
                 // A number was taken, so what was free is no longer: read it again.
                 val editing = (m.mode as? BuilderMode.Edit)?.id
-                val free = if (holder != null) freeNumbers(account, m.draft.kids, editing) else null
+                val free = if (holder != null) freeNumbers(account, m.draft.tier, editing) else null
                 change(m.generation) {
                     if (result is BuildResult.Done) sent.trySend(BuilderEvent.Saved(result.id, andWatch))
                     it.saved(m.draft, result, holderName, free)

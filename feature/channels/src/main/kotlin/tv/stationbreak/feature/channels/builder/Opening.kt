@@ -47,6 +47,7 @@ internal fun messageOf(result: BuildResult): BuilderMessage? =
 
 // An invalid draft is shown on the step (BuilderUi.problem), never as a line; it cannot reach here but for a refusal
 // the builder makes of a draft that was valid when it was sent.
+@Suppress("CyclomaticComplexMethod") // One line per refusal, exhaustive so a new one cannot go unworded.
 internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
     when (reason) {
         is BuildRefusal.Invalid -> BuilderMessage.Failed
@@ -55,8 +56,10 @@ internal fun refusalMessage(reason: BuildRefusal): BuilderMessage =
         BuildRefusal.NotShuffle -> BuilderMessage.NotShuffle
         BuildRefusal.NoFreeNumber -> BuilderMessage.NoFreeNumber
         BuildRefusal.KidsBandFull -> BuilderMessage.KidsBandFull
+        is BuildRefusal.TierBandFull -> bandFullMessage(reason.tier)
         BuildRefusal.OutOfRange -> BuilderMessage.OutOfRange
         BuildRefusal.KidsBand -> BuilderMessage.KidsBand
+        is BuildRefusal.OutsideTierBand -> outsideBandMessage(reason.tier)
         is BuildRefusal.BelowBand -> belowBandBuilderMessage(reason.needs)
         BuildRefusal.LastOn -> BuilderMessage.LastOn
         is BuildRefusal.NumberTaken -> BuilderMessage.NumberTaken

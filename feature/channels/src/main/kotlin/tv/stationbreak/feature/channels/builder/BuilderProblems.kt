@@ -28,5 +28,7 @@ internal fun DraftProblem.step(): BuilderStep =
         DraftProblem.NameTooLong,
         DraftProblem.KidsNumberOutsideBand,
         DraftProblem.GrownUpNumberInKidsBand,
+        DraftProblem.TierNumberOutsideBand,
+        DraftProblem.GrownUpNumberInYoungBand,
         -> BuilderStep.Name
     }

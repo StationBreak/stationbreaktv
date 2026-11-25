@@ -2,18 +2,20 @@
 package tv.stationbreak.feature.channels.builder
 
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.builder.ChannelDraft
 import tv.stationbreak.core.domain.lineup.builder.DraftFilters
 import tv.stationbreak.core.domain.lineup.builder.PlayOrder
 
 /** The value a Left or Right on [focus] turns, or null where those keys only move. */
-internal enum class Knob { Order, SeriesCap, FilmCap, Number, Years, Runtime, Only, Rating }
+internal enum class Knob { Order, SeriesCap, FilmCap, Cap, Number, Years, Runtime, Only, Rating }
 
 internal fun knobOf(focus: BuilderFocus?): Knob? =
     when (focus) {
         BuilderFocus.PlayRow(PlayRowKind.Order), BuilderFocus.Sheet(SheetRow.PlayOrder) -> Knob.Order
         BuilderFocus.PlayRow(PlayRowKind.SeriesCap), BuilderFocus.Sheet(SheetRow.SeriesCap) -> Knob.SeriesCap
         BuilderFocus.PlayRow(PlayRowKind.FilmCap), BuilderFocus.Sheet(SheetRow.FilmCap) -> Knob.FilmCap
+        BuilderFocus.PlayRow(PlayRowKind.Cap), BuilderFocus.Sheet(SheetRow.Cap) -> Knob.Cap
         BuilderFocus.NameRow(NameRowKind.Number), BuilderFocus.Sheet(SheetRow.Number) -> Knob.Number
         BuilderFocus.NarrowRow(NarrowRowKind.Years) -> Knob.Years
         BuilderFocus.NarrowRow(NarrowRowKind.Runtime) -> Knob.Runtime
@@ -31,9 +33,15 @@ internal fun ChannelDraft.turned(
 ): ChannelDraft =
     when (knob) {
         Knob.Order -> copy(order = (order ?: PlayOrder.Shuffle).turnedTo(by, wrap))
+
         Knob.SeriesCap, Knob.FilmCap -> capsTurned(knob, by)
+
         Knob.Number -> copy(number = numbered(by, free), numberChosen = true)
-        else -> copy(filters = filters.turned(knob, by, wrap, kids))
+
+        // The cap moves the band the channel's number is in, which needs the numbers free there: the ViewModel's.
+        Knob.Cap -> this
+
+        else -> copy(filters = filters.turned(knob, by, wrap, tier))
     }
 
 // Past the last order, a select goes round to the first.
@@ -68,13 +76,13 @@ private fun DraftFilters.turned(
     knob: Knob,
     by: Int,
     wrap: Boolean,
-    kids: Boolean,
+    tier: FamilyTier?,
 ): DraftFilters =
     when (knob) {
         Knob.Years -> withYears(by, wrap)
         Knob.Runtime -> withRuntime(by, wrap)
         Knob.Only -> withOnly(by, wrap)
-        else -> withRating(by, wrap, kids)
+        else -> withRating(by, wrap, tier)
     }
 
 // A number outside the channel's band (or none) starts at the band's first free number; inside it, one step to the
@@ -83,7 +91,7 @@ private fun ChannelDraft.numbered(
     by: Int,
     free: List<Int>,
 ): Int {
-    val band = if (kids) ChannelNumbers.kids else ChannelNumbers.custom
+    val band = tier?.numbers ?: ChannelNumbers.custom
     val inBand = free.filter { it in band }
     val current = number?.takeIf { it in band } ?: return inBand.firstOrNull() ?: band.first
     val to = if (by > 0) inBand.firstOrNull { it > current } else inBand.lastOrNull { it < current }

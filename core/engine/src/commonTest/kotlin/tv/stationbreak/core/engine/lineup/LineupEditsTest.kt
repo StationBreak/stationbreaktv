@@ -286,11 +286,11 @@ class LineupEditsTest {
         // A custom channel at 60 saved at 504, After Hours' number, would send After Hours to 60.
         val mine = custom("low", 60)
         val replaced = lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), mine)
-        val replace = LineupEdit.ReplaceCustom(mine.id, someRules, 504, swapWith = afterHours, kids = false)
+        val replace = LineupEdit.ReplaceCustom(mine.id, someRules, 504, swapWith = afterHours, band = null)
         assertEquals(below, refusal(replaced, replace))
         // Both stay refused with the swap named or not, and a swap at or above 100 still works.
         val high = custom("high", 700)
-        val ok = LineupEdit.ReplaceCustom(high.id, someRules, 504, swapWith = afterHours, kids = false)
+        val ok = LineupEdit.ReplaceCustom(high.id, someRules, 504, swapWith = afterHours, band = null)
         assertEquals(700, applied(lineupOf(starter(AdultMark.AFTER_HOURS_KEY, 504), high), ok).byId(afterHours).number)
     }
 
@@ -362,7 +362,7 @@ class LineupEditsTest {
     fun replaceCustomWithASwapMarksTheSwapHolder() {
         val mine = custom("mine", 650, ChannelState.On)
         val lineup = lineupOf(mine, custom("other", 651, ChannelState.On), starter("western", 310))
-        val edit = LineupEdit.ReplaceCustom(mine.id, someRules, 651, swapWith = ChannelId("custom:other"), kids = false)
+        val edit = LineupEdit.ReplaceCustom(mine.id, someRules, 651, swapWith = ChannelId("custom:other"), band = null)
 
         val after = applied(lineup, edit)
 
@@ -427,7 +427,7 @@ class LineupEditsTest {
         val lineup = lineupOf(leaving)
         val edits =
             listOf(
-                LineupEdit.ReplaceCustom(leaving.id, shuffle, null, kids = false),
+                LineupEdit.ReplaceCustom(leaving.id, shuffle, null, band = null),
                 LineupEdit.Reseed(leaving.id, Seed(7uL)),
             )
         for (edit in edits) {
@@ -586,11 +586,17 @@ class LineupEditsTest {
 
             4 -> {
                 val given = if (gen.chance(50)) null else number
-                LineupEdit.AddCustom(fresh, newRules, given, kids = gen.chance(30), customLimit = null)
+                LineupEdit.AddCustom(fresh, newRules, given, Band.Kids.takeIf { gen.chance(30) }, customLimit = null)
             }
 
             5 -> {
-                LineupEdit.ReplaceCustom(id, newRules, number.takeIf { gen.chance(50) }, swap, kids = gen.chance(30))
+                LineupEdit.ReplaceCustom(
+                    id,
+                    newRules,
+                    number.takeIf { gen.chance(50) },
+                    swap,
+                    band = Band.Kids.takeIf { gen.chance(30) },
+                )
             }
 
             6 -> {
@@ -616,7 +622,7 @@ class LineupEditsTest {
                 new != null && KidStatus.isKidChannel(old) && !KidStatus.isKidChannel(new)
             }
         for (old in lost) {
-            val allowed = old.id == edit.id && edit is LineupEdit.ReplaceCustom && !edit.kids
+            val allowed = old.id == edit.id && edit is LineupEdit.ReplaceCustom && edit.band != Band.Kids
             assertTrue(allowed, "${old.id} stopped being a kid channel by $edit")
         }
     }
@@ -645,7 +651,7 @@ class LineupEditsTest {
 
             is LineupEdit.AddCustom -> {
                 assertEquals(ChannelState.On, new?.state, "$edit")
-                if (edit.kids) assertTrue(KidStatus.isKidChannel(new!!), "$edit")
+                if (edit.band == Band.Kids) assertTrue(KidStatus.isKidChannel(new!!), "$edit")
             }
 
             else -> {

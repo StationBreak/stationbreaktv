@@ -58,8 +58,8 @@ class CustomEditsTest {
         id: ChannelId,
         rules: ChannelRules,
         number: Int?,
-        kids: Boolean,
-    ) = LineupEdit.AddCustom(id, rules, number, kids, customLimit = null)
+        band: Band?,
+    ) = LineupEdit.AddCustom(id, rules, number, band, customLimit = null)
 
     private fun apply(
         lineup: Lineup,
@@ -90,7 +90,7 @@ class CustomEditsTest {
     fun addCustomMakesAnOnChannelAtTheNumber() {
         val lineup = lineupOf(starter("western", 310))
 
-        val added = applied(lineup, add(newId, rulesOf("New"), 650, kids = false)).byId(newId)
+        val added = applied(lineup, add(newId, rulesOf("New"), 650, band = null)).byId(newId)
 
         assertEquals(ChannelState.On, added.state)
         assertEquals(650, added.number)
@@ -104,24 +104,24 @@ class CustomEditsTest {
     fun addCustomRefusesATakenIdAndANumberOrOutOfRange() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
-        assertEquals(EditRefusal.IdTaken, refusal(lineup, add(mine, anyRules, 700, kids = false)))
+        assertEquals(EditRefusal.IdTaken, refusal(lineup, add(mine, anyRules, 700, band = null)))
         assertEquals(
             EditRefusal.NumberTaken(mine),
-            refusal(lineup, add(newId, anyRules, 650, kids = false)),
+            refusal(lineup, add(newId, anyRules, 650, band = null)),
         )
         assertEquals(
             EditRefusal.NumberTaken(western),
-            refusal(lineup, add(newId, anyRules, 310, kids = false)),
+            refusal(lineup, add(newId, anyRules, 310, band = null)),
         )
-        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 0, kids = false)))
-        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 1000, kids = false)))
-        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, add(newId, anyRules, 700, kids = true)))
+        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 0, band = null)))
+        assertEquals(EditRefusal.OutOfRange, refusal(lineup, add(newId, anyRules, 1000, band = null)))
+        assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, add(newId, anyRules, 700, band = Band.Kids)))
     }
 
     @Test
     fun addCustomAtAKidNumberIsAKidChannel() {
         val added =
-            applied(lineupOf(starter("western", 310)), add(newId, rulesOf("Kids"), 5, kids = true))
+            applied(lineupOf(starter("western", 310)), add(newId, rulesOf("Kids"), 5, band = Band.Kids))
                 .byId(newId)
 
         assertTrue(KidStatus.isKidChannel(added))
@@ -133,7 +133,7 @@ class CustomEditsTest {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650, ChannelState.UserHidden))
 
         val after =
-            applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("Renamed"), 651, kids = false))
+            applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("Renamed"), 651, band = null))
                 .byId(mine)
 
         assertEquals(ChannelState.UserHidden, after.state)
@@ -146,7 +146,7 @@ class CustomEditsTest {
     fun replaceCustomKeepsTheStoredSeedNotTheCallers() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650, seed = 7uL))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine", seed = 9uL), 650, kids = false))
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine", seed = 9uL), 650, band = null))
 
         assertEquals(Seed(7uL), after.seedOf(mine))
     }
@@ -187,7 +187,7 @@ class CustomEditsTest {
         val read = (lineup.byId(id).source as ChannelSource.Custom).rules
 
         val reshuffled = applied(lineup, LineupEdit.Reseed(id, Seed(11uL)))
-        val saved = applied(reshuffled, LineupEdit.ReplaceCustom(id, read.copy(name = "New name"), 650, kids = false))
+        val saved = applied(reshuffled, LineupEdit.ReplaceCustom(id, read.copy(name = "New name"), 650, band = null))
 
         assertEquals(Seed(11uL), saved.seedOf(id))
         assertEquals("New name", (saved.byId(id).source as ChannelSource.Custom).rules.name)
@@ -195,22 +195,22 @@ class CustomEditsTest {
 
     @Test
     fun addCustomWithNoNumberTakesTheFirstFreeInside() {
-        val add = add(newId, rulesOf("a"), null, kids = false)
+        val add = add(newId, rulesOf("a"), null, band = null)
         val first = applied(lineupOf(starter("western", 310)), add)
         assertEquals(600, first.byId(newId).number)
 
         // 601 is retired in this catalog, so the next free one is 602.
-        val second = applied(first, add(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
+        val second = applied(first, add(ChannelId("custom:b"), rulesOf("b"), null, band = null))
         assertEquals(602, second.byId(ChannelId("custom:b")).number)
 
         // A stale pair: both read the same lineup; the second apply, on the first's result, cannot collide.
         val stale = lineupOf(starter("western", 310))
-        val a = applied(stale, add(ChannelId("custom:a"), rulesOf("a"), null, kids = false))
-        val b = applied(a, add(ChannelId("custom:b"), rulesOf("b"), null, kids = false))
+        val a = applied(stale, add(ChannelId("custom:a"), rulesOf("a"), null, band = null))
+        val b = applied(a, add(ChannelId("custom:b"), rulesOf("b"), null, band = null))
         assertEquals(setOf(600, 602), setOf(b.byId(ChannelId("custom:a")).number, b.byId(ChannelId("custom:b")).number))
     }
 
-    private fun addWithLimit(limit: Int?): LineupEdit = LineupEdit.AddCustom(newId, anyRules, null, false, limit)
+    private fun addWithLimit(limit: Int?): LineupEdit = LineupEdit.AddCustom(newId, anyRules, null, null, limit)
 
     @Test
     fun addCustomUnderTheLimitIsApplied() {
@@ -251,13 +251,13 @@ class CustomEditsTest {
     fun addCustomWithNoNumberAndAFullBandIsNoFreeNumber() {
         val full = lineupOf(starter("western", 310), *customsFilling(LineupDefaults.CUSTOM_NUMBERS))
 
-        assertEquals(EditRefusal.NoFreeNumber, refusal(full, add(newId, anyRules, null, kids = false)))
+        assertEquals(EditRefusal.NoFreeNumber, refusal(full, add(newId, anyRules, null, band = null)))
     }
 
     @Test
     fun addCustomForKidsWithNoNumberTakesTheKidsBand() {
         val lineup = lineupOf(starter("western", 310))
-        val added = applied(lineup, add(newId, rulesOf("k"), null, kids = true))
+        val added = applied(lineup, add(newId, rulesOf("k"), null, band = Band.Kids))
 
         assertEquals(1, added.byId(newId).number)
     }
@@ -266,7 +266,7 @@ class CustomEditsTest {
     fun replaceCustomMovesToAFreeNumber() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 700, kids = false))
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 700, band = null))
 
         assertEquals(700, after.byId(mine).number)
     }
@@ -277,7 +277,7 @@ class CustomEditsTest {
 
         assertEquals(
             EditRefusal.NumberTaken(western),
-            refusal(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 310, kids = false)),
+            refusal(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 310, band = null)),
         )
     }
 
@@ -285,7 +285,7 @@ class CustomEditsTest {
     fun replaceCustomSwapsWithTheNamedHolder() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 310, western, kids = false))
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 310, western, band = null))
 
         assertEquals(310, after.byId(mine).number)
         assertEquals(650, after.byId(western).number)
@@ -299,7 +299,7 @@ class CustomEditsTest {
         // The kid channel moves to 650 and the grown-up holder would take 5.
         assertEquals(
             EditRefusal.KidsBandOnly,
-            refusal(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 650, mine, kids = false)),
+            refusal(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 650, mine, band = null)),
         )
     }
 
@@ -307,7 +307,7 @@ class CustomEditsTest {
     fun replaceCustomIntoTheKidsBandMakesAKidChannel() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 7, kids = true)).byId(mine)
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 7, band = Band.Kids)).byId(mine)
 
         assertEquals(7, after.number)
         assertTrue(KidStatus.isKidChannel(after))
@@ -319,7 +319,7 @@ class CustomEditsTest {
         val kid = ChannelId("custom:kid")
         val lineup = lineupOf(starter("western", 310), custom("kid", 5), custom("mine", 650))
 
-        val edit = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kid, kids = true)
+        val edit = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kid, band = Band.Kids)
 
         assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, edit))
     }
@@ -329,7 +329,7 @@ class CustomEditsTest {
         val kidStarter = starter(StarterCatalog.EVER_KID_SAFE_KEYS.first(), 5)
         val lineup = lineupOf(starter("western", 310), kidStarter, custom("mine", 650))
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kidStarter.id, kids = true))
+        val after = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), 5, kidStarter.id, band = Band.Kids))
 
         assertEquals(650, after.byId(kidStarter.id).number)
         assertTrue(KidStatus.isKidChannel(after.byId(kidStarter.id)))
@@ -380,8 +380,9 @@ class CustomEditsTest {
     fun replaceCustomWithNoNumberKeepsANumberAlreadyInTheRequestedBand() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650), custom("kid", 5))
 
-        val grownUp = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, kids = false)).byId(mine)
-        val kid = applied(lineup, LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null, kids = true))
+        val grownUp = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, band = null)).byId(mine)
+        val toKid = LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null, band = Band.Kids)
+        val kid = applied(lineup, toKid)
 
         assertEquals(650, grownUp.number)
         assertEquals(5, kid.byId(ChannelId("custom:kid")).number)
@@ -392,7 +393,7 @@ class CustomEditsTest {
         val lineup = lineupOf(starter("western", 310), custom("kid", 5))
         val kid = ChannelId("custom:kid")
 
-        val after = applied(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 700, kids = false)).byId(kid)
+        val after = applied(lineup, LineupEdit.ReplaceCustom(kid, rulesOf("kid"), 700, band = null)).byId(kid)
 
         assertEquals(700, after.number)
         assertTrue(!KidStatus.isKidChannel(after))
@@ -402,14 +403,14 @@ class CustomEditsTest {
     fun replaceCustomWithNoNumberTakesTheFirstFreeInTheRightBand() {
         val lineup = lineupOf(starter("western", 310), custom("mine", 650), custom("kid", 1))
 
-        val toKids = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, kids = true)).byId(mine)
-        val grownUp = LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null, kids = false)
+        val toKids = applied(lineup, LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, band = Band.Kids)).byId(mine)
+        val grownUp = LineupEdit.ReplaceCustom(ChannelId("custom:kid"), rulesOf("kid"), null, band = null)
         val toGrownUp = applied(lineup, grownUp)
 
         assertEquals(2, toKids.number)
         assertEquals(600, toGrownUp.byId(ChannelId("custom:kid")).number)
         val full = lineupOf(starter("western", 310), custom("mine", 650), *customsFilling(Band.Kids.numbers))
-        val noRoom = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, kids = true)
+        val noRoom = LineupEdit.ReplaceCustom(mine, rulesOf("mine"), null, band = Band.Kids)
         assertEquals(EditRefusal.NoFreeNumber, refusal(full, noRoom))
     }
 
@@ -419,9 +420,9 @@ class CustomEditsTest {
 
         assertEquals(
             EditRefusal.NotCustom,
-            refusal(lineup, LineupEdit.ReplaceCustom(western, anyRules, 311, kids = false)),
+            refusal(lineup, LineupEdit.ReplaceCustom(western, anyRules, 311, band = null)),
         )
-        val unknown = LineupEdit.ReplaceCustom(ChannelId("nope"), anyRules, 311, kids = false)
+        val unknown = LineupEdit.ReplaceCustom(ChannelId("nope"), anyRules, 311, band = null)
         assertEquals(EditRefusal.UnknownChannel, refusal(lineup, unknown))
     }
 
@@ -461,39 +462,39 @@ class CustomEditsTest {
 
     @Test
     fun firstFreeCustomStartsAt600AndSkipsUsedAndRetired() {
-        assertEquals(600, LineupEdits.firstFreeCustom(lineupOf(starter("western", 310)), false, catalog))
+        assertEquals(600, LineupEdits.firstFreeCustom(lineupOf(starter("western", 310)), null, catalog))
         // 600 is used (default or override), 601 is retired.
         val lineup = lineupOf(starter("western", 310), custom("mine", 600), custom("other", 603))
-        assertEquals(602, LineupEdits.firstFreeCustom(lineup, false, catalog))
+        assertEquals(602, LineupEdits.firstFreeCustom(lineup, null, catalog))
     }
 
     @Test
     fun freeCustomNumbersListsEveryFreeNumberInOrderAndFirstFreeIsItsHead() {
         // 600 is used (an override), 601 is retired, 603 is used.
         val lineup = lineupOf(starter("western", 310), custom("mine", 600), custom("other", 603))
-        val free = LineupEdits.freeCustomNumbers(lineup, false, catalog)
+        val free = LineupEdits.freeCustomNumbers(lineup, null, catalog)
 
         assertEquals(listOf(602, 604, 605), free.take(3))
         assertEquals(LineupDefaults.CUSTOM_NUMBERS.count() - 3, free.size)
-        assertEquals(free.firstOrNull(), LineupEdits.firstFreeCustom(lineup, false, catalog))
+        assertEquals(free.firstOrNull(), LineupEdits.firstFreeCustom(lineup, null, catalog))
         val kidsFull = lineupOf(starter("w", 310), *customsFilling(Band.Kids.numbers))
-        assertEquals(emptyList(), LineupEdits.freeCustomNumbers(kidsFull, true, catalog))
+        assertEquals(emptyList(), LineupEdits.freeCustomNumbers(kidsFull, Band.Kids, catalog))
     }
 
     @Test
     fun firstFreeCustomForKidsIsInTheKidsBand() {
         val lineup = lineupOf(starter("western", 310), custom("a", 1), custom("b", 2))
 
-        assertEquals(3, LineupEdits.firstFreeCustom(lineup, true, catalog))
+        assertEquals(3, LineupEdits.firstFreeCustom(lineup, Band.Kids, catalog))
     }
 
     @Test
     fun firstFreeCustomIsNullWhenTheBandIsFull() {
         val full = lineupOf(starter("western", 310), *customsFilling(LineupDefaults.CUSTOM_NUMBERS))
-        assertNull(LineupEdits.firstFreeCustom(full, false, catalog))
+        assertNull(LineupEdits.firstFreeCustom(full, null, catalog))
 
         val kidsFull = lineupOf(starter("western", 310), *customsFilling(Band.Kids.numbers))
-        assertNull(LineupEdits.firstFreeCustom(kidsFull, true, catalog))
+        assertNull(LineupEdits.firstFreeCustom(kidsFull, Band.Kids, catalog))
     }
 
     private fun customsFilling(range: IntRange): Array<LineupChannel> = range.map { custom("c$it", it) }.toTypedArray()

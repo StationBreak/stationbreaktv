@@ -47,7 +47,7 @@ class DraftRulesV5Test {
 
     private fun newDraft(): ChannelDraft {
         val seed = Seed(9uL)
-        return ChannelDraft("New", listOf(comedy), emptyList(), DraftFilters(), kids = false, seed = seed)
+        return ChannelDraft("New", listOf(comedy), emptyList(), DraftFilters(), tier = null, seed = seed)
     }
 
     private fun assertReadable(rules: ChannelRules) {

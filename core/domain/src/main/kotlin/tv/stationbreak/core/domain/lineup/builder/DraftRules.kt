@@ -2,7 +2,7 @@
 package tv.stationbreak.core.domain.lineup.builder
 
 import kotlinx.serialization.json.JsonObject
-import tv.stationbreak.core.engine.lineup.Band
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.engine.lineup.LineupDefaults
 import tv.stationbreak.core.model.CanonicalId
 import tv.stationbreak.core.model.OrderingMode
@@ -306,7 +306,7 @@ internal object DraftRules {
             order = order,
             seriesCap = if (uncapped) null else caps?.effectiveSeries ?: ChannelDraft.DEFAULT_SERIES_CAP,
             filmCap = if (uncapped) null else caps?.effectiveFilm ?: ChannelDraft.DEFAULT_FILM_CAP,
-            kids = number != null && number in Band.Kids.numbers,
+            tier = FamilyTier.of(number),
             number = number,
             kept = kept.takeIf { it.isNotEmpty() }?.let { KeptSettings(rules.name, it) },
             numberChosen = false,

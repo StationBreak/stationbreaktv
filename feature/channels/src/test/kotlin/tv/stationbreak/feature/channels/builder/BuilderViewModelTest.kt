@@ -119,7 +119,7 @@ class BuilderViewModelTest {
                     SheetRow.PlayOrder,
                     SheetRow.SeriesCap,
                     SheetRow.FilmCap,
-                    SheetRow.Kids,
+                    SheetRow.Family,
                     SheetRow.Number,
                     SheetRow.Preview,
                     SheetRow.Save,

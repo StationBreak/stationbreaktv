@@ -130,7 +130,7 @@ class EditCutOverTest {
         val rotationKey = playKey()
 
         val shuffle = twoShowRules(OrderingMode.Shuffle)
-        edit(LineupEdit.ReplaceCustom(mine, shuffle, number = null, kids = false))
+        edit(LineupEdit.ReplaceCustom(mine, shuffle, number = null, band = null))
         val shuffleKey = playKey()
         assertNotEquals(rotationKey, shuffleKey, "a new play order")
 
@@ -139,7 +139,7 @@ class EditCutOverTest {
         assertNotEquals(shuffleKey, reseededKey, "a reshuffle")
 
         val renamed = shuffle.copy(name = "Renamed", seed = Seed(7uL))
-        edit(LineupEdit.ReplaceCustom(mine, renamed, number = null, kids = false))
+        edit(LineupEdit.ReplaceCustom(mine, renamed, number = null, band = null))
         assertEquals(reseededKey, playKey(), "a rename plays the same")
     }
 
@@ -152,7 +152,7 @@ class EditCutOverTest {
         val end = Instant.fromEpochMilliseconds(airing.endMs)
         val rotationNext = blockAt(source, mine, end)
 
-        edit(LineupEdit.ReplaceCustom(mine, inOrder(), number = null, kids = false))
+        edit(LineupEdit.ReplaceCustom(mine, inOrder(), number = null, band = null))
 
         val afterEdit = blockAt(source, mine, end)
         // The same lineup built with In order from the start: the edit is nothing but the new rules.
@@ -180,7 +180,7 @@ class EditCutOverTest {
         val before = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
         val reads = library.snapshotCutoffs.size
 
-        edit(LineupEdit.ReplaceCustom(mine, inOrder(), number = null, kids = false))
+        edit(LineupEdit.ReplaceCustom(mine, inOrder(), number = null, band = null))
         val after = runBlocking { source.channelDays(ACCOUNT, LIBRARIES, NOON) }
 
         fun pools(days: List<ChannelDay>) = days.associate { it.channel.id to it.pool.map { item -> item.id } }

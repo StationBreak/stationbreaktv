@@ -12,6 +12,7 @@ import tv.stationbreak.core.domain.LibraryAccount
 import tv.stationbreak.core.domain.ProEntitlement
 import tv.stationbreak.core.domain.lineup.BandNeeded
 import tv.stationbreak.core.domain.lineup.ChannelNumbers
+import tv.stationbreak.core.domain.lineup.FamilyTier
 import tv.stationbreak.core.domain.lineup.LineupEvent
 import tv.stationbreak.core.domain.lineup.LineupService
 import tv.stationbreak.core.domain.lineup.Unsaved
@@ -53,31 +54,31 @@ class ChannelBuildManager(
 
     override suspend fun blank(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
     ): ChannelDraft =
         ChannelDraft(
             name = "",
             sources = emptyList(),
             leaveOut = emptyList(),
             filters = DraftFilters(),
-            kids = kids,
-            number = firstFree(account, kids),
+            tier = tier,
+            number = firstFree(account, tier),
             seed = newSeed.next(),
-        ).kidsNormalised()
+        ).tierNormalised()
 
     private suspend fun firstFree(
         account: LibraryAccount,
-        kids: Boolean,
-    ): Int? = (freeNumbers(account, kids) as? Listed.Ok)?.value?.firstOrNull()
+        tier: FamilyTier?,
+    ): Int? = (freeNumbers(account, tier) as? Listed.Ok)?.value?.firstOrNull()
 
     override suspend fun freeNumbers(
         account: LibraryAccount,
-        kids: Boolean,
+        tier: FamilyTier?,
         forChannel: ChannelId?,
     ): Listed<List<Int>> {
         val lineup = lineupOf(account) ?: return Listed.Unavailable
-        val free = LineupEdits.freeCustomNumbers(lineup, kids, service.catalog)
-        val band = if (kids) ChannelNumbers.kids else ChannelNumbers.custom
+        val free = LineupEdits.freeCustomNumbers(lineup, tier?.band, service.catalog)
+        val band = tier?.numbers ?: ChannelNumbers.custom
         val own =
             lineup.channels
                 .firstOrNull { it.id == forChannel }
@@ -114,7 +115,7 @@ class ChannelBuildManager(
         val draft = reader.draftOf(account, rules, channel.number)
         // The rules hold the channel's own name, not the built-in it was copied from, which is not stored: name nobody.
         val kept = draft.kept?.copy(fromName = null)
-        return draft.copy(origin = channel.id, kept = kept, kids = KidStatus.isKidChannel(channel)).kidsNormalised()
+        return draft.copy(origin = channel.id, kept = kept, tier = tierOf(channel)).tierNormalised()
     }
 
     private suspend fun openedCopy(
@@ -124,14 +125,20 @@ class ChannelBuildManager(
         rules: ChannelRules,
     ): OpenResult {
         val name = channel.displayName(service.catalog)
-        val kids = KidStatus.isKidChannel(channel)
-        val number = LineupEdits.firstFreeCustom(lineup, kids, service.catalog)
+        // A copy of a built-in is a Tots channel when the built-in is a kid channel, else a grown-up one.
+        val tier = FamilyTier.Tots.takeIf { KidStatus.isKidChannel(channel) }
+        val number = LineupEdits.firstFreeCustom(lineup, tier?.band, service.catalog)
         val draft = reader.draftOf(account, rules.copy(seed = newSeed.next()), number)
         val kept = draft.kept?.copy(fromName = name)
         val opened =
-            draft.copy(name = name, kids = kids, kept = kept, origin = channel.id, adult = channel.isAdultBuiltIn())
-        return OpenResult.Opened(opened.kidsNormalised(), name)
+            draft.copy(name = name, tier = tier, kept = kept, origin = channel.id, adult = channel.isAdultBuiltIn())
+        return OpenResult.Opened(opened.tierNormalised(), name)
     }
+
+    // The tier of a custom channel being edited: the band its number is in; a kid channel by its ID (a retired kid
+    // starter kept as Custom) whose number is in no young band is Tots, so a stored Kids or Teens number is kept.
+    private fun tierOf(channel: LineupChannel): FamilyTier? =
+        FamilyTier.of(channel.number) ?: FamilyTier.Tots.takeIf { KidStatus.isKidChannel(channel) }
 
     // A copy is of a built-in channel's rules; an edit is of a custom channel's own.
     private fun LineupChannel.rulesToOpen(copy: Boolean): ChannelRules? =
@@ -146,7 +153,7 @@ class ChannelBuildManager(
         draft: ChannelDraft,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val sent = draft.kidsNormalised()
+            val sent = draft.tierNormalised()
             val problem = sent.problem()
             val lineup = lineupOf(account)
             val previous = lineup?.let { originRules(it, sent.origin) }
@@ -175,7 +182,7 @@ class ChannelBuildManager(
                     val number = sent.number.takeIf { sent.numberChosen }
                     val limit = if (pro.pro.value) null else FreeTier.CUSTOM_CHANNELS
                     // No limit was set because Pro was on: Pro must still be on in the lock (#1063).
-                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.kids, limit), sent.kids, id) {
+                    edited(account, LineupEdit.AddCustom(id, rules, number, sent.tier?.band, limit), sent.tier, id) {
                         limit != null || pro.pro.value
                     }
                 }
@@ -188,7 +195,7 @@ class ChannelBuildManager(
         draft: ChannelDraft,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            val sent = draft.kidsNormalised()
+            val sent = draft.tierNormalised()
             val problem = sent.problem()
             val lineup = lineupOf(account)
             val channel = lineup?.channels?.firstOrNull { it.id == id }
@@ -212,11 +219,11 @@ class ChannelBuildManager(
 
                 else -> {
                     val rules = DraftRules.toRules(sent, lineup.utcOffsetMinutes, RulesTarget.Edit(stored))
-                    // A number the viewer did not pick is the channel's own, or the first free one on the other side
-                    // of a kids switch: worked out in the lock.
+                    // A number the viewer did not pick is the channel's own, or the first free one of the other band
+                    // after a tier change: worked out in the lock.
                     val number = sent.number.takeIf { sent.numberChosen }
-                    val edit = LineupEdit.ReplaceCustom(id, rules, number, kids = sent.kids)
-                    edited(account, edit, sent.kids, id, unlocked(id))
+                    val edit = LineupEdit.ReplaceCustom(id, rules, number, band = sent.tier?.band)
+                    edited(account, edit, sent.tier, id, unlocked(id))
                 }
             }
         }
@@ -226,7 +233,7 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.Reseed(id, newSeed.next()), false, id, unlocked(id))
+            edited(account, LineupEdit.Reseed(id, newSeed.next()), null, id, unlocked(id))
         }
 
     override suspend fun delete(
@@ -234,7 +241,7 @@ class ChannelBuildManager(
         id: ChannelId,
     ): BuildResult =
         guarded(BuildResult.Failed) {
-            edited(account, LineupEdit.RemoveCustom(id), false, id, unlocked(id))
+            edited(account, LineupEdit.RemoveCustom(id), null, id, unlocked(id))
         }
 
     // A custom channel locked after a refund (ADR-0023, #99) is kept, not changed or deleted until Pro is back. Asked
@@ -256,7 +263,7 @@ class ChannelBuildManager(
     private suspend fun edited(
         account: LibraryAccount,
         edit: LineupEdit,
-        kids: Boolean,
+        tier: FamilyTier?,
         id: ChannelId,
         allowed: (Lineup) -> Boolean,
     ): BuildResult =
@@ -267,7 +274,7 @@ class ChannelBuildManager(
                 if (holder != null) {
                     refused(BuildRefusal.NumberTaken(holder))
                 } else {
-                    reason.toBuildRefusal(kids)?.let(::refused) ?: failed()
+                    reason.toBuildRefusal(tier)?.let(::refused) ?: failed()
                 }
             },
         ) {
@@ -294,7 +301,7 @@ class ChannelBuildManager(
 
     // The engine's reasons a build can reach; a number taken is worked out by [edited]. The others cannot come from
     // these edits, and are a failure.
-    private fun EditRefusal.toBuildRefusal(kids: Boolean): BuildRefusal? =
+    private fun EditRefusal.toBuildRefusal(tier: FamilyTier?): BuildRefusal? =
         when (this) {
             EditRefusal.UnknownChannel -> BuildRefusal.UnknownChannel
 
@@ -302,7 +309,7 @@ class ChannelBuildManager(
 
             EditRefusal.NotShuffle -> BuildRefusal.NotShuffle
 
-            EditRefusal.NoFreeNumber -> if (kids) BuildRefusal.KidsBandFull else BuildRefusal.NoFreeNumber
+            EditRefusal.NoFreeNumber -> noFreeNumber(tier)
 
             EditRefusal.OutOfRange -> BuildRefusal.OutOfRange
 
@@ -312,6 +319,8 @@ class ChannelBuildManager(
 
             EditRefusal.KidsBandOnly -> BuildRefusal.KidsBand
 
+            is EditRefusal.OutsideBand -> BuildRefusal.OutsideTierBand(FamilyTier.ofBand(band))
+
             is EditRefusal.BelowBand -> BuildRefusal.BelowBand(BandNeeded.of(needs))
 
             EditRefusal.CustomLimit -> BuildRefusal.CustomLimit
@@ -320,6 +329,13 @@ class ChannelBuildManager(
             EditRefusal.OptInNotConfirmed,
             EditRefusal.IdTaken,
             -> null
+        }
+
+    private fun noFreeNumber(tier: FamilyTier?): BuildRefusal =
+        when (tier) {
+            null -> BuildRefusal.NoFreeNumber
+            FamilyTier.Tots -> BuildRefusal.KidsBandFull
+            else -> BuildRefusal.TierBandFull(tier)
         }
 
     private fun refused(reason: BuildRefusal): BuildResult = BuildResult.Refused(reason)
