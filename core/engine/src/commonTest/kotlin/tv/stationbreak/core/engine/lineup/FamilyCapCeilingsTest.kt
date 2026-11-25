@@ -165,7 +165,8 @@ class FamilyCapCeilingsTest {
                 val label = "${cap.label} at $ceiling"
                 for (entry in aired) {
                     val ok = if (cap.level == 1) withinTotsCap(entry) else withinCap(entry, cap.level)
-                    assertTrue(ok, "$label aired ${entry.item.id} (${entry.officialRating}, ${seriesOf(entry)?.officialRating})")
+                    val shown = "${entry.officialRating}, ${seriesOf(entry)?.officialRating}"
+                    assertTrue(ok, "$label aired ${entry.item.id} ($shown)")
                 }
             }
         }
@@ -206,18 +207,20 @@ class FamilyCapCeilingsTest {
 
     @Test
     fun aThinPoolStaysThinAndNeverTakesAnAboveCapTitle() {
-        val above = (0 until 20).map { movie(idOf(0x900 + it), rating = listOf("R", "TV-MA", "NC-17", null, "Approved")[it % 5]) }
+        val ratings = listOf("R", "TV-MA", "NC-17", null, "Approved")
+        val above = (0 until 20).map { movie(idOf(0x900 + it), rating = ratings[it % ratings.size]) }
         val thin = snapshot(items = above)
         for (cap in caps) {
             for (ceiling in cap.ceilings) {
-                assertEquals(emptyList(), airs(custom(cap.number, ceiling), thin), "${cap.label} at $ceiling stays empty")
+                val aired = airs(custom(cap.number, ceiling), thin)
+                assertEquals(emptyList(), aired, "${cap.label} at $ceiling stays empty")
             }
         }
     }
 
-    // The cap is the number band, so a ceiling above a band's cap puts the channel in a higher band: the band a viewer's
-    // own channel is numbered in never holds a ceiling above its cap, and that is what keeps Family Mode (which reads
-    // the number alone) and the content cap in step.
+    // The cap is the number band, so a ceiling above a band's cap puts the channel in a higher band: the band a
+    // viewer's own channel is numbered in never holds a ceiling above its cap, and that is what keeps Family Mode
+    // (which reads the number alone) and the content cap in step.
     @Test
     fun aCeilingAboveABandsCapNeedsAHigherBand() {
         val pairs = mapOf("PG" to Band.Family, "PG-13" to Band.Teen, "TV-14" to Band.Teen, "R" to Band.General)
@@ -225,7 +228,8 @@ class FamilyCapCeilingsTest {
             val floor = ChannelFloors.of(custom(700, ceiling), StarterCatalog)
             assertTrue(floor >= band.numbers.first, "$ceiling needs at least ${band.numbers.first}, got $floor")
         }
-        assertNotEquals(ChannelFloors.of(custom(700, "TV-14"), StarterCatalog), ChannelFloors.of(custom(700, "PG"), StarterCatalog))
+        val teenFloor = ChannelFloors.of(custom(700, "TV-14"), StarterCatalog)
+        assertNotEquals(teenFloor, ChannelFloors.of(custom(700, "PG"), StarterCatalog))
         assertTrue(ChannelFloors.of(custom(700, null), StarterCatalog) >= Band.General.numbers.first)
     }
 
