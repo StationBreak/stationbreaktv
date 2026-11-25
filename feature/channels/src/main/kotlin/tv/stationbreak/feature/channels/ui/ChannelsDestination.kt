@@ -117,6 +117,7 @@ internal fun ChannelsRoot(
     }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val keys = remember { FocusRequester() }
+    val builderKeys = remember { FocusRequester() }
     val building = ui.builder != null
     // The keys are the builder's while it shows, and come back here when it goes.
     LaunchedEffect(keys, building) { if (!building) keys.requestFocus() }
@@ -158,13 +159,15 @@ internal fun ChannelsRoot(
                     .focusable(),
         )
         if (building && opened == ui.builder) {
-            BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded)
+            BuilderRoot(builderViewModel, pictureHole, onEvent = actions::builderEnded, keys = builderKeys)
         }
-        // The purchase screen has the keys while it shows; Back from it comes back here, to the note.
+        // The purchase screen has the keys while it shows; Back from it comes back to where it was opened from: the
+        // note here, or the builder's Pro line, which stays on See Pro unless Pro was bought (#1146).
         if (ui.seeingPro) {
             pro {
-                runCatching { keys.requestFocus() }
+                runCatching { (if (building) builderKeys else keys).requestFocus() }
                 viewModel.proDone()
+                if (building) builderViewModel.proReturned(viewModel.ui.value.isPro)
             }
         }
     }
@@ -272,6 +275,7 @@ internal class ChannelsActions(
         when (event) {
             is BuilderEvent.Saved -> vm.builderSaved(event.id, event.andWatch)?.let(::finish)
             BuilderEvent.Closed -> vm.builderClosed()
+            BuilderEvent.SeePro -> vm.seeProFromBuilder()
         }
     }
 

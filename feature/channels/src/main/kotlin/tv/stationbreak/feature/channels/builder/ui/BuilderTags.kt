@@ -43,6 +43,10 @@ internal object BuilderTags {
     const val CONFIRM_YES = "builder:confirm:yes"
     const val CONFIRM_NO = "builder:confirm:no"
 
+    /** The Pro line's See Pro and OK (#1146); its text is [CONFIRM_TEXT]. */
+    const val PRO_SEE = "builder:pro:see"
+    const val PRO_OK = "builder:pro:ok"
+
     fun step(step: BuilderStep) = "builder:step:${step.name}"
 
     fun tab(tab: SourceKindTab) = "builder:tab:${tab.name}"

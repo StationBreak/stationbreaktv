@@ -15,6 +15,7 @@ import tv.stationbreak.core.domain.lineup.ChannelChange
 import tv.stationbreak.core.domain.lineup.ChannelKind
 import tv.stationbreak.core.domain.lineup.LineupAccess
 import tv.stationbreak.core.model.ChannelId
+import tv.stationbreak.feature.channels.builder.BuilderMode
 
 /**
  * The free tier with the store available (#99): Pro choices are listed and answer with a note and the way to buy. With
@@ -263,4 +264,36 @@ class ChannelsProOfferedTest {
         assertEquals(listOf(Choice.SeePro, Choice.Cancel), choicesOf(ui))
         assertEquals(0, startChoice(ui.panel, confirmingReset = false))
     }
+
+    @Test
+    fun seeProFromTheBuilderOpensThePurchaseScreenOverIt_andBackLeavesTheBuilderOpen() =
+        channelsTest(lineup) { rig ->
+            rig.freeAndOffered()
+            rig.open(this)
+            rig.vm.select()
+            assertEquals(BuilderMode.New, rig.ui.builder)
+
+            rig.vm.seeProFromBuilder()
+            assertTrue(rig.ui.seeingPro)
+
+            rig.vm.proDone()
+            assertFalse(rig.ui.seeingPro)
+            assertEquals(BuilderMode.New, rig.ui.builder)
+        }
+
+    @Test
+    fun seeProFromTheBuilderDoesNothingWithoutAStore_orWithoutTheBuilder() =
+        channelsTest(lineup) { rig ->
+            rig.pro.set(false)
+            rig.open(this)
+            rig.vm.select()
+            rig.vm.seeProFromBuilder()
+            assertFalse(rig.ui.seeingPro)
+
+            rig.offered.value = true
+            runCurrent()
+            rig.vm.builderClosed()
+            rig.vm.seeProFromBuilder()
+            assertFalse("no builder is showing", rig.ui.seeingPro)
+        }
 }

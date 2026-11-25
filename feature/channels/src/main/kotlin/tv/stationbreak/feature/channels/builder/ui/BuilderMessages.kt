@@ -156,8 +156,13 @@ internal fun problemText(problem: DraftProblem): String {
 internal fun confirmText(confirm: BuilderConfirm): String =
     when (confirm) {
         BuilderConfirm.Leave -> stringResource(R.string.builder_leave_confirm)
+
         BuilderConfirm.KidsOff -> stringResource(R.string.builder_kids_off_confirm)
+
         is BuilderConfirm.Delete -> stringResource(R.string.builder_delete_confirm, confirm.name)
+
+        // The Pro lines name no number or holder.
+        is BuilderConfirm.Pro -> messageText(confirm.message, null, null)
     }
 
 /** The two choices of a confirm: the action, then the keep. */
@@ -179,5 +184,9 @@ internal fun confirmChoices(
 
         is BuilderConfirm.Delete -> {
             stringResource(R.string.builder_delete_action) to stringResource(R.string.builder_delete_cancel)
+        }
+
+        is BuilderConfirm.Pro -> {
+            stringResource(R.string.channels_action_see_pro) to stringResource(R.string.channels_action_ok)
         }
     }

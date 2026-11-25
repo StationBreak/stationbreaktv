@@ -4,6 +4,7 @@
 package tv.stationbreak.feature.channels.builder
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -61,6 +62,8 @@ internal class BuilderRig(
     private val scope: TestScope,
     wrap: (FakeCatalogPicker) -> CatalogPicker = { it },
     wrapPreviews: (FakeChannelPreviews) -> ChannelPreviews = { it },
+    /** The store is available (#1146), so a Pro line offers See Pro. */
+    storeAvailable: Boolean = false,
 ) {
     val account = LibraryAccount(ServerId("srv1"), UserId("u1"))
     val library = InMemoryLibraryRepository()
@@ -81,6 +84,7 @@ internal class BuilderRig(
             channels,
             clock,
             StandardTestDispatcher(scope.testScheduler),
+            MutableStateFlow(storeAvailable),
         )
     val ui get() = vm.ui.value
     val events = mutableListOf<BuilderEvent>()
@@ -133,8 +137,9 @@ internal class BuilderRig(
 internal fun builderTest(
     wrap: (FakeCatalogPicker) -> CatalogPicker = { it },
     wrapPreviews: (FakeChannelPreviews) -> ChannelPreviews = { it },
+    storeAvailable: Boolean = false,
     body: suspend TestScope.(BuilderRig) -> Unit,
 ) = runTest {
-    val rig = BuilderRig(this, wrap, wrapPreviews)
+    val rig = BuilderRig(this, wrap, wrapPreviews, storeAvailable)
     body(rig)
 }

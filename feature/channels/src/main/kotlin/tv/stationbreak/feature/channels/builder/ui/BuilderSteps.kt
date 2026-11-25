@@ -67,7 +67,8 @@ private val PanelGap = 16.dp
  * name are real text fields only while the viewer types into them.
  *
  * The host opens the builder (`openNew`, `openCopy` or `openEdit`) before it shows this. [onEvent] is called once, with
- * how the builder ended: Saved (and whether to watch) or Closed (a Back that leaves).
+ * how the builder ended: Saved (and whether to watch) or Closed (a Back that leaves). SeePro is not an ending: the host
+ * shows the purchase screen and gives the keys back through [keys] (the builder's key root) when it goes.
  */
 @Composable
 internal fun BuilderRoot(
@@ -75,9 +76,9 @@ internal fun BuilderRoot(
     pictureHole: DpRect,
     onEvent: (BuilderEvent) -> Unit,
     modifier: Modifier = Modifier,
+    keys: FocusRequester = remember { FocusRequester() },
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    val keys = remember { FocusRequester() }
     var typing by remember { mutableStateOf(false) }
     val typingNow = typing && ui.focus.typesText()
     LaunchedEffect(typingNow) {
@@ -92,7 +93,8 @@ internal fun BuilderRoot(
         var finished = false
         viewModel.events.collect { event ->
             if (finished) return@collect
-            finished = true
+            // See Pro opens the purchase screen over the builder, which goes on.
+            if (event != BuilderEvent.SeePro) finished = true
             exit(event)
         }
     }
@@ -301,7 +303,8 @@ private fun ConfirmPanel(
             style = MaterialTheme.typography.titleMedium,
         )
         val (action, keep) = confirmChoices(confirm, ui.mode)
-        TextLine(action, ui.focus == BuilderFocus.Choice(0), BuilderTags.CONFIRM_YES)
-        TextLine(keep, ui.focus == BuilderFocus.Choice(1), BuilderTags.CONFIRM_NO)
+        val pro = confirm is BuilderConfirm.Pro
+        TextLine(action, ui.focus == BuilderFocus.Choice(0), if (pro) BuilderTags.PRO_SEE else BuilderTags.CONFIRM_YES)
+        TextLine(keep, ui.focus == BuilderFocus.Choice(1), if (pro) BuilderTags.PRO_OK else BuilderTags.CONFIRM_NO)
     }
 }
