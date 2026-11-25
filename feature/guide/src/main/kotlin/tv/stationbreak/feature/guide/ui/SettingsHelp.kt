@@ -90,6 +90,7 @@ private fun explainerOf(row: SettingsRow): Int =
         SettingsRow.Pro -> R.string.guide_help_pro
         SettingsRow.SignOut -> R.string.guide_help_sign_out
         SettingsRow.CrashReports -> R.string.guide_help_crash_reports
+        SettingsRow.UserGuide -> R.string.guide_help_guide
     }
 
 /** The line saying which channels a Family Mode [cap] keeps (the caps are cumulative). */

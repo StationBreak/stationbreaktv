@@ -36,7 +36,7 @@ internal fun choiceShown(
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
         SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
         SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours, SettingsRow.Pro -> null
-        SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut -> null
+        SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut, SettingsRow.UserGuide -> null
     }
 
 private fun <T> shown(

@@ -149,6 +149,16 @@ object GuideTags {
     /** The Send crash reports row of the Settings sheet (#96); there only in a build with an endpoint. */
     const val SETTINGS_CRASH_REPORTS = "guide:settings:crashReports"
 
+    /** The User guide row of the Settings sheet (#1105): OK shows the QR screen. */
+    const val SETTINGS_USER_GUIDE = "guide:settings:userGuide"
+
+    /** The user guide screen (#1105): its sheet, title, the QR picture, the address as text, and the hint row. */
+    const val USER_GUIDE = "guide:userGuide"
+    const val USER_GUIDE_TITLE = "guide:userGuide:title"
+    const val USER_GUIDE_QR = "guide:userGuide:qr"
+    const val USER_GUIDE_URL = "guide:userGuide:url"
+    const val USER_GUIDE_HINT = "guide:userGuide:hint"
+
     /** The tag of the Settings sheet's [row]. */
     internal fun settingsRow(row: SettingsRow): String =
         when (row) {
@@ -164,6 +174,7 @@ object GuideTags {
             SettingsRow.SyncNow -> SETTINGS_SYNC_NOW
             SettingsRow.SignOut -> SETTINGS_SIGN_OUT
             SettingsRow.CrashReports -> SETTINGS_CRASH_REPORTS
+            SettingsRow.UserGuide -> SETTINGS_USER_GUIDE
         }
 
     /** The value a choice [row] shows on its right. */

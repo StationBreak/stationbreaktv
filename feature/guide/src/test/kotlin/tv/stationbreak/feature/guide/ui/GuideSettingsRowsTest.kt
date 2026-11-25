@@ -35,7 +35,7 @@ class GuideSettingsRowsTest {
     fun theSectionsHoldEveryRowOnce_inTheSheetsOrder() {
         assertEquals(SettingsRow.entries, SettingsGroup.entries.flatMap { it.rows })
         assertEquals(
-            listOf("Picture", "Playback", "Family Mode", "Library", "Account", "Privacy"),
+            listOf("Picture", "Playback", "Family Mode", "Library", "Account", "Privacy", "Help"),
             SettingsGroup.entries.map { text(it.flag) },
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
@@ -44,6 +44,14 @@ class GuideSettingsRowsTest {
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.Pro, SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
+        assertEquals(listOf(SettingsRow.UserGuide), SettingsGroup.Help.rows)
+        assertEquals(
+            SettingsRow.UserGuide,
+            SettingsGroup.entries
+                .last()
+                .rows
+                .last(),
+        )
     }
 
     @Test
@@ -93,6 +101,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.Pro to (RowKind.Link to "StationBreak Pro"),
                 SettingsRow.SignOut to (RowKind.Action to "Sign out"),
                 SettingsRow.CrashReports to (RowKind.Choice to "Send crash reports"),
+                SettingsRow.UserGuide to (RowKind.Link to "User guide"),
             )
         assertEquals(SettingsRow.entries.toSet(), expected.keys)
         for ((row, kindAndLabel) in expected) {
@@ -220,7 +229,14 @@ class GuideSettingsRowsTest {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         val inert = SettingsRow.entries.filter { it.isInert(on) }
         assertEquals(
-            listOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.Pro, SettingsRow.SignOut),
+            listOf(
+                SettingsRow.Hours,
+                SettingsRow.Libraries,
+                SettingsRow.SyncNow,
+                SettingsRow.Pro,
+                SettingsRow.SignOut,
+                SettingsRow.UserGuide,
+            ),
             inert,
         )
         val pinOnly = SettingsValues(kidsPinSet = true)
@@ -229,6 +245,32 @@ class GuideSettingsRowsTest {
             assertEquals(listOf("Back Close"), settingsHintOf(row, on).map { "${text(it.key)} ${text(it.action)}" })
         }
         assertEquals("Turn off Family Mode first", text(R.string.guide_kids_locked))
+    }
+
+    @Test
+    fun theUserGuideRowIsAlwaysShown_andItsWordsAreTheApprovedOnes() {
+        assertEquals(true, SettingsRow.UserGuide.isShown(SettingsValues()))
+        assertEquals("Help", text(R.string.guide_settings_group_help))
+        assertEquals("User guide", text(R.string.guide_help_qr_title))
+        assertEquals("Scan this with your phone's camera.", text(R.string.guide_help_qr_prompt))
+        assertEquals("stationbreak.tv/guide", text(R.string.guide_help_url_text))
+        assertEquals(
+            "QR code for the user guide. The address is stationbreak.tv slash guide.",
+            text(R.string.guide_help_qr_spoken),
+        )
+        val said = "Shows a QR code for the user guide, to scan with your phone."
+        assertEquals(said, helpWords(SettingsRow.UserGuide, SettingsValues()))
+        // OK opens it, Back closes the sheet.
+        val hint = settingsHintOf(SettingsRow.UserGuide).map { "${text(it.key)} ${text(it.action)}" }
+        assertEquals(listOf("OK Open", "Back Close"), hint)
+    }
+
+    @Test
+    fun theUserGuideRowShowsTheLockedNoteInTheWellUnderFamilyMode() {
+        val on = SettingsValues(kidsOn = true, kidsPinSet = true)
+        assertTrue(SettingsRow.UserGuide.isInert(on))
+        assertEquals("Turn off Family Mode first", helpWords(SettingsRow.UserGuide, on))
+        assertEquals(false, SettingsRow.UserGuide.isInert(SettingsValues(kidsPinSet = true)))
     }
 
     @Test
@@ -261,7 +303,7 @@ class GuideSettingsRowsTest {
     fun noExplainerNamesAWayRoundFamilyModeOrAPriceATrialOrWhenItArrives() {
         val banned = listOf("forgot", "grown-up", "switch", "price", "trial", "free", "soon", "later", "coming")
         val all = strings.filterKeys { it.startsWith("guide_help_") }.values
-        assertEquals(14, all.size)
+        assertEquals(19, all.size)
         for (words in all) {
             for (word in banned) assertTrue("$words has $word", !words.lowercase().contains(word))
         }

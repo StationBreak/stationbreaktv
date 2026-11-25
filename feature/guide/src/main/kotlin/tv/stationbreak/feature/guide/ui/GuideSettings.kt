@@ -82,6 +82,13 @@ internal enum class SettingsRow(
 
     /** Off or On: whether a crash may be reported to the owner's endpoint (#96). Shown only in a build that has one. */
     CrashReports(RowKind.Choice, R.string.guide_settings_crash_reports),
+
+    /**
+     * Opens the QR screen for the public user guide (#1105), over the sheet; the last row, in the Help section. The
+     * screen is a picture and a line of text: no browser, no link out. Kids Mode switches the row off (the guide
+     * describes PIN recovery and settings, and a child should not be one scan from it).
+     */
+    UserGuide(RowKind.Link, R.string.guide_settings_guide),
     ;
 
     /**
@@ -113,7 +120,14 @@ internal enum class SettingsRow(
 }
 
 private val KIDS_LOCKED_ROWS =
-    setOf(SettingsRow.Hours, SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.Pro, SettingsRow.SignOut)
+    setOf(
+        SettingsRow.Hours,
+        SettingsRow.Libraries,
+        SettingsRow.SyncNow,
+        SettingsRow.Pro,
+        SettingsRow.SignOut,
+        SettingsRow.UserGuide,
+    )
 
 /** The sheet's sections, top to bottom: each a teletype [flag] over its [rows], which run in [SettingsRow]'s order. */
 internal enum class SettingsGroup(
@@ -129,6 +143,7 @@ internal enum class SettingsGroup(
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.Pro, SettingsRow.SignOut)),
     Privacy(R.string.guide_settings_group_privacy, listOf(SettingsRow.CrashReports)),
+    Help(R.string.guide_settings_group_help, listOf(SettingsRow.UserGuide)),
 }
 
 /** The values the choice rows show: the viewer's own, as their stores hold them. */
@@ -172,7 +187,12 @@ internal data class SettingsPanel(
     val hours: HoursScreen? = null,
     /** The Pro screen (purchase, or Support) shows over the sheet (#99). */
     val proShown: Boolean = false,
+    /** The user guide's QR screen shows over the sheet (#1105); the guide draws it and its keys are [guideKey]'s. */
+    val guideShown: Boolean = false,
 ) {
+    /** The hours screen or the user guide's QR screen, which the guide draws itself, has the keys. */
+    val ownsKeys: Boolean get() = hours != null || guideShown
+
     /** A screen over the guide has the keys. */
     val covered: Boolean get() = librariesShown || signOutShown || proShown
 
@@ -306,8 +326,8 @@ internal fun settingsStep(
             panel.resetKey(panel.reset, key, type, repeatCount)
         }
 
-        panel.hours != null -> {
-            panel.hoursKey(panel.hours, values, key, type, repeatCount)
+        panel.ownsKeys -> {
+            panel.screenKey(values, key, type, repeatCount)
         }
 
         remoteKeyOf(key) == null -> {
@@ -345,6 +365,8 @@ private fun SettingsPanel.selected(values: SettingsValues): SettingsStep =
         row == SettingsRow.Hours -> SettingsStep(copy(hours = HoursScreen()))
 
         row == SettingsRow.Pro -> SettingsStep(copy(proShown = true))
+
+        row == SettingsRow.UserGuide -> SettingsStep(copy(guideShown = true))
 
         else -> selectedRow(values)
     }

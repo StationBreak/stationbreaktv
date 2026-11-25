@@ -57,6 +57,9 @@ amazonAppstoreSdk = "3.0.9"
 # slf4j-nop 2.0.18 is the SLF4J line the SDK's kotlin-logging resolves (slf4j-api 2.0.18, checked 2026-10-14): without a
 # binding the SDK's first request crashes on Android (ADR-0006, F0.3 task 2.13).
 slf4j = "2.0.20"
+# ZXing core 3.5.3 (Maven Central, Apache-2.0): TEST ONLY. Decodes the committed user-guide QR drawable and writes it (#1105).
+# No production configuration may use it.
+zxing = "3.5.3"
 
 # Hilt 2.60.1 and KSP 2.3.12 build and run with AGP 9.4.1 and Kotlin 2.4.21 (spiked 2026-10-14, F0.3 task 3.1). KSP,
 # not kapt: AGP 9's built-in Kotlin doesn't support kapt. Hilt is for `app` only (MODULES.md, "Hilt in pure modules").
@@ -103,6 +106,7 @@ targetSdk = "34"
 [libraries]
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 junit = { module = "junit:junit", version.ref = "junit" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit5" }
 androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidxTestRunner" }
