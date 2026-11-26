@@ -1359,6 +1359,21 @@ private val worldBand: List<Recipe> =
             sources = tags("slice of life", "slice-of-life", "iyashikei"),
             animeOnly = true,
         ),
+        // Catalog 30 (#1026): Nordic crime. The tags and the five networks (as TMDb writes them into Studios) are the
+        // sources, the genres a filter on top, so a Nordic comedy stays out. The short names are Exact so `TV 2` does
+        // not take a `TV 2 Australia`; the Finnish public broadcaster airs several channels, hence the `Yle` prefix.
+        // The General exclusions (kids genres, anime) come from `recipe`; no rating ceiling, no per-starter Pro mark
+        // (ADR-0023). Typical-library-only: a library with no Nordic series leaves it empty.
+        recipe(
+            Band.World,
+            n = 444,
+            key = "fjord-and-fog",
+            name = "Fjord & Fog",
+            says = "Nordic crime: gray skies, long coats, longer silences.",
+            sources = tags("nordic noir", "scandinavia", "denmark", "sweden", "norway"),
+            themeStudios = listOf(Exact("DR1"), Exact("SVT1"), Exact("NRK1"), Prefix("Yle"), Exact("TV 2")),
+            filters = filters(genres = listOf("Crime", "Mystery", "Thriller", "Drama")),
+        ),
     )
 
 private val premiumBand: List<Recipe> =

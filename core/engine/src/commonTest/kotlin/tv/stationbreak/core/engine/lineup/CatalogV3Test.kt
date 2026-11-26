@@ -379,13 +379,13 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 to 29 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024, #1025): Couch Premiere,
+        // Catalog 21 to 30 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024, #1025, #1026): Couch Premiere,
         // Banners & Battlements, Ink & Paint, Wrong Side, Smoke-Filled Room, Short Stack, Out & About,
-        // Festival Circuit, Wild Hours.
+        // Festival Circuit, Wild Hours, Fjord & Fog.
         val NEW_SINCE_2 =
             NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint" + "wrong-side" +
                 "smoke-filled-room" + "short-stack" + "out-and-about" + "festival-circuit" +
-                "wild-hours"
+                "wild-hours" + "fjord-and-fog"
 
         // Catalog 26 (#1021), 28 (#1024): `Short` and `Indie` are IMDb / TVDb genres, not TMDB ones; only Short Stack
         // and Festival Circuit read them.
@@ -464,6 +464,8 @@ class CatalogV3Test {
                 "masala-hour" to "3 C C C 9c382452ff7eb8ee",
                 "telenovela-tonight" to "4 C C C C 95e97009de92c3a6",
                 "cartoons-after-dark" to "5 C C E E P 56928bf9033f4b0f",
+                // Catalog 30 (#1026): the short names are exact so `TV 2` does not take a look-alike.
+                "fjord-and-fog" to "5 E E E P E 3b531d7ebb5b24f8",
             )
     }
 }

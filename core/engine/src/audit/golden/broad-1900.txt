@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 29, curation-3, extras-1)
+LINEUP AUDIT (catalog 30, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -158,6 +158,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   masala-hour                   432  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   telenovela-tonight            436  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cherry-blossom-hour           440  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  fjord-and-fog                 444  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   after-hours                   504  off    OptIn         0  -                                  -
   one-season-only               512  on(p)               20  20t 462.67h 0a score 10000         20t 462.67h 0a
   cartoons-after-dark           516  on(p)               29  29t 417.73h 0a score 10900         29t 417.73h 0a
