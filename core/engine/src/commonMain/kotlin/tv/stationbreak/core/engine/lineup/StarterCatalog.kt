@@ -159,8 +159,13 @@ object StarterCatalog : StarterCatalogView {
      * tags, with Documentary kept out (a History documentary stays on Docs & Dusters), the General exclusions (kids
      * genres and anime) and no rating ceiling. Every other entry is as it was at 21. No rules format or hold version
      * change.
+     *
+     * Version 23 (#1018): Ink & Paint (key `ink-and-paint`, 54, Family) is new: the animation studio lot, movies of
+     * Pixar, DreamWorks Animation and Walt Disney Animation (studios by exact name or prefix, never a bare Disney),
+     * PG / TV-PG and below under the Family hold, with the kids-genre and anime exclusions every non-plain recipe
+     * carries. Every other entry is as it was at 22. No rules format or hold version change.
      */
-    const val VERSION = 22
+    const val VERSION = 23
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

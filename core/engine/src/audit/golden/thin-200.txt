@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 22, curation-3, extras-1)
+LINEUP AUDIT (catalog 23, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -58,6 +58,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  on(p)                8  8t 12.40h 0a score  2040           8t 12.40h 0a
   big-screen-toons               51  off    TooThin       3  3t 3.43h 0a score   642 THIN       -
+  ink-and-paint                  54  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   starship-sunday                57  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -

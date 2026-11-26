@@ -46,7 +46,7 @@ class CatalogMarksDriftTest {
 
     private companion object {
         /** Keys with no logo yet: the guide plate shows the channel's initials until the design partner draws one. */
-        val NO_LOGO_KEYS: Set<String> = setOf("couch-premiere", "banners-and-battlements")
+        val NO_LOGO_KEYS: Set<String> = setOf("couch-premiere", "banners-and-battlements", "ink-and-paint")
 
         // sl_<NNN>_<key>_<N>dp.png and sl_<NNN>_<key>_mono_<N>dp.png, N in 48 or 64: four files per key, one key each.
         val NAME = Regex("sl_(\\d{3})_([a-z0-9-]+)(?:_mono)?_(?:48|64)dp\\.png")

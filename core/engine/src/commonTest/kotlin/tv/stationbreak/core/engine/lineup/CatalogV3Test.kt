@@ -379,8 +379,8 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 (#1019) and 22 (#1020): Couch Premiere and Banners & Battlements, channels catalog 2 never had.
-        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements"
+        // Catalog 21 to 23 (#1019, #1020, #1018): Couch Premiere, Banners & Battlements, Ink & Paint: new since 2.
+        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint"
         val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
         val EXEMPT_AT_7 =
             mapOf(
@@ -405,6 +405,7 @@ class CatalogV3Test {
                 "backyard-fort" to "5 CE CC CC CC CC 7cd2fff98c7f6103",
                 "critter-channel" to "1 CE 152202ed9091902b",
                 "rainy-day-matinee" to "6 CE CC CC CC CC CC fa7c3dbe02ed0065",
+                "ink-and-paint" to "4 SE SE SP SP 2310f98379951cdf",
                 "little-spirits" to "2 CC CC 7c01b9491d7d3f37",
                 "snowglobe" to "1 CE 706901514473f67b",
                 "giggle-garage" to "5 CC CC TC TC TC b74581ee91f458c0",
