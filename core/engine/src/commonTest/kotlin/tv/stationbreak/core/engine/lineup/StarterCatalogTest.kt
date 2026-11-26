@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(22, StarterCatalog.VERSION)
-        assertEquals(22, StarterCatalog.version)
+        assertEquals(23, StarterCatalog.VERSION)
+        assertEquals(23, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -155,14 +155,14 @@ class StarterCatalogTest {
         assertEquals(setOf(33, 66, 99, 199), leftovers.map { it.number }.toSet())
         assertEquals(listOf("PG", "PG", "TV-14", null), leftovers.sortedBy { it.number }.map { it.maxRating })
         assertEquals(
-            setOf("big-screen-toons", "popcorn-matinee", "starship-sunday", "prime-time-pals"),
+            setOf("big-screen-toons", "popcorn-matinee", "ink-and-paint", "starship-sunday", "prime-time-pals"),
             recipes
                 .filter { it.band == Band.Family && it.key !in StarterCatalog.EVER_KID_SAFE_KEYS }
                 .map { it.key }
                 .toSet(),
         )
-        // Paper Lantern (54) is dropped (#1002).
-        assertTrue(recipes.none { it.number == 54 })
+        // Paper Lantern (54) is dropped (#1002); the number is Ink & Paint's from catalog 23 (#1018).
+        assertEquals(listOf("ink-and-paint"), recipes.filter { it.number == 54 }.map { it.key })
     }
 
     @Test
@@ -208,7 +208,9 @@ class StarterCatalogTest {
             assertTrue(AutoSeed.isValidRecipeKey(r.key), r.key)
             assertTrue(r.sources.isNotEmpty())
             val all = r.sources + r.exclusions
-            assertTrue(all.all { it is Source.Genre || it is Source.Tag || it is Source.YearRange })
+            assertTrue(
+                all.all { it is Source.Genre || it is Source.Tag || it is Source.YearRange || it is Source.Studio },
+            )
         }
         for (l in leftovers) assertTrue(AutoSeed.isValidRecipeKey(l.key), l.key)
     }

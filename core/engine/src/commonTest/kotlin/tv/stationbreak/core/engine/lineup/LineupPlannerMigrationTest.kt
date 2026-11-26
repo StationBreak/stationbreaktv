@@ -214,6 +214,7 @@ class LineupPlannerMigrationTest {
                 "nervous-laughter",
                 "couch-premiere",
                 "banners-and-battlements",
+                "ink-and-paint",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +

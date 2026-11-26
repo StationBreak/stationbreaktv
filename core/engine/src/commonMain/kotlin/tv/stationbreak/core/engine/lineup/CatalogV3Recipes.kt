@@ -380,6 +380,28 @@ private val familyBand: List<Recipe> =
             rating = "PG",
             filters = filters(kind = FilterKind.Movie),
         ),
+        // Catalog 23 (#1018): the animation studio lot. Studios match by exact name or prefix, never by Contains, so a
+        // look-alike ("Pixar Fan Films Ltd") stays out; "Pixar Animation Studios" is the company's own name. No bare
+        // Disney needle (live-action Family films stay on Popcorn and Rainy Day). The PG ceiling and the Horror veto
+        // are the Family hold's, as on the neighbours; the kids-genre and anime exclusions are the recipe default. No
+        // per-starter Pro mark (ADR-0023).
+        recipe(
+            Band.Family,
+            n = 54,
+            key = "ink-and-paint",
+            name = "Ink & Paint",
+            says = "Big-screen cartoons, colored carefully inside the lines.",
+            sources = listOf(Source.Studio("Pixar")),
+            rating = "PG",
+            anchors =
+                studios(
+                    Exact("Pixar"),
+                    Exact("Pixar Animation Studios"),
+                    Prefix("DreamWorks Animation"),
+                    Prefix("Walt Disney Animation"),
+                ),
+            filters = filters(kind = FilterKind.Movie),
+        ),
         recipe(
             Band.Family,
             n = 57,
