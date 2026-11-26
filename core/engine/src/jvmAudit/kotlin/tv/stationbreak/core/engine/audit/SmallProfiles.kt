@@ -187,6 +187,12 @@ internal object AnimeViewer {
         }
         b.shows(6, listOf("Animation"), "TV-PG", 22, episodes = 13, firstYear = 2005)
         b.shows(8, listOf("Drama"), "TV-14", 44, firstYear = 2010)
+        // Network dramas (catalog 20, #1033): Prestige takes drama by network, not by the bare Drama genre, so a
+        // library with a little of it keeps the channel, as a real anime viewer's does.
+        repeat(8) {
+            val network = listOf("HBO", "Apple TV", "AMC", "FX")[it % 4]
+            b.series(TitleSpec(listOf("Drama"), emptyList(), listOf(network), "TV-14", 44, 2012 + it), 3, 10)
+        }
         val description = "An anime viewer: series, mecha, shonen and films, with a little else"
         return Profile("anime-viewer", description, AuditInput(b.build(), null), emptyList())
     }

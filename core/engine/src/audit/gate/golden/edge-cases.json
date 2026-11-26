@@ -1,25 +1,24 @@
 {
   "case": "edge-cases",
-  "picks": ["binge-row","date-night","dial-up","flip-phone","laugh-track","level-up","midnight-projector","prestige","rainy-day-matinee","saturday-morning"],
+  "picks": ["binge-row","date-night","dial-up","flip-phone","laugh-track","level-up","midnight-projector","rainy-day-matinee","saturday-morning"],
   "default.channels": [
     {"key":"saturday-morning","number":6,"ceiling":"TV-Y7","policy":"KidsOnly","titles":26,"homes":26,"hours":77.6},
     {"key":"rainy-day-matinee","number":39,"ceiling":"PG","policy":"GrownUp","titles":10,"homes":10,"hours":16.8},
     {"key":"level-up","number":76,"ceiling":"TV-14","policy":"GrownUp","titles":8,"homes":8,"hours":34.1},
     {"key":"laugh-track","number":102,"ceiling":null,"policy":"GrownUp","titles":10,"homes":10,"hours":44.0},
     {"key":"dial-up","number":122,"ceiling":null,"policy":"GrownUp","titles":9,"homes":1,"hours":30.2},
-    {"key":"flip-phone","number":126,"ceiling":null,"policy":"GrownUp","titles":30,"homes":4,"hours":96.3},
-    {"key":"binge-row","number":130,"ceiling":null,"policy":"GrownUp","titles":11,"homes":0,"hours":89.7},
+    {"key":"flip-phone","number":126,"ceiling":null,"policy":"GrownUp","titles":30,"homes":9,"hours":96.3},
+    {"key":"binge-row","number":130,"ceiling":null,"policy":"GrownUp","titles":11,"homes":9,"hours":89.7},
     {"key":"date-night","number":162,"ceiling":null,"policy":"GrownUp","titles":8,"homes":8,"hours":13.8},
-    {"key":"prestige","number":204,"ceiling":null,"policy":"GrownUp","titles":16,"homes":16,"hours":128.7},
     {"key":"midnight-projector","number":316,"ceiling":null,"policy":"GrownUp","titles":8,"homes":8,"hours":16.0},
     {"key":"leftovers:kids-odds-and-ends","number":33,"ceiling":"PG","policy":"KidsOnly","titles":0,"homes":0,"hours":0.0},
     {"key":"leftovers:family-odds-and-ends","number":66,"ceiling":"PG","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
     {"key":"leftovers:teen-odds-and-ends","number":99,"ceiling":"TV-14","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
-    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":14,"homes":0,"hours":13.8}
+    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":16,"homes":0,"hours":14.8}
   ],
-  "default.off": ["after-hours","always-december","anthology-hour","backstage-pass","backyard-fort","big-rumble","big-screen-toons","campfire-tales","cape-and-cowl","cartoons-after-dark","case-files","cherry-blossom-hour","code-blue","cold-case-cable","continental-drift","corsets-and-candlelight","couch-talk","creature-feature","critter-channel","cult-following","curtain-call","dead-drop","deep-space-drift","disaster-zone","docs-and-dusters","dragons-and-doorways","drive-in-double","dusty-trails","end-times","family-business","fixer-hour","flipbook","fresh-cut","front-lines","gallows-humor","game-night","giant-robot-hour","giggle-garage","glass-house","hey-science","homeroom","jack-o-lantern-lounge","kung-fu-theater","life-stories","little-farm","little-spirits","masala-hour","mask-and-mantle","matinee-tears","neon-decade","neon-rain","nervous-laughter","noir-nights","once-upon","one-season-only","open-road","order-in-the-court","paradox","pocket-heroes","popcorn-epic","popcorn-matinee","power-level","prime-time-pals","punchline","rabbit-ears","robot-factory","rubber-suit-theatre","satire-desk","seoul-sundays","shag-carpet","shuffle-and-groan","sideline","silver-screen","simmer","sing-along-station","small-sleuths","snowglobe","spoof-central","spooky-sleepover","starport","starship-sunday","tea-time","telenovela-tonight","the-cheap-seats","tokyo-after-school","twist-ending","wheels-and-whistles","whodunit-isles"],
+  "default.off": ["after-hours","always-december","anthology-hour","backstage-pass","backyard-fort","big-rumble","big-screen-toons","campfire-tales","cape-and-cowl","cartoons-after-dark","case-files","cherry-blossom-hour","code-blue","cold-case-cable","continental-drift","corsets-and-candlelight","couch-talk","creature-feature","critter-channel","cult-following","curtain-call","dead-drop","deep-space-drift","disaster-zone","docs-and-dusters","dragons-and-doorways","drive-in-double","dusty-trails","end-times","family-business","fixer-hour","flipbook","fresh-cut","front-lines","gallows-humor","game-night","giant-robot-hour","giggle-garage","glass-house","hey-science","homeroom","jack-o-lantern-lounge","kung-fu-theater","life-stories","little-farm","little-spirits","masala-hour","mask-and-mantle","matinee-tears","neon-decade","neon-rain","nervous-laughter","noir-nights","once-upon","one-season-only","open-road","order-in-the-court","paradox","pocket-heroes","popcorn-epic","popcorn-matinee","power-level","prestige","prime-time-pals","punchline","rabbit-ears","robot-factory","rubber-suit-theatre","satire-desk","seoul-sundays","shag-carpet","shuffle-and-groan","sideline","silver-screen","simmer","sing-along-station","small-sleuths","snowglobe","spoof-central","spooky-sleepover","starport","starship-sunday","tea-time","telenovela-tonight","the-cheap-seats","tokyo-after-school","twist-ending","wheels-and-whistles","whodunit-isles"],
   "default.noHome": {"no-source-match":1,"only-on-shelved-channels":13},
-  "default.overlap": {"pairs":9,"sharedHours":209.9,"widest":"binge-row + prestige","widestHours":83.7},
+  "default.overlap": {"pairs":7,"sharedHours":82.2,"widest":"laugh-track + dial-up","widestHours":26.4},
   "everything.channels": [
     {"key":"little-farm","number":2,"ceiling":"TV-Y","policy":"KidsOnly","titles":0,"homes":0,"hours":0.0},
     {"key":"sing-along-station","number":4,"ceiling":"G","policy":"KidsOnly","titles":0,"homes":0,"hours":0.0},
@@ -49,12 +48,12 @@
     {"key":"nervous-laughter","number":82,"ceiling":"TV-14","policy":"GrownUp","titles":2,"homes":2,"hours":5.9},
     {"key":"laugh-track","number":102,"ceiling":null,"policy":"GrownUp","titles":10,"homes":10,"hours":44.0},
     {"key":"punchline","number":106,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
-    {"key":"rabbit-ears","number":110,"ceiling":null,"policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
+    {"key":"rabbit-ears","number":110,"ceiling":null,"policy":"GrownUp","titles":1,"homes":1,"hours":0.5},
     {"key":"shag-carpet","number":114,"ceiling":null,"policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
     {"key":"neon-decade","number":118,"ceiling":null,"policy":"GrownUp","titles":8,"homes":2,"hours":9.8},
     {"key":"dial-up","number":122,"ceiling":null,"policy":"GrownUp","titles":9,"homes":1,"hours":30.2},
-    {"key":"flip-phone","number":126,"ceiling":null,"policy":"GrownUp","titles":30,"homes":0,"hours":96.3},
-    {"key":"binge-row","number":130,"ceiling":null,"policy":"GrownUp","titles":11,"homes":0,"hours":89.7},
+    {"key":"flip-phone","number":126,"ceiling":null,"policy":"GrownUp","titles":30,"homes":5,"hours":96.3},
+    {"key":"binge-row","number":130,"ceiling":null,"policy":"GrownUp","titles":11,"homes":5,"hours":89.7},
     {"key":"fresh-cut","number":134,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"glass-house","number":138,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"game-night","number":142,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
@@ -69,7 +68,7 @@
     {"key":"backstage-pass","number":178,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"curtain-call","number":186,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"satire-desk","number":190,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
-    {"key":"prestige","number":204,"ceiling":null,"policy":"GrownUp","titles":16,"homes":12,"hours":128.7},
+    {"key":"prestige","number":204,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"cold-case-cable","number":208,"ceiling":null,"policy":"GrownUp","titles":4,"homes":4,"hours":36.8},
     {"key":"order-in-the-court","number":212,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
     {"key":"code-blue","number":216,"ceiling":null,"policy":"GrownUp","titles":0,"homes":0,"hours":0.0},
@@ -121,9 +120,9 @@
     {"key":"leftovers:kids-odds-and-ends","number":33,"ceiling":"PG","policy":"KidsOnly","titles":0,"homes":0,"hours":0.0},
     {"key":"leftovers:family-odds-and-ends","number":66,"ceiling":"PG","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
     {"key":"leftovers:teen-odds-and-ends","number":99,"ceiling":"TV-14","policy":"GrownUp","titles":1,"homes":0,"hours":0.5},
-    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":7,"homes":0,"hours":10.3}
+    {"key":"leftovers:odds-and-ends","number":199,"ceiling":null,"policy":"GrownUp","titles":8,"homes":0,"hours":10.8}
   ],
   "everything.off": ["after-hours"],
   "everything.noHome": {"no-source-match":1,"only-on-shelved-channels":12},
-  "everything.overlap": {"pairs":19,"sharedHours":302.7,"widest":"binge-row + prestige","widestHours":83.7}
+  "everything.overlap": {"pairs":15,"sharedHours":137.7,"widest":"binge-row + cold-case-cable","widestHours":36.8}
 }

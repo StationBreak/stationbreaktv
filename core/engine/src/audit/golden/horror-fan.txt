@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 19, curation-3, extras-1)
+LINEUP AUDIT (catalog 20, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 679 items, 115 titles (16 series, 99 films)
@@ -14,13 +14,12 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           1
-  channels per title: 1 channels: 28 titles, 2 channels: 87 titles
+  channels per title: 1 channels: 27 titles, 2 channels: 88 titles
   titles per channel that is on:
     dial-up                         28
-    flip-phone                      46
-    binge-row                       33
-    prestige                        15
-    cold-case-cable                 29
+    flip-phone                      48
+    binge-row                       37
+    cold-case-cable                 39
     big-rumble                      20
     starport                        20
     midnight-projector               4
@@ -80,8 +79,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   backstage-pass                178  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   190  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  prestige                      204  on(p)               16  10t 306.67h 0a score  9000         10t 306.67h 0a
-  cold-case-cable               208  on(p)               39  26t 52.72h 0a score  7871          29t 57.97h 0a
+  prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  cold-case-cable               208  on(p)               39  36t 359.38h 0a score 11000         39t 364.63h 0a
   order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   silver-screen                 220  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -132,14 +131,13 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
-  binge-row                    prestige                     5 titles, 153.33h
-  flip-phone                   prestige                     5 titles, 153.33h
-  prestige                     twist-ending                 5 titles, 112.50h
+  flip-phone                   cold-case-cable              15 titles, 173.75h
+  binge-row                    cold-case-cable              12 titles, 167.57h
+  binge-row                    twist-ending                 4 titles, 90.00h
+  flip-phone                   twist-ending                 2 titles, 45.00h
   dial-up                      cold-case-cable              12 titles, 23.32h
   flip-phone                   starport                     10 titles, 21.42h
-  flip-phone                   cold-case-cable              10 titles, 20.42h
   flip-phone                   big-rumble                   10 titles, 19.75h
-  binge-row                    cold-case-cable              7 titles, 14.23h
   binge-row                    starport                     5 titles, 10.88h
   dial-up                      starport                     5 titles, 10.53h
   binge-row                    big-rumble                   5 titles, 10.05h
@@ -494,65 +492,66 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   00000000 Braquinpe Zubraquin [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000001 Velmitor Pequinfa [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000002 Torbraquin Mimaren [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000003 Mimazu Famima [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000004 Senrenma Mazuxi [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up flip-phone -72.28 = specificity 17.72 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000005 Darlovel Torbrator [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   00000006 Quinsendar Loquinsen [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   00000007 Lovelzu Ololquin [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   00000008 Fapeol Velmizu [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   00000009 Zukybra Quinzuky [series, 40 items, 30.67h]
-    home prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    runner-up cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    home cold-case-cable 118.67 = specificity 18.67 genre 40.00 tone 60.00
+    runner-up binge-row -71.08 = specificity 18.92 decade -150.00 tone 60.00
     guest spots: binge-row
   0000000a Renfasen Kyxima [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: prestige
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: flip-phone
   0000000b Kydarfa Braquinbra [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: prestige
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: flip-phone
   0000000c Oltorol Daroltor [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: prestige
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: binge-row
   0000000d Maxixi Rentordar [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: prestige
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: binge-row
   0000000e Peolmi Xifalo [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: prestige
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: binge-row
   0000000f Xizulo Senxizu [series, 30 items, 22.50h]
     home twist-ending 128.33 = specificity 33.33 tag 35.00 tone 60.00
-    runner-up prestige 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up starport 120.80 = specificity 20.80 genre 40.00 tone 60.00
+    guest spots: binge-row
