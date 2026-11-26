@@ -157,9 +157,10 @@
     <string name="first_visit_title">Here are your channels</string>
     <string name="first_visit_body">Choose one to watch, or press OK to keep watching this one.</string>
 
-    <!-- Kids Mode (#789): its section flag, its row and the row that changes its PIN. The row's value is On or Off. -->
+    <!-- Family Mode (#789, #1151): its section flag, its row (value On or Off), its Cap row and the row that changes its PIN. -->
     <string name="guide_settings_group_kids">Family Mode</string>
     <string name="guide_settings_kids_mode">Family Mode</string>
+    <string name="guide_settings_kids_cap">Cap</string>
     <string name="guide_kids_off">Off</string>
     <string name="guide_kids_on">On</string>
     <string name="guide_kids_unknown">&#8230;</string>
@@ -171,11 +172,6 @@
     <string name="guide_kids_cap_tots_channels">Channels 1 to 33.</string>
     <string name="guide_kids_cap_kids_channels">Channels 1 to 66: Tots and Kids.</string>
     <string name="guide_kids_cap_teens_channels">Channels 1 to 99: Tots, Kids and Teens.</string>
-    <!-- The Family Mode row's value with its cap, as drawn and as a screen reader says it. -->
-    <string name="guide_kids_on_cap">On &#183; up to %1$s</string>
-    <string name="guide_kids_off_cap">Off &#183; %1$s</string>
-    <string name="guide_kids_on_cap_spoken">On, up to %1$s</string>
-    <string name="guide_kids_off_cap_spoken">Off, cap %1$s</string>
     <string name="guide_settings_change_pin">Change PIN</string>
     <!-- The one line under each Settings row that Family Mode switches off, and under the menu's About and Channels rows. -->
     <string name="guide_kids_locked">Turn off Family Mode first</string>
@@ -184,8 +180,9 @@
          Those that name the product take it as %1$s from the app's name, so it is written once. None names a way
          round Family Mode, and none mentions a price, a trial or when anything arrives. Under a row that Family Mode
          has switched off the well says the locked note instead. -->
-    <string name="guide_help_family_off">Keeps this TV to those channels. Changing it, or turning it off, needs your PIN.</string>
-    <string name="guide_help_family_on">Only these channels play. Everything above stays hidden until the PIN turns Family Mode off.</string>
+    <string name="guide_help_family_off">Keeps this TV to the channels of its cap. Turning it off needs your PIN.</string>
+    <string name="guide_help_family_cap">Changing the cap while Family Mode is on needs your PIN.</string>
+    <string name="guide_help_family_on">Only the channels of its cap play. Everything above stays hidden until the PIN turns Family Mode off.</string>
     <string name="guide_help_hours">Pick times when this TV drops to a lower level, such as Tots at bedtime. The PIN overrides it.</string>
     <string name="guide_help_pro">%1$s Pro adds more ways to change your lineup.</string>
     <string name="guide_help_support">Shows how to support %1$s. It changes nothing in the app.</string>

@@ -35,7 +35,8 @@ internal fun choiceShown(
         SettingsRow.ChannelChange -> shown(CHANGES, values.channelChange, ::channelChangeWords)
         SettingsRow.VolumeLevelling -> shown(LEVELLINGS, values.levelling, ::levellingWords)
         SettingsRow.CrashReports -> shown(CRASH_REPORTS, values.crashReports, ::crashReportsWords)
-        SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours, SettingsRow.Pro -> null
+        SettingsRow.KidsMode -> if (values.kidsKnown) shown(CRASH_REPORTS, values.kidsOn, ::kidsModeWords) else null
+        SettingsRow.KidsCap, SettingsRow.ChangePin, SettingsRow.Hours, SettingsRow.Pro -> null
         SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut, SettingsRow.UserGuide -> null
     }
 
@@ -76,7 +77,10 @@ private fun crashReportsWords(on: Boolean): Int =
         else -> R.string.guide_crash_reports_off
     }
 
-/** The word for a Kids Mode cap. */
+@StringRes
+private fun kidsModeWords(on: Boolean): Int = if (on) R.string.guide_kids_on else R.string.guide_kids_off
+
+/** The word for a Family Mode cap. */
 @StringRes
 internal fun kidsCapWords(cap: KidsCap): Int =
     when (cap) {
@@ -84,27 +88,3 @@ internal fun kidsCapWords(cap: KidsCap): Int =
         KidsCap.Family -> R.string.guide_kids_cap_family
         KidsCap.Teen -> R.string.guide_kids_cap_teen
     }
-
-/**
- * Kids Mode's value on its row: the string [format] and the cap's words it takes ([cap], null for the dash shown until
- * the stored lock has been read, which takes none).
- */
-internal data class KidsModeShown(
-    @param:StringRes val format: Int,
-    @param:StringRes val cap: Int? = null,
-)
-
-/** What Kids Mode's row shows on its right for [values]: On or Off with the cap, as drawn or [spoken]. */
-internal fun kidsModeShown(
-    values: SettingsValues,
-    spoken: Boolean = false,
-): KidsModeShown {
-    val cap = kidsCapWords(values.kidsCap)
-    return when {
-        !values.kidsKnown -> KidsModeShown(R.string.guide_kids_unknown)
-        values.kidsOn && spoken -> KidsModeShown(R.string.guide_kids_on_cap_spoken, cap)
-        values.kidsOn -> KidsModeShown(R.string.guide_kids_on_cap, cap)
-        spoken -> KidsModeShown(R.string.guide_kids_off_cap_spoken, cap)
-        else -> KidsModeShown(R.string.guide_kids_off_cap, cap)
-    }
-}

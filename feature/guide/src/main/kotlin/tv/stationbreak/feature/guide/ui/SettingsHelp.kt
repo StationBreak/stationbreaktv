@@ -45,9 +45,9 @@ internal data class SettingsHelp(
 
 /**
  * What the help well says on [row] for [values]: its explainer; the locked note when Family Mode has switched the row
- * off (explaining what cannot be done is noise, and the note names no way round); nothing for Family Mode until its
- * lock has been read, so the well never states a cap that is not yet known. Family Mode's explainer follows the cap
- * now chosen ([SettingsValues.kidsCap]).
+ * off (explaining what cannot be done is noise, and the note names no way round); nothing for Family Mode or its Cap
+ * until the lock has been read, so the well never states a cap that is not yet known. The Cap row's line follows the
+ * cap now chosen ([SettingsValues.kidsCap]).
  */
 internal fun settingsHelpOf(
     row: SettingsRow,
@@ -56,6 +56,7 @@ internal fun settingsHelpOf(
     when {
         row.isInert(values) -> SettingsHelp(R.string.guide_kids_locked, locked = true)
         row == SettingsRow.KidsMode -> familyHelp(values)
+        row == SettingsRow.KidsCap -> capHelp(values)
         row == SettingsRow.Pro && values.offer is ProOffer.Support -> SUPPORT_HELP
         else -> SettingsHelp(explainerOf(row), named = row in NAMED_EXPLAINERS)
     }
@@ -68,8 +69,15 @@ private val NAMED_EXPLAINERS = setOf(SettingsRow.Pro, SettingsRow.SyncNow, Setti
 
 private fun familyHelp(values: SettingsValues): SettingsHelp? =
     if (values.kidsKnown) {
-        val text = if (values.kidsOn) R.string.guide_help_family_on else R.string.guide_help_family_off
-        SettingsHelp(text, lead = kidsCapChannels(values.kidsCap))
+        SettingsHelp(if (values.kidsOn) R.string.guide_help_family_on else R.string.guide_help_family_off)
+    } else {
+        null
+    }
+
+// The Cap row's line: the channels the cap now chosen keeps, then that changing it needs the PIN with the lock on.
+private fun capHelp(values: SettingsValues): SettingsHelp? =
+    if (values.kidsKnown) {
+        SettingsHelp(R.string.guide_help_family_cap, lead = kidsCapChannels(values.kidsCap))
     } else {
         null
     }
@@ -82,7 +90,7 @@ private fun explainerOf(row: SettingsRow): Int =
         SettingsRow.ScreenFit -> R.string.guide_help_screen_fit
         SettingsRow.ChannelChange -> R.string.guide_help_channel_change
         SettingsRow.VolumeLevelling -> R.string.guide_help_levelling
-        SettingsRow.KidsMode -> R.string.guide_help_family_off
+        SettingsRow.KidsMode, SettingsRow.KidsCap -> R.string.guide_help_family_off
         SettingsRow.ChangePin -> R.string.guide_help_change_pin
         SettingsRow.Hours -> R.string.guide_help_hours
         SettingsRow.Libraries -> R.string.guide_help_libraries

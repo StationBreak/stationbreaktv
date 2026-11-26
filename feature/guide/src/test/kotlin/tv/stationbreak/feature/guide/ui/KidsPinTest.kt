@@ -60,28 +60,29 @@ class KidsPinTest {
     }
 
     private val kidsRow = SettingsPanel(SettingsRow.KidsMode)
+    private val capRow = SettingsPanel(SettingsRow.KidsCap)
 
     @Test
-    fun rightAndLeftOnKidsModeWhileOffMoveTheCapAtOnce_withNoPin() {
+    fun rightAndLeftOnTheCapRowWhileOffMoveTheCapAtOnce_withNoPin() {
         val atKids = off.copy(kidsCap = KidsCap.Kids)
-        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Family), kidsRow.press(Key.DirectionRight, atKids))
+        assertEquals(SettingsStep(capRow, kidsCap = KidsCap.Family), capRow.press(Key.DirectionRight, atKids))
         val atFamily = off.copy(kidsCap = KidsCap.Family)
-        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Teen), kidsRow.press(Key.DirectionRight, atFamily))
-        assertEquals(SettingsStep(kidsRow, kidsCap = KidsCap.Kids), kidsRow.press(Key.DirectionLeft, atFamily))
+        assertEquals(SettingsStep(capRow, kidsCap = KidsCap.Teen), capRow.press(Key.DirectionRight, atFamily))
+        assertEquals(SettingsStep(capRow, kidsCap = KidsCap.Kids), capRow.press(Key.DirectionLeft, atFamily))
     }
 
     @Test
     fun theCapStopsAtItsEnds_noWrap() {
         val atTeen = off.copy(kidsCap = KidsCap.Teen)
-        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, atTeen))
-        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, off.copy(kidsCap = KidsCap.Kids)))
+        assertEquals(SettingsStep(capRow), capRow.press(Key.DirectionRight, atTeen))
+        assertEquals(SettingsStep(capRow), capRow.press(Key.DirectionLeft, off.copy(kidsCap = KidsCap.Kids)))
         val onAtTeen = on.copy(kidsCap = KidsCap.Teen)
-        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, onAtTeen))
+        assertEquals(SettingsStep(capRow), capRow.press(Key.DirectionRight, onAtTeen))
     }
 
     @Test
-    fun rightOnKidsModeWhileOnAsksForThePinForTheNewCap_andChangesNothingYet() {
-        val step = kidsRow.press(Key.DirectionRight, on.copy(kidsCap = KidsCap.Kids))
+    fun rightOnTheCapRowWhileOnAsksForThePinForTheNewCap_andChangesNothingYet() {
+        val step = capRow.press(Key.DirectionRight, on.copy(kidsCap = KidsCap.Kids))
         assertEquals(PinEntry.start(PinPurpose.Cap, KidsCap.Family), step.panel?.pin)
         assertEquals(PinStage.Current, step.panel?.pin?.stage)
         assertNull(step.kidsCap)
@@ -90,7 +91,7 @@ class KidsPinTest {
 
     @Test
     fun theCapPadAsksTheLockForTheCapAfterFourDigits_andOkClosesIt_andAWrongPinStaysOnThePad() {
-        val panel = SettingsPanel(SettingsRow.KidsMode, pin = PinEntry.start(PinPurpose.Cap, KidsCap.Teen))
+        val panel = SettingsPanel(SettingsRow.KidsCap, pin = PinEntry.start(PinPurpose.Cap, KidsCap.Teen))
         val step = panel.type("1234", on)
         val ask = step.pinSubmit as PinSubmit.SetCap
         assertEquals(KidsCap.Teen, ask.cap)
@@ -108,13 +109,62 @@ class KidsPinTest {
     }
 
     @Test
-    fun theCapDoesNothingBeforeTheLockIsRead_orOnAnyOtherRow() {
+    fun theCapDoesNothingBeforeTheLockIsRead_orOnAnyOtherRowButFamilyModesOwnOnOff() {
         val unread = SettingsValues(kidsOn = true, kidsKnown = false)
-        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, unread))
-        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, unread.copy(kidsCap = KidsCap.Teen)))
+        assertEquals(SettingsStep(capRow), capRow.press(Key.DirectionRight, unread))
+        assertEquals(SettingsStep(capRow), capRow.press(Key.DirectionLeft, unread.copy(kidsCap = KidsCap.Teen)))
         val libraries = SettingsPanel(SettingsRow.Libraries)
         assertNull(libraries.press(Key.DirectionRight, on).kidsCap)
         assertNull(libraries.press(Key.DirectionRight, on).panel?.pin)
+    }
+
+    @Test
+    fun okOnTheCapRowGoesRound_atOnceWhileOff_andThroughThePinPadWhileOn() {
+        fun at(cap: KidsCap) = off.copy(kidsCap = cap)
+        val fromTots = capRow.press(Key.DirectionCenter, at(KidsCap.Kids))
+        assertEquals(SettingsStep(capRow, kidsCap = KidsCap.Family), fromTots)
+        val fromTeens = capRow.press(Key.DirectionCenter, at(KidsCap.Teen))
+        assertEquals(SettingsStep(capRow, kidsCap = KidsCap.Kids), fromTeens)
+        val onStep = capRow.press(Key.DirectionCenter, on.copy(kidsCap = KidsCap.Teen))
+        assertEquals(PinEntry.start(PinPurpose.Cap, KidsCap.Kids), onStep.panel?.pin)
+        assertNull(onStep.kidsCap)
+    }
+
+    @Test
+    fun theCapRowIsFocusableAndMovesWithTheLockOff_butNotInert() {
+        assertEquals(true, SettingsRow.KidsCap.isShown(off))
+        assertEquals(false, SettingsRow.KidsCap.isInert(off))
+        assertEquals(false, SettingsRow.KidsCap.isInert(on))
+    }
+
+    @Test
+    fun rightOnFamilyModeTurnsItOn_andLeftTurnsItOff_asOkWould() {
+        // Off with a PIN set: Right turns it on at once, as OK does; Left is toward the state it is in.
+        assertEquals(SettingsStep(kidsRow, kidsEnable = true), kidsRow.press(Key.DirectionRight, offWithPin))
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, offWithPin))
+        // Off with no PIN: Right asks for one first.
+        assertEquals(
+            PinPurpose.Set,
+            kidsRow
+                .press(Key.DirectionRight, off)
+                .panel
+                ?.pin
+                ?.purpose,
+        )
+        // On: Left asks for the PIN to turn it off; Right is toward the state it is in.
+        assertEquals(
+            PinPurpose.TurnOff,
+            kidsRow
+                .press(Key.DirectionLeft, on)
+                .panel
+                ?.pin
+                ?.purpose,
+        )
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionRight, on))
+        // Neither moves the cap, and nothing before the lock has been read.
+        assertNull(kidsRow.press(Key.DirectionRight, offWithPin).kidsCap)
+        val unread = SettingsValues(kidsOn = true, kidsKnown = false)
+        assertEquals(SettingsStep(kidsRow), kidsRow.press(Key.DirectionLeft, unread))
     }
 
     @Test
@@ -298,10 +348,12 @@ class KidsPinTest {
 
     @Test
     fun kidsModeOnWalksPastChangePin() {
-        // Kids Mode is the row above Libraries (Hours is there only with Pro): Change PIN is not
+        // Family Mode, then its Cap row, then the rest: Down from Family Mode lands on the Cap row.
+        assertEquals(SettingsRow.KidsCap, SettingsPanel(SettingsRow.KidsMode).press(Key.DirectionDown, on).panel?.row)
+        // The Cap row is the row above Libraries (Hours is there only with Pro): Change PIN is not
         // a stop while it is on, but is one when it is off.
-        assertEquals(SettingsRow.Libraries, SettingsPanel(SettingsRow.KidsMode).press(Key.DirectionDown, on).panel?.row)
-        val toChange = SettingsPanel(SettingsRow.KidsMode).press(Key.DirectionDown, offWithPin)
+        assertEquals(SettingsRow.Libraries, SettingsPanel(SettingsRow.KidsCap).press(Key.DirectionDown, on).panel?.row)
+        val toChange = SettingsPanel(SettingsRow.KidsCap).press(Key.DirectionDown, offWithPin)
         assertEquals(SettingsRow.ChangePin, toChange.panel?.row)
     }
 

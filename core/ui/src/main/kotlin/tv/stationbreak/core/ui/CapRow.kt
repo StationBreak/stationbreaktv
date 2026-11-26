@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -31,6 +32,7 @@ private const val DIMMED_ALPHA = 0.7f
  * (Left and Right move [selected]; this row only draws), so it is [focused] by the screen's say-so, drawn with the
  * panel's ring as the other rows are. While [enabled] is false it is dimmed and says so to a screen reader, and the
  * screen skips it in its focus order. [options] are the words as the screen words them (all of them stay visible).
+ * [horizontalPadding] is the row's inset, so a sheet can line it up with its own rows.
  */
 @Composable
 @Suppress("LongParameterList") // The row's words, state and focus, and its tag, as the screens' own lines have.
@@ -42,6 +44,7 @@ fun CapRow(
     enabled: Boolean,
     tag: String,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 12.dp,
 ) {
     val panel = LocalPanelColors.current
     val dim = if (enabled) 1f else DIMMED_ALPHA
@@ -50,7 +53,7 @@ fun CapRow(
         modifier
             .fillMaxWidth()
             .panelFocus(focused && enabled)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = horizontalPadding, vertical = 4.dp)
             .testTag(tag)
             .semantics(mergeDescendants = true) {
                 role = Role.RadioButton

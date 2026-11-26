@@ -36,8 +36,8 @@ overrides the hours. The TV follows the schedule, and the PIN always gets you pa
 [Hours of operation](mature-content.md#hours-of-operation-pro).
 
 **Can Family Mode show more than the Tots channels?**
-Yes. On the **Family Mode** row in Settings, press Left or Right to choose how far it reaches: Tots (channels 1 to 33),
-Kids (1 to 66) or Teens (1 to 99). While Family Mode is on, changing it asks for the PIN. See
+Yes. On the **Cap** row in Settings, right under **Family Mode**, press Left or Right to choose how far it reaches:
+Tots (channels 1 to 33), Kids (1 to 66) or Teens (1 to 99). While Family Mode is on, changing it asks for the PIN. See
 [Choosing how far it reaches](mature-content.md#choosing-how-far-it-reaches).
 
 **How do I sign out, or change server?**

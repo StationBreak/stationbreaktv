@@ -40,7 +40,10 @@ class GuideSettingsRowsTest {
         )
         assertEquals(listOf(SettingsRow.Appearance, SettingsRow.ScreenFit), SettingsGroup.Picture.rows)
         assertEquals(listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling), SettingsGroup.Playback.rows)
-        assertEquals(listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours), SettingsGroup.Kids.rows)
+        assertEquals(
+            listOf(SettingsRow.KidsMode, SettingsRow.KidsCap, SettingsRow.ChangePin, SettingsRow.Hours),
+            SettingsGroup.Kids.rows,
+        )
         assertEquals(listOf(SettingsRow.Libraries, SettingsRow.SyncNow), SettingsGroup.Library.rows)
         assertEquals(listOf(SettingsRow.Pro, SettingsRow.SignOut), SettingsGroup.Account.rows)
         assertEquals(listOf(SettingsRow.CrashReports), SettingsGroup.Privacy.rows)
@@ -94,6 +97,7 @@ class GuideSettingsRowsTest {
                 SettingsRow.ChannelChange to (RowKind.Choice to "When changing channel"),
                 SettingsRow.VolumeLevelling to (RowKind.Choice to "Even out volume"),
                 SettingsRow.KidsMode to (RowKind.Action to "Family Mode"),
+                SettingsRow.KidsCap to (RowKind.Choice to "Cap"),
                 SettingsRow.ChangePin to (RowKind.Action to "Change PIN"),
                 SettingsRow.Hours to (RowKind.Link to "Hours of operation"),
                 SettingsRow.Libraries to (RowKind.Link to "Libraries"),
@@ -177,13 +181,10 @@ class GuideSettingsRowsTest {
         assertEquals("OK Turn off   Back Close", said(SettingsValues(kidsOn = true, kidsKnown = false)))
     }
 
-    private fun kidsValue(
-        values: SettingsValues,
-        spoken: Boolean = false,
-    ): String {
-        val shown = kidsModeShown(values, spoken)
-        val cap = shown.cap?.let { text(it) }
-        return if (cap == null) text(shown.format) else text(shown.format).replace("%1\$s", cap)
+    // Family Mode's value: On or Off and nothing else (#1151), or null until the stored lock has been read.
+    private fun kidsValue(values: SettingsValues): String? {
+        val shown = choiceShown(SettingsRow.KidsMode, values) ?: return null
+        return text(shown.value)
     }
 
     @Test
@@ -195,17 +196,39 @@ class GuideSettingsRowsTest {
     }
 
     @Test
-    fun kidsModeShowsOnOrOffWithItsCap_andSaysItWithoutTheDot() {
-        fun on(cap: KidsCap) = SettingsValues(kidsOn = true, kidsCap = cap)
+    fun familyModeShowsOnlyOnOrOff_andTheCapIsARowOfItsOwn() {
+        assertEquals("On", kidsValue(SettingsValues(kidsOn = true, kidsCap = KidsCap.Teen)))
+        assertEquals("Off", kidsValue(SettingsValues(kidsCap = KidsCap.Teen)))
+        assertEquals(
+            ChoiceShown(R.string.guide_kids_on, index = 1, count = 2),
+            choiceShown(SettingsRow.KidsMode, SettingsValues(kidsOn = true)),
+        )
+        assertNull("until the lock has been read", kidsValue(SettingsValues(kidsKnown = false)))
+        // The Cap row is drawn by the shared segmented row, not as a choice with dots.
+        assertNull(choiceShown(SettingsRow.KidsCap, SettingsValues()))
+        assertEquals(listOf("Tots", "Kids", "Teens"), KidsCap.entries.map { text(kidsCapWords(it)) })
+        assertEquals("Cap", text(R.string.guide_settings_kids_cap))
+    }
 
-        assertEquals("On \u00b7 up to Tots", kidsValue(on(KidsCap.Kids)))
-        assertEquals("On \u00b7 up to Kids", kidsValue(on(KidsCap.Family)))
-        assertEquals("On \u00b7 up to Teens", kidsValue(on(KidsCap.Teen)))
-        assertEquals("Off \u00b7 Tots", kidsValue(SettingsValues()))
-        assertEquals("Off \u00b7 Teens", kidsValue(SettingsValues(kidsCap = KidsCap.Teen)))
-        assertEquals("On, up to Kids", kidsValue(on(KidsCap.Family), spoken = true))
-        assertEquals("Off, cap Tots", kidsValue(SettingsValues(), spoken = true))
-        assertEquals(R.string.guide_kids_unknown, kidsModeShown(SettingsValues(kidsKnown = false)).format)
+    @Test
+    fun theCapRowIsRightUnderFamilyMode_andItsHintIsAChoices() {
+        val kids = SettingsGroup.Kids.rows
+        assertEquals(SettingsRow.KidsCap, kids[kids.indexOf(SettingsRow.KidsMode) + 1])
+        assertEquals(
+            "\u25c2 \u25b8 Change   OK Next   Back Close",
+            settingsHintOf(SettingsRow.KidsCap).joinToString("   ") { "${text(it.key)} ${text(it.action)}" },
+        )
+    }
+
+    @Test
+    fun theCapRowsHelpSaysItsChannelsAndThePin_andFamilyModesHelpNoLongerNamesThem() {
+        val values = SettingsValues(kidsCap = KidsCap.Family)
+        val cap = checkNotNull(settingsHelpOf(SettingsRow.KidsCap, values))
+        assertEquals(R.string.guide_kids_cap_kids_channels, cap.lead)
+        assertEquals(R.string.guide_help_family_cap, cap.text)
+        assertNull(checkNotNull(settingsHelpOf(SettingsRow.KidsMode, values)).lead)
+        val unread = SettingsValues(kidsKnown = false)
+        assertNull("nothing until the lock has been read", settingsHelpOf(SettingsRow.KidsCap, unread))
     }
 
     @Test
@@ -214,7 +237,8 @@ class GuideSettingsRowsTest {
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             assertTrue(row.name, row.isInert(unread))
         }
-        assertEquals(R.string.guide_kids_unknown, kidsModeShown(unread).format)
+        assertNull(choiceShown(SettingsRow.KidsMode, unread))
+        assertTrue(text(R.string.guide_kids_unknown).isNotEmpty())
     }
 
     @Test
@@ -303,7 +327,7 @@ class GuideSettingsRowsTest {
     fun noExplainerNamesAWayRoundFamilyModeOrAPriceATrialOrWhenItArrives() {
         val banned = listOf("forgot", "grown-up", "switch", "price", "trial", "free", "soon", "later", "coming")
         val all = strings.filterKeys { it.startsWith("guide_help_") }.values
-        assertEquals(19, all.size)
+        assertEquals(20, all.size)
         for (words in all) {
             for (word in banned) assertTrue("$words has $word", !words.lowercase().contains(word))
         }
@@ -342,16 +366,22 @@ class GuideSettingsRowsTest {
     }
 
     @Test
-    fun familyModesExplainerFollowsTheCapChosen_andIsSilentUntilTheLockIsRead() {
-        fun said(cap: KidsCap) = checkNotNull(helpWords(SettingsRow.KidsMode, SettingsValues(kidsCap = cap)))
+    fun theCapRowsExplainerFollowsTheCapChosen_andIsSilentUntilTheLockIsRead() {
+        fun said(cap: KidsCap) = checkNotNull(helpWords(SettingsRow.KidsCap, SettingsValues(kidsCap = cap)))
         assertTrue(said(KidsCap.Kids).startsWith("Channels 1 to 33. "))
         assertTrue(said(KidsCap.Family).startsWith("Channels 1 to 66: Tots and Kids. "))
         assertTrue(said(KidsCap.Teen).startsWith("Channels 1 to 99: Tots, Kids and Teens. "))
-        assertTrue(said(KidsCap.Teen).endsWith("Changing it, or turning it off, needs your PIN."))
+        assertTrue(said(KidsCap.Teen).endsWith("Changing the cap while Family Mode is on needs your PIN."))
+        assertNull(settingsHelpOf(SettingsRow.KidsCap, SettingsValues(kidsKnown = false)))
+    }
+
+    @Test
+    fun familyModesExplainerIsOnOrOffAndNamesNoCap_andIsSilentUntilTheLockIsRead() {
+        val off = "Keeps this TV to the channels of its cap. Turning it off needs your PIN."
+        assertEquals(off, helpWords(SettingsRow.KidsMode, SettingsValues(kidsCap = KidsCap.Family)))
         val on = SettingsValues(kidsOn = true, kidsCap = KidsCap.Family)
         val said =
-            "Channels 1 to 66: Tots and Kids. Only these channels play. " +
-                "Everything above stays hidden until the PIN turns Family Mode off."
+            "Only the channels of its cap play. Everything above stays hidden until the PIN turns Family Mode off."
         assertEquals(said, helpWords(SettingsRow.KidsMode, on))
         assertNull(settingsHelpOf(SettingsRow.KidsMode, SettingsValues(kidsOn = true, kidsKnown = false)))
     }

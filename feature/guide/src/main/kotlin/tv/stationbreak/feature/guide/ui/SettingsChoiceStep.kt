@@ -12,17 +12,30 @@ internal fun SettingsPanel.changed(
 ): SettingsStep =
     (
         pictureChanged(values, change) ?: playbackChanged(values, change) ?: privacyChanged(values, change)
-            ?: kidsChanged(values, change)
+            ?: kidsModeChanged(values, change) ?: kidsChanged(values, change)
     ) ?: SettingsStep(this)
 
-// Left and Right on Kids Mode move the cap (#993): through the PIN pad while the lock is on, at once while it is off,
-// and not at all before the lock has been read.
+// Left and Right on Family Mode step it Off, On (#1151): toward the state it is in does nothing, and toward the other
+// asks for what OK would (the PIN pad, or turning it on at once); not at all before the lock has been read. OK is
+// the sheet's own (kidsModeStep), so it never comes here.
+private fun SettingsPanel.kidsModeChanged(
+    values: SettingsValues,
+    change: Change,
+): SettingsStep? =
+    when {
+        row != SettingsRow.KidsMode || !values.kidsKnown -> null
+        change == Change.Cycle || (change == Change.Next) == values.kidsOn -> SettingsStep(this)
+        else -> kidsModeStep(values)
+    }
+
+// A move on the Cap row (#993, #1151): through the PIN pad while the lock is on, at once while it is off, and not at
+// all before the lock has been read.
 private fun SettingsPanel.kidsChanged(
     values: SettingsValues,
     change: Change,
 ): SettingsStep? {
     val target =
-        if (row == SettingsRow.KidsMode && values.kidsKnown) stepped(KidsCap.entries, values.kidsCap, change) else null
+        if (row == SettingsRow.KidsCap && values.kidsKnown) stepped(KidsCap.entries, values.kidsCap, change) else null
     return when {
         target == null -> null
         values.kidsOn -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.Cap, target)))

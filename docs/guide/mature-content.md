@@ -122,11 +122,12 @@ volume settings.
 
 ### Choosing how far it reaches
 
-The limit is one of three: **Tots** (channels 1 to 33, the default), **Kids** (1 to 66) or **Teens** (1 to 99). The
-**Family Mode** row in Settings shows it next to On or Off, for example "On · up to Kids". With the **Family Mode** row
-selected, press Left or Right to move it one step down or up; it stops at Tots and at Teens. While Family Mode is off the
-limit changes at once. While it is on, Left or Right asks for the PIN first, and the limit changes only when the PIN is
-right; a wrong PIN leaves it as it was and counts toward the wait below. Until the app has read the lock (a moment
+The limit is one of three: **Tots** (channels 1 to 33, the default), **Kids** (1 to 66) or **Teens** (1 to 99). In
+Settings, **Family Mode** is one row (On or Off) and the limit is its own **Cap** row right under it, with all three
+words showing and the chosen one filled. The Cap row stays there while Family Mode is off, so you can set it first. With
+the **Cap** row selected, press Left or Right to move it one step down or up (it stops at Tots and at Teens), or OK to go
+round. While Family Mode is off the limit changes at once. While it is on, moving it asks for the PIN first, and the
+limit changes only when the PIN is right; a wrong PIN leaves it as it was and counts toward the wait below. Until the app has read the lock (a moment
 after the guide opens) the limit can't be changed. The limit only decides which channels this TV shows: it never
 changes what a channel plays or when.
 
