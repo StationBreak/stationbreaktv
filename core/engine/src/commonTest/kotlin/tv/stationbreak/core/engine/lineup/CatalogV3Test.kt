@@ -48,8 +48,8 @@ class CatalogV3Test {
             val sources = if (r.optIn) emptyList() else r.sources.filterIsInstance<Source.Genre>().map { it.name }
             for (name in sources + r.filters?.genres.orEmpty()) {
                 assertTrue(
-                    name in TMDB_GENRES || name in SCRAPER_GENRES || name in EXEMPT_AT_7[r.key].orEmpty() ||
-                        name in EXEMPT_AT_8[r.key].orEmpty(),
+                    name in TMDB_GENRES || name in SCRAPER_GENRES || name in EXEMPT_AT_6[r.key].orEmpty() ||
+                        name in EXEMPT_AT_7[r.key].orEmpty() || name in EXEMPT_AT_8[r.key].orEmpty(),
                     "${r.key} has genre $name",
                 )
             }
@@ -359,10 +359,12 @@ class CatalogV3Test {
         // Catalog 6 (#591): Small Sleuths' ceiling drops from PG to TV-Y7 (still kid-safe), and Little Farm takes the
         // preschool genres. The guards of catalog 3 against catalog 2 allow exactly these.
         val CEILINGS_LOWERED_AT_6 = mapOf("small-sleuths" to "TV-Y7")
-        val GENRES_GAINED_AT_6 = mapOf("little-farm" to listOf(Source.Genre("Preschool"), Source.Genre("Pre-school")))
+        val EXEMPT_AT_6 = mapOf("little-farm" to setOf("Preschool", "Pre-school"))
+        val GENRES_GAINED_AT_6 = EXEMPT_AT_6.mapValues { (_, names) -> names.map { Source.Genre(it) } }
 
-        // Not TMDB genres: anime, and the preschool shelf scrapers file under their own genre (Little Farm, #591).
-        val SCRAPER_GENRES = setOf("Anime", "Preschool", "Pre-school")
+        // Not a TMDB genre: anime. The preschool shelf scrapers file under their own genre; only Little Farm reads it
+        // (EXEMPT_AT_6, #591).
+        val SCRAPER_GENRES = setOf("Anime")
 
         // Catalog 7 (#994, #997, #998, #1000): TVDb / OMDb spellings, allowed per recipe and nowhere else.
         // Catalog 8 (#1002): the new young channels and the genre spellings the issue names, per recipe.
