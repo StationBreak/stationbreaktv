@@ -191,8 +191,14 @@ object StarterCatalog : StarterCatalogView {
      * Version 29 (#1025): Wild Hours (key `wild-hours`, 192, General) is new: the `nature`, `wildlife`, `animals` and
      * `ocean` tags filtered to the `Documentary` genre, the kids-genre and anime exclusions every non-plain recipe
      * carries, no rating ceiling. Every other entry is as it was at 28. No rules format or hold version change.
+     *
+     * Version 30 (#1026): Fjord & Fog (key `fjord-and-fog`, 444, World) is new: the `nordic noir`, `scandinavia`,
+     * `denmark`, `sweden` and `norway` tags and the studios `DR1`, `SVT1`, `NRK1`, `TV 2` and any starting `Yle`,
+     * filtered to the `Crime`, `Mystery`, `Thriller` and `Drama` genres, the kids-genre and anime exclusions every
+     * non-plain recipe carries, no rating ceiling. Every other entry is as it was at 29. No rules format or hold
+     * version change.
      */
-    const val VERSION = 29
+    const val VERSION = 30
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -221,6 +221,7 @@ class LineupPlannerMigrationTest {
                 "out-and-about",
                 "festival-circuit",
                 "wild-hours",
+                "fjord-and-fog",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +
