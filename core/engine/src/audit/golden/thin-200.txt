@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 17, curation-3, extras-1)
+LINEUP AUDIT (catalog 18, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)

@@ -24,6 +24,7 @@ internal val CATALOG_MANIFESTS: List<CatalogManifest> by lazy {
         CATALOG_MANIFEST_V15,
         CATALOG_MANIFEST_V16,
         CATALOG_MANIFEST_V17,
+        CATALOG_MANIFEST_V18,
     )
 }
 

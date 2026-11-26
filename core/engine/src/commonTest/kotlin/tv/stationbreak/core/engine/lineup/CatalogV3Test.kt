@@ -434,6 +434,7 @@ class CatalogV3Test {
             )
         val STUDIO_PINS: Map<String, String> =
             mapOf(
+                "little-spirits" to "3 C C C de3ccc88dd63debb",
                 "kung-fu-theater" to "8 C C C C C C C C 1dab6d9025dc0aa9",
                 "rubber-suit-theatre" to "3 W C C f6f880740abb9213",
                 "tea-time" to "11 P W C P W P C C C C C db89332bceb39108",
