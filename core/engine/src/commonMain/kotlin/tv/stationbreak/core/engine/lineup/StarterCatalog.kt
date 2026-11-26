@@ -178,8 +178,13 @@ object StarterCatalog : StarterCatalogView {
      * Version 26 (#1021): Short Stack (key `short-stack`, 198, General) is new: the `Short` genre or the `short film`
      * tag, movies of at most 40 minutes, the kids-genre and anime exclusions every non-plain recipe carries, the Niche
      * qualifying bar, no rating ceiling. Every other entry is as it was at 25. No rules format or hold version change.
+     *
+     * Version 27 (#1023): Out & About (key `out-and-about`, 284, Drama) is new: queer stories, the `lgbt`, `gay`,
+     * `lesbian`, `transgender` and `bisexual` tags (no genre source), the kids-genre and anime exclusions every
+     * non-plain recipe carries, no rating ceiling. Every other entry is as it was at 26. No rules format or hold
+     * version change.
      */
-    const val VERSION = 26
+    const val VERSION = 27
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

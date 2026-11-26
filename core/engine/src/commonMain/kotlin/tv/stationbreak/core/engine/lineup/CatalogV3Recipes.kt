@@ -998,6 +998,17 @@ private val dramaBand: List<Recipe> =
             sources = tags("politics", "political thriller", "president", "election", "white house"),
             filters = filters(notGenres = listOf("Documentary")),
         ),
+        // Catalog 27 (#1023): queer stories, tag-only (whole tags, matched case-insensitively). The General exclusions
+        // (kids genres, anime) come from `recipe`; no other filter, no rating ceiling, no per-starter Pro mark
+        // (ADR-0023). Typical-library-only: a library without the tags leaves it empty.
+        recipe(
+            Band.Drama,
+            n = 284,
+            key = "out-and-about",
+            name = "Out & About",
+            says = "Queer stories up front, with nobody left in the margins.",
+            sources = tags("lgbt", "gay", "lesbian", "transgender", "bisexual"),
+        ),
     )
 
 private val genreBand: List<Recipe> =

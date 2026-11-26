@@ -54,6 +54,7 @@ class CatalogMarksDriftTest {
                 "wrong-side",
                 "smoke-filled-room",
                 "short-stack",
+                "out-and-about",
             )
 
         // sl_<NNN>_<key>_<N>dp.png and sl_<NNN>_<key>_mono_<N>dp.png, N in 48 or 64: four files per key, one key each.
