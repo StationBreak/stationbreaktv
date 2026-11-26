@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The Appstore client (Amazon's store app) the SDK talks to; needed to see it on Android 11 and later. -->
+    <!--
+        The Appstore client (Amazon's store app) the SDK talks to, and Amazon's App Tester (the SDK test client, which
+        answers instead of it while testing); both are needed to be seen on Android 11 and later.
+    -->
     <queries>
         <package android:name="com.amazon.venezia" />
+        <package android:name="com.amazon.sdktestclient" />
     </queries>
 
     <application>

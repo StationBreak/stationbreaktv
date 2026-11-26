@@ -260,32 +260,40 @@ class ProViewModelTest {
         }
 
     @Test
-    fun boughtBeforeTheStoreVerifies_isConfirming_withNoBuyOrRestore_untilProIsOwned() =
+    fun boughtBeforeTheStoreVerifies_isConfirming_butBuyAndRestoreStayUsable_untilProIsOwned() =
         runTest {
             store.purchaseVerifies = false
             val rig = rig()
             press(rig)
             assertEquals(ProResult.Confirming, rig.now.result)
             assertFalse(rig.now.owned)
-            assertFalse("no Buy or Restore while confirming", rig.now.actionable)
-            press(rig)
+            assertTrue("Buy and Restore stay offered while confirming (#beta.3 race)", rig.now.actionable)
+            assertTrue(rig.now.canBuy)
             press(rig, down = true)
-            assertEquals("a second press started nothing", 1, store.purchases)
-            assertEquals(0, store.restores)
+            assertEquals("Restore ran", 1, store.restores)
 
             store.settle(true)
             runCurrent()
             assertTrue(rig.now.owned)
-            assertEquals(ProResult.Bought, rig.now.result)
         }
 
     @Test
-    fun confirmingEndsWhenTheViewerLeavesAndComesBack_soAStoreThatNeverConfirmsDoesNotStrandThem() =
+    fun aSuccessWhileProIsFalse_doesNotHideBuyAndRestore() =
         runTest {
             store.purchaseVerifies = false
             val rig = rig()
             press(rig)
-            assertFalse(rig.now.actionable)
+            assertEquals(ProResult.Confirming, rig.now.result)
+            press(rig)
+            assertEquals("Buy can be pressed again", 2, store.purchases)
+        }
+
+    @Test
+    fun confirmingEndsWhenTheViewerLeavesAndComesBack() =
+        runTest {
+            store.purchaseVerifies = false
+            val rig = rig()
+            press(rig)
             rig.vm.open()
             runCurrent()
             assertTrue(rig.now.actionable)

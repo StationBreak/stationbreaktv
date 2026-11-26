@@ -61,11 +61,12 @@ internal data class ProState(
     val locked: Boolean = true,
 ) {
     /**
-     * Buy and Restore are offered: a store build, Pro not yet owned, Family Mode off, and no success waiting on the
-     * store ([ProResult.Confirming]: a second press would only be told the store already has it).
+     * Buy and Restore are offered: a store build, Pro not yet owned, and Family Mode off. A success the store has not
+     * yet confirmed ([ProResult.Confirming]) keeps them: the store can answer late or not at all, and a second press
+     * only hears "already owned" (which grants) or finds the receipt again, so a viewer is never stranded there.
      */
     val actionable: Boolean
-        get() = offer is ProOffer.Store && !owned && !locked && result != ProResult.Confirming
+        get() = offer is ProOffer.Store && !owned && !locked
 
     /** Buy is offered: [actionable], and no purchase held (a held one waits for the store; Restore stays). */
     val canBuy: Boolean get() = actionable && !held
