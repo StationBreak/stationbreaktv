@@ -75,6 +75,7 @@ private fun recipe(
     format: FormatPromise? = null,
     animeOnly: Boolean = false,
     adultSignalOnGenreEntry: Boolean = false,
+    keepOutTitles: List<NameMatcher> = emptyList(),
     bar: QualifyingBar = QualifyingBar.Standard,
     plain: Boolean = false,
     season: Season? = null,
@@ -97,10 +98,27 @@ private fun recipe(
         ordering = OrderingMode.Curated,
         collectionHints = emptyList(),
         filters = filters,
-        theme = Theme(anchors, themeStudios, format, animeOnly, adultSignalOnGenreEntry),
+        theme = Theme(anchors, themeStudios, format, animeOnly, adultSignalOnGenreEntry, keepOutTitles),
         qualifyingBar = bar,
         season = season,
     )
+
+/**
+ * The riff-show titles The Cheap Seats anchors on, and Deep Space Drift keeps out (catalog 19, #1030). Both spellings
+ * of each show, as a server may hold it with spaces or run together.
+ */
+private val RIFF_TITLES: List<NameMatcher> =
+    listOf(
+        Contains("Mystery Science Theater"),
+        Prefix("RiffTrax"),
+        Contains("TheMadsAreBack"),
+        Contains("The Mads Are Back"),
+        Contains("TheBestOfTheMads"),
+        Contains("TotalRiffOff"),
+        Contains("Total Riff Off"),
+    )
+
+private val RIFF_ANCHORS: List<Anchor> = RIFF_TITLES.map { Anchor(AnchorKind.Title, it) }
 
 /** The British networks and studios Tea Time and Whodunit Isles share (#999). */
 private val BRITISH_STUDIOS: List<NameMatcher> =
@@ -953,9 +971,10 @@ private val genreBand: List<Recipe> =
             name = "The Cheap Seats",
             says = "Bad-movie night, with riffing on the soundtrack.",
             sources = tags("bad movie", "riffing", "riffed", "so bad it's good"),
+            // Catalog 19 (#1030): the riff shows of The Mads and Total Riff Off come in by title, whatever metadata
+            // (often none) they carry. A bare Batman title is not claimed: that would catch Batman films.
             anchors =
-                collections(Exact("Bad Movies")) + titles(Contains("Mystery Science Theater"), Prefix("RiffTrax")) +
-                    studios(Contains("RiffTrax")),
+                collections(Exact("Bad Movies")) + RIFF_ANCHORS + studios(Contains("RiffTrax")),
         ),
         recipe(
             Band.Genre,
@@ -1053,6 +1072,9 @@ private val genreBand: List<Recipe> =
                 titles(Contains("Stargate"), Contains("Babylon 5"), Contains("Farscape"), Contains("Battlestar")) +
                     collections(Contains("Stargate")),
             filters = filters(genres = listOf("Science Fiction", "Sci-Fi & Fantasy")),
+            // Catalog 19 (#1030): a riffed series is Science Fiction with a `space` tag but is not a space opera;
+            // it homes on The Cheap Seats and cannot guest here either.
+            keepOutTitles = RIFF_TITLES,
         ),
         recipe(
             Band.Genre,

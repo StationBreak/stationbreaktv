@@ -108,6 +108,10 @@ enum class FormatPromise { Films, ShortSeries }
  * signal (a decisive rating of PG-13 / TV-14 or higher; see `admits`), or reach the channel another way (one of the
  * recipe's tag sources, a theme studio or studio anchor, or an anchor). A title with no rating is not admitted through
  * the genre alone. The curation reads it; nothing else does.
+ *
+ * [keepOutTitles] (catalog 19, #1030) is curation data of the same kind: a title or film whose name one of them
+ * matches is never a candidate of the channel, so it can neither home nor guest there. It is not in any channel's
+ * rules, the rules format or a stored file.
  */
 data class Theme(
     val anchors: List<Anchor>,
@@ -115,4 +119,5 @@ data class Theme(
     val format: FormatPromise?,
     val animeOnly: Boolean,
     val adultSignalOnGenreEntry: Boolean = false,
+    val keepOutTitles: List<NameMatcher> = emptyList(),
 )
