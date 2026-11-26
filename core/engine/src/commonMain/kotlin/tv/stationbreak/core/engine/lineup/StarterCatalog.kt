@@ -153,8 +153,14 @@ object StarterCatalog : StarterCatalogView {
      * Version 21 (#1019): Couch Premiere (key `couch-premiere`, 194, General) is new: the made-for-TV movies of TMDb's
      * `TV Movie` genre, movies only, with the General exclusions (kids genres and anime) and no rating ceiling. Every
      * other entry is as it was at 20. No rules format or hold version change.
+     *
+     * Version 22 (#1020): Banners & Battlements (key `banners-and-battlements`, 276, Drama) is new: the historical
+     * epics of TMDb's `History` genre and the `ancient rome`, `roman empire`, `ancient greece`, `medieval` and `knight`
+     * tags, with Documentary kept out (a History documentary stays on Docs & Dusters), the General exclusions (kids
+     * genres and anime) and no rating ceiling. Every other entry is as it was at 21. No rules format or hold version
+     * change.
      */
-    const val VERSION = 21
+    const val VERSION = 22
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -379,8 +379,8 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 (#1019): Couch Premiere, a General channel catalog 2 never had.
-        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere"
+        // Catalog 21 (#1019) and 22 (#1020): Couch Premiere and Banners & Battlements, channels catalog 2 never had.
+        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements"
         val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
         val EXEMPT_AT_7 =
             mapOf(
