@@ -7,11 +7,13 @@ package tv.stationbreak.core.engine.lineup
  */
 object CurationTables {
     /** The version name of both tables. Later code (day inputs, the curation digest) refers to this constant. */
-    const val VERSION_NAME: String = "curation-2"
+    const val VERSION_NAME: String = "curation-3"
 
     /**
      * Studios and networks that mark an animated title as anime. A one-word name is a whole-word match, so a short
-     * name does not match inside a longer one; a name of several words is a substring match.
+     * name does not match inside a longer one; a name of several words is a substring match. "Sunrise" is an exact
+     * match (with its legal name): a longer name that starts with it, such as "Sunrise Productions", is another
+     * company.
      */
     val ANIME_STUDIOS: List<NameMatcher> =
         listOf(
@@ -21,7 +23,9 @@ object CurationTables {
             NameMatcher.Contains("Fuji TV"),
             NameMatcher.Contains("TV Tokyo"),
             NameMatcher.Word("Aniplex"),
-            NameMatcher.Word("Sunrise"),
+            NameMatcher.Exact("Sunrise"),
+            NameMatcher.Exact("Sunrise Inc."),
+            NameMatcher.Exact("Sunrise Inc"),
             NameMatcher.Contains("Toei Animation"),
             NameMatcher.Word("Madhouse"),
             NameMatcher.Contains("Production I.G"),

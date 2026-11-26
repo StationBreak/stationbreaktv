@@ -30,7 +30,7 @@ Three constraints shape the answer:
 ### 1. The model
 
 Spec 23 adds a step between "each recipe's candidate pool" and "each channel's day". It is a pure function of the
-library snapshot, the catalog, the holds and the household setting. Its version name is `curation-2` (`curation-1` before the anchor share rule, #1153)
+library snapshot, the catalog, the holds and the household setting. Its version name is `curation-3` (`curation-2` before the Sunrise match, #1032; `curation-1` before the anchor share rule, #1153)
 (`Curation.VERSION_NAME`).
 
 **A title** is a series (all its episodes together) or a film. Its **tone** is made for kids or not, adult animation or
@@ -53,6 +53,9 @@ number, never the channel's, so a viewer's renumbering never moves a home), then
 | A made-for-kids title on a kid channel | +200 |
 | The channel's format promise fits (films only; short series) | +80 |
 | The title's tone on the channel: 60 times the hours of that tone divided by the channel's candidate hours, rounded down | 0 to +60 |
+
+**The anime studio Sunrise is an exact match** (`curation-3`, #1032). "Sunrise" and its legal name "Sunrise Inc." mark an
+animated title as anime; a longer name that starts with the word, such as "Sunrise Productions", does not.
 
 **An anchor homes a title only where its channel can air a quarter of it** (`curation-2`, #1153). The anchor's +1000
 makes a channel the home only if that channel's pool holds at least 25% of the title's airable hours (the title's
