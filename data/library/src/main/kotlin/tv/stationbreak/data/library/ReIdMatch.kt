@@ -2,6 +2,7 @@
 package tv.stationbreak.data.library
 
 import tv.stationbreak.core.model.CanonicalId
+import tv.stationbreak.core.model.ProviderIdKeys
 
 /**
  * What the match reads of one item, live or gone (spec 26). [foldedName] is the name after `foldNameAscii`. The names
@@ -79,7 +80,7 @@ internal object ReIdMatch {
     private const val MOVIE = "Movie"
 
     /** The provider id keys that name one item or series; every other key is never matched. */
-    val IDENTITY_KEYS: Set<String> = setOf("imdb", "tmdb", "tvdb")
+    val IDENTITY_KEYS: Set<String> = ProviderIdKeys.ENGINE
 
     // What a gone item came to: its choice if any, and the candidates it saw when more than one fitted.
     private class Choice(

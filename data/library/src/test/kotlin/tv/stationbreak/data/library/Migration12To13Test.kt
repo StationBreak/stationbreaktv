@@ -22,6 +22,7 @@ class Migration12To13Test {
     val folder = TemporaryFolder()
 
     private val clock = FakeClock()
+    private val show = hexId(900)
 
     private fun SQLiteConnection.fill() {
         val alice = "'server-1', 'alice'"
@@ -31,12 +32,12 @@ class Migration12To13Test {
         execSQL("INSERT INTO sync_meta VALUES ($alice, 1234567, 0, 0, 0)")
         execSQL(
             "INSERT INTO series (serverId, userId, seriesId, libraryId, name, officialRating, genres, tags, " +
-                "deletedAtMs, seenFromMs, firstSeenMs, studios, providerIds) VALUES ($alice, 'show-1', " +
+                "deletedAtMs, seenFromMs, firstSeenMs, studios, providerIds) VALUES ($alice, '$show', " +
                 "'${SHOWS.value}', 'A Show', 'TV-Y7', '', '', NULL, 3000, 1000, '', 'tvdb=1')",
         )
         execSQL(
             "INSERT INTO series_version (serverId, userId, seriesId, seenFromMs, supersededAtMs, libraryId, " +
-                "officialRating, genres, tags, deletedAtMs, studios, name) VALUES ($alice, 'show-1', 1000, 3000, " +
+                "officialRating, genres, tags, deletedAtMs, studios, name) VALUES ($alice, '$show', 1000, 3000, " +
                 "'${SHOWS.value}', 'TV-Y', '', '', NULL, '', 'A Show')",
         )
     }
@@ -77,6 +78,38 @@ class Migration12To13Test {
             assertEquals(listOf(listOf<String?>("tvdb=1")), db.dump("SELECT providerIds FROM series"))
             assertEquals(listOf(listOf<String?>("TV-Y")), db.dump("SELECT officialRating FROM series_version"))
             assertEquals(listOf(listOf<String?>("13")), db.dump("PRAGMA user_version"))
+        }
+    }
+
+    // The first write after the update: the series' ids change, so the migrated empty-ids version is followed by one
+    // holding the ids the row had. Each cut-off reads the ids of the interval it falls in.
+    @Test
+    fun anIdChangeAfterTheMigrationKeepsTheIntervalsContiguousAndEachCutoffReadsItsOwnIds() {
+        val file = File(folder.root, "write-after.db")
+        SchemaFile.create(file, 12) { it.fill() }
+        val repository = migrate(file)
+        try {
+            runBlocking {
+                repository.put(ALICE, SHOWS, episodeOf(1, 900, library = SHOWS))
+                clock.stepMs(10_000)
+                repository.putSeries(ALICE, SHOWS, series(show, "TV-Y7", providerIds = mapOf("tvdb" to "2")))
+                clock.stepMs(10_000)
+
+                repository.assertSeriesIntervalsContiguous(ALICE)
+                assertEquals(listOf("", "tvdb=1"), repository.seriesVersions(ALICE).map { it.providerIds })
+
+                suspend fun idsAt(cutoffMs: Long) =
+                    repository
+                        .ruleSnapshot(ALICE, setOf(SHOWS), at(cutoffMs))
+                        .series
+                        .getValue(canon(900))
+                        .providerIds
+                assertEquals(emptyMap<String, String>(), idsAt(2_000))
+                assertEquals(mapOf("tvdb" to "1"), idsAt(4_000))
+                assertEquals(mapOf("tvdb" to "2"), idsAt(clock.nowMs))
+            }
+        } finally {
+            repository.close()
         }
     }
 

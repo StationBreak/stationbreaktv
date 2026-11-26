@@ -29,6 +29,9 @@ import kotlin.test.assertTrue
  * Explicit tier was part of their adult tier, and the one rating `kid-hold-8` moves ([MOVED_AT_8]) is held to its new
  * level. Their rows are never edited; the rows a later version supersedes ([SUPERSEDED_AT_9], [SUPERSEDED_AT_10],
  * [SUPERSEDED_AT_11], [SUPERSEDED_AT_12], [REVERSED_AT_13]) are held to their new answer.
+ *
+ * The name is the first file it read, kept so the history of the callers stays readable: it runs every vector file
+ * named above, `kid-hold-7.json` included, not `kid-hold-6.json` only.
  */
 internal object KidHold6VectorCheck {
     private val showId = idOf(0x600)

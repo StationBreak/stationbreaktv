@@ -32,7 +32,7 @@ teen). None moves a title down, and an explicit tag, an adult genre or an adult 
 4. **The bump-to-family list (#990).** `KidBumpList` in `core/engine`: a small Kotlin table of series, each with a
    one-line reason and provider ids (`tvdb`, `tmdb`, `imdb`, the keys the cache keeps). A known series with any id equal
    to an entry's is family instead of kids; its episodes follow it. The title is a comment only, never the match. The
-   list never moves a title down, so a TV-MA series carrying a listed id stays adult. An entry needs a reason, an id and
+   list never moves a title down, so a TV-MA series carrying a listed id stays adult. Matching on any one id is safe in that direction, but it can be wrong in the up direction: one id scraped wrongly (a TMDb id that belongs to another series) moves a kids series to family, a false positive that costs that series its Tots and Kids channels until the id is corrected on the server. An entry needs a reason, an id and
    a test; the test fails on an entry without an id. First entry: The Ren & Stimpy Show (1991, Nickelodeon), TVDb 76088,
    TMDb 504, IMDb tt0101178 (checked against thetvdb.com, themoviedb.org and imdb.com on 2026-11-20). `RuleSeries`
    carries `providerIds` (read from the cache's series row) so the engine can match; items do not, so movies are not
