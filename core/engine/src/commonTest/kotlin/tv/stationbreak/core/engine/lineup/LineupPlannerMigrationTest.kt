@@ -219,6 +219,7 @@ class LineupPlannerMigrationTest {
                 "smoke-filled-room",
                 "short-stack",
                 "out-and-about",
+                "festival-circuit",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +

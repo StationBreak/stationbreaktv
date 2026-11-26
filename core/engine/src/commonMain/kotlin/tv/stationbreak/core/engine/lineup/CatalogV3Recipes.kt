@@ -1223,6 +1223,18 @@ private val genreBand: List<Recipe> =
             says = "Dark comedies for people who laugh at the wrong moments.",
             sources = tags("dark comedy", "black comedy", "gallows humor"),
         ),
+        // Catalog 28 (#1024): indie films, the `Indie` genre or the `independent film` and `sundance` tags, movies
+        // only. The General exclusions (kids genres, anime) come from `recipe`; no rating ceiling, no per-starter Pro
+        // mark (ADR-0023). Typical-library-only: `Indie` is not a TMDB genre, so a thin library leaves it empty.
+        recipe(
+            Band.Genre,
+            n = 380,
+            key = "festival-circuit",
+            name = "Festival Circuit",
+            says = "Indie films that did the festival rounds and never quite left.",
+            sources = genres("Indie") + tags("independent film", "sundance"),
+            filters = filters(kind = FilterKind.Movie),
+        ),
     )
 
 private val worldBand: List<Recipe> =
