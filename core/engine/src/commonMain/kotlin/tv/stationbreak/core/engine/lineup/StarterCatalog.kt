@@ -187,8 +187,12 @@ object StarterCatalog : StarterCatalogView {
      * Version 28 (#1024): Festival Circuit (key `festival-circuit`, 380, Genre) is new: the `Indie` genre or the
      * `independent film` and `sundance` tags, movies only, the kids-genre and anime exclusions every non-plain recipe
      * carries, no rating ceiling. Every other entry is as it was at 27. No rules format or hold version change.
+     *
+     * Version 29 (#1025): Wild Hours (key `wild-hours`, 192, General) is new: the `nature`, `wildlife`, `animals` and
+     * `ocean` tags filtered to the `Documentary` genre, the kids-genre and anime exclusions every non-plain recipe
+     * carries, no rating ceiling. Every other entry is as it was at 28. No rules format or hold version change.
      */
-    const val VERSION = 28
+    const val VERSION = 29
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

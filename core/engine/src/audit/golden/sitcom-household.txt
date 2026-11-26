@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 28, curation-3, extras-1)
+LINEUP AUDIT (catalog 29, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 2045 items, 57 titles (41 series, 16 films)
@@ -77,6 +77,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   backstage-pass                178  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   190  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
+  wild-hours                    192  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   couch-premiere                194  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   short-stack                   198  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -

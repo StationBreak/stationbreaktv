@@ -731,6 +731,19 @@ private val generalBand: List<Recipe> =
                 ),
             format = FormatPromise.ShortSeries,
         ),
+        // Catalog 29 (#1025): grown-up nature documentaries. The tags are the source and the `Documentary` genre a
+        // filter on top, so a nature-tagged drama or a kids' nature show (kids genres are excluded by `recipe`) stays
+        // out. The General exclusions (kids genres, anime) come from `recipe`; no rating ceiling, no per-starter Pro
+        // mark (ADR-0023). Typical-library-only: a library without a nature shelf leaves it empty.
+        recipe(
+            Band.General,
+            n = 192,
+            key = "wild-hours",
+            name = "Wild Hours",
+            says = "Lions, glaciers and a narrator with a soothing voice.",
+            sources = tags("nature", "wildlife", "animals", "ocean"),
+            filters = filters(genres = listOf("Documentary")),
+        ),
         // Catalog 21 (#1019): TMDb's stock `TV Movie` genre, read by no other starter. Movies only; the General
         // exclusions (kids genres, anime) come from `recipe`. Like every starter it is switched on by the planner when
         // the library fills it, and switching one on is Pro (ADR-0023); there is no per-starter Pro mark.

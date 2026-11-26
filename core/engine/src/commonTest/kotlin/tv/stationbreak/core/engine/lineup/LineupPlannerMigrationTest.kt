@@ -220,6 +220,7 @@ class LineupPlannerMigrationTest {
                 "short-stack",
                 "out-and-about",
                 "festival-circuit",
+                "wild-hours",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +
