@@ -379,12 +379,19 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 to 25 (#1019, #1020, #1018, #1017, #1022): Couch Premiere,
-        // Banners & Battlements, Ink & Paint, Wrong Side, Smoke-Filled Room.
+        // Catalog 21 to 26 (#1019, #1020, #1018, #1017, #1022, #1021): Couch Premiere,
+        // Banners & Battlements, Ink & Paint, Wrong Side, Smoke-Filled Room, Short Stack.
         val NEW_SINCE_2 =
             NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint" + "wrong-side" +
-                "smoke-filled-room"
-        val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
+                "smoke-filled-room" + "short-stack"
+
+        // Catalog 26 (#1021): `Short` is an IMDb / TVDb genre, not a TMDB one; only Short Stack reads it.
+        val EXEMPT_AT_8 =
+            mapOf(
+                "starship-sunday" to setOf("Sci-Fi"),
+                "popcorn-epic" to setOf("Sci-Fi"),
+                "short-stack" to setOf("Short"),
+            )
         val EXEMPT_AT_7 =
             mapOf(
                 "starport" to setOf("Sci-Fi"),

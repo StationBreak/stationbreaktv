@@ -38,6 +38,7 @@ class CatalogGapsTest {
             "backstage-pass",
             "tokyo-after-school",
             "cartoons-after-dark",
+            "short-stack",
         )
 
     @Test
