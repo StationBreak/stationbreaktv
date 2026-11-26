@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 28, curation-3, extras-1)
+LINEUP AUDIT (catalog 29, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -14,7 +14,7 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           3
-  channels per title: 1 channels: 127 titles, 2 channels: 73 titles
+  channels per title: 1 channels: 138 titles, 2 channels: 62 titles
   titles per channel that is on:
     saturday-morning                 8
     popcorn-matinee                  8
@@ -28,7 +28,6 @@ TOTALS
     binge-row                       11
     wrong-side                      13
     big-rumble                      12
-    docs-and-dusters                11
     starport                        11
     midnight-projector               4
     cartoons-after-dark              4
@@ -88,6 +87,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   backstage-pass                178  off    TooThin       2  2t 2.00h 0a score   400 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   190  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
+  wild-hours                    192  off    TooThin       5  5t 79.00h 0a score  8400 THIN      -
   couch-premiere                194  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   short-stack                   198  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -99,7 +99,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   dead-drop                     224  off    TooThin       3  3t 4.46h 0a score   746 THIN       -
   big-rumble                    228  on(p)               12  9t 16.35h 0a score  2535           12t 22.30h 0a
   kung-fu-theater               232  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  docs-and-dusters              236  on(p)               11  11t 92.81h 0a score  9100          11t 92.81h 0a
+  docs-and-dusters              236  off    TooThin      11  6t 9.45h 0a score  1545 THIN       -
   front-lines                   240  off    TooThin       3  3t 4.84h 0a score   783 THIN       -
   dusty-trails                  244  off    TooThin       3  3t 6.77h 0a score   977 THIN       -
   noir-nights                   248  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -149,10 +149,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   laugh-track                  neon-decade                  5 titles, 72.80h
   binge-row                    wrong-side                   2 titles, 43.00h
-  neon-decade                  docs-and-dusters             3 titles, 42.95h
   neon-decade                  wrong-side                   3 titles, 41.50h
   dial-up                      starport                     2 titles, 38.83h
-  dial-up                      docs-and-dusters             1 titles, 34.00h
   dial-up                      wrong-side                   1 titles, 32.67h
   flip-phone                   starport                     1 titles, 32.00h
   laugh-track                  shag-carpet                  4 titles, 28.60h
@@ -160,16 +158,13 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   laugh-track                  binge-row                    1 titles, 11.70h
   shag-carpet                  wrong-side                   3 titles, 11.28h
   rabbit-ears                  big-rumble                   6 titles, 11.25h
-  shag-carpet                  docs-and-dusters             3 titles, 11.18h
   neon-decade                  starport                     2 titles, 9.33h
-  flip-phone                   docs-and-dusters             1 titles, 8.67h
   flip-phone                   wrong-side                   1 titles, 8.33h
   binge-row                    starport                     1 titles, 8.17h
   popcorn-matinee              rabbit-ears                  5 titles, 7.50h
   laugh-track                  flip-phone                   1 titles, 5.63h
   rabbit-ears                  starport                     3 titles, 5.30h
   rabbit-ears                  wrong-side                   3 titles, 5.30h
-  rabbit-ears                  docs-and-dusters             3 titles, 4.65h
   dial-up                      big-rumble                   2 titles, 3.72h
   shag-carpet                  big-rumble                   2 titles, 3.62h
   shag-carpet                  starport                     2 titles, 3.62h
@@ -412,29 +407,17 @@ TITLES (scores in points; a term that is zero is left out)
   000000ce Mamadar Renfafa [film, 1 items, 2.27h]
     home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000cf Perenzu Xiperen [film, 1 items, 1.53h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000d0 Xiloma Sendarma [film, 1 items, 1.55h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000d1 Bradarvel Zukyxi [film, 1 items, 1.57h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000d2 Veltordar Peveltor [film, 1 items, 1.58h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   000000d3 Torxifa Mifasen [film, 1 items, 1.60h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   000000d4 Miolol Fapequin [film, 1 items, 1.62h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   000000d5 Senzubra Masenzu [film, 1 items, 1.67h]
     home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000d6 Darquinsen Torkyky [film, 1 items, 1.68h]
@@ -648,25 +631,15 @@ TITLES (scores in points; a term that is zero is left out)
   00000029 Tormima Miolma [series, 26 items, 12.57h]
     home level-up 168.33 = specificity 33.33 genre 40.00 tag 35.00 tone 60.00
   0000002a Mibravel Fatorbra [series, 10 items, 8.00h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   0000002b Senmasen Mafator [series, 20 items, 16.33h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   0000002c Darrenfa Torxisen [series, 30 items, 25.00h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   0000002d Quinlool Lodarlo [series, 40 items, 34.00h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   0000002e Losenbra Olkyzu [series, 10 items, 8.67h]
-    home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
-    guest spots: flip-phone
+    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
   0000002f Favelsen Veltorol [series, 10 items, 7.00h]
     home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
   00000030 Zupelo Quinfape [series, 20 items, 14.33h]

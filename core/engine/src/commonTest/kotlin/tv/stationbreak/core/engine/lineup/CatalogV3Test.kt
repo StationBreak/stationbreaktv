@@ -379,12 +379,13 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 to 28 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024): Couch Premiere,
+        // Catalog 21 to 29 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024, #1025): Couch Premiere,
         // Banners & Battlements, Ink & Paint, Wrong Side, Smoke-Filled Room, Short Stack, Out & About,
-        // Festival Circuit.
+        // Festival Circuit, Wild Hours.
         val NEW_SINCE_2 =
             NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint" + "wrong-side" +
-                "smoke-filled-room" + "short-stack" + "out-and-about" + "festival-circuit"
+                "smoke-filled-room" + "short-stack" + "out-and-about" + "festival-circuit" +
+                "wild-hours"
 
         // Catalog 26 (#1021), 28 (#1024): `Short` and `Indie` are IMDb / TVDb genres, not TMDB ones; only Short Stack
         // and Festival Circuit read them.
