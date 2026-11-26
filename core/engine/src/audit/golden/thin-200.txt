@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 26, curation-3, extras-1)
+LINEUP AUDIT (catalog 27, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
@@ -109,6 +109,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   disaster-zone                 264  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   smoke-filled-room             272  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   banners-and-battlements       276  off    TooThin       2  2t 2.26h 0a score   425 THIN       -
+  out-and-about                 284  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   starport                      304  on(p)               11  11t 89.56h 0a score  9100          11t 89.56h 0a
   dragons-and-doorways          308  off    TooThin       8  3t 34.00h 0a score  3700 THIN      -
   rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -

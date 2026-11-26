@@ -93,40 +93,40 @@ internal class SelectionRepairEqualityTest {
             mapOf(
                 "catalog: untick the 250-item library, days laid out" to
                     listOf(
-                        "bc404e9792a4b92d8b9e45d2ed4a22801fc56a00228e48aacbde76b30e121ff8",
+                        "f35e97825fab049a660ee9b3179aa2da9fb13866e30f32e4a61b4949931192d3",
                     ),
                 "catalog: untick the 250-item library, days not laid out" to
                     listOf(
-                        "bc404e9792a4b92d8b9e45d2ed4a22801fc56a00228e48aacbde76b30e121ff8",
+                        "f35e97825fab049a660ee9b3179aa2da9fb13866e30f32e4a61b4949931192d3",
                     ),
                 "catalog: second untick on repaired days" to
                     listOf(
-                        "bc404e9792a4b92d8b9e45d2ed4a22801fc56a00228e48aacbde76b30e121ff8",
-                        "4819683b3777c2853aa9c308f8fd7474db4a8f29c1ed6369d56940d21d690f84",
+                        "f35e97825fab049a660ee9b3179aa2da9fb13866e30f32e4a61b4949931192d3",
+                        "98ecb9ebad876d0f4a568b6d0f009d22c48e2c80ead31a5335bc99f9dc89f393",
                     ),
                 "catalog: untick right after an add" to
                     listOf(
-                        "8d86c284fef5ab448a4571047c9c7f40fe1b3ae5f75af770f099f88fbed79820",
+                        "0f48486102b5fc39ded2667a6cb131ab1d282383866164ef9e3eed2fc791b451",
                     ),
                 "catalog: untick the one-genre library" to
                     listOf(
-                        "f63c969579f9aa8a5bcd88d0c9ea47042ddf17d426e5b332577fc8c702909602",
+                        "50d2adf7fa36d3553a5edae6d1e2ec97dc8200d862f5742485c27bfbc8cb318d",
                     ),
                 "catalog: untick the biggest library, whose series another shares" to
                     listOf(
-                        "1739f878ef1442580ea53fb4752271a9710803107cddbcbc3487db3474d253a4",
+                        "2bb0bc9c1ae53c93d07679cbe7bfd712af72221ea2da2cf40551580d821918bb",
                     ),
                 "catalog: untick the library that shares a series" to
                     listOf(
-                        "a34a4c89fd1363de265f03f3259a1b73dcd4dff8a90c3eadb0be96d6d3b20dd4",
+                        "11d7aab5cead8399ca24dc2d49f7a7ffe0201da7166f731471d89c4dd09936ea",
                     ),
                 "catalog: an add that lands with a remove" to
                     listOf(
-                        "61d297e9b01da8a621ef7e9557915cba5c66ebc10d1b7f84f20781b520e96ef1",
+                        "06c5c397dee58273b2431ccf74d1315e498bca26bc74cb8ac3e7fcad45a0d185",
                     ),
                 "catalog: tiny libraries, untick two at once" to
                     listOf(
-                        "efc7e383e63d42652168cf9eff9d99bce09b48e338d4d4ab18fc6ee8dde26f80",
+                        "6a2c3601f239ad7e949a6be06dd89aaa4b97191063c6874a4e7ef17b58ee0016",
                     ),
                 "hand: no extras filter, untick the 50-item library" to
                     listOf(
