@@ -6,7 +6,10 @@ import tv.stationbreak.core.engine.KidHold
 import tv.stationbreak.core.engine.LIB
 import tv.stationbreak.core.engine.PoolEvaluator
 import tv.stationbreak.core.engine.PoolPolicy
+import tv.stationbreak.core.engine.RatingMap
 import tv.stationbreak.core.engine.RatingTier
+import tv.stationbreak.core.engine.idOf
+import tv.stationbreak.core.engine.movie
 import tv.stationbreak.core.engine.rules
 import tv.stationbreak.core.engine.snapshot
 import tv.stationbreak.core.model.RuleItem
@@ -167,6 +170,45 @@ class RatingSafetyLeakTest {
             }
             if (entry.item.seriesId == null) {
                 assertTrue(RatingTier.of(entry.copy(officialRating = null), null) >= RatingTier.Adult, "$entry")
+            }
+        }
+    }
+
+    // #1006: with the series' rating taken away the episode's own rating decides (`EpisodeRating.decisive`). It must
+    // still be read like any rating, and an episode reaches Kids only on a kid rating of its own.
+    @Test
+    fun anEpisodeWhoseSeriesLostItsRatingIsDecidedByItsOwnAndNeverLeaksToKids() {
+        var checked = 0
+        for (entry in library.items.filter { it.item.seriesId != null }) {
+            val series = seriesOf(entry)?.copy(officialRating = null) ?: continue
+            checked++
+            assertEquals(RatingMap.levelOf(entry.officialRating), RatingTier.decisiveLevel(entry, series), "$entry")
+            if (RatingTier.of(entry, series) == RatingTier.Kids) {
+                assertTrue((RatingMap.levelOf(entry.officialRating) ?: Int.MAX_VALUE) <= 1, "$entry")
+            }
+        }
+        assertTrue(checked > 1_000, "episodes checked: $checked")
+    }
+
+    // #1006: a lowercase, en-dash or trailing-space spelling of a kid rating is never more lenient than the plain
+    // spelling: no title reaches Kids on a spelling that the plain one would keep out. It may be stricter: the
+    // animated-family signal reads `TV\u2013Y` through RatingLadder.normalise, which takes no en dash, so an Animation
+    // and Family title so rated stays Family (the safe side; reported on #1006, not changed here).
+    @Test
+    fun aKidRatingInLowercaseEnDashOrTrailingSpaceTiersNeverMoreLenientThanItsPlainSpelling() {
+        val spellings = mapOf("tv-y7" to "TV-Y7", "TV\u2013Y" to "TV-Y", "G " to "G")
+        for ((odd, plain) in spellings) {
+            for (tags in SyntheticLibrary.TAG_SETS) {
+                for (genres in SyntheticLibrary.GENRE_SETS) {
+                    for (studios in SyntheticLibrary.STUDIO_SETS) {
+                        fun tier(rating: String) =
+                            RatingTier.of(
+                                movie(idOf(1), rating = rating, genres = genres, tags = tags, studios = studios),
+                                null,
+                            )
+                        assertTrue(tier(odd) >= tier(plain), "$odd $tags $genres $studios")
+                    }
+                }
             }
         }
     }
