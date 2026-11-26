@@ -629,8 +629,8 @@ class LaunchNavigationTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitExists(GuideTags.SETTINGS_LIBRARIES)
 
-        // Past Screen fit, When changing channel, Even out volume, Kids Mode and Hours of operation (a debug build
-        // has Pro) is the Libraries row; Select shows the Libraries screen over the guide.
+        // Past Screen fit, When changing channel, Even out volume, Family Mode, its Cap row and Hours of operation (a
+        // debug build has Pro) is the Libraries row; Select shows the Libraries screen over the guide.
         repeat(ROWS_TO_LIBRARIES) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
         compose.onNodeWithTag(GuideTags.SETTINGS_LIBRARIES).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -906,9 +906,9 @@ class LaunchNavigationTest {
     private companion object {
         const val TIMEOUT_MS = 10_000L
 
-        // Down presses from Appearance to Libraries: Screen fit, When changing channel, Even out volume, Kids Mode,
-        // Hours of operation (there with Pro, which a debug build has), then it.
-        const val ROWS_TO_LIBRARIES = 6
+        // Down presses from Appearance to Libraries: Screen fit, When changing channel, Even out volume, Family Mode,
+        // its Cap row, Hours of operation (there with Pro, which a debug build has), then it.
+        const val ROWS_TO_LIBRARIES = 7
 
         // Update library to Sign out: at most the one Pro row between them.
         const val MAX_ROWS_TO_SIGN_OUT = 2

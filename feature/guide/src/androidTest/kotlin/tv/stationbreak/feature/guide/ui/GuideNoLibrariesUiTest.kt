@@ -498,9 +498,10 @@ class GuideNoLibrariesUiTest {
         const val TIMEOUT_MS = 5_000L
 
         // Down presses from Appearance: to Even out volume (Screen fit, When changing channel, it), and to Libraries
-        // (past Kids Mode; Hours of operation is on the sheet only with Pro, which this guide does not have).
+        // (past Family Mode and its Cap row; Hours of operation is on the sheet only with Pro, which this guide does
+        // not have).
         const val ROWS_TO_LEVELLING = 3
-        const val ROWS_TO_LIBRARIES = 5
+        const val ROWS_TO_LIBRARIES = 6
         val HOLE = ScreenLayout.pictureRect(ScreenLayout.safeArea(DpSize(WIDTH_DP.dp, HEIGHT_DP.dp)))
     }
 }

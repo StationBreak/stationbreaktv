@@ -102,6 +102,9 @@ object GuideTags {
 
     /** The Kids Mode row (#789) and the Change PIN row of the Settings sheet. */
     const val SETTINGS_KIDS_MODE = "guide:settings:kidsMode"
+
+    /** The Cap row of the Settings sheet (#1151): Tots, Kids or Teens under Family Mode. */
+    const val SETTINGS_KIDS_CAP = "guide:settings:kidsCap"
     const val SETTINGS_CHANGE_PIN = "guide:settings:changePin"
 
     /** The Hours of operation row (#789, Pro) of the Settings sheet. */
@@ -166,8 +169,7 @@ object GuideTags {
             SettingsRow.ScreenFit -> SETTINGS_SCREEN_FIT
             SettingsRow.ChannelChange -> SETTINGS_CHANNEL_CHANGE
             SettingsRow.VolumeLevelling -> SETTINGS_LEVELLING
-            SettingsRow.KidsMode -> SETTINGS_KIDS_MODE
-            SettingsRow.ChangePin -> SETTINGS_CHANGE_PIN
+            SettingsRow.KidsMode, SettingsRow.KidsCap, SettingsRow.ChangePin -> familyRowTag(row)
             SettingsRow.Hours -> SETTINGS_HOURS
             SettingsRow.Pro -> SETTINGS_PRO
             SettingsRow.Libraries -> SETTINGS_LIBRARIES
@@ -225,3 +227,11 @@ object GuideTags {
     /** The channel mark in the plate of [channel]. */
     fun channelMark(channel: ChannelId) = "guide:channelMark:${channel.value}"
 }
+
+// The Family Mode section's own rows, apart so that settingsRow stays under the complexity limit.
+private fun familyRowTag(row: SettingsRow): String =
+    when (row) {
+        SettingsRow.KidsMode -> GuideTags.SETTINGS_KIDS_MODE
+        SettingsRow.KidsCap -> GuideTags.SETTINGS_KIDS_CAP
+        else -> GuideTags.SETTINGS_CHANGE_PIN
+    }

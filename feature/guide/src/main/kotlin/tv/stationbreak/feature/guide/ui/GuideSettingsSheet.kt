@@ -166,7 +166,7 @@ private fun spokenOf(
     help: SettingsHelp?,
 ): String {
     val label = stringResource(row.labelFor(values))
-    val value = valueText(row, values, spoken = true)
+    val value = valueText(row, values)
     val locked = stringResource(R.string.guide_kids_locked).takeIf { row.isInert(values) }
     val said = locked ?: status?.takeIf { row == SettingsRow.SyncNow } ?: value
     val explainer = help?.takeUnless { it.locked }?.let { helpText(it) }
@@ -217,11 +217,14 @@ private fun SettingsLine(
     values: SettingsValues,
     focused: Boolean,
 ) {
+    if (row == SettingsRow.KidsCap) {
+        KidsCapLine(values, focused, Modifier.heightIn(min = RowMinHeight).scrollIntoViewWhen(focused))
+        return
+    }
     val colors = LocalPanelColors.current
     val label = stringResource(row.labelFor(values))
     val choice = choiceShown(row, values)
     val value = valueText(row, values)
-    val spokenValue = valueText(row, values, spoken = true)
     val inert = row.isInert(values)
     val lockedText = stringResource(R.string.guide_kids_locked)
     Row(
@@ -248,7 +251,7 @@ private fun SettingsLine(
 
                     else -> {
                         role = Role.Button
-                        spokenValue?.let { stateDescription = it }
+                        value?.let { stateDescription = it }
                     }
                 }
                 selected = focused

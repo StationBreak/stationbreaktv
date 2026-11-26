@@ -62,12 +62,18 @@ class GuideSettingsHelpUiTest {
     }
 
     @Test
-    fun familyModeShowsTheCapChosen_andNothingUntilTheLockIsRead() {
+    fun familyModeSaysItsOwnLine_andTheCapRowSaysTheChannelsOfTheCapChosen() {
         val kids = SettingsValues(kidsPinSet = true, kidsCap = KidsCap.Family)
         show { GuideSettingsSheet(kids, SettingsRow.KidsMode, SyncNowState.Idle) }
+        well().assertTextEquals("Keeps this TV to the channels of its cap. Turning it off needs your PIN.")
+    }
+
+    @Test
+    fun theCapRowSaysWhichChannelsTheCapKeeps_andThatChangingItNeedsThePin() {
+        val kids = SettingsValues(kidsPinSet = true, kidsCap = KidsCap.Family)
+        show { GuideSettingsSheet(kids, SettingsRow.KidsCap, SyncNowState.Idle) }
         well().assertTextEquals(
-            "Channels 1 to 66: Tots and Kids. Keeps this TV to those channels. " +
-                "Changing it, or turning it off, needs your PIN.",
+            "Channels 1 to 66: Tots and Kids. Changing the cap while Family Mode is on needs your PIN.",
         )
     }
 

@@ -9,6 +9,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Text
+import tv.stationbreak.core.domain.kids.KidsCap
+import tv.stationbreak.core.ui.CapRow
 import tv.stationbreak.core.ui.LocalPanelColors
 import tv.stationbreak.core.ui.SheetMeasures
 import tv.stationbreak.core.ui.guideProse
@@ -18,31 +20,20 @@ import tv.stationbreak.feature.guide.R
 // The Settings sheet's Kids Mode pieces (#789), apart from GuideSettingsSheet.kt: a row's words, Kids Mode's value and
 // the line under a row that Kids Mode has switched off.
 
-// What a row shows on its right as words: a choice's value, or Kids Mode's On or Off with its cap. [spoken] is the
-// screen reader's way of saying it (no middle dot).
+// What a row shows on its right as words: a choice's value, Family Mode's On or Off (a dash until the stored lock has
+// been read) or the Cap row's word.
 @Composable
 internal fun valueText(
     row: SettingsRow,
     values: SettingsValues,
-    spoken: Boolean = false,
 ): String? =
-    if (row == SettingsRow.KidsMode) {
-        kidsModeText(values, spoken)
-    } else {
-        choiceShown(row, values)?.let { stringResource(it.value) }
+    when {
+        row == SettingsRow.KidsMode && !values.kidsKnown -> stringResource(R.string.guide_kids_unknown)
+        row == SettingsRow.KidsCap -> if (values.kidsKnown) stringResource(kidsCapWords(values.kidsCap)) else null
+        else -> choiceShown(row, values)?.let { stringResource(it.value) }
     }
 
-// Kids Mode's value: On or Off with the cap, or a dash until the stored lock has been read.
-@Composable
-private fun kidsModeText(
-    values: SettingsValues,
-    spoken: Boolean,
-): String {
-    val shown = kidsModeShown(values, spoken)
-    return shown.cap?.let { stringResource(shown.format, stringResource(it)) } ?: stringResource(shown.format)
-}
-
-// Kids Mode's value, On or Off, in a choice's words but with no dots: OK opens or turns it, it does not step it.
+// Family Mode's value as a dash, until the stored lock has been read: a choice's words, with no dots (nothing to step).
 @Composable
 internal fun KidsValue(value: String) {
     Text(
@@ -51,6 +42,26 @@ internal fun KidsValue(value: String) {
         style = guideText(SheetMeasures.BodySize, FontWeight.Medium),
         color = LocalPanelColors.current.secondary,
         maxLines = 1,
+    )
+}
+
+// The Cap row (#1151): the shared segmented row, Tots | Kids | Teens, with all three words showing. Until the stored
+// lock has been read it is dimmed and none is chosen, as Family Mode's value is a dash then.
+@Composable
+internal fun KidsCapLine(
+    values: SettingsValues,
+    focused: Boolean,
+    modifier: Modifier,
+) {
+    CapRow(
+        label = stringResource(SettingsRow.KidsCap.label),
+        options = KidsCap.entries.map { stringResource(kidsCapWords(it)) },
+        selected = KidsCap.entries.indexOf(values.kidsCap).takeIf { values.kidsKnown },
+        focused = focused,
+        enabled = values.kidsKnown,
+        tag = GuideTags.settingsRow(SettingsRow.KidsCap),
+        modifier = modifier,
+        horizontalPadding = SheetMeasures.RowTextPadding,
     )
 }
 

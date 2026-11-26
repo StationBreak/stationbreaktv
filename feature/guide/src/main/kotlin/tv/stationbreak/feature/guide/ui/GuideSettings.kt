@@ -47,10 +47,18 @@ internal enum class SettingsRow(
     VolumeLevelling(RowKind.Choice, R.string.guide_settings_levelling),
 
     /**
-     * Kids Mode (#789): on shows PIN entry to turn it off; off asks for a first PIN, or with one set turns it on at
-     * once. Its value is On or Off with its cap; Left and Right move the cap (#993).
+     * Family Mode (#789): on shows PIN entry to turn it off; off asks for a first PIN, or with one set turns it on at
+     * once. Its value is On or Off and nothing else (#1151); Left and Right step it and OK does what the hint says.
      */
     KidsMode(RowKind.Action, R.string.guide_settings_kids_mode),
+
+    /**
+     * How far up the channel numbers Family Mode reaches: Tots, Kids or Teens (#993, #1151), a segmented row of its own
+     * under Family Mode with all three words showing. Left and Right move it and OK goes round, with the lock off at
+     * once and with it on through the PIN pad. It stays on the sheet, and focusable, with the lock off, so the cap can
+     * be set before turning it on.
+     */
+    KidsCap(RowKind.Choice, R.string.guide_settings_kids_cap),
 
     /** Changes the PIN: the old one, a new one, the new one again. Shown only with a PIN set and Kids Mode off. */
     ChangePin(RowKind.Action, R.string.guide_settings_change_pin),
@@ -138,7 +146,7 @@ internal enum class SettingsGroup(
     Playback(R.string.guide_settings_group_playback, listOf(SettingsRow.ChannelChange, SettingsRow.VolumeLevelling)),
     Kids(
         R.string.guide_settings_group_kids,
-        listOf(SettingsRow.KidsMode, SettingsRow.ChangePin, SettingsRow.Hours),
+        listOf(SettingsRow.KidsMode, SettingsRow.KidsCap, SettingsRow.ChangePin, SettingsRow.Hours),
     ),
     Library(R.string.guide_settings_group_library, listOf(SettingsRow.Libraries, SettingsRow.SyncNow)),
     Account(R.string.guide_settings_group_account, listOf(SettingsRow.Pro, SettingsRow.SignOut)),
@@ -158,7 +166,7 @@ internal data class SettingsValues(
     val kidsOn: Boolean = false,
     /** A Kids Mode PIN is set. */
     val kidsPinSet: Boolean = false,
-    /** How far up the channel numbers Kids Mode reaches (#993): shown on the Kids Mode row, Left and Right move it. */
+    /** How far up the channel numbers Family Mode reaches (#993): its own row (#1151), Left and Right move it. */
     val kidsCap: KidsCap = KidsCap.DEFAULT,
     /** The stored lock has been read; until then [kidsOn] is true (closed) and only the row's words say unknown. */
     val kidsKnown: Boolean = true,
@@ -216,7 +224,7 @@ internal data class SettingsStep(
     val syncNow: Boolean = false,
     /** Select on Kids Mode with a PIN set and the lock off: turn it on. */
     val kidsEnable: Boolean = false,
-    /** Left or Right on Kids Mode while it is off: the cap to store, with no PIN (#993). While on, the PIN pad asks. */
+    /** A move on the Cap row with Family Mode off: the cap to store, with no PIN (#993). While on, the pad asks. */
     val kidsCap: KidsCap? = null,
     /** What the PIN pad has finished and asks the lock for. */
     val pinSubmit: PinSubmit? = null,
@@ -300,9 +308,10 @@ internal enum class Change(
  * stopping at the ends, and OK moves it on to the next value, round to the first after the last: a choice never closes
  * the sheet. OK on Libraries shows the Libraries screen, on Update library asks for an update and keeps the sheet open
  * (the line under the row says how it goes), and on Sign out shows the sign-out question. OK on Kids Mode and Change
- * PIN opens the PIN pad (Kids Mode on with a PIN set and off turns it on at once); Left and Right on Kids Mode move
- * its cap, Kids, Family, Teen (no wrap), at once while it is off and through the PIN pad while it is on, and do
- * nothing until the lock has been read; with Kids Mode on, OK on Libraries,
+ * PIN opens the PIN pad (Kids Mode on with a PIN set and off turns it on at once); Right on Kids Mode asks to turn it
+ * on and Left to turn it off, as OK does (a key toward the state it is in does nothing); on the Cap row Left and Right
+ * move the cap, Tots, Kids, Teens (no wrap) and OK goes round, at once while the lock is off and through the PIN pad
+ * while it is on, and all do nothing until the lock has been read; with Kids Mode on, OK on Libraries,
  * Update library and Sign out does nothing. Back closes the sheet, as the guide's own Back does. While a screen shows
  * over it, every key is kept and does nothing: that screen has the keys; so do the PIN pad ([pinKey]) and the PIN's
  * reset ([resetKey]) and the hours screen ([hoursKey]).
@@ -379,7 +388,7 @@ private fun SettingsPanel.selectedRow(values: SettingsValues): SettingsStep =
     }
 
 // OK on Kids Mode: on asks for the PIN to turn it off, off with a PIN turns it on at once, off without one asks for it.
-private fun SettingsPanel.kidsModeStep(values: SettingsValues): SettingsStep =
+internal fun SettingsPanel.kidsModeStep(values: SettingsValues): SettingsStep =
     when {
         values.kidsOn -> SettingsStep(copy(pin = PinEntry.start(PinPurpose.TurnOff)))
         values.kidsPinSet -> SettingsStep(this, kidsEnable = true)

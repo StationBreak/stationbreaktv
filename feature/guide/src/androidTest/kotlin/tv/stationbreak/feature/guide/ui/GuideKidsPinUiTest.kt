@@ -76,15 +76,33 @@ class GuideKidsPinUiTest {
     }
 
     @Test
-    fun theKidsModeRowShowsItsCap_andSaysItAloud() {
+    fun familyModeShowsOnOrOffOnly_andSaysItAloud() {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true, kidsCap = KidsCap.Family)
         show { GuideSettingsSheet(on, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Kids")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On")
         compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals(
-            "Family Mode, On, up to Kids. Channels 1 to 66: Tots and Kids. Only these channels play. " +
+            "Family Mode, On. Only the channels of its cap play. " +
                 "Everything above stays hidden until the PIN turns Family Mode off.",
         )
+    }
+
+    @Test
+    fun theCapRowShowsAllThreeWords_withTheCapChosen_andSaysItAloud() {
+        val on = SettingsValues(kidsOn = true, kidsPinSet = true, kidsCap = KidsCap.Family)
+        show { GuideSettingsSheet(on, SettingsRow.KidsCap, tv.stationbreak.core.domain.SyncNowState.Idle) }
+        val cap = compose.onNodeWithTag(GuideTags.settingsRow(SettingsRow.KidsCap))
+        cap.assertTextEquals("Cap", "Tots", "Kids", "Teens").assertIsSelected()
+        compose.onNodeWithTag(GuideTags.SETTINGS_SHEET).assertContentDescriptionEquals(
+            "Cap, Kids. Channels 1 to 66: Tots and Kids. Changing the cap while Family Mode is on needs your PIN.",
+        )
+    }
+
+    @Test
+    fun theCapRowStaysOnTheSheetWithTheLockOff_soTheCapCanBeSetFirst() {
+        val idle = tv.stationbreak.core.domain.SyncNowState.Idle
+        show { GuideSettingsSheet(SettingsValues(), SettingsRow.KidsMode, idle) }
+        compose.onNodeWithTag(GuideTags.settingsRow(SettingsRow.KidsCap)).assertExists().assertIsNotSelected()
     }
 
     @Test
@@ -142,7 +160,7 @@ class GuideKidsPinUiTest {
         val on = SettingsValues(kidsOn = true, kidsPinSet = true)
         show { GuideSettingsSheet(on, SettingsRow.Libraries, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On \u00b7 up to Tots")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("On")
         for (row in listOf(SettingsRow.Libraries, SettingsRow.SyncNow, SettingsRow.SignOut)) {
             compose
                 .onNodeWithTag(GuideTags.settingsRow(row))
@@ -160,7 +178,7 @@ class GuideKidsPinUiTest {
         val off = SettingsValues(kidsPinSet = true)
         show { GuideSettingsSheet(off, SettingsRow.KidsMode, tv.stationbreak.core.domain.SyncNowState.Idle) }
         val kidsValue = GuideTags.settingsValue(SettingsRow.KidsMode)
-        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off \u00b7 Tots")
+        compose.onNodeWithTag(kidsValue, useUnmergedTree = true).assertTextEquals("Off")
         compose.onNodeWithTag(GuideTags.SETTINGS_CHANGE_PIN).assertIsNotSelected()
         compose.onNodeWithTag(GuideTags.settingsLocked(SettingsRow.Libraries)).assertDoesNotExist()
     }
