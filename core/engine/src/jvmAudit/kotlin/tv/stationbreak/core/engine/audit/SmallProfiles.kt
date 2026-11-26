@@ -171,6 +171,20 @@ internal object AnimeViewer {
         b.shows(6, anime, "TV-14", 24, mecha, seasons = 1, episodes = 26, firstYear = 1995)
         b.shows(6, anime, "TV-14", 23, listOf("anime", "shonen"), episodes = 24, firstYear = 2010)
         b.films(14, anime + "Fantasy", "PG", 105, listOf("anime"), 1998)
+        // The family-anime shelf (catalog 18, #1031): films a studio or a `family anime` tag marks, as a real anime
+        // viewer's library has.
+        repeat(14) {
+            val spec =
+                TitleSpec(
+                    anime + "Fantasy",
+                    listOf("anime", "family anime"),
+                    listOf("Studio Ghibli"),
+                    "PG",
+                    95 + it % 4 * 7,
+                    1999 + it,
+                )
+            b.film(spec)
+        }
         b.shows(6, listOf("Animation"), "TV-PG", 22, episodes = 13, firstYear = 2005)
         b.shows(8, listOf("Drama"), "TV-14", 44, firstYear = 2010)
         val description = "An anime viewer: series, mecha, shonen and films, with a little else"
