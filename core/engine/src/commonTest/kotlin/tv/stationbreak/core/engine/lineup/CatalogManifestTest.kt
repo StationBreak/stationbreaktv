@@ -617,7 +617,7 @@ class CatalogManifestTest {
         assertTrue(problems(catalog(dropped, version = 26)).isNotEmpty(), "dropped without retiring")
         val keyOnly = catalog(dropped, version = 25, retiredKeys = setOf(first.key))
         assertTrue(problems(keyOnly).isNotEmpty(), "retired without its number")
-        val retired = catalog(dropped, 25, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
+        val retired = catalog(dropped, 26, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
         assertEquals(emptyList(), problems(retired))
 
         val noLeftovers = StarterCatalog.leftovers.filter { it.number != 199 }
