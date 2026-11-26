@@ -743,6 +743,19 @@ private val generalBand: List<Recipe> =
             sources = genres("TV Movie"),
             filters = filters(kind = FilterKind.Movie),
         ),
+        // Catalog 26 (#1021): short films, the `Short` genre or the `short film` tag, movies under 40 minutes. The
+        // General exclusions (kids genres, anime) come from `recipe`. Niche bar (a thin lane), no rating ceiling, no
+        // per-starter Pro mark (ADR-0023).
+        recipe(
+            Band.General,
+            n = 198,
+            key = "short-stack",
+            name = "Short Stack",
+            says = "Short films, back to back, none long enough for a nap.",
+            sources = genres("Short") + tags("short film"),
+            filters = filters(kind = FilterKind.Movie, maxRuntime = 40),
+            bar = QualifyingBar.Niche,
+        ),
     )
 
 private val dramaBand: List<Recipe> =

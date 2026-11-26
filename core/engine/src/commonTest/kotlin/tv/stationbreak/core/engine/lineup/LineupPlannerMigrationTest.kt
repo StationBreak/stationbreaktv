@@ -217,6 +217,7 @@ class LineupPlannerMigrationTest {
                 "ink-and-paint",
                 "wrong-side",
                 "smoke-filled-room",
+                "short-stack",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +

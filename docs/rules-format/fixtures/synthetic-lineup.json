@@ -1,7 +1,7 @@
 {
   "description": "A published reference fixture for implementers of the rules format (docs/rules-format.md, \"Verify your client\"). A synthetic library (versions.generator; nothing real) is given to the lineup planner at first setup, and the days of every switched-on channel are built from the lineup it plans. snapshot is the planner's input: items, series and collections as the engine reads them; the library's other kinds (videos, music videos) and every item with no runtime are left out, as the app's own snapshot leaves them out. lineup is what the planner chose: per channel its id, number, source, state and seed (decimal text), and for a starter or custom channel its rules in the exact text RulesWriter writes. A leftovers channel has no rules: its pool is the engine's, from the other channels. days[i] is the broadcast day i of every switched-on channel: the day that holds inputs.nowMs is day 0. A channel's blocks tile [epochStartMs, epochEndMs) and are half-open; a block is {startMs, endMs, itemId, mediaStartOffsetMs} for a program or {startMs, endMs, slate: true}. Every millisecond count is decimal text. A mismatch of versions (catalog, kid hold, grown-up hold, curation) means the files are not comparable.",
   "fixtureFormat": 1,
-  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 25, "rulesFormat": 5, "kidHold": "kid-hold-13", "grownUpHold": "grown-up-hold-13", "curation": "curation-3", "extras": "extras-1"},
+  "versions": {"generator": "SyntheticLibrary size 3000 seed 0", "catalog": 26, "rulesFormat": 5, "kidHold": "kid-hold-13", "grownUpHold": "grown-up-hold-13", "curation": "curation-3", "extras": "extras-1"},
   "inputs": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
@@ -9,7 +9,7 @@
     "standardOffsetMinutes": 0,
     "nowMs": "1792411200000",
     "days": 3,
-    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 25}
+    "planner": {"current": null, "useMyCollections": true, "withoutCollections": false, "kept": [], "catalog": 26}
   },
   "snapshot": {
     "libraryId": "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
@@ -2630,7 +2630,7 @@
   "lineup": {
     "serverId": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0",
     "userId": "b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0",
-    "catalogVersion": 25,
+    "catalogVersion": 26,
     "utcOffsetMinutes": 0,
     "finalised": true,
     "useMyCollections": true,
@@ -3216,6 +3216,17 @@
         "onSinceMs": "1792411200000",
         "seed": "15510248971699574990",
         "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Couch Premiere\",\n  \"seed\": \"15510248971699574990\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"TV Movie\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"kind\": \"movie\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
+        "previousRules": null
+      },
+      {
+        "id": "starter:short-stack",
+        "number": 198,
+        "source": {"kind": "starter", "recipeKey": "short-stack", "edited": false},
+        "state": "Shelf",
+        "shelfReason": "Empty",
+        "onSinceMs": "1792411200000",
+        "seed": "15242250532200534523",
+        "rules": "{\n  \"formatVersion\": 5,\n  \"name\": \"Short Stack\",\n  \"seed\": \"15242250532200534523\",\n  \"sources\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Short\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"short film\"\n    }\n  ],\n  \"exclusions\": [\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children's\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Children’s\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Childrens\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kids\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Kid\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Preschool\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Pre-school\"\n    },\n    {\n      \"type\": \"genre\",\n      \"name\": \"Anime\"\n    },\n    {\n      \"type\": \"tag\",\n      \"name\": \"anime\"\n    }\n  ],\n  \"ordering\": {\n    \"mode\": \"curated\"\n  },\n  \"filters\": {\n    \"runtime\": {\n      \"maxMinutes\": 40\n    },\n    \"kind\": \"movie\"\n  },\n  \"timing\": {\n    \"alignToGrid\": false,\n    \"broadcastDay\": {\n      \"utcOffsetMinutes\": 0,\n      \"start\": \"06:00\"\n    }\n  }\n}\n",
         "previousRules": null
       },
       {

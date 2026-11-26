@@ -174,8 +174,12 @@ object StarterCatalog : StarterCatalogView {
      * `politics`, `political thriller`, `president`, `election` and `white house` tags (no genre source), never a
      * Documentary, the kids-genre and anime exclusions every non-plain recipe carries, no rating ceiling. Every other
      * entry is as it was at 24. No rules format or hold version change.
+     *
+     * Version 26 (#1021): Short Stack (key `short-stack`, 198, General) is new: the `Short` genre or the `short film`
+     * tag, movies of at most 40 minutes, the kids-genre and anime exclusions every non-plain recipe carries, the Niche
+     * qualifying bar, no rating ceiling. Every other entry is as it was at 25. No rules format or hold version change.
      */
-    const val VERSION = 25
+    const val VERSION = 26
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
