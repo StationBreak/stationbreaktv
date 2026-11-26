@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 23, curation-3, extras-1)
+LINEUP AUDIT (catalog 24, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -14,7 +14,7 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 787 titles, 2 channels: 1016 titles, 3 channels: 97 titles
+  channels per title: 1 channels: 787 titles, 2 channels: 990 titles, 3 channels: 123 titles
   titles per channel that is on:
     saturday-morning                83
     popcorn-matinee                 80
@@ -34,7 +34,8 @@ TOTALS
     matinee-tears                   12
     date-night                      50
     backstage-pass                  20
-    cold-case-cable                183
+    cold-case-cable                 79
+    wrong-side                     130
     dead-drop                       30
     big-rumble                     120
     docs-and-dusters               110
@@ -107,7 +108,8 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   satire-desk                   190  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
   couch-premiere                194  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  cold-case-cable               208  on(p)              183  182t 1640.57h 0a score 11000       183t 1658.17h 0a
+  cold-case-cable               208  on(p)              183  52t 94.22h 0a score 11000          53t 111.82h 0a
+  wrong-side                    210  on(p)              130  130t 1546.35h 0a score 11000       130t 1546.35h 0a
   order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   silver-screen                 220  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -160,15 +162,15 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   laugh-track                  neon-decade                  26 titles, 377.22h
-  neon-decade                  cold-case-cable              32 titles, 362.90h
-  flip-phone                   cold-case-cable              28 titles, 338.03h
+  neon-decade                  wrong-side                   25 titles, 350.07h
   laugh-track                  dial-up                      21 titles, 330.85h
   laugh-track                  binge-row                    23 titles, 319.80h
-  dial-up                      cold-case-cable              28 titles, 307.60h
+  flip-phone                   wrong-side                   22 titles, 311.35h
   dial-up                      starport                     20 titles, 304.60h
   laugh-track                  flip-phone                   20 titles, 293.15h
+  dial-up                      wrong-side                   20 titles, 292.93h
   flip-phone                   dragons-and-doorways         18 titles, 286.75h
-  binge-row                    cold-case-cable              25 titles, 284.28h
+  binge-row                    wrong-side                   20 titles, 275.37h
   flip-phone                   starport                     20 titles, 260.52h
   dial-up                      docs-and-dusters             17 titles, 240.42h
   binge-row                    starport                     18 titles, 238.37h
@@ -181,11 +183,11 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   laugh-track                  shag-carpet                  13 titles, 184.82h
   rabbit-ears                  dusty-trails                 15 titles, 177.13h
   dial-up                      one-season-only              6 titles, 164.00h
-  fresh-cut                    cold-case-cable              15 titles, 159.62h
   fresh-cut                    dragons-and-doorways         9 titles, 158.85h
   laugh-track                  fresh-cut                    9 titles, 152.75h
-  shag-carpet                  cold-case-cable              23 titles, 148.03h
+  fresh-cut                    wrong-side                   11 titles, 152.45h
   neon-decade                  starport                     16 titles, 137.57h
+  shag-carpet                  wrong-side                   15 titles, 133.47h
   fresh-cut                    docs-and-dusters             9 titles, 132.08h
   fresh-cut                    glass-house                  6 titles, 129.83h
   fresh-cut                    starport                     10 titles, 121.62h
@@ -199,7 +201,7 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   couch-talk                   3 titles, 66.17h
   rabbit-ears                  big-rumble                   35 titles, 65.27h
   dead-drop                    big-rumble                   30 titles, 60.85h
-  ... and 95 more pairs (all in the JSON)
+  ... and 103 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Velmami Pefator [film, 1 items, 1.75h]
@@ -1183,244 +1185,244 @@ TITLES (scores in points; a term that is zero is left out)
   0000020d Brazuquin Zuxima [film, 1 items, 1.87h]
     home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
   0000020e Velquinren Pedarbra [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   0000020f Tormipe Mioltor [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   00000210 Mibrator Fatordar [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   00000211 Senmadar Mafalo [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: shag-carpet, cold-case-cable
   00000212 Darrenzu Torxizu [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: shag-carpet, cold-case-cable
   00000213 Quinloma Lodarol [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: neon-decade, cold-case-cable
   00000214 Losenvel Olkype [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
   00000215 Faveldar Veltorvel [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
   00000216 Zupefa Quinfami [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: flip-phone, cold-case-cable
   00000217 Renkyol Kypedar [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: binge-row, cold-case-cable
   00000218 Kyfabra Bradarfa [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
-    guest spots: fresh-cut
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: fresh-cut, cold-case-cable
   00000219 Oldarsen Darkyren [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   0000021a Matorfa Renvelma [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   0000021b Pexiky Xiloxi [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   0000021c Xiolxi Senpevel [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: shag-carpet, cold-case-cable
   0000021d Brarenmi Zusensen [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: neon-decade, cold-case-cable
   0000021e Vellolo Perenquin [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
-    guest spots: neon-decade
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: neon-decade, cold-case-cable
   0000021f Torsenky Mivelzu [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
-    guest spots: dial-up
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: dial-up, cold-case-cable
   00000220 Mivelxi Faloky [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: flip-phone, cold-case-cable
   00000221 Senpetor Mamama [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
-    guest spots: flip-phone
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: flip-phone, cold-case-cable
   00000222 Darkyquin Torsenbra [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
-    guest spots: binge-row
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: binge-row, cold-case-cable
   00000223 Quinfaren Lorentor [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
-    guest spots: fresh-cut
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: fresh-cut, cold-case-cable
   00000224 Lodarpe Olbradar [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   00000225 Fatortor Vellolo [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   00000226 Zuxidar Quinmazu [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
-    guest spots: rabbit-ears
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: rabbit-ears, cold-case-cable
   00000227 Renolzu Kymiol [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
-    guest spots: shag-carpet
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
+    guest spots: shag-carpet, cold-case-cable
   00000228 Kyzuma Brarenpe [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   00000229 Olquinvel Darbravel [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   0000022a Mamidar Renquinmi [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   0000022b Pebrazu Xioldar [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   0000022c Ximaol Senmifa [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   0000022d Brakybra Zuzuren [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   0000022e Velfasen Pexiol [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   0000022f Tordarfa Miquinxi [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   00000230 Mitorol Faolvel [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   00000231 Senxixi Matorsen [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   00000232 Darolmi Torzuquin [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   00000233 Quinzulo Loxifa [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   00000234 Loquinky Oldarky [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   00000235 Famixi Velolma [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   00000236 Zubrami Quintorbra [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   00000237 Renmaquin Kyfator [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   00000238 Kyrenren Braxisen [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   00000239 Ollope Dardarlo [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   0000023a Masentor Renkyzu [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   0000023b Pevelquin Xivelol [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   0000023c Xipezu Senfape [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   0000023d Braolma Zupebra [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   0000023e Velzuvel Pesenmi [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   0000023f Torquindar Mikydar [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   00000240 Mimizu Favelfa [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   00000241 Senbrama Maloren [film, 1 items, 1.85h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   00000242 Darmabra Torpeol [film, 1 items, 1.87h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   00000243 Quinrensen Losenxi [film, 1 items, 1.88h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   00000244 Lolofa Olrenvel [film, 1 items, 1.75h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   00000245 Fasenol Velvelsen [film, 1 items, 1.77h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   00000246 Zuvelbra Quinloquin [film, 1 items, 1.78h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: rabbit-ears
   00000247 Renpemi Kymafa [film, 1 items, 1.80h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   00000248 Kykylo Brasenky [film, 1 items, 1.82h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   00000249 Olfaky Darrenma [film, 1 items, 1.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   0000024a Madarxi Renbrabra [film, 1 items, 1.75h]
     home starport 114.69 = specificity 14.69 genre 40.00 tone 60.00
@@ -4587,284 +4589,284 @@ TITLES (scores in points; a term that is zero is left out)
   000000a1 Velolky Pemidar [series, 40 items, 29.33h]
     home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
   000000a2 Torzuxi Mirenlo [series, 10 items, 7.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000a3 Miquinmi Fabraren [series, 20 items, 15.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000a4 Senmilo Maquinol [series, 30 items, 24.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000a5 Darbraky Tormape [series, 40 items, 32.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000a6 Quinmape Lomivel [series, 10 items, 8.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000a7 Lorentor Olzumi [series, 20 items, 17.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000a8 Faloquin Velbraquin [series, 30 items, 26.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000a9 Zusenren Quinquinfa [series, 40 items, 35.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000aa Renvelpe Kyolren [series, 10 items, 9.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000ab Kypevel Bramima [series, 20 items, 15.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000ac Olkydar Darzuxi [series, 30 items, 23.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000ad Mafazu Renxivel [series, 40 items, 32.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000ae Pedarma Xidarsen [series, 10 items, 8.17h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000af Xitorvel Senolquin [series, 20 items, 16.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000b0 Brabradar Zutorzu [series, 30 items, 25.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000b1 Velmafa Pefaky [series, 40 items, 34.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000b2 Torrenol Mixima [series, 10 items, 8.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000b3 Milobra Fadarbra [series, 20 items, 18.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000b4 Sensensen Makytor [series, 30 items, 23.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000b5 Darvelfa Tortordar [series, 40 items, 31.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000b6 Quinpeky Lofalo [series, 10 items, 8.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000b7 Lokyxi Olpezu [series, 20 items, 16.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000b8 Fafami Veldarol [series, 30 items, 25.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000b9 Zudarlo Quinkype [series, 40 items, 34.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000ba Rentorky Kyvelvel [series, 10 items, 8.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000bb Kyxipe Brafami [series, 20 items, 17.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000bc Ololtor Darpedar [series, 30 items, 27.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000bd Mazuquin Rensenfa [series, 40 items, 30.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000be Pequinren Xirenren [series, 10 items, 7.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000bf Ximipe Senvelma [series, 20 items, 16.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000c0 Braveltor Zuloxi [series, 30 items, 24.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000c1 Velpedar Pemavel [series, 40 items, 33.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000c2 Torkyzu Misensen [series, 10 items, 8.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000c3 Mifama Farenquin [series, 20 items, 17.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000c4 Sendarvel Mabrazu [series, 30 items, 26.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000c5 Dartordar Torloky [series, 40 items, 36.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000c6 Quinxifa Lomama [series, 10 items, 7.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000c7 Loolol Olmibra [series, 20 items, 15.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000c8 Fazubra Velrentor [series, 30 items, 24.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000c9 Zuquinsen Quinbradar [series, 40 items, 32.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000ca Renmifa Kyquinlo [series, 10 items, 8.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000cb Kybraol Bramazu [series, 20 items, 17.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000cc Olmaxi Darmiol [series, 30 items, 26.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000cd Marenmi Renzupe [series, 40 items, 35.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000ce Pelolo Xixibra [series, 10 items, 9.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000cf Xisenky Senquinmi [series, 20 items, 15.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000d0 Bratorxi Zuoldar [series, 30 items, 23.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000d1 Velxitor Petorfa [series, 40 items, 32.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000d2 Torolquin Mizuren [series, 10 items, 8.17h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000d3 Mizuren Faxiol [series, 20 items, 16.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000d4 Senquinpe Madarxi [series, 30 items, 25.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: shag-carpet
   000000d5 Darmitor Torolvel [series, 40 items, 34.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000d6 Quinbraquin Lotorsen [series, 10 items, 8.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000d7 Lomazu Olfaquin [series, 20 items, 18.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000d8 Farenma Velxifa [series, 30 items, 23.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000d9 Zulovel Quindarky [series, 40 items, 31.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000da Rensendar Kykyma [series, 10 items, 8.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000db Kyvelzu Bratorbra [series, 20 items, 16.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000dc Olpeol Darfator [series, 30 items, 25.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000dd Makybra Renpesen [series, 40 items, 34.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000de Pefasen Xisenlo [series, 10 items, 8.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000df Xidarfa Senkyzu [series, 20 items, 17.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000e0 Bramiol Zuvelol [series, 30 items, 27.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000e1 Velbrabra Pelope [series, 40 items, 30.67h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: binge-row
   000000e2 Tormami Mipebra [series, 10 items, 7.83h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: fresh-cut
   000000e3 Mirenlo Fasenmi [series, 20 items, 16.00h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000e4 Senloky Marendar [series, 30 items, 24.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: neon-decade
   000000e5 Darsenxi Torvelfa [series, 40 items, 33.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: dial-up
   000000e6 Quinvelmi Loloren [series, 10 items, 8.50h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000e7 Lopequin Olmaol [series, 20 items, 17.33h]
-    home cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
-    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home wrong-side 114.20 = specificity 14.20 genre 40.00 tone 60.00
+    runner-up cold-case-cable 113.28 = specificity 13.28 genre 40.00 tone 60.00
     guest spots: flip-phone
   000000e8 Fakyren Velsenxi [series, 13 items, 4.77h]
     home cartoons-after-dark 190.18 = specificity 20.18 genre 40.00 tag 70.00 tone 60.00

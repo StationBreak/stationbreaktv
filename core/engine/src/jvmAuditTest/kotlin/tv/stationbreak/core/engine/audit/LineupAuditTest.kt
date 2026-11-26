@@ -98,14 +98,16 @@ class LineupAuditTest {
         // decade channel. Laugh Track does not take it.
         assertEquals("flip-phone", twist.home?.channel)
         assertEquals("laugh-track", auditOf("sitcom-household").starters.single { it.key == "laugh-track" }.key)
-        for (key in listOf("broad-1900", "thin-200")) {
+        // Catalog 24 (#1017): on thin-200 Wrong Side takes Cold Case's non-mystery Crime films and Cold Case goes
+        // off (too thin), so the tie title falls back to the decade channel as in Oddly Funny's case above.
+        for ((key, expected) in mapOf("broad-1900" to "cold-case-cable", "thin-200" to "flip-phone")) {
             val home =
                 auditOf(key)
                     .titles
                     .single { it.name == CaseTitles.SITCOM_WITH_AN_EXTRA_GENRE }
                     .home
                     ?.channel
-            assertEquals("cold-case-cable", home, key)
+            assertEquals(expected, home, key)
         }
     }
 

@@ -164,8 +164,13 @@ object StarterCatalog : StarterCatalogView {
      * Pixar, DreamWorks Animation and Walt Disney Animation (studios by exact name or prefix, never a bare Disney),
      * PG / TV-PG and below under the Family hold, with the kids-genre and anime exclusions every non-plain recipe
      * carries. Every other entry is as it was at 22. No rules format or hold version change.
+     *
+     * Version 24 (#1017): Wrong Side (key `wrong-side`, 210, Drama) is new: the crime split of Cold Case, the Crime
+     * genre without the Mystery genre and without the `detective`, `whodunit` and `police procedural` tags (as
+     * exclusions), the kids-genre and anime exclusions every non-plain recipe carries, no rating ceiling. Cold Case,
+     * Dead Drop and Family Business are as they were at 23. No rules format or hold version change.
      */
-    const val VERSION = 23
+    const val VERSION = 24
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
