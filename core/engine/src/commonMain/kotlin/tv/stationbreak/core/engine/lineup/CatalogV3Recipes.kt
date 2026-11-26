@@ -708,6 +708,18 @@ private val generalBand: List<Recipe> =
                 ),
             format = FormatPromise.ShortSeries,
         ),
+        // Catalog 21 (#1019): TMDb's stock `TV Movie` genre, read by no other starter. Movies only; the General
+        // exclusions (kids genres, anime) come from `recipe`. Like every starter it is switched on by the planner when
+        // the library fills it, and switching one on is Pro (ADR-0023); there is no per-starter Pro mark.
+        recipe(
+            Band.General,
+            n = 194,
+            key = "couch-premiere",
+            name = "Couch Premiere",
+            says = "Made-for-TV movies: tidy plots, tidy budgets, tidy endings.",
+            sources = genres("TV Movie"),
+            filters = filters(kind = FilterKind.Movie),
+        ),
     )
 
 private val dramaBand: List<Recipe> =

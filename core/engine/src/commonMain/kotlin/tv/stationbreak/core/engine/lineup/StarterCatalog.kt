@@ -149,8 +149,12 @@ object StarterCatalog : StarterCatalogView {
      * a Drama genre filter so a comedy from the same network does not qualify on the studio alone. BBC stays on Tea
      * Time. Keys, numbers, bands, ceilings and opt-in are unchanged; the one fingerprint changes. No rules format or
      * hold version change.
+     *
+     * Version 21 (#1019): Couch Premiere (key `couch-premiere`, 194, General) is new: the made-for-TV movies of TMDb's
+     * `TV Movie` genre, movies only, with the General exclusions (kids genres and anime) and no rating ceiling. Every
+     * other entry is as it was at 20. No rules format or hold version change.
      */
-    const val VERSION = 20
+    const val VERSION = 21
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -186,10 +186,10 @@ class CatalogV3Test {
     // What catalog 2 promised, as frozen in its manifest, and in catalog order.
     @Test
     fun keysNumbersBandsCeilingsAndOptInMatchCatalogTwo() {
-        val kept = v3.map { it.key }.toSet() - NEW_YOUNG_AT_8
+        val kept = v3.map { it.key }.toSet() - NEW_SINCE_2
         assertEquals(v2.map { it.key }.toSet() - StarterCatalog.retiredKeys, kept)
         assertEquals(CATALOG_MANIFEST_V2.recipes.keys - StarterCatalog.retiredKeys, kept)
-        for (new in v3.filter { it.key !in NEW_YOUNG_AT_8 }) {
+        for (new in v3.filter { it.key !in NEW_SINCE_2 }) {
             val old = CATALOG_MANIFEST_V2.recipes.getValue(new.key)
             // The waived renumberings of catalogs 8, 12 and 13 (#1002, #592, #1000); the Kids band of catalog 2 is the
             // three young bands now.
@@ -207,7 +207,7 @@ class CatalogV3Test {
     fun grownUpRecipesKeepTheKidsGenreExclusionsAndAnimeAndKidRecipesHaveNone() {
         val kidsGenres = KidHold.KIDS_GENRES.map { Source.Genre(it) }
         for (r in v3) {
-            if (r.maxRating != null && r.key !in NEW_YOUNG_AT_8) {
+            if (r.maxRating != null && r.key !in NEW_SINCE_2) {
                 assertEquals(emptyList(), r.exclusions, r.key)
                 continue
             }
@@ -378,6 +378,9 @@ class CatalogV3Test {
                 "popcorn-epic",
                 "nervous-laughter",
             )
+
+        // Catalog 21 (#1019): Couch Premiere, a General channel catalog 2 never had.
+        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere"
         val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
         val EXEMPT_AT_7 =
             mapOf(

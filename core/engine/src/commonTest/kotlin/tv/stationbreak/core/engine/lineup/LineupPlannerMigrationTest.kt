@@ -212,6 +212,7 @@ class LineupPlannerMigrationTest {
                 "level-up",
                 "popcorn-epic",
                 "nervous-laughter",
+                "couch-premiere",
             ).map {
                 LineupIds.starter(it)
             }.toSet() +
