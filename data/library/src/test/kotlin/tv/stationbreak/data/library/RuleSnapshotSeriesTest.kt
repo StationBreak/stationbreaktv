@@ -87,6 +87,104 @@ class RuleSnapshotSeriesTest {
             assertEquals(mapOf("tvdb" to "76088"), seriesAt(clock.nowMs + 1).getValue(canon(show)).providerIds)
         }
 
+    private suspend fun putIds(
+        ids: Map<String, String>,
+        library: ItemId = RULE_LIBRARY,
+        stamp: Long? = null,
+    ) {
+        val info = series(hexId(show), "TV-Y7", providerIds = ids)
+        repository.upsertSeries(ALICE, library, stamp, rewalk = false, listOf(info))
+    }
+
+    private suspend fun idsAt(cutoffMs: Long) = seriesAt(cutoffMs).getValue(canon(show)).providerIds
+
+    // A tombstoned series that comes back with another id: the series is absent for a cut-off while it was deleted.
+    @Test
+    fun aReviveThatChangesAnIdKeepsEachEarlierCutoffsIdsAndTheIntervalsContiguous() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            putIds(mapOf("tvdb" to "1"))
+            clock.stepMs(10_000)
+            val beforeDelete = clock.nowMs
+            clock.stepMs(10_000)
+            repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(show))))
+            clock.stepMs(10_000)
+            val whileDeleted = clock.nowMs
+            clock.stepMs(10_000)
+            putIds(mapOf("tvdb" to "76088"))
+
+            assertEquals(mapOf("tvdb" to "1"), idsAt(beforeDelete))
+            assertEquals(emptySet<Any>(), seriesAt(whileDeleted).keys)
+            assertEquals(mapOf("tvdb" to "76088"), idsAt(clock.nowMs + 1))
+            repository.assertSeriesIntervalsContiguous(ALICE)
+        }
+
+    // An id change after a revive: three cut-offs read three id sets, and a revive on its own adds none.
+    @Test
+    fun anIdChangeAfterARevivedSeriesIsReadPerCutoff() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            putIds(mapOf("tvdb" to "1"))
+            clock.stepMs(10_000)
+            repository.tombstoneSeries(ALICE, listOf(ItemId(hexId(show))))
+            clock.stepMs(10_000)
+            putIds(mapOf("tvdb" to "1"))
+            clock.stepMs(10_000)
+            val revived = clock.nowMs
+            clock.stepMs(10_000)
+            putIds(mapOf("tvdb" to "2"))
+            clock.stepMs(10_000)
+            val changed = clock.nowMs
+            clock.stepMs(10_000)
+            putIds(mapOf("tvdb" to "3"))
+
+            assertEquals(mapOf("tvdb" to "1"), idsAt(revived))
+            assertEquals(mapOf("tvdb" to "2"), idsAt(changed))
+            assertEquals(mapOf("tvdb" to "3"), idsAt(clock.nowMs + 1))
+            repository.assertSeriesIntervalsContiguous(ALICE)
+        }
+
+    // The add path (D8): a series an add writes is read by an episode of a library outside the add, so an id-only
+    // change there moves the day and is versioned like any other.
+    @Test
+    fun anIdOnlyChangeThroughAnAddWhoseSeriesAnOutsideEpisodeNamesMovesTheDayAndIsVersioned() =
+        runBlocking {
+            val added = ItemId(hexId(0xA002))
+            open()
+            repository.applySelection(ALICE, setOf(RULE_LIBRARY, added), mapOf(added to 1L), emptyMap(), clock.nowMs)
+            episodes(1 to show)
+            putIds(mapOf("tvdb" to "1"), added, stamp = 1L)
+            clock.stepMs(10_000)
+            val cutoff = clock.nowMs
+            clock.stepMs(10_000)
+            val before = repository.contentGeneration(ALICE)
+
+            putIds(mapOf("tvdb" to "76088"), added, stamp = 1L)
+
+            assertEquals(before + 1, repository.contentGeneration(ALICE))
+            assertEquals(mapOf("tvdb" to "1"), idsAt(cutoff))
+            assertEquals(mapOf("tvdb" to "76088"), idsAt(clock.nowMs + 1))
+            repository.assertSeriesIntervalsContiguous(ALICE)
+        }
+
+    // A cut-off before firstSeenMs for a series with no version: nothing older exists to read, so heldFrom takes the
+    // row's CURRENT fields (ids included), not empty ones. Only a version, written by an edit or the 12 to 13
+    // migration, holds earlier values. Pinned as it is; ADR-0029 rule 4 says the same of a migrated version.
+    @Test
+    fun aCutoffBeforeFirstSeenWithNoVersionReadsTheRowsCurrentIds() =
+        runBlocking {
+            open()
+            episodes(1 to show)
+            val cutoff = clock.nowMs
+            clock.stepMs(10_000)
+            putIds(mapOf("tvdb" to "76088"))
+
+            assertEquals(0, repository.seriesVersions(ALICE).size)
+            assertEquals(mapOf("tvdb" to "76088"), idsAt(cutoff))
+        }
+
     @Test
     fun aSeriesEditSeenExactlyAtTheCutoffIsNotInThatDaysSnapshot() =
         runBlocking {
