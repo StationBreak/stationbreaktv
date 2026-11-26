@@ -79,7 +79,7 @@ class Homes internal constructor(
 }
 
 /**
- * The cross-channel curation step (spec 23, `curation-2`): one home per title by an integer fit score; guests on
+ * The cross-channel curation step (spec 23, `curation-3`): one home per title by an integer fit score; guests on
  * grown-up channels, under a 30 % share except on guest-only (decade) channels, which are built from guests; the 25 %
  * share cap as per-series keeps; and weights 3/2/1. Title facts come from the snapshot, so the channels passed do not
  * change them. Integer arithmetic only, and every result is in channel-number or canonical-ID order, so any input

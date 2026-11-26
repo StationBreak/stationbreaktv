@@ -70,8 +70,13 @@ class NameMatcherTest {
                     assertTrue(m.matches(fold("x ${m.folded} y")), m.folded)
                 }
 
+                is NameMatcher.Exact -> {
+                    assertTrue(m.matches(fold(m.name.uppercase())), m.folded)
+                    assertFalse(m.matches(fold("${m.folded} productions")), m.folded)
+                }
+
                 else -> {
-                    error("The table holds only Word and Contains")
+                    error("The table holds only Word, Contains and Exact")
                 }
             }
         }
@@ -81,6 +86,6 @@ class NameMatcherTest {
 
     @Test
     fun theCurationTablesVersionIsPinned() {
-        assertEquals("curation-2", CurationTables.VERSION_NAME)
+        assertEquals("curation-3", CurationTables.VERSION_NAME)
     }
 }

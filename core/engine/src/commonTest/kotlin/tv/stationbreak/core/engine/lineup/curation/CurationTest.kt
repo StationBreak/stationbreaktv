@@ -29,7 +29,7 @@ class CurationTest {
 
     @Test
     fun versionIsTheTablesVersion() {
-        assertEquals("curation-2", Curation.VERSION_NAME)
+        assertEquals("curation-3", Curation.VERSION_NAME)
         assertEquals(CurationTables.VERSION_NAME, Curation.VERSION_NAME)
     }
 
