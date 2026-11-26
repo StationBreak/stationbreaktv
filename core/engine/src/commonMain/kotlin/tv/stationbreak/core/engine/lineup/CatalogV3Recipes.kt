@@ -925,6 +925,17 @@ private val dramaBand: List<Recipe> =
             says = "Earthquakes, tornadoes, volcanoes, and an ensemble cast in peril.",
             sources = tags("disaster", "natural disaster"),
         ),
+        // Catalog 22 (#1020): historical epics. A History documentary stays on Docs & Dusters (notGenres), and the
+        // General exclusions (kids genres, anime) come from `recipe`. No per-starter Pro mark (ADR-0023).
+        recipe(
+            Band.Drama,
+            n = 276,
+            key = "banners-and-battlements",
+            name = "Banners & Battlements",
+            says = "Swords, sandals and a cast of thousands.",
+            sources = genres("History") + tags("ancient rome", "roman empire", "ancient greece", "medieval", "knight"),
+            filters = filters(notGenres = listOf("Documentary")),
+        ),
     )
 
 private val genreBand: List<Recipe> =

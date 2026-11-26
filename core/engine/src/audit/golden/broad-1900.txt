@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 21, curation-3, extras-1)
+LINEUP AUDIT (catalog 22, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 19677 items, 1900 titles (660 series, 1240 films)
@@ -14,7 +14,7 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 807 titles, 2 channels: 996 titles, 3 channels: 97 titles
+  channels per title: 1 channels: 787 titles, 2 channels: 1016 titles, 3 channels: 97 titles
   titles per channel that is on:
     saturday-morning                83
     popcorn-matinee                 80
@@ -40,6 +40,7 @@ TOTALS
     docs-and-dusters               110
     front-lines                     25
     dusty-trails                    28
+    banners-and-battlements         20
     starport                       110
     dragons-and-doorways            80
     midnight-projector              57
@@ -120,6 +121,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   case-files                    256  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   life-stories                  260  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   disaster-zone                 264  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  banners-and-battlements       276  on(p)               20  20t 46.22h 0a score  6621          20t 46.22h 0a
   starport                      304  on(p)              110  110t 1109.68h 0a score 11000       110t 1109.68h 0a
   dragons-and-doorways          308  on(p)               80  30t 652.50h 0a score 11000         30t 652.50h 0a
   rubber-suit-theatre           312  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -196,7 +198,7 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   couch-talk                   3 titles, 66.17h
   rabbit-ears                  big-rumble                   35 titles, 65.27h
   dead-drop                    big-rumble                   30 titles, 60.85h
-  ... and 88 more pairs (all in the JSON)
+  ... and 95 more pairs (all in the JSON)
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Velmami Pefator [film, 1 items, 1.75h]
@@ -2667,45 +2669,85 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
     guest spots: rabbit-ears
   0000038f Torkylo Misenren [film, 1 items, 2.25h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000390 Mifaky Farenol [film, 1 items, 2.27h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000391 Sendarxi Mabraxi [film, 1 items, 2.28h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   00000392 Dartormi Torlovel [film, 1 items, 2.30h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000393 Quinxiquin Lomami [film, 1 items, 2.32h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   00000394 Loolren Olmiquin [film, 1 items, 2.33h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   00000395 Fazupe Velrenfa [film, 1 items, 2.35h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000396 Zuquintor Quinbraky [film, 1 items, 2.37h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   00000397 Renmiquin Kyquinma [film, 1 items, 2.38h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   00000398 Kybraren Bramaxi [film, 1 items, 2.25h]
-    home binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up binge-row -80.51 = specificity 12.49 decade -150.00 tone 57.00
+    guest spots: binge-row
   00000399 Olmama Darmitor [film, 1 items, 2.27h]
-    home fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up fresh-cut -79.71 = specificity 14.29 decade -150.00 tone 56.00
+    guest spots: fresh-cut
   0000039a Marenvel Renzusen [film, 1 items, 2.28h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000039b Pelodar Xixiquin [film, 1 items, 2.30h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000039c Xisenzu Senquinzu [film, 1 items, 2.32h]
-    home rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
+    guest spots: rabbit-ears
   0000039d Bratorma Zuolky [film, 1 items, 2.33h]
-    home shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up shag-carpet -78.22 = specificity 12.78 decade -150.00 tone 59.00
+    guest spots: shag-carpet
   0000039e Velxibra Petorpe [film, 1 items, 2.35h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   0000039f Torolsen Mizubra [film, 1 items, 2.37h]
-    home neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up neon-decade -81.60 = specificity 12.40 decade -150.00 tone 56.00
+    guest spots: neon-decade
   000003a0 Mizufa Faxitor [film, 1 items, 2.38h]
-    home dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up dial-up -80.54 = specificity 12.46 decade -150.00 tone 57.00
+    guest spots: dial-up
   000003a1 Senquinol Madardar [film, 1 items, 2.25h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000003a2 Darmibra Torollo [film, 1 items, 2.27h]
-    home flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    home banners-and-battlements 122.42 = specificity 22.42 genre 40.00 tone 60.00
+    runner-up flip-phone -79.59 = specificity 12.41 decade -150.00 tone 58.00
+    guest spots: flip-phone
   000003a3 Quinbrasen Lotorren [film, 1 items, 1.53h]
     home docs-and-dusters 114.69 = specificity 14.69 genre 40.00 tone 60.00
     runner-up rabbit-ears -79.24 = specificity 11.76 decade -150.00 tone 59.00
