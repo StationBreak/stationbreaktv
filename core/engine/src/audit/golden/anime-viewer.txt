@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 27, curation-3, extras-1)
+LINEUP AUDIT (catalog 28, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 2194 items, 80 titles (52 series, 28 films)
@@ -116,6 +116,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  festival-circuit              380  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tokyo-after-school            404  off    TooThin      58  0t 0.00h 0a score     0 THIN       -
   giant-robot-hour              408  on(p)                6  6t 62.40h 0a score  6840           6t 62.40h 0a
   power-level                   412  off    TooThin       6  0t 0.00h 0a score     0 THIN       -
