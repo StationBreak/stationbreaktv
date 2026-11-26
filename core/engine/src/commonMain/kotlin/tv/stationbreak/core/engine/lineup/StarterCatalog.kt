@@ -127,8 +127,15 @@ object StarterCatalog : StarterCatalogView {
      * simply not admitted through the genre. The rule is the recipe's `Theme.adultSignalOnGenreEntry`, read by the
      * curation only: it is not in any channel's rules, the rules format or a stored file. Key, number, band, ceiling
      * and opt-in are unchanged; its fingerprint changes. No rules format or hold version change.
+     *
+     * Version 18 (#1031): Little Spirits (key `little-spirits`, 42) stops airing every PG anime. The bare Anime genre
+     * and the generic `anime` tag are no longer its sources, so a long PG series (a mecha show) does not flood it. It
+     * keeps the `family anime` tag and the Ghibli and Miyazaki collection anchors, and gains three theme studios
+     * (Studio Ghibli, Studio Ponoc, GKIDS), so a family anime film that is in no collection still comes in. It stays
+     * anime only, PG, Family band, number 42. Its fingerprint changes; every other entry is as it was at 17. No rules
+     * format or hold version change.
      */
-    const val VERSION = 17
+    const val VERSION = 18
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

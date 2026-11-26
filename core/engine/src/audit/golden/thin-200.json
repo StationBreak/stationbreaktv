@@ -2,7 +2,7 @@
   "format": "lineup-audit",
   "version": 1,
   "scope": "The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.",
-  "catalogVersion": 17,
+  "catalogVersion": 18,
   "curation": "curation-3",
   "extras": "extras-1",
   "termOrder": ["specificity","genre","tag","studio","decade","anchor","kids","format","tone"],

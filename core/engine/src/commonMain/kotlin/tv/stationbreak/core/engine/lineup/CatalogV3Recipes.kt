@@ -320,9 +320,12 @@ private val familyBand: List<Recipe> =
             key = "little-spirits",
             name = "Little Spirits",
             says = "Family anime: small heroes, big feelings.",
-            sources = genres("Anime") + tags("anime", "family anime"),
+            sources = tags("family anime"),
             // Anime only (catalog 8): Family is not the Kids band, so a channel that is not anime-only drops anime.
+            // Catalog 18 (#1031): the bare Anime genre and tag are no longer sources, so a long PG series does not
+            // flood the shelf; a family anime comes in by its tag, its collection or one of these studios.
             animeOnly = true,
+            themeStudios = listOf(Contains("Studio Ghibli"), Contains("Studio Ponoc"), Contains("GKIDS")),
             plain = true,
             rating = "PG",
             anchors = collections(Contains("Studio Ghibli"), Contains("Hayao Miyazaki")),

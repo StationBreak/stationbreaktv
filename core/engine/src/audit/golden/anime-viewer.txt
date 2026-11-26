@@ -1,11 +1,11 @@
-LINEUP AUDIT (catalog 17, curation-3, extras-1)
+LINEUP AUDIT (catalog 18, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
-LIBRARY: 1940 items, 58 titles (44 series, 14 films)
+LIBRARY: 1954 items, 72 titles (44 series, 28 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 58, with a home: 53, with no home: 5
+  titles: 72, with a home: 67, with no home: 5
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -14,10 +14,10 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           5
-  channels per title: 1 channels: 25 titles, 2 channels: 28 titles, 3 channels: 5 titles
+  channels per title: 1 channels: 39 titles, 2 channels: 28 titles, 3 channels: 5 titles
   titles per channel that is on:
     little-spirits                  14
-    level-up                        44
+    level-up                        58
     binge-row                        9
     prestige                         8
     giant-robot-hour                 6
@@ -43,7 +43,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              39  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  little-spirits                 42  on(p)               14  14t 26.72h 0a score  4071          14t 26.72h 0a
+  little-spirits                 42  on(p)               14  14t 24.38h 0a score  3838          14t 24.38h 0a
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -51,7 +51,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   prime-time-pals                60  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  level-up                       76  on(p)               44  24t 511.20h 0a score 10400         24t 511.20h 0a
+  level-up                       76  on(p)               58  38t 537.92h 0a score 11000         38t 537.92h 0a
   popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -109,7 +109,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   end-times                     364  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tokyo-after-school            404  off    TooThin      44  0t 0.00h 0a score     0 THIN       -
+  tokyo-after-school            404  off    TooThin      58  0t 0.00h 0a score     0 THIN       -
   giant-robot-hour              408  on(p)                6  6t 62.40h 0a score  6840           6t 62.40h 0a
   power-level                   412  off    TooThin       6  0t 0.00h 0a score     0 THIN       -
   tea-time                      416  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -130,188 +130,216 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
   binge-row                    prestige                     8 titles, 176.00h
   level-up                     giant-robot-hour             6 titles, 62.40h
-  little-spirits               level-up                     14 titles, 26.72h
+  little-spirits               level-up                     14 titles, 24.38h
 
 TITLES (scores in points; a term that is zero is left out)
   000005ac Xisenquin Senquinren [film, 1 items, 1.75h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005ad Bratorren Zuolol [film, 1 items, 1.87h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005ae Velxima Petorxi [film, 1 items, 1.98h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005af Torolvel Mizuvel [film, 1 items, 2.10h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b0 Mizudar Faximi [film, 1 items, 1.75h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b1 Senquinzu Madarquin [film, 1 items, 1.87h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b2 Darmima Torolfa [film, 1 items, 1.98h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b3 Quinbravel Lotorky [film, 1 items, 2.10h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b4 Lomasen Olfama [film, 1 items, 1.75h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b5 Farenfa Velxixi [film, 1 items, 1.87h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b6 Zulool Quindartor [film, 1 items, 1.98h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b7 Rensenbra Kykysen [film, 1 items, 2.10h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b8 Kyvelsen Bratorlo [film, 1 items, 1.75h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-    guest spots: level-up
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   000005b9 Olpelo Darfazu [film, 1 items, 1.87h]
-    home little-spirits 160.00 = specificity 25.00 genre 40.00 tag 35.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+  000005ba Makyky Renpeky [film, 1 items, 1.58h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005bb Pefaxi Xisenpe [film, 1 items, 1.70h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005bc Xidarmi Senkybra [film, 1 items, 1.82h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005bd Bramilo Zuvelmi [film, 1 items, 1.93h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005be Velbraky Pelodar [film, 1 items, 1.58h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005bf Tormape Mipelo [film, 1 items, 1.70h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c0 Mirentor Fasenren [film, 1 items, 1.82h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c1 Senloquin Marenol [film, 1 items, 1.93h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c2 Darsenren Torvelxi [film, 1 items, 1.58h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c3 Quinvelpe Lolovel [film, 1 items, 1.70h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c4 Lopevel Olmami [film, 1 items, 1.82h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c5 Fakydar Velsenquin [film, 1 items, 1.93h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c6 Zufazu Quinrenfa [film, 1 items, 1.58h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+    guest spots: level-up
+  000005c7 Rendarma Kybraky [film, 1 items, 1.70h]
+    home little-spirits 240.00 = specificity 25.00 tag 35.00 studio 120.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000000 Velmami Pefator [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000001 Torrenlo Mixisen [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000002 Miloky Fadarlo [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000003 Sensenxi Makyzu [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000004 Darvelmi Tortorol [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000005 Quinpequin Lofape [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000006 Lokyren Olpebra [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000007 Fafape Veldarmi [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000008 Zudartor Quinkydar [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000009 Rentorquin Kyvelfa [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000a Kyxizu Brafaren [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000b Ololma Darpeol [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000c Mazuvel Rensenxi [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000d Pequindar Xirenvel [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000e Ximizu Senvelsen [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000000f Bravelma Zuloquin [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000010 Velpebra Pemafa [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000011 Torkysen Misenky [series, 48 items, 19.20h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000012 Mifafa Farenma [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000013 Sendarol Mabrabra [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000014 Dartorbra Torlotor [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000015 Quinximi Lomasen [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000016 Loollo Olmilo [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000017 Fazuky Velrenzu [series, 26 items, 10.40h]
     home giant-robot-hour 163.33 = specificity 33.33 tag 70.00 tone 60.00
-    runner-up level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    runner-up level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
     guest spots: level-up
   00000018 Zuquinxi Quinbraol [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   00000019 Renmimi Kyquinpe [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000001a Kybralo Bramabra [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000001b Olmaren Darmimi [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000001c Marenpe Renzudar [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
   0000001d Pelotor Xixilo [series, 72 items, 27.60h]
-    home level-up 153.10 = specificity 18.10 genre 40.00 tag 35.00 tone 60.00
-  0000001e Makyky Renpeky [series, 39 items, 14.30h]
+    home level-up 151.93 = specificity 16.93 genre 40.00 tag 35.00 tone 60.00
+  0000001e Kytorvel Braloma [series, 39 items, 14.30h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
     candidate only on: flip-phone (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
-  0000001f Pefaxi Xisenpe [series, 39 items, 14.30h]
+  0000001f Olxisen Darmaxi [series, 39 items, 14.30h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
     candidate only on: flip-phone (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
-  00000020 Xidarmi Senkybra [series, 39 items, 14.30h]
+  00000020 Maolfa Renmitor [series, 39 items, 14.30h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
     candidate only on: flip-phone (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
-  00000021 Bramilo Zuvelmi [series, 39 items, 14.30h]
+  00000021 Pezuol Xizusen [series, 39 items, 14.30h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
     candidate only on: flip-phone (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
-  00000022 Velbraky Pelodar [series, 39 items, 14.30h]
+  00000022 Xiquinbra Senbralo [series, 39 items, 14.30h]
     NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
     candidate only on: flip-phone (TooThin)
     airs on: leftovers:family-odds-and-ends, leftovers:teen-odds-and-ends, leftovers:odds-and-ends
-  00000023 Tormape Mipelo [series, 39 items, 14.30h]
+  00000023 Brasensen Zuquinzu [series, 39 items, 14.30h]
     home binge-row -117.09 = specificity 28.91 decade -150.00 tone 4.00
-  00000024 Mirentor Fasenren [series, 30 items, 22.00h]
+  00000024 Velvelfa Peolky [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  00000025 Senloquin Marenol [series, 30 items, 22.00h]
+  00000025 Torpeky Mimipe [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  00000026 Darsenren Torvelxi [series, 30 items, 22.00h]
+  00000026 Mikyxi Fazubra [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  00000027 Quinvelpe Lolovel [series, 30 items, 22.00h]
+  00000027 Senfami Maxitor [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  00000028 Lopevel Olmami [series, 30 items, 22.00h]
+  00000028 Dardarlo Torquindar [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  00000029 Fakydar Velsenquin [series, 30 items, 22.00h]
+  00000029 Quintorky Loollo [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  0000002a Zufazu Quinrenfa [series, 30 items, 22.00h]
+  0000002a Loxipe Oltorren [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
-  0000002b Rendarma Kybraky [series, 30 items, 22.00h]
+  0000002b Faoltor Velzuol [series, 30 items, 22.00h]
     home prestige 130.10 = specificity 30.10 genre 40.00 tone 60.00
     runner-up binge-row -66.09 = specificity 28.91 decade -150.00 tone 55.00
     guest spots: binge-row
