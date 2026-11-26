@@ -17,4 +17,6 @@
 # The Amazon Appstore SDK (amazon flavor only, #99; a plain jar with no consumer rules). It reaches its own classes by name
 # and obfuscated internals, so Amazon's integration guide asks to keep them. No effect on the github build: it has none.
 -keep class com.amazon.** { *; }
+# Amazon's guide also asks to keep annotations: the SDK reads them at run time.
+-keepattributes *Annotation*
 -dontwarn com.amazon.**

@@ -28,6 +28,9 @@ import tv.stationbreak.core.domain.store.PurchaseOutcome
 import tv.stationbreak.core.domain.store.RestoreOutcome
 
 private const val PAST_TIMEOUT_MS = 61_000L
+private const val PAST_RECHECK_MS = 5_001L
+private const val BEFORE_PURCHASE_LIMIT_MS = 179_000L
+private const val PAST_PURCHASE_LIMIT_MS = 2_000L
 
 /** The Appstore adapter's contract (AmazonStore's KDoc), over a fake of the SDK seam: no SDK is touched. */
 @Suppress("TooManyFunctions") // One test per contract bullet and case: splitting the class would hide the contract.
@@ -440,6 +443,82 @@ class AmazonStoreTest {
             store.onPurchaseUpdates(page("pushed", receipts = listOf(pro())))
 
             assertEquals(true, store.verified.value)
+        }
+
+    // --- the purchase race (beta.3): the store says SUCCESSFUL, its listing has not caught up ------------------------
+
+    // The sheet closes, onForeground asks for a full listing, and that listing lacks the receipt just fulfilled.
+    private fun TestScope.boughtThenALaggingListing(): AmazonStore {
+        val store = store()
+        val outcome = async(UnconfinedTestDispatcher(testScheduler)) { store.purchase() }
+        store.onPurchase(PurchaseResult(sdk.last.id, PurchaseReply.Successful, pro()))
+        assertEquals(true, store.verified.value)
+        store.onForeground()
+        store.answerUpdates()
+        assertTrue(outcome.isCompleted)
+        return store
+    }
+
+    @Test
+    fun aListingThatLacksAReceiptJustPurchasedDoesNotUnverifyIt() =
+        runTest {
+            val store = boughtThenALaggingListing()
+            assertEquals("a lagging listing is not a refund", true, store.verified.value)
+        }
+
+    @Test
+    fun aLaggingListingIsLookedAtOnceMoreAfterAMomentAndTheLateReceiptStandsVerified() =
+        runTest {
+            val store = boughtThenALaggingListing()
+            assertEquals("no re-sync yet", 1, sdk.asked("updates").size)
+            advanceTimeBy(PAST_RECHECK_MS)
+            assertEquals("one more full listing", listOf(true, true), sdk.asked("updates").map { it.reset })
+
+            store.answerUpdates(listOf(pro()))
+
+            assertEquals(true, store.verified.value)
+        }
+
+    @Test
+    fun aLaggingListingIsReSyncedOnlyOnceAndNeverSaysFalse() =
+        runTest {
+            val store = boughtThenALaggingListing()
+            advanceTimeBy(PAST_RECHECK_MS)
+            store.answerUpdates()
+            advanceTimeBy(PAST_TIMEOUT_MS)
+            assertEquals("no loop of re-syncs", 2, sdk.asked("updates").size)
+            assertEquals(true, store.verified.value)
+        }
+
+    @Test
+    fun aRefundAfterAListingShowedTheReceiptIsStillSeen() =
+        runTest {
+            val store = boughtThenALaggingListing()
+            advanceTimeBy(PAST_RECHECK_MS)
+            store.answerUpdates(listOf(pro()))
+            store.onForeground()
+            store.answerUpdates(listOf(pro(canceled = true)))
+            assertEquals("the store showed it, then took it back: a refund", false, store.verified.value)
+        }
+
+    // --- the purchase waiter times out ------------------------------------------------------------------------
+
+    @Test
+    fun aPurchaseTheStoreNeverAnswersEndsFailedAfterThreeMinutesAndALateReplyStillGrants() =
+        runTest {
+            val store = store()
+            val outcome = async(UnconfinedTestDispatcher(testScheduler)) { store.purchase() }
+            val id = sdk.last.id
+            advanceTimeBy(BEFORE_PURCHASE_LIMIT_MS)
+            assertFalse("still waiting before the limit", outcome.isCompleted)
+            advanceTimeBy(PAST_PURCHASE_LIMIT_MS)
+            assertEquals(PurchaseOutcome.Failed, outcome.await())
+            assertNull("a timeout says nothing about ownership", store.verified.value)
+
+            store.onPurchase(PurchaseResult(id, PurchaseReply.Successful, pro()))
+
+            assertEquals("a late reply still grants", true, store.verified.value)
+            assertEquals(listOf("r1"), sdk.fulfilled)
         }
 
     // --- restore -----------------------------------------------------------------------------------------------
