@@ -379,8 +379,10 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 to 23 (#1019, #1020, #1018): Couch Premiere, Banners & Battlements, Ink & Paint: new since 2.
-        val NEW_SINCE_2 = NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint"
+        // Catalog 21 to 24 (#1019, #1020, #1018, #1017): Couch Premiere,
+        // Banners & Battlements, Ink & Paint, Wrong Side.
+        val NEW_SINCE_2 =
+            NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint" + "wrong-side"
         val EXEMPT_AT_8 = mapOf("starship-sunday" to setOf("Sci-Fi"), "popcorn-epic" to setOf("Sci-Fi"))
         val EXEMPT_AT_7 =
             mapOf(

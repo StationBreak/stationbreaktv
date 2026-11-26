@@ -79,6 +79,7 @@ private fun recipe(
     bar: QualifyingBar = QualifyingBar.Standard,
     plain: Boolean = false,
     season: Season? = null,
+    alsoOut: List<Source> = emptyList(),
 ): Recipe =
     Recipe(
         key = key,
@@ -93,7 +94,7 @@ private fun recipe(
                 band == Band.Kids || plain -> emptyList()
                 animeOnly || optIn -> KIDS_GENRE_EXCLUSIONS
                 else -> KIDS_GENRE_EXCLUSIONS + ANIME_EXCLUSIONS
-            },
+            } + alsoOut,
         maxRating = rating,
         ordering = OrderingMode.Curated,
         collectionHints = emptyList(),
@@ -957,6 +958,20 @@ private val dramaBand: List<Recipe> =
             says = "Swords, sandals and a cast of thousands.",
             sources = genres("History") + tags("ancient rome", "roman empire", "ancient greece", "medieval", "knight"),
             filters = filters(notGenres = listOf("Documentary")),
+        ),
+        // Catalog 24 (#1017): the crime split of Cold Case. Crime without a Mystery genre and without the detective
+        // tags (`alsoOut`, as exclusions); Cold Case, Dead Drop and Family Business are untouched and one-home scoring
+        // sends a title to the more specific home. The General exclusions (kids genres, anime) come from `recipe`.
+        // No rating ceiling and no per-starter Pro mark (ADR-0023).
+        recipe(
+            Band.Drama,
+            n = 210,
+            key = "wrong-side",
+            name = "Wrong Side",
+            says = "Capers, hoods and cop shows that never solve a mystery.",
+            sources = genres("Crime"),
+            filters = filters(notGenres = listOf("Mystery")),
+            alsoOut = tags("detective", "whodunit", "police procedural"),
         ),
     )
 
