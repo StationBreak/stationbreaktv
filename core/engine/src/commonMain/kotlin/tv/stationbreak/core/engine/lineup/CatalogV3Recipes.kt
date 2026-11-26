@@ -973,6 +973,18 @@ private val dramaBand: List<Recipe> =
             filters = filters(notGenres = listOf("Mystery")),
             alsoOut = tags("detective", "whodunit", "police procedural"),
         ),
+        // Catalog 25 (#1022): political drama, tag-only (the lane Front Lines' War & Politics reading leaves open). A
+        // Documentary stays out (notGenres); the General exclusions (kids genres, anime) come from `recipe`. No rating
+        // ceiling and no per-starter Pro mark (ADR-0023).
+        recipe(
+            Band.Drama,
+            n = 272,
+            key = "smoke-filled-room",
+            name = "Smoke-Filled Room",
+            says = "Back rooms, ballots and one speech that changes everything.",
+            sources = tags("politics", "political thriller", "president", "election", "white house"),
+            filters = filters(notGenres = listOf("Documentary")),
+        ),
     )
 
 private val genreBand: List<Recipe> =

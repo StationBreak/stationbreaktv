@@ -169,8 +169,13 @@ object StarterCatalog : StarterCatalogView {
      * genre without the Mystery genre and without the `detective`, `whodunit` and `police procedural` tags (as
      * exclusions), the kids-genre and anime exclusions every non-plain recipe carries, no rating ceiling. Cold Case,
      * Dead Drop and Family Business are as they were at 23. No rules format or hold version change.
+     *
+     * Version 25 (#1022): Smoke-Filled Room (key `smoke-filled-room`, 272, Drama) is new: political drama, the
+     * `politics`, `political thriller`, `president`, `election` and `white house` tags (no genre source), never a
+     * Documentary, the kids-genre and anime exclusions every non-plain recipe carries, no rating ceiling. Every other
+     * entry is as it was at 24. No rules format or hold version change.
      */
-    const val VERSION = 24
+    const val VERSION = 25
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
