@@ -1,11 +1,11 @@
-LINEUP AUDIT (catalog 19, curation-3, extras-1)
+LINEUP AUDIT (catalog 20, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 1850 items, 200 titles (70 series, 130 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 200, with a home: 199, with no home: 1
+  titles: 200, with a home: 197, with no home: 3
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -13,8 +13,8 @@ TOTALS
     filtered-or-rated                  0
     not-airable                        0
     anime-rule                         0
-    only-on-shelved-channels           1
-  channels per title: 1 channels: 70 titles, 2 channels: 122 titles, 3 channels: 8 titles
+    only-on-shelved-channels           3
+  channels per title: 1 channels: 121 titles, 2 channels: 79 titles
   titles per channel that is on:
     saturday-morning                 8
     popcorn-matinee                  8
@@ -26,7 +26,6 @@ TOTALS
     dial-up                         19
     flip-phone                      14
     binge-row                       11
-    prestige                        62
     cold-case-cable                 19
     big-rumble                      12
     docs-and-dusters                11
@@ -35,8 +34,8 @@ TOTALS
     cartoons-after-dark              4
     leftovers:kids-odds-and-ends     0
     leftovers:family-odds-and-ends     0
-    leftovers:teen-odds-and-ends     1
-    leftovers:odds-and-ends          1
+    leftovers:teen-odds-and-ends     2
+    leftovers:odds-and-ends          3
 
 STARTERS (selection: homed over every candidate; on air: homed over the channels that are on)
   key                          num  state  reason    cand  selection                          on air
@@ -88,7 +87,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   backstage-pass                178  off    TooThin       2  2t 2.00h 0a score   400 THIN       -
   curtain-call                  186  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   satire-desk                   190  off    TooThin       1  1t 4.40h 0a score   540 THIN       -
-  prestige                      204  on(p)               66  46t 269.80h 0a score 11000         54t 353.92h 0a
+  prestige                      204  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   cold-case-cable               208  on(p)               19  18t 150.95h 0a score  9800         19t 168.55h 0a
   order-in-the-court            212  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   code-blue                     216  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -140,18 +139,11 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
-  prestige                     cold-case-cable              7 titles, 131.33h
-  neon-decade                  prestige                     9 titles, 119.00h
-  binge-row                    prestige                     6 titles, 112.08h
-  dial-up                      prestige                     6 titles, 107.88h
   laugh-track                  neon-decade                  5 titles, 72.80h
-  flip-phone                   prestige                     5 titles, 43.55h
   binge-row                    cold-case-cable              2 titles, 43.00h
   neon-decade                  docs-and-dusters             3 titles, 42.95h
   neon-decade                  cold-case-cable              3 titles, 41.50h
   dial-up                      starport                     2 titles, 38.83h
-  rabbit-ears                  prestige                     20 titles, 37.85h
-  shag-carpet                  prestige                     14 titles, 36.62h
   dial-up                      docs-and-dusters             1 titles, 34.00h
   dial-up                      cold-case-cable              1 titles, 32.67h
   flip-phone                   starport                     1 titles, 32.00h
@@ -167,7 +159,6 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   docs-and-dusters             1 titles, 8.67h
   binge-row                    starport                     1 titles, 8.17h
   popcorn-matinee              rabbit-ears                  5 titles, 7.50h
-  prestige                     starport                     1 titles, 7.50h
   laugh-track                  flip-phone                   1 titles, 5.63h
   rabbit-ears                  starport                     3 titles, 5.30h
   rabbit-ears                  docs-and-dusters             3 titles, 4.65h
@@ -180,7 +171,8 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   big-rumble                   1 titles, 1.88h
   neon-decade                  big-rumble                   1 titles, 1.83h
   dial-up                      midnight-projector           1 titles, 1.80h
-  ... and 2 more pairs (all in the JSON)
+  neon-decade                  midnight-projector           1 titles, 1.67h
+  popcorn-matinee              neon-decade                  1 titles, 1.65h
 
 TITLES (scores in points; a term that is zero is left out)
   0000007e Kyzupe Lodarxi [film, 1 items, 1.67h]
@@ -200,55 +192,33 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
     guest spots: binge-row
   00000082 Velmami Pefator [film, 1 items, 1.75h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000083 Torrenlo Mixisen [film, 1 items, 1.77h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000084 Miloky Fadarlo [film, 1 items, 1.78h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000085 Sensenxi Makyzu [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000086 Darvelmi Tortorol [film, 1 items, 1.82h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000087 Quinpequin Lofape [film, 1 items, 1.83h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   00000088 Lokyren Olpebra [film, 1 items, 1.85h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   00000089 Fafape Veldarmi [film, 1 items, 1.87h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   0000008a Zudartor Quinkydar [film, 1 items, 1.88h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
-    guest spots: flip-phone
+    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
   0000008b Rentorquin Kyvelfa [film, 1 items, 1.75h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
-    guest spots: binge-row
+    home binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
   0000008c Kyxizu Brafaren [film, 1 items, 1.77h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: fresh-cut (TooThin)
+    airs on: leftovers:teen-odds-and-ends, leftovers:odds-and-ends
   0000008d Ololma Darpeol [film, 1 items, 1.78h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000008e Mazuvel Rensenxi [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000008f Pequindar Xirenvel [film, 1 items, 1.75h]
     home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000090 Ximizu Senvelsen [film, 1 items, 1.77h]
@@ -426,25 +396,15 @@ TITLES (scores in points; a term that is zero is left out)
   000000c9 Faoltor Velzuol [film, 1 items, 1.88h]
     home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000ca Zuzuquin Quinxipe [film, 1 items, 2.13h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000cb Renquinren Kydarvel [film, 1 items, 2.15h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000cc Kymipe Braolmi [film, 1 items, 2.17h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000cd Olbrator Dartorquin [film, 1 items, 2.25h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000ce Mamadar Renfafa [film, 1 items, 2.27h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   000000cf Perenzu Xiperen [film, 1 items, 1.53h]
     home docs-and-dusters 127.02 = specificity 27.02 genre 40.00 tone 60.00
     runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
@@ -534,85 +494,45 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
     guest spots: rabbit-ears
   00000726 Ximaky Senmimi [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000727 Brakyxi Zuzudar [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000728 Velfami Pexilo [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000729 Tordarlo Miquinren [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072a Mitorky Faolol [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072b Senxipe Matorxi [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072c Daroltor Torzuvel [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072d Quinzuquin Loximi [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072e Loquinren Oldarquin [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   0000072f Famipe Velolfa [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
-    guest spots: rabbit-ears
+    home rabbit-ears -75.79 = specificity 16.21 decade -150.00 tone 58.00
   00000730 Zubrator Quintorky [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000731 Renmadar Kyfama [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000732 Kyrenzu Braxixi [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000733 Olloma Dardartor [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000734 Masenvel Renkysen [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000735 Peveldar Xivello [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000736 Xipefa Senfazu [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000737 Braolol Zupeky [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000738 Velzubra Pesenpe [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000739 Torquinsen Mikybra [film, 1 items, 1.80h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000000 Velmiren Dartorlo [series, 48 items, 17.60h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
     runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
@@ -645,75 +565,57 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
     guest spots: binge-row
   00000008 Velsenxi Pekype [series, 10 items, 7.33h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
-    guest spots: shag-carpet
+    home shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
   00000009 Torvelmi Mitorvel [series, 20 items, 15.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   0000000a Mipequin Fafami [series, 30 items, 23.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   0000000b Senkyren Mapedar [series, 40 items, 31.33h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   0000000c Darfape Tordarfa [series, 10 items, 8.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
-    guest spots: flip-phone
+    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
   0000000d Quindartor Lokyren [series, 20 items, 16.33h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
-    guest spots: binge-row
+    home binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
   0000000e Lotorquin Olvelma [series, 30 items, 25.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
-    guest spots: binge-row
+    home binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
   0000000f Faxizu Velfaxi [series, 40 items, 34.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
+    NO HOME: only-on-shelved-channels (it is a candidate only on channels that are not on)
+    candidate only on: fresh-cut (TooThin)
+    airs on: leftovers:odds-and-ends
   00000010 Zuolma Quinpevel [series, 10 items, 8.67h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   00000011 Renzuvel Kysensen [series, 20 items, 14.67h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   00000012 Kyquindar Brakyquin [series, 30 items, 22.50h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   00000013 Olmizu Darvelzu [series, 10 items, 7.67h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: shag-carpet, prestige
+    runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
+    guest spots: shag-carpet
   00000014 Mabrama Renloky [series, 20 items, 15.67h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: neon-decade, prestige
+    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
+    guest spots: neon-decade
   00000015 Pemabra Ximama [series, 30 items, 24.00h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: neon-decade, prestige
+    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
+    guest spots: neon-decade
   00000016 Xirensen Sensenbra [series, 40 items, 32.67h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: dial-up, prestige
+    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
+    guest spots: dial-up
   00000017 Brafafa Zurentor [series, 10 items, 8.33h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: flip-phone, prestige
+    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
+    guest spots: flip-phone
   00000018 Veldarol Pebradar [series, 20 items, 17.00h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: binge-row, prestige
+    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
+    guest spots: binge-row
   00000019 Tortorbra Milolo [series, 30 items, 26.00h]
     home cold-case-cable 122.77 = specificity 22.77 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: binge-row, prestige
+    runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
+    guest spots: binge-row
   0000001a Miximi Famazu [series, 13 items, 4.77h]
     home cartoons-after-dark 208.69 = specificity 38.69 genre 40.00 tag 70.00 tone 60.00
     runner-up shag-carpet -127.68 = specificity 18.32 decade -150.00 tone 4.00
@@ -781,36 +683,30 @@ TITLES (scores in points; a term that is zero is left out)
     home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   00000034 Matorlo Renvelfa [series, 10 items, 7.50h]
     home starport 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: neon-decade, prestige
+    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
+    guest spots: neon-decade
   00000035 Pexiren Xiloren [series, 20 items, 15.33h]
     home starport 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
+    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
     guest spots: dial-up
   00000036 Xiolpe Senpeol [series, 30 items, 23.50h]
     home starport 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
+    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
     guest spots: dial-up
   00000037 Brarentor Zusenxi [series, 40 items, 32.00h]
     home starport 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
+    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
     guest spots: flip-phone
   00000038 Velloquin Perenvel [series, 10 items, 8.17h]
     home starport 127.02 = specificity 27.02 genre 40.00 tone 60.00
-    runner-up prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    guest spots: binge-row
-  00000039 Torsenren Mivelsen [series, 10 items, 8.33h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
-    guest spots: flip-phone
-  0000003a Mivelpe Faloquin [series, 20 items, 17.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
-    guest spots: flip-phone
-  0000003b Senpevel Mamafa [series, 30 items, 26.00h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
     runner-up binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
     guest spots: binge-row
+  00000039 Torsenren Mivelsen [series, 10 items, 8.33h]
+    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
+  0000003a Mivelpe Faloquin [series, 20 items, 17.00h]
+    home flip-phone -65.00 = specificity 25.00 decade -150.00 tone 60.00
+  0000003b Senpevel Mamafa [series, 30 items, 26.00h]
+    home binge-row -73.73 = specificity 26.27 decade -150.00 tone 50.00
   0000003c Darkydar Torsenky [series, 13 items, 6.07h]
     home laugh-track 206.27 = specificity 26.27 genre 40.00 format 80.00 tone 60.00
     runner-up shag-carpet -77.68 = specificity 18.32 decade -150.00 tone 54.00
@@ -824,13 +720,9 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
     guest spots: neon-decade
   0000003f Fatorvel Vellotor [series, 10 items, 8.67h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
-    guest spots: neon-decade
+    home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   00000040 Zuxisen Quinmasen [series, 20 items, 17.67h]
-    home prestige 116.43 = specificity 16.43 genre 40.00 tone 60.00
-    runner-up dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
-    guest spots: dial-up
+    home dial-up -67.23 = specificity 22.77 decade -150.00 tone 60.00
   00000041 Renolfa Kymilo [series, 10 items, 5.00h]
     home neon-decade -72.20 = specificity 20.80 decade -150.00 tone 57.00
   00000042 Kyzuol Brarenzu [series, 10 items, 8.33h]

@@ -718,7 +718,24 @@ private val dramaBand: List<Recipe> =
             key = "prestige",
             name = "Prestige",
             says = "Slow-burn, award-hungry drama. Bring your full attention.",
-            sources = genres("Drama") + tags("prestige", "drama series"),
+            // Catalog 20 (#1033): bare Drama is no longer a source, or every long drama on a library came in. The
+            // channel is the prestige tags plus the networks that make prestige drama, with a Drama filter so a
+            // comedy from the same network does not qualify on the studio alone. BBC stays on Tea Time.
+            sources = tags("prestige", "drama series"),
+            themeStudios =
+                listOf(
+                    Contains("Apple TV"),
+                    Exact("HBO"),
+                    Exact("HBO Max"),
+                    Exact("AMC"),
+                    Exact("AMC+"),
+                    Exact("AMC Networks"),
+                    Prefix("AMC Studios"),
+                    Exact("FX"),
+                    Exact("FXX"),
+                    Prefix("FX Productions"),
+                ),
+            filters = filters(genres = listOf("Drama")),
         ),
         recipe(
             Band.Drama,

@@ -142,8 +142,15 @@ object StarterCatalog : StarterCatalogView {
      * its candidates, so it can neither home nor guest there: the recipe's `Theme.keepOutTitles`, read by the curation
      * only, never in a channel's rules, the rules format or a stored file. Keys, numbers, bands, ceilings and opt-in
      * are unchanged; the two fingerprints change. No rules format or hold version change.
+     *
+     * Version 20 (#1033): Prestige (key `prestige`, 204) drops bare Drama as a source, so a long drama of any kind no
+     * longer comes in on its genre alone. It keeps the `prestige` and `drama series` tags and takes the Apple TV, HBO
+     * (and HBO Max), AMC (AMC+, AMC Networks, AMC Studios) and FX (FXX, FX Productions) networks as theme studios, with
+     * a Drama genre filter so a comedy from the same network does not qualify on the studio alone. BBC stays on Tea
+     * Time. Keys, numbers, bands, ceilings and opt-in are unchanged; the one fingerprint changes. No rules format or
+     * hold version change.
      */
-    const val VERSION = 19
+    const val VERSION = 20
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8
