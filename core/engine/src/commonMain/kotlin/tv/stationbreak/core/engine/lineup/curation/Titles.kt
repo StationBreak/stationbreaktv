@@ -9,6 +9,7 @@ import tv.stationbreak.core.model.RuleItem
 import tv.stationbreak.core.model.RuleSeries
 import tv.stationbreak.core.model.RuleSnapshot
 import tv.stationbreak.core.model.schedule.ScheduleItem
+import tv.stationbreak.core.model.schedule.ScheduleItemKind
 import tv.stationbreak.core.rules.RatingLadder
 
 /** How a title is made: live action, animation, or anime. */
@@ -31,6 +32,8 @@ internal class Title(
     val adultAnimation: Boolean,
     /** Every rating of the title, its series' and each episode's, is an adult signal ([isAdultRating]). */
     val adultRated: Boolean = false,
+    /** The folded name of a series, or of a film (`NameMatcher.fold`): what a title anchor reads (catalog 19). */
+    val names: List<String> = emptyList(),
 )
 
 private const val ADULT_RANK = 4
@@ -102,7 +105,22 @@ internal object Titles {
             madeForKids = madeForKids(series, entries),
             adultAnimation = adult,
             adultRated = allAdultRated(series, entries),
+            names = namesOf(series, entries),
         )
+    }
+
+    // The names a title anchor matches: a series' own, or each film's (an episode's own name is not the title's).
+    private fun namesOf(
+        series: RuleSeries?,
+        entries: List<RuleItem>,
+    ): List<String> {
+        val raw =
+            if (series != null) {
+                listOfNotNull(series.name)
+            } else {
+                entries.filter { it.item.kind == ScheduleItemKind.Movie }.mapNotNull { it.name }
+            }
+        return raw.map(NameMatcher::fold)
     }
 
     // MED fix (#1154): the series' rating decides for the hold, but a kids' episode under a TV-14 series, or one TV-14

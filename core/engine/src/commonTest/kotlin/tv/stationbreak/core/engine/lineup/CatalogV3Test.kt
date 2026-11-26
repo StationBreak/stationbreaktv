@@ -422,7 +422,7 @@ class CatalogV3Test {
                 "starport" to "5 CC CC CC CP TP 5e4078882166f323",
                 "rubber-suit-theatre" to "4 CC CC CC CE 8ed8ce1f6c89cdca",
                 "midnight-projector" to "4 CC CC CC CC 6602327b8627efac",
-                "the-cheap-seats" to "4 CE TC TP SC fb3069c5ecdba8ad",
+                "the-cheap-seats" to "9 CE TC TP TC TC TC TC TC SC e0a8deee6c0b9797",
                 "cape-and-cowl" to "7 CC CC CC CC CC CC TC 2bec43d69e5fcdb7",
                 "jack-o-lantern-lounge" to "6 CC CE CC CC CC CC 8e7e7ba4b5043d38",
                 "paradox" to "1 CC 2724622aac041bd0",

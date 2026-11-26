@@ -134,8 +134,16 @@ object StarterCatalog : StarterCatalogView {
      * (Studio Ghibli, Studio Ponoc, GKIDS), so a family anime film that is in no collection still comes in. It stays
      * anime only, PG, Family band, number 42. Its fingerprint changes; every other entry is as it was at 17. No rules
      * format or hold version change.
+     *
+     * Version 19 (#1030): The Cheap Seats (key `the-cheap-seats`, 320) also anchors on the riff shows of The Mads and
+     * Total Riff Off by title (`TheMadsAreBack`, `The Mads Are Back`, `TheBestOfTheMads`, `TotalRiffOff`,
+     * `Total Riff Off`), so a file with no genre, tag, rating, year or studio still enters it. Deep Space Drift (key
+     * `deep-space-drift`, 356) keeps riff content (Mystery Science Theater, RiffTrax, The Mads, Total Riff Off) out of
+     * its candidates, so it can neither home nor guest there: the recipe's `Theme.keepOutTitles`, read by the curation
+     * only, never in a channel's rules, the rules format or a stored file. Keys, numbers, bands, ceilings and opt-in
+     * are unchanged; the two fingerprints change. No rules format or hold version change.
      */
-    const val VERSION = 18
+    const val VERSION = 19
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

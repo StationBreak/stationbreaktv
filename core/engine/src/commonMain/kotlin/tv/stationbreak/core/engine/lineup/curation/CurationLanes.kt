@@ -288,7 +288,8 @@ private fun foldTitle(title: Title): FoldedTitle {
 
 // The anime rule: an anime-only channel keeps only anime; a grown-up channel that is not anime-only drops it. After
 // Hours is exempt (#1078): an Explicit title, anime or not, airs there or nowhere. Then the adult-signal rule
-// (catalog 17, #1154) for a channel that asks for it.
+// (catalog 17, #1154) for a channel that asks for it. A keep-out title (catalog 19, #1030) is out of any channel that
+// names it, After Hours aside.
 internal fun admits(
     channel: CurationChannel,
     title: Title,
@@ -297,10 +298,20 @@ internal fun admits(
     val anime = title.format == TitleFormat.Anime
     return when {
         channel.recipe.key == AdultMark.AFTER_HOURS_KEY -> true
+        keptOut(channel.recipe, title) -> false
         channel.recipe.theme?.animeOnly == true -> anime
         !channel.kid && anime -> false
         else -> !wantsAdultSignal(channel.recipe) || hasAdultSignal(channel.recipe, title, anchored)
     }
+}
+
+// Catalog 19 (#1030): a title whose name a keep-out matcher of the recipe matches is never a candidate there.
+private fun keptOut(
+    recipe: Recipe,
+    title: Title,
+): Boolean {
+    val matchers = recipe.theme?.keepOutTitles.orEmpty()
+    return matchers.isNotEmpty() && title.names.any { name -> matchers.any { it.matches(name) } }
 }
 
 // Films promise a title that is not a series; short series promise a series; no promise gives no bonus.
