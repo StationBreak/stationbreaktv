@@ -198,7 +198,7 @@ class CatalogV3Test {
             val rebanded = old.band == Band.Kids || new.key in NUMBERS_WAIVED_AT_12 || new.key in NUMBERS_WAIVED_AT_13
             val oldBand = if (rebanded) Band.of(new.number) else old.band
             assertEquals(oldBand, new.band, new.key)
-            assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
+            assertEquals(ceilingChangedSince2(new.key) ?: old.maxRating, new.maxRating, new.key)
             assertEquals(old.optIn, new.optIn, new.key)
         }
     }
@@ -207,7 +207,7 @@ class CatalogV3Test {
     fun grownUpRecipesKeepTheKidsGenreExclusionsAndAnimeAndKidRecipesHaveNone() {
         val kidsGenres = KidHold.KIDS_GENRES.map { Source.Genre(it) }
         for (r in v3) {
-            if (r.maxRating != null && r.key !in NEW_SINCE_2) {
+            if (r.maxRating != null && (r.key !in NEW_SINCE_2 || r.key in PLAIN_NEW_AT_31)) {
                 assertEquals(emptyList(), r.exclusions, r.key)
                 continue
             }
@@ -239,7 +239,7 @@ class CatalogV3Test {
     fun everyKidRecipeStaysKidSafe() {
         for (new in v3.filter { it.kidSafe }) {
             val old = v2.single { it.key == new.key }
-            assertEquals(CEILINGS_LOWERED_AT_6[new.key] ?: old.maxRating, new.maxRating, new.key)
+            assertEquals(ceilingChangedSince2(new.key) ?: old.maxRating, new.maxRating, new.key)
             assertTrue(
                 new.theme
                     ?.themeStudios
@@ -359,6 +359,14 @@ class CatalogV3Test {
         // Catalog 6 (#591): Small Sleuths' ceiling drops from PG to TV-Y7 (still kid-safe), and Little Farm takes the
         // preschool genres. The guards of catalog 3 against catalog 2 allow exactly these.
         val CEILINGS_LOWERED_AT_6 = mapOf("small-sleuths" to "TV-Y7")
+
+        // Catalog 31 (#1186): Snowglobe's label goes from G to the Tots cap it always aired at. Fireside is new and
+        // plain (as Spooky Sleepover is): a PG title with the Kids genre is Family tier and belongs on it.
+        val CEILINGS_CHANGED_AT_31 = mapOf("snowglobe" to "TV-Y7")
+        val PLAIN_NEW_AT_31 = setOf("fireside")
+
+        fun ceilingChangedSince2(key: String): String? = CEILINGS_LOWERED_AT_6[key] ?: CEILINGS_CHANGED_AT_31[key]
+
         val EXEMPT_AT_6 = mapOf("little-farm" to setOf("Preschool", "Pre-school"))
         val GENRES_GAINED_AT_6 = EXEMPT_AT_6.mapValues { (_, names) -> names.map { Source.Genre(it) } }
 
@@ -381,13 +389,14 @@ class CatalogV3Test {
                 "nervous-laughter",
             )
 
-        // Catalog 21 to 30 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024, #1025, #1026): Couch Premiere,
+        // Catalog 21 to 31 (#1019, #1020, #1018, #1017, #1022, #1021, #1023, #1024, #1025, #1026, #1186): Couch
+        // Premiere,
         // Banners & Battlements, Ink & Paint, Wrong Side, Smoke-Filled Room, Short Stack, Out & About,
-        // Festival Circuit, Wild Hours, Fjord & Fog.
+        // Festival Circuit, Wild Hours, Fjord & Fog, Fireside.
         val NEW_SINCE_2 =
             NEW_YOUNG_AT_8 + "couch-premiere" + "banners-and-battlements" + "ink-and-paint" + "wrong-side" +
                 "smoke-filled-room" + "short-stack" + "out-and-about" + "festival-circuit" +
-                "wild-hours" + "fjord-and-fog"
+                "wild-hours" + "fjord-and-fog" + "fireside"
 
         // Catalog 26 (#1021), 28 (#1024): `Short` and `Indie` are IMDb / TVDb genres, not TMDB ones; only Short Stack
         // and Festival Circuit read them.

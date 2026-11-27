@@ -196,8 +196,15 @@ object StarterCatalog : StarterCatalogView {
      * filtered to the `Crime`, `Mystery`, `Thriller` and `Drama` genres, the kids-genre and anime exclusions every
      * non-plain recipe carries, no rating ceiling. Every other entry is as it was at 29. No rules format or hold
      * version change.
+     *
+     * Version 31 (#1186): Fireside (key `fireside`, 63, Family) is new: the `Christmas` and `winter holiday` tags,
+     * ceiling PG, in the Christmas season only, so a family-tier Christmas title has a home (it is GrownUp, so it
+     * never airs a kids-tier title). Snowglobe's labeled ceiling goes from G to TV-Y7 (the Tots cap it always had, so
+     * it airs what it aired plus a TV-Y7 kids-tier title the G label rejected), and Snowglobe and Always December
+     * drop the bare `holiday` tag (a summer-holiday film is not Christmas). Every other entry is as it was at 30. No
+     * rules format or hold version change.
      */
-    const val VERSION = 30
+    const val VERSION = 31
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

@@ -246,8 +246,8 @@ private val kidsBand: List<Recipe> =
             key = "snowglobe",
             name = "Snowglobe",
             says = "Winter holidays for small people, sprinkles included.",
-            sources = tags("Christmas", "holiday", "winter holiday"),
-            rating = "G",
+            sources = tags("Christmas", "winter holiday"),
+            rating = "TV-Y7",
             anchors = collections(Exact("Christmas")),
             season = Season.Christmas,
         ),
@@ -422,6 +422,22 @@ private val familyBand: List<Recipe> =
             sources = genres("Family"),
             rating = "PG",
             filters = filters(kind = FilterKind.Episode),
+        ),
+        // Catalog 31 (#1186): the family-tier Christmas home. Snowglobe (Kids 20) is KidsOnly and caps at TV-Y7, so a
+        // PG Christmas film (Family tier) has no home there; a Family-band recipe is GrownUp, which drops the kids
+        // tier, so the two never air the same title. Plain, as Spooky Sleepover is: a PG title with the Kids genre is
+        // Family tier and belongs here, so the kids-genre exclusion a grown-up recipe carries would turn it away. Not
+        // in `EVER_KID_SAFE_KEYS`. The bare `holiday` tag is not a source.
+        recipe(
+            Band.Family,
+            n = 63,
+            key = "fireside",
+            name = "Fireside",
+            says = "Family Christmas up to PG: cocoa, wool socks and a movie by the fire.",
+            sources = tags("Christmas", "winter holiday"),
+            plain = true,
+            rating = "PG",
+            season = Season.Christmas,
         ),
     )
 
@@ -696,7 +712,7 @@ private val generalBand: List<Recipe> =
             name = "Always December",
             says = "Holiday cheer from late November to New Year, snow guaranteed.",
             season = Season.Christmas,
-            sources = tags("Christmas", "holiday", "winter holiday"),
+            sources = tags("Christmas", "winter holiday"),
             anchors =
                 collections(
                     Exact("Christmas"),
