@@ -925,9 +925,11 @@ private val dramaBand: List<Recipe> =
             key = "docs-and-dusters",
             name = "Docs & Dusters",
             says = "Documentaries and history, with plenty of archive footage.",
-            sources = genres("Documentary") + tags("documentary", "history", "biography"),
-            // History alone no longer qualifies: it must come with Documentary (#998).
-            filters = filters(genres = listOf("Documentary")),
+            // Documentary genre OR the biography tag (catalog 32, #1013). The filters are all-must-pass, so the old
+            // Documentary filter could not let a biography-tagged non-Documentary title through; it is gone, and the
+            // History and documentary tags go with it (History alone still does not qualify, #998: those titles only
+            // ever got in through the Documentary genre, which stays a source).
+            sources = genres("Documentary") + tags("biography"),
         ),
         recipe(
             Band.Drama,
@@ -1324,16 +1326,15 @@ private val worldBand: List<Recipe> =
             name = "Continental Drift",
             says = "World cinema with subtitles; read along and travel.",
             sources = tags("foreign", "world cinema", "subtitled", "international"),
-            // A first list (#999): eight widely scraped non-US studios and networks, as TMDb names them. The rules
-            // have no language field, so studios are the only portable signal. Widen it only with evidence.
+            // A first list (#999): six widely scraped non-US studios and networks, as TMDb names them (Wild Bunch and
+            // Constantin Film dropped at catalog 32, the owner's call). The rules have no language field, so studios
+            // are the only portable signal. Widen it only with evidence.
             themeStudios =
                 listOf(
                     Contains("Canal+"),
                     Contains("StudioCanal"),
                     Contains("Gaumont"),
                     Contains("Pathé"),
-                    Contains("Wild Bunch"),
-                    Contains("Constantin Film"),
                     Contains("Rai Cinema"),
                     Contains("Toho"),
                 ),

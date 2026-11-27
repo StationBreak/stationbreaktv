@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** The shipped catalog keeps the promises frozen in every manifest of [CATALOG_MANIFESTS]. */
@@ -24,7 +25,7 @@ class CatalogManifestTest {
 
     private fun catalog(
         recipes: List<Recipe> = shipped,
-        version: Int = 31,
+        version: Int = 32,
         leftovers: List<LeftoversRecipe> = StarterCatalog.leftovers,
         retiredKeys: Set<String> = emptySet(),
         retiredNumbers: Set<Int> = emptySet(),
@@ -32,7 +33,7 @@ class CatalogManifestTest {
 
     private fun withFirst(change: (Recipe) -> Recipe) = shipped.map { if (it == first) change(it) else it }
 
-    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V31)
+    private fun problems(catalog: StarterCatalogView) = manifestProblems(catalog, CATALOG_MANIFEST_V32)
 
     @Test
     fun theShippedCatalogKeepsEveryManifest() {
@@ -42,7 +43,7 @@ class CatalogManifestTest {
         val versions = CATALOG_MANIFESTS.map { it.version }
         assertEquals(versions.sorted().distinct(), versions, "manifests are oldest first, one per version")
         assertEquals(StarterCatalog.VERSION, CATALOG_MANIFESTS.last().version, "the current version is frozen too")
-        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V31.recipes.size)
+        assertEquals(StarterCatalog.recipes.size, CATALOG_MANIFEST_V32.recipes.size)
         assertEquals(1, CATALOG_MANIFEST_V1.version)
         assertEquals(2, CATALOG_MANIFEST_V2.version)
         assertEquals(3, CATALOG_MANIFEST_V3.version)
@@ -74,6 +75,7 @@ class CatalogManifestTest {
         assertEquals(29, CATALOG_MANIFEST_V29.version)
         assertEquals(30, CATALOG_MANIFEST_V30.version)
         assertEquals(31, CATALOG_MANIFEST_V31.version)
+        assertEquals(32, CATALOG_MANIFEST_V32.version)
     }
 
     // Catalog 8 (the young bands, #1002) changes no fingerprint: every recipe of catalog 7 airs what it aired. It moves
@@ -330,7 +332,8 @@ class CatalogManifestTest {
         assertTrue(Source.Genre("Musical") in sources("curtain-call"))
         assertEquals(t("spy", "heist", "espionage"), sources("dead-drop"))
         assertTrue(recipe("dead-drop").filters!!.genres!!.contains("Thriller"))
-        assertEquals(listOf("Documentary"), recipe("docs-and-dusters").filters!!.genres)
+        assertEquals(g("Documentary") + t("biography"), sources("docs-and-dusters"))
+        assertNull(recipe("docs-and-dusters").filters)
         assertTrue(Source.Genre("History") !in sources("docs-and-dusters"))
         assertTrue(Source.Genre("War & Politics") !in sources("front-lines"))
         assertTrue(Source.Genre("Film-Noir") in sources("noir-nights"))
@@ -609,30 +612,30 @@ class CatalogManifestTest {
                 shipped + recipeOf("brand-new", 598),
             )
         for (recipes in changed) {
-            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 32")
-            assertEquals(emptyList(), problems(catalog(recipes, version = 32)), "allowed at version 32")
+            assertTrue(problems(catalog(recipes)).isNotEmpty(), "caught at version 33")
+            assertEquals(emptyList(), problems(catalog(recipes, version = 33)), "allowed at version 33")
         }
         val stricter = StarterCatalog.leftovers.map { if (it.number == 33) it.copy(maxRating = "G") else it }
         assertTrue(problems(catalog(leftovers = stricter)).isNotEmpty())
-        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 32)))
+        assertEquals(emptyList(), problems(catalog(leftovers = stricter, version = 33)))
     }
 
     @Test
     fun aShippedKeyStaysAtItsNumberOrIsRetiredWithIt() {
         val moved = withFirst { it.copy(number = it.number + 1) }
-        assertTrue(problems(catalog(moved, version = 32)).isNotEmpty(), "a shipped number never changes")
+        assertTrue(problems(catalog(moved, version = 33)).isNotEmpty(), "a shipped number never changes")
 
         val dropped = shipped.drop(1)
-        assertTrue(problems(catalog(dropped, version = 32)).isNotEmpty(), "dropped without retiring")
-        val keyOnly = catalog(dropped, version = 31, retiredKeys = setOf(first.key))
+        assertTrue(problems(catalog(dropped, version = 33)).isNotEmpty(), "dropped without retiring")
+        val keyOnly = catalog(dropped, version = 32, retiredKeys = setOf(first.key))
         assertTrue(problems(keyOnly).isNotEmpty(), "retired without its number")
-        val retired = catalog(dropped, 32, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
+        val retired = catalog(dropped, 33, retiredKeys = setOf(first.key), retiredNumbers = setOf(first.number))
         assertEquals(emptyList(), problems(retired))
 
         val noLeftovers = StarterCatalog.leftovers.filter { it.number != 199 }
-        assertTrue(problems(catalog(leftovers = noLeftovers, version = 32)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = noLeftovers, version = 33)).isNotEmpty())
         val movedLeftovers = StarterCatalog.leftovers.map { if (it.number == 199) it.copy(number = 198) else it }
-        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 32)).isNotEmpty())
+        assertTrue(problems(catalog(leftovers = movedLeftovers, version = 33)).isNotEmpty())
     }
 
     private companion object {

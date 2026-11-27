@@ -470,7 +470,7 @@ class CatalogV3Test {
                 "tea-time" to "11 P W C P W P C C C C C db89332bceb39108",
                 // Catalog 7 (#999): the World recipes rebuilt on studios; Whodunit Isles shares Tea Time's set.
                 "whodunit-isles" to "11 P W C P W P C C C C C db89332bceb39108",
-                "continental-drift" to "8 C C C C C C C C 166a74a0283f0a2e",
+                "continental-drift" to "6 C C C C C C 937d0d34622f188f",
                 "seoul-sundays" to "5 W W W W W 789ba92813c20086",
                 "masala-hour" to "3 C C C 9c382452ff7eb8ee",
                 "telenovela-tonight" to "4 C C C C 95e97009de92c3a6",

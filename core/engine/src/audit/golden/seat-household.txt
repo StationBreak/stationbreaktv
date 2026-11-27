@@ -1,4 +1,4 @@
-LINEUP AUDIT (catalog 31, curation-3, extras-1)
+LINEUP AUDIT (catalog 32, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
 LIBRARY: 31104 items, 864 titles (864 series, 0 films)
@@ -14,7 +14,7 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 456 titles, 2 channels: 375 titles, 3 channels: 31 titles, 4 channels: 2 titles
+  channels per title: 1 channels: 448 titles, 2 channels: 380 titles, 3 channels: 34 titles, 4 channels: 2 titles
   titles per channel that is on:
     little-farm                      8
     sing-along-station               8
@@ -64,7 +64,7 @@ TOTALS
     dead-drop                        8
     big-rumble                      22
     kung-fu-theater                  8
-    docs-and-dusters                11
+    docs-and-dusters                22
     front-lines                      8
     dusty-trails                     8
     corsets-and-candlelight          8
@@ -144,7 +144,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   dead-drop                     224  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   big-rumble                    228  on(v)               48  8t 211.20h 0a score  8800          16t 422.40h 0a
   kung-fu-theater               232  on(v)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
-  docs-and-dusters              236  on(p)               16  8t 211.20h 0a score  8800          8t 211.20h 0a
+  docs-and-dusters              236  on(p)               24  8t 211.20h 0a score  8800          16t 422.40h 0a
   front-lines                   240  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   dusty-trails                  244  on(p)                8  8t 211.20h 0a score  8800          8t 211.20h 0a
   noir-nights                   248  off    BelowCap      8  8t 211.20h 0a score  8800          -
@@ -197,10 +197,10 @@ OVERLAP: pairs of channels that are on and air the same titles (most hours first
   flip-phone                   starport                     32 titles, 844.80h
   nervous-laughter             flip-phone                   24 titles, 633.60h
   prime-time-pals              flip-phone                   24 titles, 633.60h
+  flip-phone                   docs-and-dusters             22 titles, 580.80h
   flip-phone                   custom:1                     16 titles, 422.40h
   flip-phone                   deep-space-drift             16 titles, 422.40h
   mask-and-mantle              flip-phone                   16 titles, 422.40h
-  flip-phone                   docs-and-dusters             11 titles, 290.40h
   cold-case-cable              custom:1                     8 titles, 211.20h
   cold-case-cable              wrong-side                   8 titles, 211.20h
   dead-drop                    custom:1                     8 titles, 211.20h
@@ -1454,35 +1454,35 @@ TITLES (scores in points; a term that is zero is left out)
     guest spots: custom:1
   00000198 Zupefa Quinfami [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
     guest spots: flip-phone, docs-and-dusters
   00000199 Renkyol Kypedar [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
     guest spots: flip-phone, docs-and-dusters
   0000019a Kyfabra Bradarfa [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
     guest spots: flip-phone, docs-and-dusters
   0000019b Oldarsen Darkyren [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: flip-phone
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
+    guest spots: flip-phone, docs-and-dusters
   0000019c Matorfa Renvelma [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: flip-phone
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
+    guest spots: flip-phone, docs-and-dusters
   0000019d Pexiky Xiloxi [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
-    guest spots: flip-phone
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
+    guest spots: flip-phone, docs-and-dusters
   0000019e Xiolxi Senpevel [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
     guest spots: flip-phone
   0000019f Brarenmi Zusensen [series, 36 items, 26.40h]
     home wild-hours 200.10 = specificity 30.10 genre 40.00 tag 70.00 tone 60.00
-    runner-up docs-and-dusters 123.98 = specificity 23.98 genre 40.00 tone 60.00
+    runner-up docs-and-dusters 121.27 = specificity 21.27 genre 40.00 tone 60.00
     guest spots: flip-phone
   000001a0 Vellolo Perenquin [series, 36 items, 26.40h]
     home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
@@ -1757,35 +1757,35 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up big-rumble 117.72 = specificity 17.72 genre 40.00 tone 60.00
     guest spots: flip-phone
   000001f0 Velolfa Pemiquin [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f1 Torzuol Mirenfa [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f2 Miquinbra Fabraky [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f3 Senmisen Maquinma [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f4 Darbrafa Tormaxi [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f5 Quinmaky Lomitor [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f6 Lorenxi Olzusen [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f7 Falomi Velbralo [series, 36 items, 26.40h]
-    home docs-and-dusters 193.98 = specificity 23.98 genre 40.00 tag 70.00 tone 60.00
+    home docs-and-dusters 156.27 = specificity 21.27 genre 40.00 tag 35.00 tone 60.00
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   000001f8 Zusenlo Quinquinzu [series, 36 items, 26.40h]
@@ -1933,21 +1933,37 @@ TITLES (scores in points; a term that is zero is left out)
     runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
     guest spots: flip-phone
   00000220 Velxixi Petorzu [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000221 Torolmi Mizuky [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000222 Mizulo Faxima [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000223 Senquinky Madarbra [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000224 Darmixi Toroltor [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000225 Quinbrami Lotordar [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000226 Lomaquin Olfalo [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000227 Farenren Velxizu [series, 36 items, 26.40h]
-    home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    home docs-and-dusters 116.27 = specificity 21.27 tag 35.00 tone 60.00
+    runner-up flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
+    guest spots: flip-phone
   00000228 Zulope Quindarol [series, 36 items, 26.40h]
     home flip-phone -82.40 = specificity 10.60 decade -150.00 tone 57.00
   00000229 Rensentor Kykype [series, 36 items, 26.40h]
