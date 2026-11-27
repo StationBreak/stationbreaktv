@@ -157,6 +157,20 @@ internal object KidsHousehold {
         b.films(12, listOf("Family", "Adventure"), "PG", 96)
         b.films(5, listOf("Family"), "G", 80, listOf("Christmas", "holiday"))
         b.shows(4, listOf("Documentary"), "TV-G", 24, listOf("kids", "science"), seasons = 2, firstYear = 2015)
+        // Added last, so no title before them changes its name or ID.
+        // Kids' shows under the stock genres a server gives them (#1010): a typical kids' library has Adventure,
+        // Comedy and Science Fiction next to Kids, so Backyard Fort, Giggle Garage and Robot Factory clear their bars.
+        // The shows are made for kids (the kids tag next to a kid rating) and inside the Tots ceiling.
+        b.kidsShows(4, listOf("Kids", "Adventure"), "TV-Y7", 22)
+        b.kidsShows(6, listOf("Kids", "Comedy"), "TV-Y7", 22)
+        b.kidsShows(6, listOf("Kids", "Science Fiction"), "TV-Y7", 22)
+        // Little Spirits is a Family-band channel: its anime are PG films, not Kids titles. A tag and a studio the
+        // recipe names win them from Level Up, as in the anime viewer's library.
+        repeat(9) {
+            val genres = listOf("Animation", "Anime", "Fantasy")
+            val tags = listOf("anime", "family anime")
+            b.film(TitleSpec(genres, tags, listOf("Studio Ghibli"), "PG", 95 + it % 4 * 7, 2004 + it))
+        }
         val description = "A kids' household: cartoons, family films and a few holiday titles"
         return Profile("kids-household", description, AuditInput(b.build(), null), emptyList())
     }

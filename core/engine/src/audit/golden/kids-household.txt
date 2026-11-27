@@ -1,11 +1,11 @@
 LINEUP AUDIT (catalog 32, curation-3, extras-1)
 SCOPE: The planner's view: LineupPlanner.plan and the curation, as the planner runs them, on the snapshot after the extras filter. Not a built day: no rating ceilings and no late-on pools (LineupDays.curationChannelOf). What a day airs is out of scope.
 
-LIBRARY: 1791 items, 75 titles (44 series, 31 films)
+LIBRARY: 2472 items, 100 titles (60 series, 40 films)
 EXTRAS FILTER DROPPED: nothing
 
 TOTALS
-  titles: 75, with a home: 75, with no home: 0
+  titles: 100, with a home: 100, with no home: 0
   titles with no home, by cause:
     no-source-match                    0
     excluded-by-recipe                 0
@@ -14,12 +14,15 @@ TOTALS
     not-airable                        0
     anime-rule                         0
     only-on-shelved-channels           0
-  channels per title: 1 channels: 54 titles, 2 channels: 21 titles
+  channels per title: 1 channels: 63 titles, 2 channels: 37 titles
   titles per channel that is on:
-    saturday-morning                54
-    backyard-fort                    4
+    saturday-morning                70
+    backyard-fort                    8
+    robot-factory                    6
     hey-science                      4
+    giggle-garage                    6
     rainy-day-matinee               17
+    little-spirits                   9
     dial-up                         10
     flip-phone                       7
     leftovers:kids-odds-and-ends     0
@@ -31,20 +34,20 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   key                          num  state  reason    cand  selection                          on air
   little-farm                     2  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   sing-along-station              4  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  saturday-morning                6  on(p)               54  54t 438.55h 0a score 11000         54t 438.55h 0a
-  backyard-fort                   8  on(p)                4  4t 61.60h 0a score  6560           4t 61.60h 0a
+  saturday-morning                6  on(p)               70  70t 684.95h 0a score 11000         70t 684.95h 0a
+  backyard-fort                   8  on(p)                8  8t 123.20h 0a score  8800          8t 123.20h 0a
   critter-channel                10  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  robot-factory                  12  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  robot-factory                  12  on(p)                6  6t 92.40h 0a score  8600           6t 92.40h 0a
   hey-science                    14  on(p)                4  4t 32.00h 0a score  3600           4t 32.00h 0a
   pocket-heroes                  16  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   flipbook                       18  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   snowglobe                      20  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  giggle-garage                  22  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  giggle-garage                  22  on(p)                6  6t 92.40h 0a score  8600           6t 92.40h 0a
   wheels-and-whistles            24  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   small-sleuths                  26  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   once-upon                      36  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   rainy-day-matinee              39  on(p)               17  17t 28.67h 0a score  4566          17t 28.67h 0a
-  little-spirits                 42  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  little-spirits                 42  on(p)                9  9t 15.65h 0a score  2465           9t 15.65h 0a
   spooky-sleepover               45  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   popcorn-matinee                48  off    TooThin      17  0t 0.00h 0a score     0 THIN       -
   big-screen-toons               51  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -54,7 +57,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   fireside                       63  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   homeroom                       70  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   mask-and-mantle                73  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  level-up                       76  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  level-up                       76  off    TooThin       9  0t 0.00h 0a score     0 THIN       -
   popcorn-epic                   79  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   nervous-laughter               82  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   laugh-track                   102  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -120,7 +123,7 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   twist-ending                  372  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   gallows-humor                 376  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   festival-circuit              380  off    Empty         0  0t 0.00h 0a score     0 THIN       -
-  tokyo-after-school            404  off    Empty         0  0t 0.00h 0a score     0 THIN       -
+  tokyo-after-school            404  off    TooThin       9  0t 0.00h 0a score     0 THIN       -
   giant-robot-hour              408  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   power-level                   412  off    Empty         0  0t 0.00h 0a score     0 THIN       -
   tea-time                      416  off    Empty         0  0t 0.00h 0a score     0 THIN       -
@@ -140,39 +143,41 @@ STARTERS (selection: homed over every candidate; on air: homed over the channels
   jack-o-lantern-lounge         910  off    Empty         0  0t 0.00h 0a score     0 THIN       -
 
 OVERLAP: pairs of channels that are on and air the same titles (most hours first)
-  saturday-morning             backyard-fort                4 titles, 61.60h
+  saturday-morning             backyard-fort                8 titles, 123.20h
+  saturday-morning             giggle-garage                6 titles, 92.40h
+  saturday-morning             robot-factory                6 titles, 92.40h
   rainy-day-matinee            dial-up                      10 titles, 16.07h
   rainy-day-matinee            flip-phone                   7 titles, 12.60h
 
 TITLES (scores in points; a term that is zero is left out)
   00000690 Zulool Quindartor [film, 1 items, 1.47h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000691 Rensenbra Kykysen [film, 1 items, 1.58h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000692 Kyvelsen Bratorlo [film, 1 items, 1.70h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000693 Olpelo Darfazu [film, 1 items, 1.82h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000694 Makyky Renpeky [film, 1 items, 1.47h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000695 Pefaxi Xisenpe [film, 1 items, 1.58h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000696 Xidarmi Senkybra [film, 1 items, 1.70h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000697 Bramilo Zuvelmi [film, 1 items, 1.82h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000698 Velbraky Pelodar [film, 1 items, 1.47h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   00000699 Tormape Mipelo [film, 1 items, 1.58h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   0000069a Mirentor Fasenren [film, 1 items, 1.70h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   0000069b Senloquin Marenol [film, 1 items, 1.82h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   0000069c Darsenren Torvelxi [film, 1 items, 1.47h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   0000069d Quinvelpe Lolovel [film, 1 items, 1.58h]
-    home saturday-morning 295.22 = specificity 17.22 genre 40.00 kids 200.00 tone 38.00
+    home saturday-morning 280.21 = specificity 16.21 genre 40.00 kids 200.00 tone 24.00
   0000069e Lopevel Olmami [film, 1 items, 1.60h]
     home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
@@ -241,94 +246,112 @@ TITLES (scores in points; a term that is zero is left out)
     home rainy-day-matinee 123.54 = specificity 23.54 genre 40.00 tone 60.00
     runner-up dial-up -62.11 = specificity 27.89 decade -150.00 tone 60.00
     guest spots: dial-up
+  0000099f Olvelxi Darlool [film, 1 items, 1.58h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a0 Mapetor Renmape [film, 1 items, 1.70h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a1 Pekyquin Ximivel [film, 1 items, 1.82h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a2 Xifaren Senrenmi [film, 1 items, 1.93h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a3 Braquinpe Zubraquin [film, 1 items, 1.58h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a4 Velmitor Pequinfa [film, 1 items, 1.70h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a5 Torbraquin Mimaren [film, 1 items, 1.82h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a6 Mimazu Famima [film, 1 items, 1.93h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
+  000009a7 Senrenma Mazuxi [film, 1 items, 1.58h]
+    home little-spirits 243.91 = specificity 28.91 tag 35.00 studio 120.00 tone 60.00
   00000000 Velmami Pefator [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000001 Torrenlo Mixisen [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000002 Miloky Fadarlo [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000003 Sensenxi Makyzu [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000004 Darvelmi Tortorol [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000005 Quinpequin Lofape [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000006 Lokyren Olpebra [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000007 Fafape Veldarmi [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000008 Zudartor Quinkydar [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000009 Rentorquin Kyvelfa [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000a Kyxizu Brafaren [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000b Ololma Darpeol [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000c Mazuvel Rensenxi [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000d Pequindar Xirenvel [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000e Ximizu Senvelsen [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000000f Bravelma Zuloquin [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000010 Velpebra Pemafa [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000011 Torkysen Misenky [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000012 Mifafa Farenma [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000013 Sendarol Mabrabra [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000014 Dartorbra Torlotor [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000015 Quinximi Lomasen [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000016 Loollo Olmilo [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000017 Fazuky Velrenzu [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000018 Zuquinxi Quinbraol [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   00000019 Renmimi Kyquinpe [series, 42 items, 7.70h]
-    home saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
   0000001a Kybralo Bramabra [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   0000001b Olmaren Darmimi [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   0000001c Marenpe Renzudar [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   0000001d Pelotor Xixilo [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   0000001e Xisenquin Senquinren [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   0000001f Bratorren Zuolol [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   00000020 Velxima Petorxi [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   00000021 Torolvel Mizuvel [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   00000022 Mizudar Faximi [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   00000023 Senquinzu Madarquin [series, 42 items, 15.40h]
-    home saturday-morning 278.22 = specificity 17.22 genre 40.00 kids 200.00 tone 21.00
+    home saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
   00000024 Darmima Torolfa [series, 42 items, 15.40h]
-    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    guest spots: saturday-morning
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
+    runner-up backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    guest spots: backyard-fort
   00000025 Quinbravel Lotorky [series, 42 items, 15.40h]
-    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    guest spots: saturday-morning
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
+    runner-up backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    guest spots: backyard-fort
   00000026 Lomasen Olfama [series, 42 items, 15.40h]
-    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    guest spots: saturday-morning
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
+    runner-up backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    guest spots: backyard-fort
   00000027 Farenfa Velxixi [series, 42 items, 15.40h]
-    home backyard-fort 338.69 = specificity 38.69 genre 40.00 kids 200.00 tone 60.00
-    runner-up saturday-morning 335.22 = specificity 17.22 genre 80.00 kids 200.00 tone 38.00
-    guest spots: saturday-morning
+    home saturday-morning 320.21 = specificity 16.21 genre 80.00 kids 200.00 tone 24.00
+    runner-up backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    guest spots: backyard-fort
   00000028 Faoltor Velzuol [series, 20 items, 8.00h]
     home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   00000029 Zuzuquin Quinxipe [series, 20 items, 8.00h]
@@ -337,3 +360,67 @@ TITLES (scores in points; a term that is zero is left out)
     home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
   0000002b Kymipe Braolmi [series, 20 items, 8.00h]
     home hey-science 373.69 = specificity 38.69 genre 40.00 tag 35.00 kids 200.00 tone 60.00
+  0000002c Olbrator Dartorquin [series, 42 items, 15.40h]
+    home backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  0000002d Mamadar Renfafa [series, 42 items, 15.40h]
+    home backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  0000002e Perenzu Xiperen [series, 42 items, 15.40h]
+    home backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  0000002f Xiloma Sendarma [series, 42 items, 15.40h]
+    home backyard-fort 300.10 = specificity 30.10 genre 40.00 kids 200.00 tone 30.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000030 Bradarvel Zukyxi [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000031 Veltordar Peveltor [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000032 Torxifa Mifasen [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000033 Miolol Fapequin [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000034 Senzubra Masenzu [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000035 Darquinsen Torkyky [series, 42 items, 15.40h]
+    home giggle-garage 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000036 Quinmifa Lovelpe [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000037 Lobraol Ollobra [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000038 Famaxi Velpetor [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  00000039 Zurenmi Quinsendar [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  0000003a Renlolo Kyrenlo [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
+  0000003b Kysenky Bravelren [series, 42 items, 15.40h]
+    home robot-factory 333.33 = specificity 33.33 genre 40.00 kids 200.00 tone 60.00
+    runner-up saturday-morning 291.21 = specificity 16.21 genre 40.00 kids 200.00 tone 35.00
+    guest spots: saturday-morning
