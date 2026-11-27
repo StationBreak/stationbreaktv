@@ -2,8 +2,9 @@ name: Deploy crash endpoint
 
 # Deploys the opt-in crash-report endpoint (#1189): the AWS SAM stack under infra/crash-endpoint, into the owner's AWS
 # account, with GitHub OIDC. No AWS key is stored anywhere: the deploy job asks GitHub for a short-lived identity token
-# and trades it for a role's temporary credentials (aws-actions/configure-aws-credentials). The role, its trust and the
-# one-time steps that make it are in docs/runbooks/crash-endpoint.md; the exact policies are in infra/crash-endpoint/iam.
+# and trades it for a role's temporary credentials with the AWS CLI's own web-identity call (infra/crash-endpoint/deploy.sh),
+# so no third-party action is used (the repository allows only selected actions). The role, its trust and the one-time
+# steps that make it are in docs/beta/crash-endpoint-runbook.md; the exact policies are in infra/crash-endpoint/iam.
 #
 # `validate` runs on a pull request that touches the stack (the tests, and SAM's template lint) and holds no AWS access.
 # `deploy` runs only when the owner starts it by hand from main, in the `crash-endpoint` environment (a required
@@ -32,10 +33,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The SAM CLI, pinned, and the stack's fixed names (the IAM policies name them too).
-  SAM_CLI_VERSION: 1.174.1
   SAM_CLI_TELEMETRY: "0"
-  STACK_NAME: stationbreak-crash-endpoint
 
 jobs:
   validate:
@@ -48,9 +46,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: aws-actions/setup-sam@341eee193f458fa5aae5d52c94b0c5cf3a1c5a52 # v3
-        with:
-          version: ${{ env.SAM_CLI_VERSION }}
+      # The SAM CLI from a hash-locked requirements file: every package is pinned and checked against its hash.
+      - name: Install the SAM CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/sam"
+          "$RUNNER_TEMP/sam/bin/pip" install --quiet --require-hashes --no-deps -r infra/crash-endpoint/requirements-sam.txt
+          echo "$RUNNER_TEMP/sam/bin" >> "$GITHUB_PATH"
 
       - name: Test the function
         run: python3 -m unittest discover -s infra/crash-endpoint/tests
@@ -80,72 +81,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: aws-actions/setup-sam@341eee193f458fa5aae5d52c94b0c5cf3a1c5a52 # v3
-        with:
-          version: ${{ env.SAM_CLI_VERSION }}
+      # The SAM CLI from a hash-locked requirements file: every package is pinned and checked against its hash.
+      - name: Install the SAM CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/sam"
+          "$RUNNER_TEMP/sam/bin/pip" install --quiet --require-hashes --no-deps -r infra/crash-endpoint/requirements-sam.txt
+          echo "$RUNNER_TEMP/sam/bin" >> "$GITHUB_PATH"
 
-      # The role is the owner's, set up once (docs/runbooks/crash-endpoint.md); its ARN is a repository variable, not a
-      # secret. The action masks the account id in the log.
-      - name: Assume the deploy role
-        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
-        with:
-          role-to-assume: ${{ vars.CRASH_ENDPOINT_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.CRASH_ENDPOINT_REGION || 'us-east-1' }}
-          role-session-name: deploy-crash-endpoint
-          role-duration-seconds: 1800
-
-      - name: Deploy the stack
+      # The role is the owner's, set up once (docs/beta/crash-endpoint-runbook.md); its ARN is a repository variable, not a
+      # secret. The script masks the token, the credentials, the account id and the endpoint URL before it uses them.
+      - name: Deploy the stack and smoke test it
         env:
-          # An input is untrusted text in a script: it goes through the environment, and is checked as a number.
+          ROLE_ARN: ${{ vars.CRASH_ENDPOINT_DEPLOY_ROLE_ARN }}
+          REGION: ${{ vars.CRASH_ENDPOINT_REGION || 'us-east-1' }}
+          # An input is untrusted text in a script: it goes through the environment, and the script checks it is a number.
           RESERVED_CONCURRENCY: ${{ inputs.reserved_concurrency }}
-        run: |
-          set -euo pipefail
-          [[ "$RESERVED_CONCURRENCY" =~ ^-?[0-9]+$ ]] || { echo "::error::reserved_concurrency must be a whole number"; exit 1; }
-          account="$(aws sts get-caller-identity --query Account --output text)"
-          # The boundary the function's role must carry (made once by the owner; see the runbook).
-          sam deploy \
-            --template-file infra/crash-endpoint/template.yaml \
-            --stack-name "$STACK_NAME" \
-            --resolve-s3 \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-confirm-changeset \
-            --no-fail-on-empty-changeset \
-            --parameter-overrides \
-              "PermissionsBoundaryArn=arn:aws:iam::${account}:policy/stationbreak-crash-endpoint-boundary" \
-              "ReservedConcurrency=${RESERVED_CONCURRENCY}"
-
-      # One sample report must land in the bucket, and the endpoint must refuse what it should. The URL is read here,
-      # masked at once, and never written to the log, the summary or a file.
-      - name: Smoke test the endpoint
-        run: |
-          set -euo pipefail
-          output() {
-            aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
-              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text
-          }
-          url="$(output FunctionUrl)"
-          echo "::add-mask::$url"
-          bucket="$(output ReportBucketName)"
-          prefix="reports/$(date -u +%Y/%m/%d)/"
-          count() {
-            aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --query KeyCount --output text
-          }
-          status() {
-            curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$@" "$url"
-          }
-          sample='{"REPORT_ID":"00000000-0000-4000-8000-000000000000","PACKAGE_NAME":"tv.stationbreak.app","APP_VERSION_NAME":"smoke-test","STACK_TRACE":"java.lang.IllegalStateException: smoke test"}'
-          before="$(count)"
-          got="$(status -X POST -H 'Content-Type: application/json' --data "$sample")"
-          [ "$got" = "204" ] || { echo "::error::a sample report was answered $got, not 204"; exit 1; }
-          after="$(count)"
-          [ "$after" -gt "$before" ] || { echo "::error::the sample report did not land in the bucket"; exit 1; }
-          got="$(status -X GET)"
-          [ "$got" = "405" ] || { echo "::error::a GET was answered $got, not 405"; exit 1; }
-          big="$(head -c 40000 /dev/zero | tr '\0' x)"
-          got="$(status -X POST -H 'Content-Type: application/json' --data "{\"STACK_TRACE\":\"$big\"}")"
-          [ "$got" = "413" ] || { echo "::error::an oversize body was answered $got, not 413"; exit 1; }
-          {
-            echo "### Crash endpoint deployed"
-            echo "A sample report landed in the bucket; a GET and an oversize body were refused."
-            echo "The function URL is not printed here: read it from the stack's Outputs in the CloudFormation console and set it as the CRASH_REPORT_URL secret."
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: bash infra/crash-endpoint/deploy.sh
