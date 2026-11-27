@@ -289,8 +289,10 @@ user name or password in it, from the environment variable or from a Gradle prop
 crash reporting and the Settings sheet has no Send crash reports row. Do not commit the value, and do not put a secret in
 it: the URL ends up in the APK, where anyone who unpacks it can read it, so the endpoint must accept writes from anyone,
 give nothing back, and limit the rate and size of what it takes and treat it as untrusted. Even in a build that has
-it, nothing is collected or sent until the viewer turns the row on. The release workflow does not pass it, so a tagged
-release has none until that workflow is changed to. What a report holds, and how it is redacted, is
+it, nothing is collected or sent until the viewer turns the row on. The release workflow passes it from the
+`CRASH_REPORT_URL` Actions secret the owner sets (#1189), so a tagged build has crash reporting only while that secret is
+set. The endpoint is a small AWS stack in `infra/crash-endpoint/`, deployed by the `Deploy crash endpoint` workflow; its
+setup and how the owner reads reports are in [docs/beta/crash-endpoint-runbook.md](docs/beta/crash-endpoint-runbook.md). What a report holds, and how it is redacted, is
 in `app/src/main/kotlin/tv/stationbreak/app/crash/` and on the [privacy page](docs/guide/privacy.md).
 
 ## Code of conduct and security

@@ -53,6 +53,8 @@ takes out web addresses, server names and IP addresses, sign-in tokens, keys and
 message could still include something else, such as the name of a channel, a title or a file path. Like any server, the one that
 receives the report sees the network address it came from.
 
+The server keeps each report for 90 days and then deletes it automatically.
+
 Turning the row off stops collecting at once and deletes any report still waiting on the TV. A report that has already
 been sent is not on your TV, so the app cannot take it back; email [support@stationbreak.tv](mailto:support@stationbreak.tv)
 about it.
