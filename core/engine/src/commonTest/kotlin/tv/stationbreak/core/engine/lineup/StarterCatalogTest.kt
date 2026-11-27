@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(30, StarterCatalog.VERSION)
-        assertEquals(30, StarterCatalog.version)
+        assertEquals(31, StarterCatalog.VERSION)
+        assertEquals(31, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
@@ -155,7 +155,14 @@ class StarterCatalogTest {
         assertEquals(setOf(33, 66, 99, 199), leftovers.map { it.number }.toSet())
         assertEquals(listOf("PG", "PG", "TV-14", null), leftovers.sortedBy { it.number }.map { it.maxRating })
         assertEquals(
-            setOf("big-screen-toons", "popcorn-matinee", "ink-and-paint", "starship-sunday", "prime-time-pals"),
+            setOf(
+                "big-screen-toons",
+                "popcorn-matinee",
+                "ink-and-paint",
+                "starship-sunday",
+                "prime-time-pals",
+                "fireside",
+            ),
             recipes
                 .filter { it.band == Band.Family && it.key !in StarterCatalog.EVER_KID_SAFE_KEYS }
                 .map { it.key }

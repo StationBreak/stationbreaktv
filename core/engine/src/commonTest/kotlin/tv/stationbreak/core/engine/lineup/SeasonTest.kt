@@ -110,10 +110,11 @@ class SeasonTest {
     }
 
     @Test
-    fun theFourSeasonalRecipesCarryTheirWindows() {
+    fun theFiveSeasonalRecipesCarryTheirWindows() {
         fun season(key: String) = StarterCatalog.recipe(key)?.season
         assertEquals(Season.Christmas, season("snowglobe"))
         assertEquals(Season.Christmas, season("always-december"))
+        assertEquals(Season.Christmas, season("fireside"))
         assertEquals(Season.Halloween, season("spooky-sleepover"))
         assertEquals(Season.Halloween, season("jack-o-lantern-lounge"))
         assertEquals(
@@ -124,8 +125,8 @@ class SeasonTest {
                 .toSet(),
         )
         assertNull(StarterCatalog.recipe("prestige")?.season)
-        // Snowglobe and Spooky Sleepover stay where they were, and keep their ceilings.
-        assertEquals(20 to "G", StarterCatalog.recipe("snowglobe")!!.let { it.number to it.maxRating })
+        // Snowglobe and Spooky Sleepover stay where they were; Snowglobe's label is the Tots cap (catalog 31, #1186).
+        assertEquals(20 to "TV-Y7", StarterCatalog.recipe("snowglobe")!!.let { it.number to it.maxRating })
         assertEquals(45 to "PG", StarterCatalog.recipe("spooky-sleepover")!!.let { it.number to it.maxRating })
     }
 
