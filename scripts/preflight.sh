@@ -111,6 +111,7 @@ script_tests() {
   bash .github/scripts/verification-guard.test.sh
   bash .github/scripts/device-proof-guard.test.sh
   bash .github/scripts/store-secrets-guard.test.sh
+  python3 -I -m unittest discover -s tools/crash-reports -p '*_test.py'
   bash .github/scripts/instrumented-infra.test.sh
   bash .github/scripts/release-scope.test.sh
   bash scripts/guard-tree.test.sh

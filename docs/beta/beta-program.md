@@ -28,8 +28,11 @@ A LAT build's version comes from the tag. Tag a beta `vMAJOR.MINOR.PATCH-beta.N`
 `v0.9.0-beta.2`): `versionName` is the tag without the `v`, and `versionCode` is
 `(MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + 30 + N`, so each upload needs a higher tag than the last. A pre-release
 always sorts below its final release, so `v1.0.0` stays free for the store release and its code is above every beta's
-(ADR-0011). The tagged workflow does not set `CRASH_REPORT_URL`, so a LAT build has no crash-report switch and
-sends nothing, which the privacy page and the listing's data-collection answer (No) both assume.
+(ADR-0011). The tagged workflow passes the `CRASH_REPORT_URL` repository secret to both release builds (#1189). With
+the secret set, a LAT build has Settings, Send crash reports (off until the tester turns it on) and sends reports to
+the endpoint in `tools/crash-reports/`. Without it, the build has no switch and sends nothing. Before a LAT upload
+built with the secret, the listing's data-collection answer changes from No to Yes, crash logs
+(`docs/store/amazon-appstore-listing.md`). The runbook for reading reports is `tools/crash-reports/README.md`.
 
 ## Sideload path
 

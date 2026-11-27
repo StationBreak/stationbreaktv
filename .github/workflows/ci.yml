@@ -157,6 +157,10 @@ jobs:
       - name: Test the store secrets guard
         run: bash .github/scripts/store-secrets-guard.test.sh
 
+      # The crash-report endpoint's handler (#1189): the shape it accepts, and that it still matches the app.
+      - name: Test the crash-report endpoint
+        run: python3 -I -m unittest discover -s tools/crash-reports -p '*_test.py'
+
       - name: Store secrets guard
         run: bash .github/scripts/store-secrets-guard.sh .
 

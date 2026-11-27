@@ -2,7 +2,8 @@ name: Release
 
 # Tagged releases, built and signed by CI (ADR-0011, S4.1.1, #98, #276). Only a pushed `vX.Y.Z`, `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N` or `vX.Y.Z-rc.N` tag starts it: never
 # pull_request or pull_request_target, never workflow_dispatch, so a fork can't reach the release key.
-# Three jobs. `build` runs the repository's code (Gradle) and holds no secret. `sign` holds the release key and runs no
+# Three jobs. `build` runs the repository's code (Gradle) and holds no signing secret (its one secret is the crash-report
+# address, which every APK carries anyway). `sign` holds the release key and runs no
 # repository code: no checkout, no Gradle, no cache. `publish` holds no key and no checkout: it alone has the write
 # permissions. The result is a DRAFT GitHub release; the owner publishes it by hand, and nothing goes to a store.
 #
@@ -23,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # No environment, no secret. Fails before anything is built unless the tag is a clean SemVer on a commit that is on
+  # No environment and no signing secret. Fails before anything is built unless the tag is a clean SemVer on a commit that is on
   # main. No cache is restored or saved: a release build starts clean and leaves nothing for another run to pick up.
   build:
     runs-on: ubuntu-latest
@@ -114,9 +115,14 @@ jobs:
           cache-disabled: true
 
       # Unsigned: Gradle has no release signing config and never sees a key.
+      # CRASH_REPORT_URL (#1189): the owner's opt-in crash-report endpoint, a repository secret so the address stays out
+      # of the repository and the logs. It is not a credential: every APK built with it carries it. Unset or empty, both
+      # APKs have no Send crash reports row and send nothing; Gradle fails the build if it is set but is not an https
+      # URL without user info.
       - name: Assemble the release APKs
         env:
           RELEASE_VERSION: ${{ steps.tag.outputs.version }}
+          CRASH_REPORT_URL: ${{ secrets.CRASH_REPORT_URL }}
         run: ./gradlew assembleGithubRelease assembleAmazonRelease
 
       - name: Collect the unsigned APKs

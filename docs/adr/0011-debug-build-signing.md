@@ -140,8 +140,9 @@ Closes the "pending S4.1.1" note in item 2 (#98, #276). The workflow is `.github
   pre-release when the tag has a suffix. Its release notes list the commits since the last final release tag (`v1.2.3` only), which is `First release.` before
   the first one.
 - **A keyless build, a signing job, then a publishing job.** The `build` job checks out the repository and runs Gradle
-  with no environment and no secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
-  APKs). Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
+  with no environment and no signing secret (`contents: read`, no cache, an empty `dist/` that ends up holding exactly the two
+  APKs). Its one secret is `CRASH_REPORT_URL` (#1189), the opt-in crash-report address, which every APK built with it
+  carries, so it is not a credential. Gradle has no release signing config at all, so release builds are always unsigned. The unsigned APKs go to a
   one-day `internal-` artifact. The `sign` job has no checkout, no Gradle, no cache and no token permission: it fails
   unless the artifact holds exactly `stationbreak-github-vX.Y.Z.apk` and `stationbreak-amazon-vX.Y.Z.apk` (with the tag's `-beta.N` or `-rc.N`, if any) and each
   matches the SHA-256 the `build` job published as a job output (checked before the key is decoded), decodes the key to the runner's temporary directory, aligns and signs those two files with the runner's `apksigner` (build-tools
