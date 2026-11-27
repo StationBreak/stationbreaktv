@@ -68,5 +68,5 @@ than 5 channels of your own. See [Free and Pro](free-and-pro.md).
 
 **Where can I buy Pro? What if I get a refund?**
 Paid Pro is sold on Amazon, for Fire TV only. The GitHub download has Pro unlocked. After a refund your built-in
-channels return to the lineup StationBreak builds, and channels of your own beyond the first 5 are locked, not
+channels return to the lineup StationBreak builds, and channels of your own beyond five (the five with the lowest IDs keep working) are locked, not
 deleted. See [If a purchase is refunded](free-and-pro.md#if-a-purchase-is-refunded).
