@@ -27,10 +27,12 @@ import tv.stationbreak.core.model.RuleSeries
  * Explicit too.
  * `grown-up-hold-13` moves with `kid-hold-13` (#987): the board ratings of [BoardRatings] map, the Explicit check reads
  * country names, and KR `19` and JP `19` and `20` are Adult again, not Explicit.
+ * `grown-up-hold-14` moves with `kid-hold-14` (#1006): a minimum age of 17 is level 6, and a dash variant reads as the
+ * plain spelling in the animated-family signal.
  */
 object GrownUpHold {
     /** The name of this version of the grown-up gate. */
-    const val VERSION_NAME = "grown-up-hold-13"
+    const val VERSION_NAME = "grown-up-hold-14"
 
     /**
      * Whether a grown-up pool drops [entry]: it is in the kids tier ([KidHold.admits]), so some kid channel can take

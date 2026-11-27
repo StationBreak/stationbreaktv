@@ -38,10 +38,14 @@ import tv.stationbreak.core.model.studioKey2
  * a bare all-ages word (`U`, `ALL`, `GA`, `ATP`, `UNIVERSAL`) at Family like a bare age, reads the Explicit check with
  * the prefix rule of the map (so `United Kingdom:R18` and `Australia:X18+` are Explicit), and puts KR `19` and JP `19`
  * and `20` back in Adult (level 6). Some titles now rank younger; others no longer read Explicit.
+ * `kid-hold-14` (#1006) reads a minimum age of 17 (`17`, `17+`, `DE-17`) as level 6 (Adult), not 5, and an en-dash or
+ * other dash variant in `TV-Y`, `TV-G` and the like as the plain spelling in the animated-family signal ([NoiseTidy]).
+ * A bare age stays Family at least. Some titles rank older (17), and an Animation and Family title rated with a
+ * dash-variant spelling such as `TV–Y` (en dash) was Family and is Kids, as plain `TV-Y` is.
  */
 object KidHold {
     /** The name of this version of the gate lists and the rating table. */
-    const val VERSION_NAME = "kid-hold-13"
+    const val VERSION_NAME = "kid-hold-14"
 
     /**
      * The genres that mean made for children, in their spellings. Family is not one of them. The starter catalog's
@@ -196,7 +200,8 @@ object KidHold {
      * Animation and Family, and the decisive rating ([EpisodeRating.decisive]) passes. When [series] is known and has a
      * rating (see [EpisodeRating.isAbsent]), that rating decides and the entry's own is ignored; a known series with no
      * rating leaves the entry's own to decide (the Farscape guard). A rating passes when absent; or after
-     * `RatingLadder.normalise` it is `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and
+     * the dash tidy of [NoiseTidy] (a dash variant is `-`, so `TV–Y` is `TV-Y`) and `RatingLadder.normalise` it is
+     * `G`, `TV-G`, `TV-Y`, `TV-Y7`, `TV-Y7-FV` or `Approved`; or, ASCII upper-cased and
      * trimmed, it is `NR`, `NOT RATED` or `UNRATED`. Anything else, a PG or above, a name off the ladder, fails.
      * Tags never take part. A null [series] contributes nothing.
      */

@@ -14,7 +14,7 @@ to the rule that a leak may only fail upward, toward explicit.
 - `ExplicitTierTest.kt` and `ExplicitPoolTest.kt`: every Explicit trigger alone, the Adult controls, and where the slice
   may air (After Hours alone for Explicit, no young pool for Adult, no Odds & Ends 199 for no metadata).
 - The rating map and the tier rule also have shared vectors in `docs/rules-format/vectors/kid-hold-6.json`, for the
-  `kid-hold-7` moves up `kid-hold-7.json`, for the `kid-hold-8` Explicit tier `kid-hold-8.json`, for the `kid-hold-9` input tidy `kid-hold-9.json`, for the `kid-hold-10` non-US ratings `kid-hold-10.json`, for the `kid-hold-11` ceilings and Explicit spellings `kid-hold-11.json`, for the `kid-hold-12` Explicit spellings `kid-hold-12.json`, and for the `kid-hold-13` board ratings, all-ages cap and Explicit prefix rule `kid-hold-13.json`.
+  `kid-hold-7` moves up `kid-hold-7.json`, for the `kid-hold-8` Explicit tier `kid-hold-8.json`, for the `kid-hold-9` input tidy `kid-hold-9.json`, for the `kid-hold-10` non-US ratings `kid-hold-10.json`, for the `kid-hold-11` ceilings and Explicit spellings `kid-hold-11.json`, for the `kid-hold-12` Explicit spellings `kid-hold-12.json`, and for the `kid-hold-13` board ratings, all-ages cap and Explicit prefix rule `kid-hold-13.json`, and for the `kid-hold-14` 17+ band and dash variants `kid-hold-14.json`.
 
 ## Rebuilding a real mock library (by hand, not in CI)
 

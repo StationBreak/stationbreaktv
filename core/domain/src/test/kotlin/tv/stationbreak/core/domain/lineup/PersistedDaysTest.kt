@@ -270,12 +270,14 @@ class PersistedDaysTest {
     // non-US ratings of the Android TV XML and bare ages capped at Family (kid-hold-10, grown-up-hold-10); #1124
     // ceilings read the mapped level and adult-only country labels are Explicit (kid-hold-11, grown-up-hold-11);
     // #1128 TH 19 and the spaced adult-only labels are Explicit (kid-hold-12, grown-up-hold-12); #987 the BBFC, FSK,
-    // Eirin, Australian and Singapore ratings map, bare all-ages words cap at Family (kid-hold-13, grown-up-hold-13).
+    // Eirin, Australian and Singapore ratings map, bare all-ages words cap at Family (kid-hold-13, grown-up-hold-13);
+    // #1006 a minimum age of 17 is level 6 and a dash variant reads plain in the animated-family signal (kid-hold-14,
+    // grown-up-hold-14).
     // Each rename rebuilds every held day once.
     @Test
-    fun theHoldNamesAreKidHoldThirteenAndGrownUpHoldThirteen() {
-        assertTrue("kid-hold-13" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
-        assertTrue("grown-up-hold-13" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+    fun theHoldNamesAreKidHoldFourteenAndGrownUpHoldFourteen() {
+        assertTrue("kid-hold-14" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
+        assertTrue("grown-up-hold-14" in PersistedDays.HOLDS, PersistedDays.HOLDS.toString())
     }
 
     @Test

@@ -29,9 +29,9 @@ internal object CountryRatingTables {
     // Exempt (Canada's news, sports and talk) is not a classification: unknown, like NR, not the XML's age 0.
     private val EXEMPT: Set<String> = setOf("E", "EXEMPT")
 
-    // The highest age of each level up to 16; an age above the last is 18.
+    // The highest age of each level up to 16; an age above the last is 18, so 17 is level 6 (`kid-hold-14`, #1006).
     @Suppress("MagicNumber")
-    private val AGE_CEILINGS = intArrayOf(0, 7, 10, 13, 14, 17)
+    private val AGE_CEILINGS = intArrayOf(0, 7, 10, 13, 14, 16)
     private const val LEVEL_18 = 6
     private const val MAX_AGE_DIGITS = 2
     private const val COUNTRY_CODE_LENGTH = 2
@@ -109,7 +109,7 @@ internal object CountryRatingTables {
         return digits.isNotEmpty() && digits.length <= MAX_AGE_DIGITS && digits.all { it in '0'..'9' }
     }
 
-    /** The level of [age], rounded up (fail up): 8 is 10, not 7; an age above 17 is 18. */
+    /** The level of [age], rounded up (fail up): 8 is 10, not 7; an age above 16 is 18. */
     fun ageRung(age: Int): Int {
         val level = AGE_CEILINGS.indexOfFirst { age <= it }
         return if (level < 0) LEVEL_18 else level

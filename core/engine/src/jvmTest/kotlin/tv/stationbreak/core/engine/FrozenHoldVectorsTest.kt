@@ -8,8 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The vector files of the hold versions before `kid-hold-13` are frozen byte for byte (#987, #1124, #1128): a later
- * version adds a delta file and names the rows it supersedes, it never edits an earlier file.
+ * The vector files of the hold versions before `kid-hold-14` are frozen byte for byte (#987, #1124, #1128, #1006): a
+ * later version adds a delta file and names the rows it supersedes, it never edits an earlier file.
  */
 class FrozenHoldVectorsTest {
     private val dir = File(requireNotNull(System.getProperty("rulesFormat.dir")) { "rulesFormat.dir is not set" })
@@ -35,6 +35,7 @@ class FrozenHoldVectorsTest {
                 "kid-hold-10.json" to "4b009b1c5cfe071cae9e7f30db4c87e8ba457a6cf7462d62dc5302e20d3b3ae7",
                 "kid-hold-11.json" to "f125ec4894666fb9ea2253225916172c5274f0379558234274e9e56921f4623d",
                 "kid-hold-12.json" to "ee8eec41c58b830b4a09af6456c7efc049ff497f6d66b108ef83bd18b074f0f1",
+                "kid-hold-13.json" to "780ad090ace146f2729fda6fbb374924dc791e7205a1632660d47848a3a666cf",
                 "grown-up-hold-9.json" to "34af6084afa59a62264f0b53cb3f6f26f5a21719484251461cb5563f98154fbd",
             )
     }
