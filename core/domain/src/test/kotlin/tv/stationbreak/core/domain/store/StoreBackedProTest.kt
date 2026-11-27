@@ -299,7 +299,8 @@ class StoreBackedProTest {
             withTimeout(TIMEOUT_MS) { pro.pro.first { it } }
             store.revoke()
             withTimeout(TIMEOUT_MS) { pro.revoked.first { it } }
-            assertFalse(pro.pro.value)
+            // The refund is set before the state drops (the collector sets two flows in turn): wait for the second.
+            withTimeout(TIMEOUT_MS) { pro.pro.first { !it } }
             job.cancel()
         }
 
