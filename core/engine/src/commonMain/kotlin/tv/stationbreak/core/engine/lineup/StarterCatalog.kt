@@ -203,8 +203,14 @@ object StarterCatalog : StarterCatalogView {
      * it airs what it aired plus a TV-Y7 kids-tier title the G label rejected), and Snowglobe and Always December
      * drop the bare `holiday` tag (a summer-holiday film is not Christmas). Every other entry is as it was at 30. No
      * rules format or hold version change.
+     *
+     * Version 32 (#1013): Docs & Dusters (key `docs-and-dusters`, 236) airs the Documentary genre or the `biography`
+     * tag (it lost its Documentary filter and the `documentary` and `history` tags, which only ever counted with that
+     * filter), so a biography-tagged title without the Documentary genre has a path; the kids-genre and anime
+     * exclusions still apply. Continental Drift (424) drops the studios Wild Bunch and Constantin Film and keeps the
+     * other six. Every other entry is as it was at 31. No rules format or hold version change.
      */
-    const val VERSION = 31
+    const val VERSION = 32
 
     /** The catalog that moved the young bands: a lineup from before it has its numbers moved (`CatalogRenumbering`). */
     const val YOUNG_BANDS_VERSION = 8

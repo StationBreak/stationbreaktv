@@ -75,8 +75,8 @@ class StarterCatalogTest {
     @Test
     fun theCatalogHasSeventyToAHundredRecipes() {
         assertTrue(recipes.size in 70..110, "size was ${recipes.size}")
-        assertEquals(31, StarterCatalog.VERSION)
-        assertEquals(31, StarterCatalog.version)
+        assertEquals(32, StarterCatalog.VERSION)
+        assertEquals(32, StarterCatalog.version)
         assertEquals(CATALOG_V3_RECIPES, recipes, "the CATALOG_V3_RECIPES list is the live one (catalog 5 edits it)")
     }
 
