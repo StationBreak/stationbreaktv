@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-StationBreak-AppStore
+#
+# The opt-in crash-report endpoint (#1189, Q-PRIV-1): HTTPS POST /report -> Lambda -> a private S3 bucket.
+# Deploy, test and read reports with tools/crash-reports/README.md. Nothing here holds the endpoint's address or a
+# credential: the address is an output of the deployed stack and goes only into the CRASH_REPORT_URL Actions secret.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: StationBreak opt-in crash reports (HTTPS endpoint into a private S3 bucket)
+
+Parameters:
+  RateLimit:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    Description: Requests per second accepted across the whole endpoint (API Gateway throttling); more answer 429.
+  BurstLimit:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    Description: Requests accepted at once above the rate before 429.
+  MaxReportBytes:
+    Type: Number
+    Default: 131072
+    MinValue: 1024
+    MaxValue: 1048576
+    Description: The largest report body stored; a larger one answers 413.
+  RetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days a report is kept in the bucket before S3 deletes it.
+  ReservedConcurrency:
+    Type: Number
+    Default: 2
+    MinValue: -1
+    Description: Lambda copies that may run at once (a cost ceiling). -1 sets none, for an account whose concurrency quota is too low to reserve any.
+  AlertEmail:
+    Type: String
+    Default: ""
+    Description: Optional. An address for a monthly AWS Budgets alert on the whole account's spend (not only this stack); empty creates no budget.
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    Description: The budget alert's monthly amount in US dollars (only with AlertEmail).
+
+Conditions:
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, -1]]
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, ""]]
+
+Resources:
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    # Reports are the owner's data: deleting the stack leaves the bucket (empty it and delete it by hand).
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-reports
+            Status: Enabled
+            Prefix: reports/
+            ExpirationInDays: !Ref RetentionDays
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ReportBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReportBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: TlsOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ReportBucket.Arn
+              - !Sub "${ReportBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  ReportApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      # HTTP APIs are HTTPS only. No access log: it would keep each sender's network address.
+      DefaultRouteSettings:
+        ThrottlingRateLimit: !Ref RateLimit
+        ThrottlingBurstLimit: !Ref BurstLimit
+
+  ReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handler.lambda_handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      MemorySize: 128
+      Timeout: 5
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
+      LoggingConfig:
+        LogGroup: !Ref ReportLogs
+      Environment:
+        Variables:
+          BUCKET: !Ref ReportBucket
+          MAX_REPORT_BYTES: !Ref MaxReportBytes
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource: !Sub "${ReportBucket.Arn}/reports/*"
+      Events:
+        Report:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ReportApi
+            Method: POST
+            Path: /report
+
+  # The function logs one line per failed store and never a body; 14 days is enough to see a failure.
+  ReportLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+
+  SpendAlert:
+    Type: AWS::Budgets::Budget
+    Condition: HasAlertEmail
+    Properties:
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-monthly"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+Outputs:
+  ReportUrl:
+    Description: The value for the CRASH_REPORT_URL Actions secret. Never commit it.
+    Value: !Sub "https://${ReportApi}.execute-api.${AWS::Region}.amazonaws.com/report"
+  BucketName:
+    Description: Where reports land (reports/YYYY/MM/DD/).
+    Value: !Ref ReportBucket
