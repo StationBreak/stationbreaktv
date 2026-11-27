@@ -9,8 +9,9 @@
 
 ## Getting the app
 
-There is no release yet: no app store listing and no download. This page will say where to get the app once the
-first release is out.
+There is no store listing yet. Testers can download the pre-release APKs from the
+[GitHub releases page](https://github.com/StationBreak/stationbreaktv/releases). This page will say where to get the
+app from the store once it is listed.
 
 When a release is published on GitHub, its notes list the SHA-256 of each APK and the fingerprint of the certificate
 it is signed with. Check both before installing an APK by hand.

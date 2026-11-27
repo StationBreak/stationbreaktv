@@ -8,8 +8,8 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
 
 - **After Hours stays off.** The one built-in channel for adult content, **After Hours**, is
   never chosen for your lineup, and it can't be switched on in the free app.
-- **Tots channels show only titles made for kids**, rated within the Tots limit: at most G, TV-G, TV-Y, TV-Y7 or PG
-  (TV-PG is above it). Unrated titles are left out. This holds whatever a Tots channel's sources say. A messy library gives
+- **Tots channels show only titles made for kids**, rated within the Tots limit: at most G, TV-G, TV-Y or TV-Y7
+  (PG is above it). Unrated titles are left out. This holds whatever a Tots channel's sources say. A messy library gives
   thinner Tots channels, never less safe ones.
 - **Kids' titles stay on the Tots channels.** The other built-in channels leave out titles made for kids.
 - **Explicit titles air only on After Hours.** A title is explicit when it, or its series, has an adult-only rating
@@ -38,8 +38,8 @@ knows what is on it. They are not a safety guarantee, and they don't replace the
   can't choose otherwise or change it later. Copying After Hours is only for StationBreak Pro, as any change to a built-in
   channel is. If you copy its tags into a new custom channel by hand, the app can't tell, and that channel is not marked adult.
 
-Keeping children safe is free: the Tots rules above, and Family Mode with a PIN when it arrives. Only conveniences for
-parents, such as hours of operation and a bedtime card, are part of Pro. See [Free and Pro](free-and-pro.md).
+Keeping children safe is free: the Tots rules above, and Family Mode with a PIN. Only conveniences for
+parents, such as hours of operation, are part of Pro. See [Free and Pro](free-and-pro.md).
 
 ## What the app relies on
 
