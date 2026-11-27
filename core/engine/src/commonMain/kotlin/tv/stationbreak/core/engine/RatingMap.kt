@@ -29,7 +29,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * reads a minimum age of 17 as level 6, not 5.
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
- * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
+ * U+0020 from both ends, upper-case ASCII a-z only, turn every dash variant (U+2010 to U+2015,
+ * U+2212, U+FE58, U+FE63, U+FF0D) into a hyphen, drop a leading `RATED `.
  * (3) The whole string against the US names ([ALIASES], then `RatingLadder.normalise`, descriptor suffixes included),
  * so `TV-14` never reads as a country code; then a spelling that needs no prefix (`SAM 13`, `PG-12`). (4) A system
  * prefix (`DE-12`, `de:12`, `NL/16`, `Germany:FSK 12`), looked up in [CountryRatingTables]; the table has no `TV`, `PG`

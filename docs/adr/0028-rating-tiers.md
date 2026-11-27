@@ -63,7 +63,7 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
 6. **The rating map.** `RatingMap.levelOf` (`core/engine`) maps a rating string to the shared ladder ALL, 7, 10, 13, 14,
    16, 18, X (the same indices as the rules ladder's tiers) or to unknown. Since `kid-hold-14` an age of 17 is level 6, not 5 (addendum (9)). The map was US-first under `kid-hold-6`; from
    `kid-hold-10` (#987) it also reads non-US systems (rule 7). The parse order: unrated spellings; clean (trim U+0020,
-   ASCII upper case, en dash to hyphen, drop `Rated `); the US names whole, first (so `TV-14` never reads as Tuvalu);
+   ASCII upper case, every dash variant (U+2010 to U+2015, U+2212, U+FE58, U+FE63, U+FF0D) to hyphen, drop `Rated `); the US names whole, first (so `TV-14` never reads as Tuvalu);
    a spelling that is neither a bare number nor a single letter, read without a prefix at the highest level any
    country gives it (`SAM 13`, `C8`); a country prefix (`-`, `:` or `/`); a `/` list at its highest
    level (unknown if any part is); a bare minimum age rounded up, **capped at Family** (level 2 at least: a bare age
@@ -433,7 +433,7 @@ Owner decisions of 2026-11-23, confirmed 2026-11-27. This tightens what reaches 
   (`DE-17`, `FR-17+`), are level 6, so a title so rated is above a TV-14 or R ceiling of a grown-up or custom channel
   that it used to pass at R. Ages 15 and 16 stay level 5. No title changes tier on this alone (levels 5 and 6 are both
   Adult), only under a ceiling.
-- **A bare age stays Family at most, never kids** (`0`, `6`, `7+`, `10`), until licensed country tables land (#987). This
+- **A bare age stays Family at least, never kids** (`0`, `6`, `7+`, `10`), until licensed country tables land (#987). This
   was already the rule (rule 6); it is restated in `kid-hold-14.json` with its own rows, with a prefixed age (`DE-6`)
   unaffected and still kids.
 - **A dash variant reads plain in the animated-family signal.** `AnimatedFamilySignal` read a rating through
