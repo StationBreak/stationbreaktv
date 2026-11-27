@@ -58,7 +58,9 @@ internal object AnimatedFamilySignal {
 
     private fun ratingPasses(rating: String?): Boolean {
         if (rating == null || EpisodeRating.isAbsent(rating)) return true
-        val name = RatingLadder.normalise(rating)
+        // Tidied as RatingMap tidies (a dash variant is `-`), so `TV\u2013Y` reads as `TV-Y` (kid-hold-14, #1006); the
+        // published ladder itself stays ASCII-only.
+        val name = RatingLadder.normalise(NoiseTidy.tidy(rating, anySpace = false))
         // trim() below only matches the NR spellings (kept from kid-hold-3); it never decides absent.
         return when {
             name != null -> name in RATINGS

@@ -19,16 +19,16 @@ import kotlin.test.assertTrue
 /**
  * Holds `RatingMap`, `RatingTier`, `KidHold` and `GrownUpHold` to every case of `kid-hold-6.json`, of
  * `kid-hold-7.json`, which has the same shape and only 'tier' rows, of `kid-hold-9.json` (a delta, see its description
- * for the rows it supersedes), of `kid-hold-10.json`, `kid-hold-11.json`, `kid-hold-12.json` and `kid-hold-13.json`
- * (deltas, the second with 'customCeiling' rows on the mapped level), of `grown-up-hold-9.json` (a delta of
- * 'customCeiling' rows, with genres and tags) and of `kid-hold-8.json`, which adds the 'explicitRating', 'tierLimit'
- * and 'noMetadata' sections (the text is given, so
+ * for the rows it supersedes), of `kid-hold-10.json`, `kid-hold-11.json`, `kid-hold-12.json`, `kid-hold-13.json` and
+ * `kid-hold-14.json` (deltas, the second with 'customCeiling' rows on the mapped level), of `grown-up-hold-9.json` (a
+ * delta of 'customCeiling' rows, with genres and tags) and of `kid-hold-8.json`, which adds the 'explicitRating',
+ * 'tierLimit' and 'noMetadata' sections (the text is given, so
  * the same check runs on the copy in commonTest and on the published file in jvmTest).
  *
  * The frozen files of the versions before `kid-hold-8` ([explicitIsAdult]) are read as `kid-hold-8` reads them: the
  * Explicit tier was part of their adult tier, and the one rating `kid-hold-8` moves ([MOVED_AT_8]) is held to its new
  * level. Their rows are never edited; the rows a later version supersedes ([SUPERSEDED_AT_9], [SUPERSEDED_AT_10],
- * [SUPERSEDED_AT_11], [SUPERSEDED_AT_12], [REVERSED_AT_13]) are held to their new answer.
+ * [SUPERSEDED_AT_11], [SUPERSEDED_AT_12], [REVERSED_AT_13], [SUPERSEDED_AT_14]) are held to their new answer.
  *
  * The name is the first file it read, kept so the history of the callers stays readable: it runs every vector file
  * named above, `kid-hold-7.json` included, not `kid-hold-6.json` only.
@@ -88,6 +88,12 @@ internal object KidHold6VectorCheck {
             "DE-12/FSK 16 list movie, R ceiling, grown-up (an unknown part is unknown)",
         )
     private const val LEVEL_ADULT = 6
+
+    /**
+     * The 'ratingMap' rows of earlier files that `kid-hold-14` supersedes (#1006, `kid-hold-14.json` names them): a
+     * minimum age of 17, bare or after a two-letter system (`17`, `17+`, `DE-17`), is level 6, not 5.
+     */
+    private val SUPERSEDED_AT_14: Regex = Regex("([A-Z]{2}-)?17\\+?")
 
     /**
      * The 'ratingMap' rows of earlier files that `kid-hold-13` supersedes (#987, `kid-hold-13.json` names them): a bare
@@ -197,6 +203,7 @@ internal object KidHold6VectorCheck {
     ): Int? {
         val rating = row.stringOrNull("rating")
         return when {
+            rating != null && SUPERSEDED_AT_14.matches(rating) -> LEVEL_ADULT
             rating in REVERSED_AT_13 && rating?.contains(' ') == false -> LEVEL_ADULT
             rating in SUPERSEDED_AT_13 -> SUPERSEDED_AT_13[rating]
             rating in SUPERSEDED_AT_11 || rating in SUPERSEDED_AT_12 -> LEVEL_X

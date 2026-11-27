@@ -9,7 +9,8 @@ import kotlin.test.assertEquals
 /**
  * Named non-US rating vectors (#987), written BY HAND from the issue's ladder and the ages of the Android TV ratings
  * (not read from [AndroidTvRatingSystems], not computed by [RatingMap]). The ladder: 0 ALL, 1 is ages 1 to 7, 2 is 8
- * to 10, 3 is 11 to 13, 4 is 14, 5 is 15 to 17, 6 is 18 and up, 7 is Explicit. `null` is unknown, so adult.
+ * to 10, 3 is 11 to 13, 4 is 14, 5 is 15 to 16, 6 is 17 and up (kid-hold-14, #1006), 7 is Explicit. `null` is unknown,
+ * so adult.
  * `kid-hold-10.json` holds the full table; this is the part a person can read and check against the ages.
  */
 class NonUsRatingVectors {
@@ -78,7 +79,8 @@ class NonUsRatingVectors {
 
     @Test
     fun europeanBroadcastAgesAtEveryEdge() {
-        // The DVB ages: 4 to 7 is level 1, 8 to 10 is 2, 11 to 13 is 3, 14 is 4, 15 to 17 is 5, 18 is 6.
+        // The DVB ages: 4 to 7 is level 1, 8 to 10 is 2, 11 to 13 is 3, 14 is 4, 15 to 16 is 5,
+        // 17 and 18 are 6 (kid-hold-14).
         check(
             "DE",
             "DE-4" to 1,
@@ -92,7 +94,7 @@ class NonUsRatingVectors {
             "DE-14" to 4,
             "DE-15" to 5,
             "DE-16" to 5,
-            "DE-17" to 5,
+            "DE-17" to 6,
             "DE-18" to 6,
             // The DVB list stops at 18: an age the XML does not list is unknown, so adult.
             "DE-19" to null,

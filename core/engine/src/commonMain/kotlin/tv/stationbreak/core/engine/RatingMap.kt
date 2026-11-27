@@ -25,7 +25,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * the boards of [BoardRatings] (BBFC, FSK, Eirin, Australia, Singapore), caps a bare all-ages word (`U`, `ALL`, `GA`,
  * `ATP`, `UNIVERSAL`) at Family, reads KR `19` and JP `19` and `20` as level 6 (Adult) again, and reads one prefix
  * rule everywhere: a two-letter code, `UK`, a country name or `FSK`, then `-`, `:` or `/` ([isExplicit] too, so
- * `United Kingdom:R18` is Explicit); a `US:` or `US-` prefix reads the rest on the US ladder.
+ * `United Kingdom:R18` is Explicit); a `US:` or `US-` prefix reads the rest on the US ladder. `kid-hold-14` (#1006)
+ * reads a minimum age of 17 as level 6, not 5.
  *
  * Parse order (#987): (1) null, and the unrated spellings once cleaned ([UNRATED]), are unknown. (2) Clean: trim
  * U+0020 from both ends, upper-case ASCII a-z only, turn an en dash (U+2013) into a hyphen, drop a leading `RATED `.
@@ -34,7 +35,8 @@ import tv.stationbreak.core.rules.RatingLadder
  * prefix (`DE-12`, `de:12`, `NL/16`, `Germany:FSK 12`), looked up in [CountryRatingTables]; the table has no `TV`, `PG`
  * or `US` code.
  * (5) A list split on `/` takes its highest level, each part read as steps 3, 4 and 6 read a rating, and is unknown if
- * any part is. (6) A bare minimum age (`6`, `12+`) rounds up to the next level, and is Family at least (#1006).
+ * any part is. (6) A bare minimum age (`6`, `12+`, `17`) rounds up to the next level (17 is level 6), and is Family
+ * at least (#1006).
  * (7) Anything else is unknown.
  */
 object RatingMap {

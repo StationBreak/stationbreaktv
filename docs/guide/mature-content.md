@@ -52,7 +52,7 @@ the country's board is one the app knows (it uses the Android TV ratings list). 
 up, except Australian PG, which is read as PG. The app also knows the ratings of the UK's BBFC (`GB-12A`, `UK:15`, a bare
 `12A`), Germany's FSK (`FSK-12`, `FSK 16`, `ab 6`, `DE:FSK 16`), Japan's Eirin (`JP-PG12`, `R15+`) and Australia
 (`MA15+`, `MA 15+`), each read from the board's own published definition, and a country written out (`United Kingdom:12A`,
-`Germany:FSK 12`). When two tiers meet it reads the older one: `12A` is read as 13 and `15` as 16. A rating the app does
+`Germany:FSK 12`). When two tiers meet it reads the older one: `12A` is read as 13, `15` as 16 and `17` as 18. A rating the app does
 not recognise is treated as adult, the same as no rating. A bare age such as `6`, and a bare all-ages word (`U`, `ALL`,
 `GA`, `ATP`, `UNIVERSAL`) with no country or board named, is treated as family at most, never as a Tots title, because it
 names no rating system.

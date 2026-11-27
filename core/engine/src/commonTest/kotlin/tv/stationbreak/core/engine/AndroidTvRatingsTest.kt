@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
  */
 class AndroidTvRatingsTest {
     // The ladder rung of an age, from the ladder of #987 (ALL is all ages, 7 is 1 to 7, 10 is 8 to 10, 13 is 11 to 13,
-    // 14, 16 is 15 to 17, 18 is 18 and up). Written here on its own, not with RatingMap's code.
+    // 14, 16 is 15 to 16, 18 is 17 and up: kid-hold-14, #1006). Written here on its own, not with RatingMap's code.
     private fun rungOf(age: Int): Int =
         when {
             age <= 0 -> 0
@@ -25,7 +25,7 @@ class AndroidTvRatingsTest {
             age <= 10 -> 2
             age <= 13 -> 3
             age == 14 -> 4
-            age <= 17 -> 5
+            age <= 16 -> 5
             else -> 6
         }
 
@@ -196,11 +196,22 @@ class AndroidTvRatingsTest {
             assertFalse(KidHold.passesKidCeiling(kidsMovie(age), null, null), age)
         }
         assertEquals(3, RatingMap.levelOf("12"))
+        assertEquals(5, RatingMap.levelOf("16+"))
         assertEquals(6, RatingMap.levelOf("18+"))
         assertEquals(2, RatingMap.levelOf("TV-Y/6"))
         // A country prefix names the system: DE-6 is the XML's DVB 6.
         assertEquals(1, RatingMap.levelOf("DE-6"))
         assertEquals(RatingTier.Kids, RatingTier.of(kidsMovie("DE-6"), null))
+    }
+
+    // #1006, owner decision 2026-11-23 (confirmed 2026-11-27): the 17+ band is level 6 (18), bare or prefixed; 16 is 5.
+    @Test
+    fun aMinimumAgeOfSeventeenIsLevelSixNotFive() {
+        for (rating in listOf("17", "17+", "DE-17", "DE-17+", "DE:17", "fr/17")) {
+            assertEquals(6, RatingMap.levelOf(rating), rating)
+        }
+        for (rating in listOf("15", "16", "16+", "DE-16")) assertEquals(5, RatingMap.levelOf(rating), rating)
+        assertFalse(KidHold.passesKidCeiling(kidsMovie("17"), null, "R"))
     }
 
     @Test

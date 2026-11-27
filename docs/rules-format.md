@@ -2010,7 +2010,7 @@ ladder. From `kid-hold-10` ([#987](https://github.com/StationBreak/stationbreakt
 that map reads the US names, `Rated `, `/` lists, a bare minimum age (capped at family, never kids), and the non-US
 systems of the Android TV ratings XML (Apache-2.0, see `NOTICE`) when a country code and `-`, `:` or `/` come first
 (`DE-12`, `KR-15`, `BR-L`, `AU-PG`). Each of those has a *level* on the app's ladder: 0 ALL, 1 (ages up to 7), 2 (8 to
-10), 3 (11 to 13), 4 (14), 5 (15 to 17), 6 (18 and up), 7 Explicit; a rating the map does not know has no level and is
+10), 3 (11 to 13), 4 (14), 5 (15 to 16), 6 (17 and up), 7 Explicit; a rating the map does not know has no level and is
 adult. The level is the rating's minimum age rounded up to the next rung, except Australian PG, read as PG
 (level 2; ADR-0028 rule 6 lists the overrides) (`kid-hold-10.json` holds the level of every
 spelling, in its `ratingMap` rows). Since `kid-hold-13` (#987) the table also holds the ratings of the BBFC, FSK, Eirin
@@ -2020,7 +2020,7 @@ and Australia, read from each board's published definition (`GB-12A`, `12A`, `FS
 like a bare age. A rating that table lacks (`GB-12PG`, `FSK-7`, `AU-MA16+`, a single letter without a
 country, and the like) stays unknown, which means adult ([ADR-0028](adr/0028-rating-tiers.md), vectors `kid-hold-6.json`,
 `kid-hold-10.json` and `kid-hold-13.json`). A client that matches StationBreak's tiers uses that table, not one of its own, and reports the
-hold names `kid-hold-13` and `grown-up-hold-13`. Who reads that level: the tier of a title, a kid channel's
+hold names `kid-hold-14` and `grown-up-hold-14`. Who reads that level: the tier of a title, a kid channel's
 ceiling (the app's kid channel uses the level in place of rule 4), and, since `grown-up-hold-11` (#1124), every
 ceiling of a grown-up or custom channel (a PG Kids-band or TV-14 Teens-band channel, or a channel's own `maxRating`):
 rule 4 with the level of each rating in place of its rank on this ladder, so `DE-12` (level 3) passes TV-14 and fails
@@ -2363,7 +2363,7 @@ whole path from a library to a day's blocks, and shows which versions of the cat
 
 - `description` and `fixtureFormat` (`1`: it goes up when the shape of this file changes);
 - `versions`: `generator` (the synthetic library, with its size and seed), `catalog` (the starter catalog's version, `4`: catalog 3's recipes, with every starter at `formatVersion` 5),
-  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-13`), `grownUpHold` (`grown-up-hold-13`),
+  `rulesFormat` (the highest `formatVersion` the app reads), `kidHold` (`kid-hold-14`), `grownUpHold` (`grown-up-hold-14`),
   `curation` (`curation-3`) and `extras` (`extras-1`). A version of yours that differs from one of these is not expected to
   give the same lineup or the same days;
 - `inputs`: what the planner was given. `serverId`, `userId` (made-up IDs), `libraries` (one made-up library ID),
@@ -2535,6 +2535,9 @@ Everything below is in this repository, under `docs/`:
   Australia, Singapore), the bare all-ages cap, the one prefix rule of the level and the explicit check (country names,
   `UK`, `FSK`, `US:`) and the reversal of KR `19` and JP `19` and `20` to Adult. Its description names every row of
   earlier files it supersedes.
+  `kid-hold-14.json` (#1006, `kid-hold-14` / `grown-up-hold-14`) is a delta: a minimum age of 17 (`17`, `17+`, `DE-17`) is level 6,
+  not 5, a bare age stays Family at most, and a dash variant in a TV rating reads as the hyphen in the animated-family
+  signal. It supersedes the `17` row of `kid-hold-6.json` and the `XX-17` and `XX-17+` rows of `kid-hold-10.json`.
 
 Examples in `docs/rules-format/examples/`, with what they show:
 

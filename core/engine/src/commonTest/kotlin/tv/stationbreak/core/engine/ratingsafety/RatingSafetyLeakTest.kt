@@ -190,13 +190,21 @@ class RatingSafetyLeakTest {
         assertTrue(checked > 1_000, "episodes checked: $checked")
     }
 
-    // #1006: a lowercase, en-dash or trailing-space spelling of a kid rating is never more lenient than the plain
-    // spelling: no title reaches Kids on a spelling that the plain one would keep out. It may be stricter: the
-    // animated-family signal reads `TV\u2013Y` through RatingLadder.normalise, which takes no en dash, so an Animation
-    // and Family title so rated stays Family (the safe side; reported on #1006, not changed here).
+    // #1006: a lowercase, en-dash or trailing-space spelling of a kid rating tiers exactly as the plain spelling does
+    // (kid-hold-14: the animated-family signal tidies a dash variant as the rating map does, so `TV\u2013Y` on an
+    // Animation and Family title is Kids, as `TV-Y` is). Em dash and minus sign are dash variants too.
     @Test
-    fun aKidRatingInLowercaseEnDashOrTrailingSpaceTiersNeverMoreLenientThanItsPlainSpelling() {
-        val spellings = mapOf("tv-y7" to "TV-Y7", "TV\u2013Y" to "TV-Y", "G " to "G")
+    fun aKidRatingInLowercaseDashVariantOrTrailingSpaceTiersExactlyAsItsPlainSpelling() {
+        val spellings =
+            mapOf(
+                "tv-y7" to "TV-Y7",
+                "TV\u2013Y" to "TV-Y",
+                "TV\u2013Y7" to "TV-Y7",
+                "TV\u2013G" to "TV-G",
+                "TV\u2014Y" to "TV-Y",
+                "TV\u2212Y" to "TV-Y",
+                "G " to "G",
+            )
         for ((odd, plain) in spellings) {
             for (tags in SyntheticLibrary.TAG_SETS) {
                 for (genres in SyntheticLibrary.GENRE_SETS) {
@@ -206,7 +214,7 @@ class RatingSafetyLeakTest {
                                 movie(idOf(1), rating = rating, genres = genres, tags = tags, studios = studios),
                                 null,
                             )
-                        assertTrue(tier(odd) >= tier(plain), "$odd $tags $genres $studios")
+                        assertEquals(tier(plain), tier(odd), "$odd $tags $genres $studios")
                     }
                 }
             }

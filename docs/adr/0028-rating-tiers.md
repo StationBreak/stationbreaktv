@@ -61,7 +61,7 @@ did not, and the owner chose the Apache-2.0 Android TV ratings XML instead (rule
    (`GrownUpHold.dropsFromGrownUp`), so family, teen and adult titles keep airing on grown-up channels until family and
    teen channels exist. Nothing airs nowhere because of the holds.
 6. **The rating map.** `RatingMap.levelOf` (`core/engine`) maps a rating string to the shared ladder ALL, 7, 10, 13, 14,
-   16, 18, X (the same indices as the rules ladder's tiers) or to unknown. The map was US-first under `kid-hold-6`; from
+   16, 18, X (the same indices as the rules ladder's tiers) or to unknown. Since `kid-hold-14` an age of 17 is level 6, not 5 (addendum (9)). The map was US-first under `kid-hold-6`; from
    `kid-hold-10` (#987) it also reads non-US systems (rule 7). The parse order: unrated spellings; clean (trim U+0020,
    ASCII upper case, en dash to hyphen, drop `Rated `); the US names whole, first (so `TV-14` never reads as Tuvalu);
    a spelling that is neither a bare number nor a single letter, read without a prefix at the highest level any
@@ -423,3 +423,26 @@ keeps its own stored ceiling ("no hidden filters", addendum 3), and only the flo
 number to move to anywhere stays below its floor (`FloorMigration`). Clamping a custom channel's ceiling to its band, as a
 built-in's is, would close that, but it would make a below-floor channel stop moving (the floor reads the clamped
 ceiling) and narrow the viewer's channel silently; it is left as a decision.
+
+## Addendum 2026-11-27 (9): the 17+ band is Adult, a dash variant reads plain, `kid-hold-14` / `grown-up-hold-14` ([#1006](https://github.com/StationBreak/stationbreaktv/issues/1006))
+
+Owner decisions of 2026-11-23, confirmed 2026-11-27. This tightens what reaches the kid and young channels.
+
+- **A minimum age of 17 is level 6.** The rung of an age is its minimum age rounded up; the rungs are now 0, 1 to 7, 8 to
+  10, 11 to 13, 14, 15 to 16 and 17 and up (they were 15 to 17 and 18 and up). `17` and `17+`, bare or after a system
+  (`DE-17`, `FR-17+`), are level 6, so a title so rated is above a TV-14 or R ceiling of a grown-up or custom channel
+  that it used to pass at R. Ages 15 and 16 stay level 5. No title changes tier on this alone (levels 5 and 6 are both
+  Adult), only under a ceiling.
+- **A bare age stays Family at most, never kids** (`0`, `6`, `7+`, `10`), until licensed country tables land (#987). This
+  was already the rule (rule 6); it is restated in `kid-hold-14.json` with its own rows, with a prefixed age (`DE-6`)
+  unaffected and still kids.
+- **A dash variant reads plain in the animated-family signal.** `AnimatedFamilySignal` read a rating through
+  `RatingLadder.normalise`, which takes ASCII only, while `RatingMap` has always read an en dash, em dash or minus sign
+  as a hyphen: an Animation and Family title rated `TV–Y` was Family and the plain `TV-Y` was Kids (found in #1182).
+  The signal now tidies the rating as the map does (`NoiseTidy`) before the ladder lookup, so the two spellings tier
+  alike. `RatingLadder` itself is unchanged: it is the published rule-4 ladder and `rating.json` pins it ASCII only, and
+  every other reader of the ladder on a rating fails up on a dash variant (unknown).
+- Versions: `kid-hold-14` and `grown-up-hold-14`, so every stored day is rebuilt once. Vectors: `kid-hold-14.json`, a
+  delta (`kid-hold-13.json` is now pinned by `FrozenHoldVectorsTest`); it names the rows of `kid-hold-6.json` and
+  `kid-hold-10.json` that it supersedes (`17` and every `XX-17` and `XX-17+`), and the checker holds the earlier files to
+  the new answer. No catalog or curation version moves.
