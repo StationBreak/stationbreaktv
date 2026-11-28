@@ -2,7 +2,6 @@
 package tv.stationbreak.app.nav
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -88,7 +87,6 @@ internal fun AppNavGraph(
     // first-sync entry owns it, and after it nothing does, so it is not kept for the rest of the session.
     var heldCheer by remember { mutableStateOf<FirstSyncCheerFrame?>(null) }
     LaunchedEffect(handOver.covering) { if (!handOver.covering) heldCheer = null }
-    val activity = LocalActivity.current
     val opening = phase == OpeningPhase.Playing
     // Cosmetic and asynchronous: the navigation itself is already done when the still starts waiting.
     LaunchedEffect(handOver.covering) { if (handOver.covering) handOver.hold() }
@@ -97,8 +95,7 @@ internal fun AppNavGraph(
             OpeningCover(
                 active = opening,
                 skip = { skip = true },
-                // Before routing has a destination Back leaves the app, as the progress screen did; after it, it skips.
-                back = { if (launchReady) skip = true else activity?.finish() },
+                launchReady = launchReady,
             ),
             remember(handOver) { CheerCover(handOver) },
         )
@@ -140,16 +137,20 @@ private enum class OpeningPhase { Playing, Dissolving, Gone }
  * Stan's opening as a cover: it holds the focus (the destination beneath may have none yet while launch routing works),
  * and owns its [skip] alone; Back is [back].
  */
-private class OpeningCover(
+internal class OpeningCover(
     override val active: Boolean,
     private val skip: () -> Unit,
-    private val back: () -> Unit,
+    private val launchReady: Boolean,
 ) : GraphCover {
     override val holdsFocus: Boolean = true
 
     override fun onKey() = skip()
 
-    override fun onBack() = back()
+    // Before routing has a destination Back is consumed and does nothing, so an accidental press in the first moments
+    // never leaves the app (#1084); once there is one, Back skips the opening like any other key.
+    override fun onBack() {
+        if (launchReady) skip()
+    }
 }
 
 /**

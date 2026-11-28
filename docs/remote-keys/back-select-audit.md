@@ -20,7 +20,7 @@ The ready notice drawn over live TV takes no focus and no key (`app/src/main/kot
 
 | State | Back | Select | Condition | file:line |
 | --- | --- | --- | --- | --- |
-| Stan opening | Finishes the activity | Consumed. Skips the opening once launch routing has a destination; before that the skip is ignored | Same for any key except volume, which is passed through. Back uses the cover's `onBack`, not a `BackHandler` | `AppNavHost.kt:96-101`, `GraphCover.kt:151-162`, `StanOpeningTiming.kt:48-70` |
+| Stan opening | Consumed. Ignored until launch routing has a destination, then skips (#1084) | Consumed. Skips the opening once launch routing has a destination; before that the skip is ignored | Same for any key except volume, which is passed through. Back uses the cover's `onBack`, not a `BackHandler` | `AppNavHost.kt:96-101`, `GraphCover.kt:151-162`, `StanOpeningTiming.kt:48-70` |
 | Cheer still over live TV | Lifts the still. The key does not reach live TV | Same as Back: any fresh key lifts the still | Cover is up only for the hand-over from the first-sync cheer | `GraphCover.kt:54-62`, `GraphCover.kt:151-162`, `AppNavHost.kt:69-72` |
 | Launch, routing | If the opening is still up, see that row. With the opening gone, this route is the only entry, so Back leaves the app | No control while it is only progress | Unavailable phase has buttons | `AppNavHost.kt:48-50`, `AppNavHost.kt:197-214`, `LaunchScreen.kt:200` |
 | Launch, unavailable | Leaves the app (only stack entry) | Retry runs routing again. Change server replaces the stack with the server screen | Focused button | `LaunchScreen.kt:273-278`, `AppNavHost.kt:213` |
@@ -88,6 +88,6 @@ Verified from the handlers above. No dead end: every state that consumes Back ei
 
 4. Back on first sync leaves the app, except during the cheer. The route is installed with `replaceAll` and has no `BackHandler`; the graph comment says Back exits and the sync keeps running (`AppNavHost.kt:255-256`, `AppNavHost.kt:280-284`). The cheer consumes Back and, on key-up, continues to live TV (`FirstSyncScreen.kt:159-169`).
 
-5. Back on the opening finishes the activity until launch routing has a destination, then skips. Both paths are the same cover (`AppNavHost.kt:100-101`).
+5. Back on the opening finishes the activity until launch routing has a destination, then skips. Both paths were the same cover (`AppNavHost.kt:100-101`). Fixed in #1084: Back is consumed and does nothing until routing has a destination.
 
 6. The same list-screen key handler is copied for Pro and for settings Libraries. `ProActions.pad` (`ProDestination.kt:98-118`) and `LibrariesActions.pad` (`LibrariesDestination.kt:74-93`) are the same Up / Down / Select / Back-finishes-once structure. `padToAct` is also declared twice: settings limits the pad to Up and Down (`Pad.kt:29-40`); channels passes every direction through (`ChannelsDestination.kt:236-244`). Sign-in registers two `BackHandler`s (`AppNavHost.kt:237-238` and `SignInScreen.kt:138`). While Quick Connect is showing, Back cancels Quick Connect and stays on the form (`SignInScreen.kt:56-57`).

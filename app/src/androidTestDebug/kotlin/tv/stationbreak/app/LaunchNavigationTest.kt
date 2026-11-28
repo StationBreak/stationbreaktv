@@ -440,14 +440,20 @@ class LaunchNavigationTest {
     }
 
     @Test
-    fun backOnTheOpeningBeforeRoutingIsReadyLeavesTheApp() {
+    fun backOnTheOpeningBeforeRoutingIsReadyIsHeldAndTheAppStays() {
         setUpEarlier()
         val gate = CompletableDeferred<Unit>()
         Launched.server.resumeGate = gate
         launchApp(coldLaunch = true)
         compose.onNode(hasContentDescription("Station Break")).assertExists()
         try {
-            assertBackLeavesTheApp()
+            compose.awaitWindowFocus()
+            InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+            // Give a leaving Back time to finish the activity before saying it did not (#1084).
+            Thread.sleep(BACK_SETTLE_MS)
+            compose.waitForIdle()
+            assertFalse("Back is held until routing has a destination (#1084)", compose.activity.isFinishing)
+            assertTrue("the opening is still up", openingIsUp())
         } finally {
             gate.complete(Unit)
         }
@@ -916,6 +922,7 @@ class LaunchNavigationTest {
         // Short of the Channels screen's ten-second wait for the lineup, so a note it shows is seen before it gives up.
         const val SHORT_WAIT_MS = 3_000L
         const val POLL_MS = 50L
+        const val BACK_SETTLE_MS = 1_000L
         const val STEP_MS = 100L
         const val NAME_IN_MS = 2_600L
         const val REDUCED_DWELL_MS = 1_000L
