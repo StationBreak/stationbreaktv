@@ -136,8 +136,9 @@ media. The facts it rests on:
 ### User data privacy
 
 "Does your app collect user data or transfer user data to third parties?" Recommended for a build with no crash
-report endpoint (`CRASH_REPORT_URL` empty, the default): **No. Owner.** For a build that has one, such as the Amazon Live
-App Testing beta (#96, Q-PRIV-1): **Yes, diagnostics, only if the viewer opts in**, and no one else receives it.
+report endpoint (`CRASH_REPORT_URL` empty, the default): **No. Owner.** For a build that has one, which is every tagged
+build while the owner's `CRASH_REPORT_URL` secret is set (#1189), including the Amazon Live App Testing beta and the
+store build (#96, Q-PRIV-1): **Yes, diagnostics, only if the viewer opts in**, and no one else receives it.
 
 Amazon's questionnaire is about user data the developer, its SDKs or its service providers receive. Without an
 endpoint this app sends nothing to the developer or anyone else: no analytics, crash reporting or advertising SDK, and no
@@ -151,10 +152,11 @@ Even with No, give the privacy policy URL so the listing links it. The policy is
 decision, 2026-11-18), from the text in `docs/guide/privacy.md`: `https://stationbreak.tv/privacy/`, live once
 GitHub Pages and the domain's DNS are set up. Check it loads before submitting.
 
-Opt-in crash reporting is built (Q-PRIV-1, decided 2026-11-20), but a build only has it when `CRASH_REPORT_URL` was set
-for that build. The tagged release workflow does not set it, so a tagged build answers No. If the store build ever
-gets an endpoint, or any telemetry is added, the answer changes to Yes with Crash logs or Diagnostics for Analytics,
-and the questionnaire must be updated before that release.
+Opt-in crash reporting is built (Q-PRIV-1, decided 2026-11-20), and a build only has it when `CRASH_REPORT_URL` was set
+for that build. Since #1189 the tagged release workflow passes the owner's `CRASH_REPORT_URL` secret, so a tagged build
+has the endpoint, and the answer is Yes with Crash logs or Diagnostics for Analytics, opt-in only. The owner decides
+this answer at submit: to answer No for the store build, unset the secret before tagging it. Any telemetry added later
+also changes the answer, and the questionnaire must be updated before that release.
 
 Amazon's [account and data deletion](https://developer.amazon.com/docs/app-submission/user-account-and-data-deletion.html)
 rules are for apps that create accounts. This one doesn't: uninstalling removes everything the app keeps, and

@@ -28,8 +28,12 @@ A LAT build's version comes from the tag. Tag a beta `vMAJOR.MINOR.PATCH-beta.N`
 `v0.9.0-beta.2`): `versionName` is the tag without the `v`, and `versionCode` is
 `(MAJOR * 10000 + MINOR * 100 + PATCH) * 100 + 30 + N`, so each upload needs a higher tag than the last. A pre-release
 always sorts below its final release, so `v1.0.0` stays free for the store release and its code is above every beta's
-(ADR-0011). The tagged workflow does not set `CRASH_REPORT_URL`, so a LAT build has no crash-report switch and
-sends nothing, which the privacy page and the listing's data-collection answer (No) both assume.
+(ADR-0011). The tagged workflow passes the `CRASH_REPORT_URL` Actions secret (#1189), so once the owner has set it (see the
+[crash endpoint runbook](crash-endpoint-runbook.md)) a LAT build has the Send crash reports switch in Settings, off by
+default. With it off nothing is sent; with it on, one redacted report per crash goes to the owner's endpoint, which keeps it 90
+days. With the secret unset, a build has no switch and sends nothing. The privacy page and the listing's data-collection answer
+(Yes, diagnostics, only if the viewer opts in; see the [listing draft](../store/amazon-appstore-listing.md)) assume the
+endpoint is set. Tell testers the switch is there and what it sends; the runbook says how the owner reads the reports.
 
 ## Sideload path
 

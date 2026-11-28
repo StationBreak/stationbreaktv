@@ -2,7 +2,8 @@ name: Release
 
 # Tagged releases, built and signed by CI (ADR-0011, S4.1.1, #98, #276). Only a pushed `vX.Y.Z`, `vX.Y.Z-alpha.N`, `vX.Y.Z-beta.N` or `vX.Y.Z-rc.N` tag starts it: never
 # pull_request or pull_request_target, never workflow_dispatch, so a fork can't reach the release key.
-# Three jobs. `build` runs the repository's code (Gradle) and holds no secret. `sign` holds the release key and runs no
+# Three jobs. `build` runs the repository's code (Gradle) and holds no secret, except CRASH_REPORT_URL (#1189), which is
+# not a credential: it is the crash endpoint's address, and the APK carries it. `sign` holds the release key and runs no
 # repository code: no checkout, no Gradle, no cache. `publish` holds no key and no checkout: it alone has the write
 # permissions. The result is a DRAFT GitHub release; the owner publishes it by hand, and nothing goes to a store.
 #
@@ -117,6 +118,10 @@ jobs:
       - name: Assemble the release APKs
         env:
           RELEASE_VERSION: ${{ steps.tag.outputs.version }}
+          # Where opt-in crash reports go (#96, #1189): the owner's endpoint, set as a repository secret by the owner.
+          # Not a credential: it ends up in the APK, where anyone can read it, and the endpoint is write-only by design.
+          # Unset or empty, a build has no crash reporting and no Send crash reports row.
+          CRASH_REPORT_URL: ${{ secrets.CRASH_REPORT_URL }}
         run: ./gradlew assembleGithubRelease assembleAmazonRelease
 
       - name: Collect the unsigned APKs

@@ -1,0 +1,99 @@
+name: Deploy crash endpoint
+
+# Deploys the opt-in crash-report endpoint (#1189): the AWS SAM stack under infra/crash-endpoint, into the owner's AWS
+# account, with GitHub OIDC. No AWS key is stored anywhere: the deploy job asks GitHub for a short-lived identity token
+# and trades it for a role's temporary credentials with the AWS CLI's own web-identity call (infra/crash-endpoint/deploy.sh),
+# so no third-party action is used (the repository allows only selected actions). The role, its trust and the one-time
+# steps that make it are in docs/beta/crash-endpoint-runbook.md; the exact policies are in infra/crash-endpoint/iam.
+#
+# `validate` runs on a pull request that touches the stack (the tests, and SAM's template lint) and holds no AWS access.
+# `deploy` runs only when the owner starts it by hand from main, in the `crash-endpoint` environment (a required
+# reviewer, and deployment branches limited to main), which is also the only identity the role trusts. Nothing here
+# prints the endpoint's URL: it is read from the stack's outputs, masked, used for the smoke test, and left in the
+# CloudFormation console for the owner to copy into the CRASH_REPORT_URL secret.
+on:
+  pull_request:
+    paths:
+      - "infra/crash-endpoint/**"
+      - ".github/workflows/deploy-crash-endpoint.yml"
+  workflow_dispatch:
+    inputs:
+      reserved_concurrency:
+        description: "Rate limit: requests that may run at once. 0 is the kill switch (everything answered 429); -1 reserves nothing."
+        required: false
+        default: "2"
+        type: string
+
+# Nothing by default: each job asks for what it needs.
+permissions: {}
+
+# One deploy at a time; a second waits rather than racing the first.
+concurrency:
+  group: deploy-crash-endpoint
+  cancel-in-progress: false
+
+env:
+  SAM_CLI_TELEMETRY: "0"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The SAM CLI from a hash-locked requirements file: every package is pinned and checked against its hash.
+      - name: Install the SAM CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/sam"
+          "$RUNNER_TEMP/sam/bin/pip" install --quiet --require-hashes --no-deps -r infra/crash-endpoint/requirements-sam.txt
+          echo "$RUNNER_TEMP/sam/bin" >> "$GITHUB_PATH"
+
+      - name: Test the function
+        run: python3 -m unittest discover -s infra/crash-endpoint/tests
+
+      # SAM's own check plus cfn-lint. Needs a region and no credentials.
+      - name: Lint the template
+        run: sam validate --lint --template-file infra/crash-endpoint/template.yaml --region us-east-1
+
+      - name: Check the IAM policy documents are JSON
+        run: |
+          for f in infra/crash-endpoint/iam/*.json; do
+            python3 -m json.tool "$f" > /dev/null
+          done
+
+  deploy:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: crash-endpoint
+    permissions:
+      # The OIDC token, which only this job can ask for; and the checkout.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The SAM CLI from a hash-locked requirements file: every package is pinned and checked against its hash.
+      - name: Install the SAM CLI
+        run: |
+          python3 -m venv "$RUNNER_TEMP/sam"
+          "$RUNNER_TEMP/sam/bin/pip" install --quiet --require-hashes --no-deps -r infra/crash-endpoint/requirements-sam.txt
+          echo "$RUNNER_TEMP/sam/bin" >> "$GITHUB_PATH"
+
+      # The role is the owner's, set up once (docs/beta/crash-endpoint-runbook.md); its ARN is a repository variable, not a
+      # secret. The script masks the token, the credentials, the account id and the endpoint URL before it uses them.
+      - name: Deploy the stack and smoke test it
+        env:
+          ROLE_ARN: ${{ vars.CRASH_ENDPOINT_DEPLOY_ROLE_ARN }}
+          REGION: ${{ vars.CRASH_ENDPOINT_REGION || 'us-east-1' }}
+          # An input is untrusted text in a script: it goes through the environment, and the script checks it is a number.
+          RESERVED_CONCURRENCY: ${{ inputs.reserved_concurrency }}
+        run: bash infra/crash-endpoint/deploy.sh

@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  StationBreak crash-report endpoint (#1189). A Lambda function URL takes one redacted report from the app's opt-in
+  crash reporting and writes it to a private S3 bucket. Write-only, nothing returned, no secret in it.
+
+Parameters:
+  PermissionsBoundaryArn:
+    Type: String
+    Description: The permissions boundary the function's role carries (see docs/runbooks/crash-endpoint.md).
+    AllowedPattern: "^arn:aws:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+$"
+  ReportRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days a report is kept before S3 deletes it.
+  MaxReportBytes:
+    Type: Number
+    Default: 32768
+    MinValue: 1024
+    MaxValue: 262144
+    Description: The largest request body the function takes. A redacted report is a few KB.
+  ReservedConcurrency:
+    Type: Number
+    Default: 2
+    MinValue: -1
+    Description: >-
+      The rate limit: at most this many requests run at once, and Lambda answers the rest 429 (the app tries again at
+      its next start). 0 is the kill switch: nothing runs, and everything is answered 429. -1 reserves nothing, for an
+      account whose unreserved concurrency has no room to give.
+
+Conditions:
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, -1]]
+
+Resources:
+  # Reports are users' diagnostics: a stack delete or a replacement keeps the bucket and what is in it.
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub stationbreak-crash-reports-${AWS::AccountId}-${AWS::Region}
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-reports
+            Status: Enabled
+            Prefix: reports/
+            ExpirationInDays: !Ref ReportRetentionDays
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ReportBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReportBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyPlainHttp
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ReportBucket.Arn
+              - !Sub "${ReportBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/stationbreak-crash-endpoint
+      RetentionInDays: 30
+
+  # The only thing the function may do: write a report under reports/, and log. Bounded by the boundary the deploy role
+  # makes it carry, so a change here cannot reach further than that.
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stationbreak-crash-endpoint-fn
+      PermissionsBoundary: !Ref PermissionsBoundaryArn
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-reports-and-log
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "${ReportBucket.Arn}/reports/*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${FunctionLogGroup.Arn}:*"
+
+  CrashEndpointFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: FunctionLogGroup
+    Properties:
+      FunctionName: stationbreak-crash-endpoint
+      Description: Takes one redacted crash report and writes it to the private bucket (#1189).
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: app.handler
+      CodeUri: src/
+      MemorySize: 128
+      Timeout: 5
+      Role: !GetAtt FunctionRole.Arn
+      ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          REPORT_BUCKET: !Ref ReportBucket
+          MAX_REPORT_BYTES: !Ref MaxReportBytes
+      # Open to anyone: the URL is in the APK. No CORS (no browser is meant to call it). SAM adds the two public
+      # invoke permissions a no-auth URL needs (lambda:InvokeFunctionUrl and lambda:InvokeFunction via the URL).
+      FunctionUrlConfig:
+        AuthType: NONE
+
+Outputs:
+  FunctionUrl:
+    Description: The endpoint. Goes in the CRASH_REPORT_URL Actions secret and nowhere else.
+    Value: !GetAtt CrashEndpointFunctionUrl.FunctionUrl
+  ReportBucketName:
+    Description: The private bucket the reports land in.
+    Value: !Ref ReportBucket
