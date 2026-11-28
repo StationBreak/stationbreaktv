@@ -126,8 +126,8 @@ Resources:
       Architectures: [arm64]
       Handler: app.handler
       CodeUri: src/
-      MemorySize: 128
-      Timeout: 5
+      MemorySize: 256
+      Timeout: 15
       Role: !GetAtt FunctionRole.Arn
       ReservedConcurrentExecutions: !If [HasReservedConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
       Environment:
