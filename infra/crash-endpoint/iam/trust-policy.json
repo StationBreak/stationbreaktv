@@ -11,7 +11,7 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:StationBreak/stationbreaktv:environment:crash-endpoint"
+          "token.actions.githubusercontent.com:sub": "repo:StationBreak@<ORG_ID>/stationbreaktv@<REPO_ID>:environment:crash-endpoint"
         }
       }
     }

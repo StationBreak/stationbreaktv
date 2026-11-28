@@ -36,15 +36,17 @@ ALLOWED_FIELDS = frozenset(
 # Every field but the stack trace is a short build or device value.
 SHORT_FIELD_LIMIT = 256
 
-_client = None
+try:
+    import boto3
+except ImportError:  # The unit tests run without the AWS library and pass their own client.
+    boto3 = None
+
+# Made while the function initialises, not inside the first request: the import and the client are the slow part of a
+# cold start (a 5 s timeout was hit on 128 MB), and init has its own, longer allowance.
+_client = boto3.client("s3") if boto3 else None
 
 
 def _s3():
-    global _client
-    if _client is None:
-        import boto3  # Imported here so the tests need no AWS library.
-
-        _client = boto3.client("s3")
     return _client
 
 

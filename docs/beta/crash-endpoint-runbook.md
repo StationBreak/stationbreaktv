@@ -8,8 +8,10 @@ endpoint takes writes from anyone, gives nothing back, caps the size, and limits
 ## One-time setup (the owner)
 
 Nothing here is done by an agent. Use one AWS region throughout. The policies in `infra/crash-endpoint/iam/` name
-`<REGION>` (use `us-east-1`, or the region you pick and then set as the `CRASH_ENDPOINT_REGION` repository variable) and
-`<ACCOUNT_ID>`: replace both before you create anything from them.
+`<REGION>` and `<ACCOUNT_ID>`, and the trust policy also names `<ORG_ID>` and `<REPO_ID>` (step 3): replace them all
+before you create anything from them. **The region in the policies must be the region the workflow deploys to**, which is
+the `CRASH_ENDPOINT_REGION` repository variable, or `us-east-1` when that variable is not set (step 5). If they differ, the
+role's permissions name resources in a region the deploy never touches, and it fails with AccessDenied.
 
 1. **GitHub OIDC identity provider.** IAM, Identity providers, Add provider: type OpenID Connect, provider URL
    `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`. (Skip if the account has it already.)
@@ -19,10 +21,17 @@ Nothing here is done by an agent. Use one AWS region throughout. The policies in
 3. **Deploy role.** IAM, Roles, Create role, custom trust policy from `iam/trust-policy.json` (it trusts only this repository's
    `crash-endpoint` environment), then attach `iam/deploy-role-policy.json` as an inline policy. Name it, for example,
    `stationbreak-crash-endpoint-deploy`.
+
+   AWS now wants the `sub` in GitHub's immutable-ID form, `repo:<OWNER>@<ORG_ID>/<REPO>@<REPO_ID>:environment:crash-endpoint`,
+   not the name-only form (`repo:StationBreak/stationbreaktv:...`), which it rejects. `<ORG_ID>` and `<REPO_ID>` are the
+   numeric ids of the organisation and the repository: `gh api repos/StationBreak/stationbreaktv --jq '.owner.id, .id'`
+   prints them, owner first. If AWS still refuses the role (the workflow fails at `AssumeRoleWithWebIdentity`), open the
+   failed `AssumeRoleWithWebIdentity` event in CloudTrail and copy the exact `sub` from it into the trust policy.
 4. **GitHub environment.** Settings, Environments, New environment `crash-endpoint`: required reviewer yourself,
    deployment branches limited to `main`.
 5. **Repository variable.** Settings, Secrets and variables, Actions, Variables: `CRASH_ENDPOINT_DEPLOY_ROLE_ARN` is the
-   role's ARN (a variable, not a secret). Add `CRASH_ENDPOINT_REGION` only if the region is not `us-east-1`.
+   role's ARN (a variable, not a secret). Add `CRASH_ENDPOINT_REGION` unless the region is `us-east-1`, and make it the same
+   region the policies name (see the top of this section).
 6. **Run the workflow.** Actions, Deploy crash endpoint, Run workflow, from `main`; approve the environment. It deploys the
    stack, then smoke tests it: a sample report must land in the bucket, a GET must be refused (405) and an oversize
    body must be refused (413). The smoke test leaves one object in the bucket (`APP_VERSION_NAME` `smoke-test`); the
@@ -65,6 +74,9 @@ the bucket is retained.
   limit, so keep the budget alert).
 - **Rotate the URL.** Delete the stack's function (or the whole stack: the bucket stays), run the workflow, copy the new URL
   into `CRASH_REPORT_URL`, and tag a release. Builds with the old URL then get an error and drop their reports.
+- **The smoke test answers 502.** The function timed out (Lambda answers a timeout as 502): check its CloudWatch log for
+  `Status: timeout`. It has 15 s and 256 MB, and builds its S3 client while it initialises, so a cold start should take a
+  fraction of that; if it still times out, look at the log's `Init Duration` and `Max Memory Used`.
 - **A deploy fails with AccessDenied.** The policies were written against AWS's documentation and checked by lint, not by a
   deploy, so the first run may find an action missing. The error names it (or CloudTrail does, as an `AccessDenied` event for
   the deploy role). Add that one action to `iam/deploy-role-policy.json` in a pull request, update the role, and run again.

@@ -1,4 +1,0 @@
-# sam deploy --guided answers, which can name the account and region: kept local.
-samconfig.toml
-.aws-sam/
-__pycache__/

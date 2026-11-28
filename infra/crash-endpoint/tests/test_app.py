@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import sys
 import unittest
 import uuid
@@ -143,6 +144,19 @@ class HandlerTest(unittest.TestCase):
     def test_the_answer_has_no_body(self):
         out = app.handler(event(json.dumps(SAMPLE)), None, s3=FakeS3(), now=NOW)
         self.assertEqual({"statusCode": 204}, out)
+
+
+class InSyncWithTheAppTest(unittest.TestCase):
+    def test_the_allowed_fields_are_the_apps_crash_report_fields(self):
+        root = os.path.join(os.path.dirname(__file__), "..", "..", "..")
+        path = os.path.join(root, "app/src/main/kotlin/tv/stationbreak/app/crash/CrashReportBody.kt")
+        with open(path, encoding="utf-8") as handle:
+            kotlin = handle.read()
+        block = re.search(r"val FIELDS: List<ReportField> =\s*listOf\((.*?)\)", kotlin, re.S).group(1)
+        self.assertEqual(set(re.findall(r"ReportField\.([A-Z_]+)", block)), set(app.ALLOWED_FIELDS))
+
+    def test_the_sample_holds_only_the_fields(self):
+        self.assertEqual(set(SAMPLE), set(app.ALLOWED_FIELDS))
 
 
 if __name__ == "__main__":
