@@ -685,6 +685,7 @@ abstract class ContractSuite {
             suspend fun edit(
                 label: String,
                 id: String,
+                awaitChange: Boolean = false,
                 action: () -> Unit,
             ): Set<String> {
                 delay(SETTLE_MS)
@@ -692,6 +693,14 @@ abstract class ContractSuite {
                 delay(SETTLE_MS)
                 action()
                 delay(SETTLE_MS * EDIT_SETTLE)
+                if (awaitChange) {
+                    // A refresh runs as a server job, so the save can land after the request returns (#954).
+                    // Poll for it, bounded; a change that never appears still fails the assertion below.
+                    val started = System.nanoTime()
+                    while (id !in changedSince(mark) && System.nanoTime() - started < REFRESH_BOUND_NS) {
+                        delay(DELETION_POLL_MS)
+                    }
+                }
                 val changed = changedSince(mark)
                 finding("$label: item returned=${id in changed}, others returned=${(changed - id).size}")
                 return changed
@@ -716,7 +725,7 @@ abstract class ContractSuite {
             finding("rename: the item stops matching after $low (the moment it was saved, to the millisecond)")
 
             val refresh =
-                edit("metadata refresh", refreshed) {
+                edit("metadata refresh", refreshed, awaitChange = true) {
                     val query =
                         listOf(
                             "metadataRefreshMode" to "FullRefresh",
@@ -1473,6 +1482,9 @@ abstract class ContractSuite {
         // How long a deleted library may keep answering as existing: 60 s, then one triggered refresh and 60 s more.
         const val DELETION_BOUND_NS = 120_000_000_000L
         const val DELETION_POLL_MS = 500L
+
+        // How long a metadata refresh may take to register as a change after its request returns.
+        const val REFRESH_BOUND_NS = 30_000_000_000L
         const val CHURN_WAIT_SECONDS = 120
         const val CHURN_POLL_MS = 2_000L
         const val SUPPORTED_MAJOR = 12
