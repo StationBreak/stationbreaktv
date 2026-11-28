@@ -121,27 +121,7 @@ object KidStatus {
      */
     fun isKidChannel(channel: LineupChannel): Boolean {
         val inKidsBand = channel.number?.let { it in Band.Kids.numbers } == true
-        val key =
-            when (val source = channel.source) {
-                is ChannelSource.Starter -> {
-                    source.recipeKey
-                }
-
-                is ChannelSource.Leftovers -> {
-                    source.recipeKey
-                }
-
-                is ChannelSource.Custom -> {
-                    channel.id.value
-                        .takeIf { it.startsWith("starter:") || it.startsWith("leftovers:") }
-                        ?.substringAfter(':')
-                }
-
-                else -> {
-                    null
-                }
-            }
-        return inKidsBand || key?.let(::isKidKey) == true
+        return inKidsBand || channel.recipeKey()?.let(::isKidKey) == true
     }
 }
 
@@ -150,3 +130,15 @@ internal fun isAfterHoursStarter(channel: LineupChannel): Boolean {
     val source = channel.source as? ChannelSource.Starter
     return source?.recipeKey == AdultMark.AFTER_HOURS_KEY
 }
+
+/**
+ * The recipe key of a built-in channel: from its source, or, for a retired recipe's channel (Custom with a `starter:`
+ * or `leftovers:` ID), from the ID. Null for a viewer's own channel.
+ */
+fun LineupChannel.recipeKey(): String? =
+    when (val source = source) {
+        is ChannelSource.Starter -> source.recipeKey
+        is ChannelSource.Leftovers -> source.recipeKey
+        is ChannelSource.Custom -> LineupIds.recipeKeyOf(id)
+        else -> null
+    }

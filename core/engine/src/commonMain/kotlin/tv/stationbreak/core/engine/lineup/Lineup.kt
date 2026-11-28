@@ -269,11 +269,18 @@ private fun onAreNumbered(channels: List<LineupChannel>): Boolean {
 
 /** The permanent IDs of catalog channels. A starter keeps its ID when it becomes a custom channel. */
 object LineupIds {
+    private const val STARTER_PREFIX = "starter:"
+    private const val LEFTOVERS_PREFIX = "leftovers:"
+
     /** `starter:<key>`. */
-    fun starter(recipeKey: String): ChannelId = ChannelId("starter:$recipeKey")
+    fun starter(recipeKey: String): ChannelId = ChannelId(STARTER_PREFIX + recipeKey)
 
     /** `leftovers:<key>`. */
-    fun leftovers(recipeKey: String): ChannelId = ChannelId("leftovers:$recipeKey")
+    fun leftovers(recipeKey: String): ChannelId = ChannelId(LEFTOVERS_PREFIX + recipeKey)
+
+    /** The key in a `starter:<key>` or `leftovers:<key>` ID, else null (a viewer's own channel or an unknown ID). */
+    fun recipeKeyOf(id: ChannelId): String? =
+        id.value.takeIf { it.startsWith(STARTER_PREFIX) || it.startsWith(LEFTOVERS_PREFIX) }?.substringAfter(':')
 
     /** The prefix of a channel the viewer made: `custom:<id>`. */
     const val CUSTOM_PREFIX = "custom:"

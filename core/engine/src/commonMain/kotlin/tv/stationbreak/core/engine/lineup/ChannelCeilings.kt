@@ -46,7 +46,7 @@ object ChannelCeilings {
             }
 
             is ChannelSource.Custom -> {
-                channel.id.value.startsWith("starter:") || channel.id.value.startsWith("leftovers:")
+                LineupIds.recipeKeyOf(channel.id) != null
             }
 
             is ChannelSource.Unusable -> {
@@ -83,10 +83,10 @@ object ChannelCeilings {
         return if (recipe != null) recipe.maxRating else source.maxRating
     }
 
-    // A kid channel, or a Family channel that was kid-safe before catalog 8 (an ever-kid-safe key): held to PG always.
+    // A kid channel, or a Family channel that was kid-safe before catalog 8 (an ever-kid-safe key): held to PG always,
+    // also once its recipe is retired and the stored copy is Custom (the key is then read from its ID, #1052).
     private fun isPgCapped(channel: LineupChannel): Boolean =
-        isKidChannel(channel) ||
-            (channel.source as? ChannelSource.Starter)?.recipeKey in StarterCatalog.EVER_KID_SAFE_KEYS
+        isKidChannel(channel) || channel.recipeKey() in StarterCatalog.EVER_KID_SAFE_KEYS
 
     // The most a kids' channel may air (the Kids band's maximum), and the most a Teen-band channel may air.
     private const val KIDS_MAX_RATING = "PG"

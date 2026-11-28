@@ -87,6 +87,60 @@ class RetiredKidHoldTest {
         assertEquals(PoolPolicy.KidsOnly, KidStatus.basePolicyOf(kidOdds))
     }
 
+    // #1052: a Family-tier former kid key keeps its PG cap once its recipe is retired and the stored copy is Custom,
+    // wherever it is numbered and whatever ceiling it stored.
+    @Test
+    fun aRetiredFormerKidFamilyKeyKeepsItsPgCapWhateverItStored() {
+        val retiredKeys = StarterCatalog.KIDS_KEYS_NOW_FAMILY
+        assertTrue(retiredKeys.isNotEmpty())
+        for (key in retiredKeys) {
+            for (number in listOf(150, 640)) {
+                for (stored in listOf(null, "R", "TV-MA")) {
+                    val channel =
+                        LineupChannel(
+                            LineupIds.starter(key),
+                            number,
+                            null,
+                            null,
+                            ChannelState.On,
+                            ChannelSource.Custom(rules(listOf(Source.Genre("Animation")), maxRating = stored)),
+                            5L,
+                        )
+                    assertEquals("PG", ChannelCeilings.of(channel, StarterCatalog), "$key at $number storing $stored")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun aRetiredGrownUpKeyAndAViewersOwnChannelKeepTheirStoredCeiling() {
+        for (id in listOf(LineupIds.starter("alpha"), ChannelId("custom:x"))) {
+            val channel =
+                LineupChannel(
+                    id,
+                    150,
+                    null,
+                    null,
+                    ChannelState.On,
+                    ChannelSource.Custom(rules(listOf(Source.Genre("Drama")), maxRating = "R")),
+                    5L,
+                )
+            assertEquals("R", ChannelCeilings.of(channel, StarterCatalog), id.value)
+        }
+    }
+
+    @Test
+    fun recipeKeyReadsTheKeyFromTheSourceOrTheIdAndNothingForAViewersChannel() {
+        val rules = rules(listOf(Source.Genre("Animation")))
+
+        fun custom(id: ChannelId) = LineupChannel(id, 150, null, null, ChannelState.On, ChannelSource.Custom(rules), 5L)
+        assertEquals("lights-out", stored("lights-out", 44).recipeKey())
+        assertEquals("kids-odds-and-ends", stored("kids-odds-and-ends", 44, leftovers = true).recipeKey())
+        assertEquals("lights-out", custom(LineupIds.starter("lights-out")).recipeKey())
+        assertEquals("odds", custom(LineupIds.leftovers("odds")).recipeKey())
+        assertEquals(null, custom(ChannelId("custom:x")).recipeKey())
+    }
+
     @Test
     fun aCustomChannelWithANonKidKeyStaysCustom() {
         val rules = rules(listOf(Source.Genre("Animation")))

@@ -255,6 +255,57 @@ class LineupEditsTest {
         assertEquals(EditRefusal.KidsBandOnly, refusal(lineup, LineupEdit.SetNumber(western, 20)))
     }
 
+    // #1052: a migrated kid channel is Custom but keeps its kid key in its ID, so it is a kid channel at any number.
+    private fun migratedKid(number: Int) =
+        LineupChannel(
+            LineupIds.starter(kidKey),
+            number,
+            null,
+            null,
+            ChannelState.On,
+            ChannelSource.Custom(someRules),
+            5L,
+        )
+
+    @Test
+    fun aMigratedKidChannelMovesIntoTheKidsBandAndOutToTheGeneralBandStillKid() {
+        val id = LineupIds.starter(kidKey)
+        val out = lineupOf(migratedKid(150))
+        assertEquals(20, applied(out, LineupEdit.SetNumber(id, 20)).byId(id).number)
+        val inside = lineupOf(migratedKid(20))
+        val moved = applied(inside, LineupEdit.SetNumber(id, 150)).byId(id)
+        assertEquals(150, moved.number)
+        assertTrue(KidStatus.isKidChannel(moved))
+    }
+
+    @Test
+    fun aMigratedKidChannelSwapsNumbersWithAKidChannelAsMoverOrHolder() {
+        val id = LineupIds.starter(kidKey)
+        val other = migratedOther(20)
+        val lineup = lineupOf(migratedKid(150), other)
+        val asMover = applied(lineup, LineupEdit.SetNumber(id, 20, swapWith = other.id))
+        assertEquals(20, asMover.byId(id).number)
+        assertEquals(150, asMover.byId(other.id).number)
+        val asHolder = applied(lineup, LineupEdit.SetNumber(other.id, 150, swapWith = id))
+        assertEquals(20, asHolder.byId(id).number)
+        assertEquals(150, asHolder.byId(other.id).number)
+    }
+
+    // A second kid key, so a swap has two kid channels in play.
+    private fun migratedOther(number: Int): LineupChannel {
+        val key =
+            StarterCatalog.EVER_KID_SAFE_KEYS.first { it != kidKey && it !in StarterCatalog.KIDS_KEYS_NOW_FAMILY }
+        return LineupChannel(
+            LineupIds.starter(key),
+            number,
+            null,
+            null,
+            ChannelState.On,
+            ChannelSource.Custom(someRules),
+            5L,
+        )
+    }
+
     // #1078: the young bands promise their audience by number, so After Hours never moves below 100.
     @Test
     fun afterHoursCannotMoveBelow100ByANumberOrASwap() {
